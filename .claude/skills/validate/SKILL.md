@@ -1,43 +1,79 @@
 ---
 name: validate
-description: Run THIS project's full quality gate — tests, type-check, lint, and (for full-stack) the build — and report overall health with ✅/❌. Use before opening a PR; this is the gate that runs BEFORE the PR, not after.
+description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch, and the OpenMP serial-vs-parallel check when RHS/Jacobian code changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
+argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp]
 ---
 
 # Validate
 
-Run the project's validation suite and report results clearly. **Use the real commands for
-this project** — check `pyproject.toml` / `package.json` / `Makefile` / `README`, and the
-CI workflow, for the actual ones. Mirror what CI runs so "green locally" means "green in CI."
+Run the UEDGE gate and report results. Mirror CI (`.github/workflows/build-test-wheel.yml`) so "green
+locally" means "green in CI". Commands and background: `CLAUDE.md` → *Build & validation commands*,
+`.claude/context/testing.md`.
 
-## Typical backend (Python)
+Arguments: `$ARGUMENTS`. Suites default to `D_only` plus the suites matching the changed area (below). `all` runs
+every suite; `--omp` forces step 4.
 
-```bash
-uv run pytest -q          # tests   (or: pytest / poetry run pytest)
-uv run mypy <package>     # type check
-uv run ruff check <package>   # lint
-```
-
-## Typical frontend (TS/JS)
+## 1. Build (serial, as CI)
 
 ```bash
-npm run build             # production build
-npx tsc --noEmit          # type check   (or: npm run lint / npm test)
+pip install . -C "--build-option=--serial" 2>&1 | tee /tmp/uedge-build.log | tail -30
 ```
 
-## Optional live smoke
+- ❌ on any compile error. Report the first error with its `.F` line **mapped back to the `.m` source** (the `.F`
+  is generated; fix the `.m`).
+- List any **new** `-Wconversion` / implicit-typing warnings in files you touched.
 
-Start the app per the project's run command and hit its health endpoint.
+## 2. Smoke test
 
-## Summary report
+```bash
+python -c "import uedge; from uedge import bbb, com; print(bbb.uedge_ver)"
+```
 
-- Tests passed/failed
-- Type check
-- Lint
-- Build (if applicable)
-- Overall health: **PASS / FAIL**
+If new variables/routines were added in a `.v` file, also confirm they are visible:
+`python -c "from uedge import bbb; print(bbb.<newvar>)"`.
 
-## Notes
+## 3. Regression suites (pytests branch)
 
-- Any code path that emits a datetime / locale-sensitive / tenant-scoped value should have
-  a test for a non-default case — that's the kind of regression guard that catches the
-  bugs reviews miss.
+```bash
+git fetch upstream pytests
+[ -d ../uedge-pytests ] || git worktree add ../uedge-pytests upstream/pytests
+pip install -q pytest pytest-isolate
+cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/<suite> -s
+```
+
+Choose suites by what changed: impurities/`api` → `D+C`; molecules / gas → `D_mols`; slab or geometry →
+`slab_D_only`; anything in `bbb/pandf*`, `convert.m`, `odesetup.m`, `svr/` → all `unittests` + `fulltests`.
+
+Interpret failures with the **defaults rule** (`CLAUDE.md` → Hard rules):
+- **Refactor / restructuring:** any fnrm or variable mismatch is a ❌ — the refactor changed results.
+- **Intended physics change to defaults:** mismatches are expected only in the cases the plan/spec named.
+  Report them as ⚠️ "expected, documented", list every moved case, and flag any *unexpected* one as ❌.
+
+## 4. OpenMP check (when `bbb/pandf*`, `bbb/convert.m`, `ppp/`, or any `+threadprivate` var changed, or `--omp`)
+
+Requires a default (OpenMP) build: `pip install .` (re-run step 2 afterwards). Then, in a case directory
+(e.g. one of the pytests cases):
+
+```python
+from uedge import bbb, ppp
+exec(open("input.py").read())
+ppp.OMPParallelPandf1 = 1; ppp.OMPParallelJac = 1; ppp.Nthreads = 4
+ppp.CheckPandf1 = 1; ppp.CheckJac = 1
+bbb.exmain()
+```
+
+❌ if the serial/parallel comparison reports differences. Prefer a double-null or snowflake case when the change
+touches X-point or boundary code. Rebuild serial afterwards if you will run step 3 again.
+
+## Report
+
+```
+UEDGE validation — <branch> @ <short sha>
+  Build (serial) ........ ✅/❌  <first error or "n warnings in touched files">
+  Smoke import .......... ✅/❌  uedge_ver=<…>
+  Suites ................ ✅/⚠️/❌  <suite: passed/failed, moved cases>
+  OpenMP check .......... ✅/❌/skipped  <why skipped>
+Overall: ✅ READY / ❌ NOT READY
+```
+
+Quote failing output verbatim. Never loosen tolerances or skip a suite to get green.

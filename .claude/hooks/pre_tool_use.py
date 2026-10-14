@@ -14,12 +14,15 @@ Two guarantees ship here:
   1. The agent can never reach your secrets — not the env file, not the other
      credential files (ssh keys, .pem, .aws, .netrc, credentials.json), and not
      by dumping the process environment. Committed `.env.example` is allowed.
-  2. The agent can never run a destructive `rm -rf`.
+  2. A recursive-force delete (`rm -rf`) may only target paths inside this
+     repository (never the repo root itself or .git/). Anything outside the
+     repo, or any target that can't be resolved statically ($VARS, `cmd`,
+     xargs, find -exec), is blocked.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
 exits 0, so a bug in this script can never brick your session.
 
-MAKE IT YOURS: the two `is_*` functions below are the entire policy. Add your own
+MAKE IT YOURS: `is_secret_access` and `dangerous_rm_reason` below are the entire policy. Add your own
 (protected paths, prod config, lockfiles, migrations) by hand, or describe the
 guarantee you want in plain English and have your agent write it for you.
 
@@ -28,9 +31,13 @@ good as the checks below. This blocks the obvious routes, not every conceivable
 one. The hook is the enforcement point; you still own the coverage.
 """
 
+import glob
 import json
+import os
 import re
+import shlex
 import sys
+from pathlib import Path
 
 # Committed template files that are safe to read. Everything else that looks like
 # an env file is treated as real secrets. Change this one line if your repo uses a
@@ -56,7 +63,13 @@ BLOCKED_ENV_MESSAGE = (
     "BLOCKED: access to secrets is not allowed.\n"
     "Read a committed .env.example template instead."
 )
-BLOCKED_RM_MESSAGE = "BLOCKED: refusing to run a recursive-force delete (rm -rf)."
+BLOCKED_RM_MESSAGE = (
+    "BLOCKED: rm -rf is only allowed on paths inside this repository "
+    "(not the repo root or .git/). Reason: {reason}"
+)
+
+UNRESOLVABLE = re.compile(r"[$`]|<\(")
+RM_WORD = re.compile(r"(^|[\s;&|(/])rm\s")
 
 
 def _is_template(path: str) -> bool:
@@ -85,18 +98,103 @@ def is_secret_access(tool_name: str, tool_input: dict) -> bool:
     return False
 
 
-def is_dangerous_rm(tool_name: str, tool_input: dict) -> bool:
-    """True if a Bash command is a recursive-force delete (rm -rf and variants)."""
+def _project_root() -> Path:
+    root = os.environ.get("CLAUDE_PROJECT_DIR")
+    return Path(root).resolve() if root else Path(__file__).resolve().parents[2]
+
+
+def _rm_flags(args: list) -> tuple:
+    """Return (recursive, force, targets) for the arguments following `rm`."""
+    recursive = force = False
+    targets = []
+    end_of_flags = False
+    for arg in args:
+        if not end_of_flags and arg == "--":
+            end_of_flags = True
+        elif not end_of_flags and arg.startswith("--"):
+            recursive |= arg == "--recursive"
+            force |= arg == "--force"
+        elif not end_of_flags and arg.startswith("-") and len(arg) > 1:
+            recursive |= "r" in arg or "R" in arg
+            force |= "f" in arg
+        else:
+            targets.append(arg)
+    return recursive, force, targets
+
+
+def _outside_reason(target: str, cwd, root: Path):
+    """None if `target` is a safe in-repo path, otherwise a short reason."""
+    if UNRESOLVABLE.search(target):
+        return f"cannot resolve '{target}' statically"
+    path = os.path.expanduser(target)
+    if not os.path.isabs(path):
+        if cwd is None:
+            return f"unknown working directory for relative path '{target}'"
+        path = os.path.join(cwd, path)
+    candidates = glob.glob(path) if glob.has_magic(path) else []
+    for candidate in candidates or [path]:
+        resolved = Path(os.path.realpath(candidate))
+        if resolved == root:
+            return "target is the repository root"
+        if root not in resolved.parents:
+            return f"'{target}' resolves outside the repository ({resolved})"
+        if (root / ".git") == resolved or (root / ".git") in resolved.parents:
+            return f"'{target}' is inside .git/"
+    return None
+
+
+def _simple_commands(command: str) -> list:
+    """Split a command line into simple commands (lists of words), respecting quotes."""
+    lexer = shlex.shlex(command.replace("\n", ";"), posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    segments, words = [], []
+    for token in lexer:
+        if token and all(c in "();<>|&" for c in token):
+            if words:
+                segments.append(words)
+            words = []
+        else:
+            words.append(token)
+    if words:
+        segments.append(words)
+    return segments
+
+
+def dangerous_rm_reason(tool_name: str, tool_input: dict, cwd):
+    """Reason string if a Bash command runs rm -rf on anything outside the repo."""
     if tool_name != "Bash":
-        return False
-    command = " ".join(tool_input.get("command", "").lower().split())
-    # rm with both recursive and force flags, in any order / spelling.
-    return bool(
-        re.search(r"\brm\b.*-[a-z]*r[a-z]*f", command)
-        or re.search(r"\brm\b.*-[a-z]*f[a-z]*r", command)
-        or re.search(r"\brm\b.*--recursive.*--force", command)
-        or re.search(r"\brm\b.*--force.*--recursive", command)
-    )
+        return None
+    command = tool_input.get("command", "")
+    if not RM_WORD.search(command):
+        return None
+    root = _project_root()
+    try:
+        segments = _simple_commands(command)
+    except ValueError:
+        return "could not parse a command that contains rm"
+    for words in segments:
+        if words[0] == "cd":
+            target = words[1] if len(words) > 1 else "~"
+            if UNRESOLVABLE.search(target):
+                cwd = None
+            else:
+                base = cwd or str(root)
+                cwd = os.path.normpath(os.path.join(base, os.path.expanduser(target)))
+            continue
+        for i, word in enumerate(words):
+            if os.path.basename(word) != "rm":
+                continue
+            recursive, force, targets = _rm_flags(words[i + 1:])
+            if not (recursive and force):
+                break
+            if any(w in ("xargs", "-exec", "-execdir") for w in words[:i]):
+                return "rm -rf fed by xargs/find -exec cannot be checked"
+            for target in targets:
+                reason = _outside_reason(target, cwd, root)
+                if reason:
+                    return reason
+            break
+    return None
 
 
 def main() -> None:
@@ -110,8 +208,9 @@ def main() -> None:
             print(BLOCKED_ENV_MESSAGE, file=sys.stderr)
             sys.exit(2)
 
-        if is_dangerous_rm(tool_name, tool_input):
-            print(BLOCKED_RM_MESSAGE, file=sys.stderr)
+        reason = dangerous_rm_reason(tool_name, tool_input, data.get("cwd"))
+        if reason:
+            print(BLOCKED_RM_MESSAGE.format(reason=reason), file=sys.stderr)
             sys.exit(2)
 
         sys.exit(0)  # allow

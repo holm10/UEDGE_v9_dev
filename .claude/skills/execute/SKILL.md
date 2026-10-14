@@ -15,6 +15,9 @@ Read plan file: `$ARGUMENTS`
 ### 1. Read and Understand
 
 - Read the ENTIRE plan carefully
+- Read `CLAUDE.md` and every `.claude/context/` module the plan references
+- Note the plan's **type** (physics / refactor / numerics / bug fix / Python-build) and whether default results
+  are expected to change
 - Understand all tasks and their dependencies
 - Note the validation commands to run
 - Review the testing strategy
@@ -30,33 +33,34 @@ For EACH task in "Step by Step Tasks":
 #### b. Implement the task
 - Follow the detailed specifications exactly
 - Maintain consistency with existing code patterns
-- Include proper type hints and documentation
-- Add structured logging where appropriate
+- Edit `.m`/`.v`/`.F90`/`.py` sources only — never the generated `.F` files
+- New variables: units, default and `#` description in the `.v` file; `+threadprivate` if written inside `pandf`
+- Physics plans implement the approved spec exactly; do not alter equations or coefficients
 
 #### c. Verify as you go
-- After each file change, check syntax
-- Ensure imports are correct
-- Verify types are properly defined
+- After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix the `.m`
+  source for any error reported in the generated `.F`
+- Run the task's VALIDATE command before moving on
 
 ### 3. Implement Testing Strategy
 
 After completing implementation tasks:
 
-- Create all test files specified in the plan
-- Implement all test cases mentioned
-- Follow the testing approach outlined
-- Ensure tests cover edge cases
+- Run the case-level checks the plan lists (input decks, `bbb.exmain()` convergence, `checkbal()`)
+- Run the OpenMP serial-vs-parallel check if the plan calls for it
+- Add any test or example artefacts the plan specifies (the regression suite itself lives on the `pytests`
+  branch — do not invent a new test location)
 
 ### 4. Run Validation Commands
 
-Execute ALL validation commands from the plan in order:
+Run the `validate` skill with the suites the plan names, then any feature-specific commands from the plan:
 
 ```bash
 # Run each command exactly as specified in plan
 ```
 
 If any command fails:
-- Fix the issue
+- Fix the issue (never loosen tolerances or skip suites)
 - Re-run the command
 - Continue only when it passes
 
@@ -65,7 +69,7 @@ If any command fails:
 Before completing:
 
 - ✅ All tasks from plan completed
-- ✅ All tests created and passing
+- ✅ Validate gate green (refactor: suites unchanged; physics: only documented cases moved)
 - ✅ All validation commands pass
 - ✅ Code follows project conventions
 - ✅ Documentation added/updated as needed
@@ -79,10 +83,10 @@ Provide summary:
 - Files created (with paths)
 - Files modified (with paths)
 
-### Tests Added
-- Test files created
-- Test cases implemented
-- Test results
+### Checks Run
+- Case-level checks and results (convergence, balances)
+- OpenMP check result (if applicable)
+- Default-results status: unchanged / changed as documented (list moved cases)
 
 ### Validation Results
 ```bash

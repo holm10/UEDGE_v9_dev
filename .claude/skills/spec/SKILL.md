@@ -63,7 +63,7 @@ If a slice would produce a plan longer than ~700 lines, split it further.
 
 ### Step 3 — Slice for parallelizability
 
-Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel worktrees** (see `/new-worktrees`). Mark which tickets are independent and which form a dependency chain. Slicing along vertical-slice-architecture seams maximizes independence.
+Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel** (separate branches/worktrees, each with its own Python env since UEDGE installs compiled modules). Mark which tickets are independent and which form a dependency chain. Slicing along package and equation boundaries (`bbb/pandf_*` files, `.v` groups, `src/uedge/` modules) maximizes independence; tickets that both touch `bbb/bbb.v` or the `pandf` tree usually conflict.
 
 ### Step 4 — Write the ticket breakdown
 

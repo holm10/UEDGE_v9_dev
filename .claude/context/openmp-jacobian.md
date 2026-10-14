@@ -1,0 +1,46 @@
+# OpenMP RHS/Jacobian and local evaluation — the risky pattern
+
+Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point boundaries for RHS OMP",
+"Fixes RHS padding for arbitrary chunking", "Fixes core boundary X-pt cut padding").
+
+## Two evaluation modes of `pandf` (`bbb/pandf.m:513`)
+
+- **Full RHS:** `xc = yc = -1`.
+- **Local (Jacobian column):** `xc, yc ≥ 0` — `initialize_ranges` (`bbb/pandf.m:31-248`) shrinks loop bounds
+  `i1..i8`, `j1..j8` (module `Selec`) to a stencil box around the perturbed cell using `xlinc`, `xrinc`, `yinc`.
+  Every loop in the `pandf` tree must use these ranges, or the Jacobian is either wrong (too small) or slow (too big).
+- `jacobian_store_momentum` / `jacobian_store_volsources` save/restore state between columns (`bbb/pandf.m:556-559`).
+
+## OpenMP parallelism (`ppp/`)
+
+- Switches in `ppp/ppp.v`: `OMPParallelPandf1` (RHS, `:6`), `OMPParallelJac` (Jacobian, `:7`), `Nthreads` (`:14`).
+- RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:902`) splits the grid into bulk chunks plus special **X-point
+  chunks** (`Make2DChunks`, `:3`), runs `OMPPandf`/`OMPPandf_XPT` per chunk with `FIRSTPRIVATE(ylcopy,yldotcopy)`,
+  and sums only the `iv` indices each chunk owns (`REDUCTION(+:yldottot)`).
+- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`:495`, `:645`) — each thread builds columns with its own copy of
+  module state; `Selec` ranges are `copyin`'d (`:649`, `:715`).
+- Per-thread copies of module variables come from `+threadprivate` in `.v`. The `OmpCopy<pkg>` modules used by
+  `ppp` are generated at build time (Forthon `--omp`, `setup.py` `OMPargs`), not stored in the repo.
+
+## Rules for code in the `pandf` tree
+
+1. Any module variable **assigned** during RHS evaluation must be `+threadprivate`. Missing it = data race that
+   shows up only with `Nthreads > 1`.
+2. Use `ixm1/ixp1` and the `Selec` ranges; padding around chunk edges and X-point cuts depends on the stencil width.
+   A new term with a wider stencil (e.g. second neighbours) requires increasing the padding/`xlinc`/`yinc`.
+3. No `save`d locals or accumulation into module arrays across calls.
+4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:953-955`) — similar global
+   accumulators need the same treatment.
+
+## Verifying a change touches this correctly
+
+```python
+from uedge import bbb, ppp
+ppp.OMPParallelPandf1 = 1; ppp.OMPParallelJac = 1; ppp.Nthreads = 4
+ppp.CheckPandf1 = 1   # compares parallel vs serial RHS every call (ppp/ppp.v:15)
+ppp.CheckJac = 1      # compares parallel vs serial Jacobian (ppp/ppp.v:9)
+bbb.exmain()
+```
+
+Test with a double-null / snowflake case too: X-point chunks are where regressions hide.
+Serial build (`--serial`) is what CI tests — it will **not** catch OpenMP races.

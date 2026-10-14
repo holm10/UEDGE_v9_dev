@@ -6,20 +6,21 @@
 PostToolUse hook — the visibility pillar.
 
 Fires AFTER every tool call. It can't block (the tool already ran), so its job is
-to *observe*: append the full event to logs/post_tool_use.json. The result is a
-complete audit trail of exactly what the agent did — every command, every edit —
-that you can read back or pipe into a dashboard.
+to *observe*: append the full event as one JSON line to
+<project>/logs/post_tool_use.jsonl. The result is a complete local audit trail of
+exactly what the agent did — every command, every edit. `logs/` is gitignored.
+
+The log always lives at the project root (via $CLAUDE_PROJECT_DIR), no matter
+which directory the agent has `cd`-ed into, and each call appends a single line
+instead of rewriting the file.
 
 Pre = gate. Post = log.
 
 Fails OPEN: any error exits 0, so logging can never break your session.
-
-MAKE IT YOURS: this is the simplest useful PostToolUse hook. The common upgrades
-are auto-formatting a file the moment it's edited, or notifying you on a specific
-tool. Describe what you want to your agent and have it write the hook for you.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,20 +29,13 @@ def main() -> None:
     try:
         data = json.load(sys.stdin)
 
-        log_dir = Path.cwd() / "logs"
+        root = os.environ.get("CLAUDE_PROJECT_DIR")
+        root_path = Path(root) if root else Path(__file__).resolve().parents[2]
+        log_dir = root_path / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / "post_tool_use.json"
 
-        if log_path.exists():
-            try:
-                entries = json.loads(log_path.read_text())
-            except (json.JSONDecodeError, ValueError):
-                entries = []
-        else:
-            entries = []
-
-        entries.append(data)
-        log_path.write_text(json.dumps(entries, indent=2))
+        with open(log_dir / "post_tool_use.jsonl", "a") as f:
+            f.write(json.dumps(data) + "\n")
 
         sys.exit(0)
 

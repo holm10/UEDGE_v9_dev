@@ -1,30 +1,40 @@
 ---
 name: commit
-description: Creates a new git commit for all uncommitted changes with an atomic, conventionally-tagged message. Use when work is complete and ready to be committed.
+description: Creates a git commit for the current work with an explicit file list and a repo-style imperative message (optional CI tags). Use when work is complete and ready to be committed.
 ---
 
-# Commit: Create a New Commit
-
-Create a new commit for all of our uncommitted changes.
+# Commit
 
 ## Process
 
-1. Run `git status && git diff HEAD && git status --porcelain` to see what files are uncommitted.
-2. Add the untracked and changed files.
-3. Write an atomic commit message with an appropriate, descriptive summary.
-4. Add a tag such as `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, etc. that reflects our work.
+1. Inspect the work: `git status`, `git diff HEAD --stat`, `git diff HEAD`.
+2. Check the branch. Never commit to `main`, `develop`, `v9-main`, or `v9-develop` — stop and ask for a
+   `feature/v9-*` / `bugfix/v9-*` branch instead (`doc/workflow.md`).
+3. **Stage explicitly** by path: only files that belong to this change. Never `git add -A` / `git add .`.
+   Do not stage `logs/`, build output, generated `.F` files, scratch scripts, or large data files unless asked.
+   New `.f`/`.c` sources need `git add -f` (gitignored patterns).
+4. Write the message in the repo's style:
+   - Subject: imperative, capitalised, no tag prefix, ≤ 72 chars — "Fixes …", "Adds …", "Updates …",
+     "Simplifies …" (see `git log --oneline`).
+   - Body (if needed): what changed and why, wrapped at ~72 chars. For physics changes, state whether default
+     results change and which reference cases move.
+   - Optional CI tags on their own line after `#`: `#@notest`, `#@nowheel`, `#@nobasis`
+     (only when the user asks to skip those CI stages).
+   - End with the attribution line from the session instructions, if one is given.
+
+```
+Fixes X-point padding in OMP RHS chunks
+
+Core-boundary cells next to the X-point cut were skipped when
+Nchunks > Nthreads.
+```
+
+5. Commit with a heredoc, then show `git log -1 --stat`.
 
 ## Output
 
-A single commit containing all uncommitted changes, with a conventional-commit-style message
-(`<tag>: <atomic description>`) that accurately reflects the work done.
-
-After the commit succeeds, print two clearly labelled summaries:
-
 ### What Changed
-One short paragraph (3–6 sentences) describing the feature/fix/refactor that was committed — what problem it solves and what files were the key touch points. Write for a developer skimming the git log.
+3–6 sentences: the problem solved and the key files touched.
 
 ### AI Layer Changes
-Only include this section if any files under `.claude/` were modified or added (CLAUDE.md, `.claude/references/`, `.claude/skills/`, `.claude/agents/`, etc.).
-
-List each changed AI-layer file with a one-line note on what evolved and why. If nothing in `.claude/` changed, omit this section entirely.
+Only if files under `.claude/` or `CLAUDE.md` changed: one line per file on what evolved and why.

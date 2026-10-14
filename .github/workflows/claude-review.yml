@@ -46,12 +46,12 @@ jobs:
           prompt: |
             Run the /code-review skill on this pull request.
 
-            Review the full diff against the base branch. Check correctness,
-            security, error handling, test coverage, and CLAUDE.md compliance —
-            especially the CSV formula-injection rule (user-controlled fields
-            written to CSV cells must be escaped against =HYPERLINK and similar
-            formulas; see .claude/context/export-pattern.md) and the
-            "new endpoints use JWT, not the legacy session" rule.
+            Review the full diff against the base branch. Load CLAUDE.md and the
+            .claude/context/ modules matching the changed files, and apply the skill's
+            UEDGE checklist: threadprivate state and loop ranges in the pandf tree,
+            MPPL conversion hazards, .v declarations (units/defaults/docs), and the
+            refactor-vs-physics defaults rule (refactors must not change results;
+            physics changes to defaults must be documented in the PR).
 
             Post the review as a single PR comment. Be specific — cite file:line for
             every finding. Do not modify any files; this is a read-only review.

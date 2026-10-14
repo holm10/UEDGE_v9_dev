@@ -1,226 +1,83 @@
 ---
 name: implement-fix
-description: Implements a bug fix for a GitHub issue based on its RCA document, adds regression tests, and validates. Use after an RCA document exists and you are ready to fix the issue.
+description: Implements a UEDGE bug fix for a GitHub issue from its RCA document, verifies it on the reproducing case, and runs the validate gate. Use after an RCA document exists and you are ready to fix the issue.
 argument-hint: [github-issue-id]
-allowed-tools: Read, Write, Edit, Bash(ruff:*), Bash(mypy:*), Bash(pytest:*), Bash(npm:*), Bash(bun:*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*)
 ---
 
 # Implement Fix: GitHub Issue #$ARGUMENTS
 
 ## Prerequisites
 
-**This skill implements fixes for GitHub issues based on RCA documents:**
-- Working in a local Git repository with GitHub origin
-- RCA document exists at `docs/rca/issue-$ARGUMENTS.md`
-- GitHub CLI installed and authenticated (optional, for status updates)
+- RCA document at `docs/rca/issue-$ARGUMENTS.md` (create it with the `rca` skill first if missing).
+- On a `bugfix/v9-*` branch, not `v9-develop` (`doc/workflow.md`).
+- Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
+  issue is not on `origin`.
 
-## RCA Document to Reference
+## 1. Read and understand
 
-Read RCA: `docs/rca/issue-$ARGUMENTS.md`
+- Read the RCA in full: root cause, fix strategy, files, reproduction, validation.
+- Read `CLAUDE.md` and the `.claude/context/` modules for the files involved (`mppl-fortran.md` for `.m`,
+  `variables-forthon.md` for `.v`, `openmp-jacobian.md` for anything in the `pandf` tree or `ppp/`).
+- Decide whether the fix **changes default results**. A bug fix in physics/numerics often does: if so, the
+  moved cases are expected but must be listed and explained (`CLAUDE.md` → Hard rules). A fix in a refactor
+  path or Python/build code should leave results unchanged.
 
-**Optional - View GitHub issue for context:**
-```bash
-gh issue view $ARGUMENTS
+## 2. Reproduce first
+
+Follow the RCA reproduction on the current build and confirm the failure (error, wrong value, crash,
+serial/parallel mismatch). Record the observed output — you will compare against it.
+
+## 3. Implement
+
+- Edit the `.m`/`.v`/`.F90`/`.py` sources named in the RCA — never generated `.F` files.
+- Follow surrounding style (fixed-form MPPL, `#` comments, `xerrab`/`remark`, `ixm1`/`ixp1`, `Selec` ranges).
+- Keep the change minimal; note any related code that needs the same fix (other BC branches, the other
+  X-point, other species loops) and fix it consistently.
+- Comment non-obvious fixes briefly (what was wrong, not the history).
+
+## 4. Verify
+
+1. Rebuild: `pip install . -C "--build-option=--serial"`; fix errors at the `.m` source.
+2. Re-run the reproduction — the failure must be gone.
+3. If the fix touches the `pandf` tree, threadprivate variables, or `ppp/`: run the OpenMP serial-vs-parallel
+   check (`validate --omp`).
+4. Run the `validate` skill with the suites matching the area.
+
+Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
+
+## 5. Regression coverage
+
+The regression suite lives on the `pytests` branch and is being redesigned. Do not add tests to this repo.
+Instead, record in the report the exact case (input deck/script and settings) that reproduces the bug, so a
+regression case can be added there.
+
+## Output report
+
+```
+Fix: GitHub issue #$ARGUMENTS — <title>  (<issue URL>)
+Root cause: <one line from RCA>
+
+Changes:
+  <file>:<lines> — <what changed>
+
+Reproduction: before <observed>, after <observed>
+Default results: unchanged | changed — <cases moved, why this is correct>
+Validate: <validate report block>
+Regression case to add on pytests branch: <case + settings>
 ```
 
-## Implementation Instructions
+Suggested commit message (repo style, see `commit` skill):
 
-### 1. Read and Understand RCA
+```
+Fixes <short description> (#$ARGUMENTS)
 
-- Read the ENTIRE RCA document thoroughly
-- Review the GitHub issue details (issue #$ARGUMENTS)
-- Understand the root cause
-- Review the proposed fix strategy
-- Note all files to modify
-- Review testing requirements
-
-### 2. Verify Current State
-
-Before making changes:
-- Confirm the issue still exists
-- Check current state of affected files
-- Review any recent changes to those files
-
-### 3. Implement the Fix
-
-Following the "Proposed Fix" section of the RCA:
-
-**For each file to modify:**
-
-#### a. Read the existing file
-- Understand current implementation
-- Locate the specific code mentioned in RCA
-
-#### b. Make the fix
-- Implement the change as described in RCA
-- Follow the fix strategy exactly
-- Maintain code style and conventions
-- Add comments if the fix is non-obvious
-
-#### c. Handle related changes
-- Update any related code affected by the fix
-- Ensure consistency across the codebase
-- Update imports if needed
-
-### 4. Add/Update Tests
-
-Following the "Testing Requirements" from RCA:
-
-**Create test cases for:**
-1. Verify the fix resolves the issue
-2. Test edge cases related to the bug
-3. Ensure no regression in related functionality
-4. Test any new code paths introduced
-
-**Test file location:**
-- Follow project's test structure
-- Mirror the source file location
-- Use descriptive test names
-
-**Test implementation:**
-```python
-def test_issue_$ARGUMENTS_fix():
-    """Test that issue #$ARGUMENTS is fixed."""
-    # Arrange - set up the scenario that caused the bug
-    # Act - execute the code that previously failed
-    # Assert - verify it now works correctly
+<What was wrong and how it is fixed; whether default results change.>
 ```
 
-### 5. Run Validation
-
-Execute validation commands from RCA:
-
-```bash
-# Run linters
-[from RCA validation commands]
-
-# Run type checking
-[from RCA validation commands]
-
-# Run tests
-[from RCA validation commands]
-```
-
-**If validation fails:**
-- Fix the issues
-- Re-run validation
-- Don't proceed until all pass
-
-### 6. Verify Fix
-
-**Manually verify:**
-- Follow reproduction steps from RCA
-- Confirm issue no longer occurs
-- Test edge cases
-- Check for unintended side effects
-
-### 7. Update Documentation
-
-If needed:
-- Update code comments
-- Update API documentation
-- Update README if user-facing
-- Add notes about the fix
-
-## Output Report
-
-### Fix Implementation Summary
-
-**GitHub Issue #$ARGUMENTS**: [Brief title]
-
-**Issue URL**: [GitHub issue URL]
-
-**Root Cause** (from RCA):
-[One-line summary of root cause]
-
-### Changes Made
-
-**Files Modified:**
-1. **[file-path]**
-   - Change: [What was changed]
-   - Lines: [Line numbers]
-
-2. **[file-path]**
-   - Change: [What was changed]
-   - Lines: [Line numbers]
-
-### Tests Added
-
-**Test Files Created/Modified:**
-1. **[test-file-path]**
-   - Test cases: [List test functions added]
-
-**Test Coverage:**
-- ✅ Fix verification test
-- ✅ Edge case tests
-- ✅ Regression prevention tests
-
-### Validation Results
-
-```bash
-# Linter output
-[Show lint results]
-
-# Type check output
-[Show type check results]
-
-# Test output
-[Show test results - all passing]
-```
-
-### Verification
-
-**Manual Testing:**
-- ✅ Followed reproduction steps - issue resolved
-- ✅ Tested edge cases - all pass
-- ✅ No new issues introduced
-- ✅ Original functionality preserved
-
-### Files Summary
-
-**Total Changes:**
-- X files modified
-- Y files created (tests)
-- Z lines added
-- W lines removed
-
-### Ready for Commit
-
-All changes complete and validated. Ready for the `commit` skill.
-
-**Suggested commit message:**
-```
-fix(scope): resolve GitHub issue #$ARGUMENTS - [brief description]
-
-[Summary of what was fixed and how]
-
-Fixes #$ARGUMENTS
-```
-
-**Note:** Using `Fixes #$ARGUMENTS` in the commit message will automatically close the GitHub issue when merged to the default branch.
-
-### Optional: Update GitHub Issue
-
-**Add implementation comment to issue:**
-```bash
-gh issue comment $ARGUMENTS --body "Fix implemented in commit [commit-hash]. Ready for review."
-```
-
-**Update issue labels (if needed):**
-```bash
-gh issue edit $ARGUMENTS --add-label "fixed" --remove-label "bug"
-```
-
-**Close the issue (if not using auto-close via commit message):**
-```bash
-gh issue close $ARGUMENTS --comment "Fixed and merged."
-```
+Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
 
 ## Notes
 
-- If the RCA document is missing or incomplete, request it be created first with the `rca` skill for issue #$ARGUMENTS
-- If you discover the RCA analysis was incorrect, document findings and update the RCA
-- If additional issues are found during implementation, note them for separate GitHub issues and RCAs
-- Follow project coding standards exactly
-- Ensure all validation passes before declaring complete
-- The commit message `Fixes #$ARGUMENTS` will link the commit to the GitHub issue
+- If the RCA turns out to be wrong, update it with the new findings before changing more code.
+- Extra problems found along the way go into separate issues/RCAs, not this fix.

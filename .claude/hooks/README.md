@@ -11,8 +11,8 @@ A hook is the one the agent never chooses: it fires automatically on a lifecycle
 
 | File | Event | What it does | Can it block? |
 |---|---|---|---|
-| `pre_tool_use.py` | **PreToolUse** | Blocks reading/writing/searching a real env file (committed `.env.example` templates are allowed) and blocks `rm -rf`. Prints the reason to stderr and `exit(2)` → the tool is stopped and the agent is told why, so it adapts. | **Yes** — this is the guarantee |
-| `post_tool_use.py` | **PostToolUse** | Appends every tool call to `logs/post_tool_use.json` — a full audit trail of what the agent did. | No — the tool already ran; observe only |
+| `pre_tool_use.py` | **PreToolUse** | Blocks reading/writing/searching a real env file (committed `.env.example` templates are allowed), and blocks any `rm -rf` whose targets are outside this repository, are the repo root or `.git/`, or can't be resolved statically (`$VARS`, `xargs`, `find -exec`). Prints the reason to stderr and `exit(2)` → the tool is stopped and the agent is told why, so it adapts. | **Yes** — this is the guarantee |
+| `post_tool_use.py` | **PostToolUse** | Appends every tool call as one JSON line to `<repo>/logs/post_tool_use.jsonl` (gitignored), regardless of the agent's working directory — a full local audit trail of what the agent did. | No — the tool already ran; observe only |
 
 That split *is* the mental model: **pre = gate, post = log.** This is deliberately the whole hooks layer this
 pack ships — always-on safety, generic to any codebase. Anything more specific to *your* workflow (a checker
@@ -40,24 +40,18 @@ What `exit 2` blocks depends on the event:
 
 ## Turning them on
 
-Hooks are the one primitive that does something the moment it exists, so the pack ships the wiring as a
-**template** rather than a live file:
-
-```bash
-cp .claude/settings.json.example .claude/settings.json
-```
-
-`.claude/settings.json` is gitignored here in the pack so the hooks don't fire while you're reading the
-material. **In your own project, commit it** — that's how the whole team inherits the same guarantees. If you
-already have a `settings.json`, merge the `hooks` block in rather than overwriting it.
+In this repo the hooks are already live: `.claude/settings.json` is committed, so everyone working here with
+Claude Code inherits the same guarantees. `.claude/settings.json.example` holds just the `hooks` block, to merge
+into another project's settings. Both hooks run through `uv run`, so `uv` must be on PATH.
 
 ## Try it
 
 ```
 ask the agent to read your env file          -> blocked (exit 2, reason handed back)
 ask it to read a committed .env.example       -> allowed
-ask it to run `rm -rf ...`                    -> blocked
-any normal command                            -> allowed, and logged to logs/post_tool_use.json
+ask it to run `rm -rf build`                  -> allowed (inside the repo)
+ask it to run `rm -rf ../elsewhere` or `/tmp` -> blocked
+any normal command                            -> allowed, and logged to logs/post_tool_use.jsonl
 ```
 
 You can also test a hook directly, without the agent:

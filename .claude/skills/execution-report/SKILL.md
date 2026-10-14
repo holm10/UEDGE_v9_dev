@@ -29,10 +29,10 @@ Save to: `.claude/execution-reports/[feature-name].md`
 
 ### Validation Results
 
-- Syntax & Linting: ✓/✗ [details if failed]
-- Type Checking: ✓/✗ [details if failed]
-- Unit Tests: ✓/✗ [X passed, Y failed]
-- Integration Tests: ✓/✗ [X passed, Y failed]
+- Build (serial): ✓/✗ [first error / new warnings in touched files]
+- Smoke import: ✓/✗
+- Regression suites: ✓/⚠️/✗ [suites run; passed/failed; cases that moved and whether that was documented]
+- OpenMP check: ✓/✗/skipped [why skipped]
 
 ### What Went Well
 

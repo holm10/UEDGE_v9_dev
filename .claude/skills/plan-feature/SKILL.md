@@ -1,6 +1,6 @@
 ---
 name: plan-feature
-description: Creates a comprehensive, context-rich implementation plan through deep codebase analysis and external research. Use when you have a feature request and need a one-pass-ready plan before writing any code.
+description: Creates a context-rich, one-pass implementation plan for a UEDGE change (refactor, numerics, OpenMP, build, Python layer, or wiring of an approved physics spec) through codebase analysis and research. Use before writing code for any non-trivial change.
 argument-hint: [feature-description]
 ---
 
@@ -10,461 +10,121 @@ argument-hint: [feature-description]
 
 ## Mission
 
-Transform a feature request into a **comprehensive implementation plan** through systematic codebase analysis, external research, and strategic planning.
+Turn the request into an implementation plan that an execution agent can complete in one pass. **No code is
+written in this phase.** The plan must carry everything needed: files and routines, patterns with `file:line`,
+gotchas, and executable validation.
 
-**Core Principle**: We do NOT write code in this phase. Our goal is to create a context-rich implementation plan that enables one-pass implementation success for ai agents.
+## Phase 0: Route the request
 
-**Key Philosophy**: Context is King. The plan must contain ALL information needed for implementation - patterns, mandatory reading, documentation, validation commands - so the execution agent succeeds on the first attempt.
+Classify first — it decides the workflow and how the defaults rule applies (`CLAUDE.md` → Hard rules):
 
-## Planning Process
+| Type | Examples | Workflow |
+|---|---|---|
+| **New physics** | new transport term, atomic/molecular process, BC, source, closure, neutral/impurity model | **Stop.** Physics goes through `uedge-physics` → `uedge-reviewer` → `uedge-implementer` (`.claude/context/physics-workflow.md`). Only plan here if an **approved** spec exists in `docs/physics_specs/`; then the plan implements that spec and must not change its physics. |
+| **Refactor / restructure** | splitting routines, v9 reorganisation, renaming, moving code between files/packages | Plan here. Default results must be unchanged to round-off. |
+| **Numerics / parallel** | OpenMP chunking, Jacobian, preconditioner, solver options | Plan here. Defaults unchanged unless the change is an intended, documented numerics change. |
+| **Bug fix** | wrong results, crash, wrong BC indexing | Prefer `rca` → `implement-fix`; plan here if large. |
+| **Python / build / tooling** | `src/uedge/*.py`, `setup.py`, `Makefile.Forthon`, CI | Plan here. |
 
-### Phase 1: Feature Understanding
+If the type is unclear, ask the user before continuing.
 
-**Deep Feature Analysis:**
+## Phase 1: Understand the request
 
-- Extract the core problem being solved
-- Identify user value and business impact
-- Determine feature type: New Capability/Enhancement/Refactor/Bug Fix
-- Assess complexity: Low/Medium/High
-- Map affected systems and components
+- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High).
+- Affected packages and equations (`isnion`, `isupon`, `isteon`, `istion`, `isngon`, `istgon`, `isphion`).
+- Whether default results are expected to change, and if so which cases.
 
-**Create User Story Format Or Refine If Story Was Provided By The User:**
+## Phase 2: Codebase intelligence
 
-```
-As a <type of user>
-I want to <action/goal>
-So that <benefit/value>
-```
+1. Read `CLAUDE.md` and the matching `.claude/context/` modules (`architecture.md` always;
+   `mppl-fortran.md`, `variables-forthon.md`, `openmp-jacobian.md`, `python-layer.md`, `testing.md` as relevant).
+2. Locate the code: the `pandf` call chain (`bbb/pandf.m:513`), the equation file
+   (`bbb/pandf_<plasma|gas>_<eq>.m`), boundary code (`bbb/pandf_boundary.m`), setup/allocation (`bbb/odesetup.m`),
+   and the `.v` groups involved (`Use(Group)` sites).
+3. Find the closest existing pattern to mirror (a similar term, switch, or BC) and record it with `file:line`.
+4. Check RHS/Jacobian implications: loop ranges (`initialize_ranges`), stencil width, `+threadprivate` needs,
+   X-point/cut handling (`ixm1/ixp1`), OMP chunk padding.
+5. Check build implications: new `.m` files (both `Makefile.Forthon` lists + `Package`), new `.v` routines,
+   `.h` parameter mirrors, save/restore lists (`src/uedge/hdf5.py`).
+6. Recent history in the area: `git log --oneline -15 -- <paths>`.
+7. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
-### Phase 2: Codebase Intelligence Gathering
+## Phase 3: External research (when needed)
 
-**Use specialized agents and parallel analysis:**
+Numerical methods, Forthon/gfortran/OpenMP behaviour, or library docs — with section-anchored URLs. Physics
+literature belongs in the physics spec, not here.
 
-**1. Project Structure Analysis**
+## Phase 4: Think it through
 
-- Detect primary language(s), frameworks, and runtime versions
-- Map directory structure and architectural patterns
-- Identify service/component boundaries and integration points
-- Locate configuration files (pyproject.toml, package.json, etc.)
-- Find environment setup and build processes
+- Order of operations and dependencies between files.
+- What could break: guard cells, multi-species indexing, double-null/snowflake topologies, `nxpt=2`,
+  slab geometry, time-dependent vs steady-state (`dtreal`), MC-neutral paths (`ismcnon`).
+- Solver impact: differentiability, Jacobian sparsity, preconditioner.
+- Backward compatibility of inputs and save files.
 
-**2. Pattern Recognition** (Use specialized subagents when beneficial)
+## Phase 5: Write the plan
 
-- Search for similar implementations in codebase
-- Identify coding conventions:
-  - Naming patterns (CamelCase, snake_case, kebab-case)
-  - File organization and module structure
-  - Error handling approaches
-  - Logging patterns and standards
-- Extract common patterns for the feature's domain
-- Document anti-patterns to avoid
-- Check CLAUDE.md for project-specific rules and conventions
-
-**3. Dependency Analysis**
-
-- Catalog external libraries relevant to feature
-- Understand how libraries are integrated (check imports, configs)
-- Find relevant documentation in docs/, ai_docs/, .claude/references or ai-wiki if available
-- Note library versions and compatibility requirements
-
-**4. Testing Patterns**
-
-- Identify test framework and structure (pytest, jest, etc.)
-- Find similar test examples for reference
-- Understand test organization (unit vs integration)
-- Note coverage requirements and testing standards
-
-**5. Integration Points**
-
-- Identify existing files that need updates
-- Determine new files that need creation and their locations
-- Map router/API registration patterns
-- Understand database/model patterns if applicable
-- Identify authentication/authorization patterns if relevant
-
-**Clarify Ambiguities:**
-
-- If requirements are unclear at this point, ask the user to clarify before you continue
-- Get specific implementation preferences (libraries, approaches, patterns)
-- Resolve architectural decisions before proceeding
-
-### Phase 3: External Research & Documentation
-
-**Use specialized subagents when beneficial for external research:**
-
-**Documentation Gathering:**
-
-- Research latest library versions and best practices
-- Find official documentation with specific section anchors
-- Locate implementation examples and tutorials
-- Identify common gotchas and known issues
-- Check for breaking changes and migration guides
-
-**Technology Trends:**
-
-- Research current best practices for the technology stack
-- Find relevant blog posts, guides, or case studies
-- Identify performance optimization patterns
-- Document security considerations
-
-**Compile Research References:**
+Save to `.claude/plans/<kebab-case-name>.md` (create the directory if needed), using this template:
 
 ```markdown
-## Relevant Documentation
+# Feature: <name>
 
-- [Library Official Docs](https://example.com/docs#section)
-  - Specific feature implementation guide
-  - Why: Needed for X functionality
-- [Framework Guide](https://example.com/guide#integration)
-  - Integration patterns section
-  - Why: Shows how to connect components
+Validate the patterns and file references below before implementing.
+
+## Summary
+**Type**: Physics (spec: docs/physics_specs/<x>.md) | Refactor | Numerics/Parallel | Bug fix | Python/Build
+**Complexity**: Low/Medium/High
+**Default results**: Unchanged | Changed — <which defaults, why, which reference cases move>
+**Packages / files**: <list>
+
+## Problem and solution
+<What is wrong or missing; how this change addresses it.>
+
+## Context references — read before implementing
+- `bbb/<file>.m:<lines>` — why
+- `bbb/bbb.v:<lines>` (group `<Group>`) — why
+- `.claude/context/<module>.md` — which section applies
+
+## Patterns to mirror
+<Actual snippets from the code with file:line: the analogous term/switch, its .v declaration, the loop/range
+idiom, error handling via xerrab/remark.>
+
+## Step-by-step tasks
+Execute top to bottom; each task is atomic.
+
+### {CREATE|UPDATE|ADD|REMOVE|REFACTOR|MIRROR} <file>
+- **IMPLEMENT**: <specific change>
+- **PATTERN**: <file:line>
+- **GOTCHA**: <threadprivate / ranges / MPPL hazard / units in J / registration>
+- **VALIDATE**: `<command>` (e.g. build, a python one-liner checking a new variable)
+
+## Testing strategy
+- Regression suites to run and expected outcome (unchanged / named cases move).
+- Case-level checks: a specific input deck, `bbb.exmain()` convergence, `checkbal()` balances.
+- OpenMP check (`ppp.CheckPandf1` / `CheckJac`) if the `pandf` tree or threadprivate vars change.
+- Edge cases: <topologies, species counts, switches>.
+
+## Validation commands
+Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any feature-specific commands.
+
+## Acceptance criteria
+- [ ] Builds without new warnings in touched files
+- [ ] Refactor: all suites unchanged · Physics: only the documented cases move
+- [ ] New variables visible from Python with units/docs
+- [ ] OpenMP serial-vs-parallel identical (if applicable)
+- [ ] <feature-specific criteria>
+
+## Notes
+<Design decisions, trade-offs, open questions.>
 ```
 
-### Phase 4: Deep Strategic Thinking
-
-**Think Harder About:**
-
-- How does this feature fit into the existing architecture?
-- What are the critical dependencies and order of operations?
-- What could go wrong? (Edge cases, race conditions, errors)
-- How will this be tested comprehensively?
-- What performance implications exist?
-- Are there security considerations?
-- How maintainable is this approach?
-
-**Design Decisions:**
-
-- Choose between alternative approaches with clear rationale
-- Design for extensibility and future modifications
-- Plan for backward compatibility if needed
-- Consider scalability implications
-
-### Phase 5: Plan Structure Generation
-
-**Create comprehensive plan with the following structure:**
-
-Whats below here is a template for you to fill for the implementation agent:
-
-```markdown
-# Feature: <feature-name>
-
-The following plan should be complete, but its important that you validate documentation and codebase patterns and task sanity before you start implementing.
-
-Pay special attention to naming of existing utils types and models. Import from the right files etc.
-
-## Feature Description
-
-<Detailed description of the feature, its purpose, and value to users>
-
-## User Story
-
-As a <type of user>
-I want to <action/goal>
-So that <benefit/value>
-
-## Problem Statement
-
-<Clearly define the specific problem or opportunity this feature addresses>
-
-## Solution Statement
-
-<Describe the proposed solution approach and how it solves the problem>
-
-## Feature Metadata
-
-**Feature Type**: [New Capability/Enhancement/Refactor/Bug Fix]
-**Estimated Complexity**: [Low/Medium/High]
-**Primary Systems Affected**: [List of main components/services]
-**Dependencies**: [External libraries or services required]
-
----
-
-## CONTEXT REFERENCES
-
-### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
-
-<List files with line numbers and relevance>
-
-- `path/to/file.py` (lines 15-45) - Why: Contains pattern for X that we'll mirror
-- `path/to/model.py` (lines 100-120) - Why: Database model structure to follow
-- `path/to/test.py` - Why: Test pattern example
-
-### New Files to Create
-
-- `path/to/new_service.py` - Service implementation for X functionality
-- `path/to/new_model.py` - Data model for Y resource
-- `tests/path/to/test_new_service.py` - Unit tests for new service
-
-### Relevant Documentation YOU SHOULD READ THESE BEFORE IMPLEMENTING!
-
-- [Documentation Link 1](https://example.com/doc1#section)
-  - Specific section: Authentication setup
-  - Why: Required for implementing secure endpoints
-- [Documentation Link 2](https://example.com/doc2#integration)
-  - Specific section: Database integration
-  - Why: Shows proper async database patterns
-
-### Patterns to Follow
-
-<Specific patterns extracted from codebase - include actual code examples from the project>
-
-**Naming Conventions:** (for example)
-
-**Error Handling:** (for example)
-
-**Logging Pattern:** (for example)
-
-**Other Relevant Patterns:** (for example)
-
----
-
-## IMPLEMENTATION PLAN
-
-### Phase 1: Foundation
-
-<Describe foundational work needed before main implementation>
-
-**Tasks:**
-
-- Set up base structures (schemas, types, interfaces)
-- Configure necessary dependencies
-- Create foundational utilities or helpers
-
-### Phase 2: Core Implementation
-
-<Describe the main implementation work>
-
-**Tasks:**
-
-- Implement core business logic
-- Create service layer components
-- Add API endpoints or interfaces
-- Implement data models
-
-### Phase 3: Integration
-
-<Describe how feature integrates with existing functionality>
-
-**Tasks:**
-
-- Connect to existing routers/handlers
-- Register new components
-- Update configuration files
-- Add middleware or interceptors if needed
-
-### Phase 4: Testing & Validation
-
-<Describe testing approach>
-
-**Tasks:**
-
-- Implement unit tests for each component
-- Create integration tests for feature workflow
-- Add edge case tests
-- Validate against acceptance criteria
-
----
-
-## STEP-BY-STEP TASKS
-
-IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and independently testable.
-
-### Task Format Guidelines
-
-Use information-dense keywords for clarity:
-
-- **CREATE**: New files or components
-- **UPDATE**: Modify existing files
-- **ADD**: Insert new functionality into existing code
-- **REMOVE**: Delete deprecated code
-- **REFACTOR**: Restructure without changing behavior
-- **MIRROR**: Copy pattern from elsewhere in codebase
-
-### {ACTION} {target_file}
-
-- **IMPLEMENT**: {Specific implementation detail}
-- **PATTERN**: {Reference to existing pattern - file:line}
-- **IMPORTS**: {Required imports and dependencies}
-- **GOTCHA**: {Known issues or constraints to avoid}
-- **VALIDATE**: `{executable validation command}`
-
-<Continue with all tasks in dependency order...>
-
----
-
-## TESTING STRATEGY
-
-<Define testing approach based on project's test framework and patterns discovered during research>
-
-### Unit Tests
-
-<Scope and requirements based on project standards>
-
-Design unit tests with fixtures and assertions following existing testing approaches
-
-### Integration Tests
-
-<Scope and requirements based on project standards>
-
-### Edge Cases
-
-<List specific edge cases that must be tested for this feature>
-
-### E2E / Browser Automation
-
-<Identify the user-facing flows that must be validated in a real browser using the `agent-browser` skill>
-
-- Happy path: <describe the primary success flow and the URL/element assertions that confirm it>
-- Error paths: <list key error scenarios and the UI signals that confirm correct error handling>
-- Screenshots required: list the moments where a screenshot must be saved as evidence
-
----
-
-## VALIDATION COMMANDS
-
-<Define validation commands based on project's tools discovered in Phase 2>
-
-Execute every command to ensure zero regressions and 100% feature correctness.
-
-### Level 1: Syntax & Style
-
-<Project-specific linting and formatting commands>
-
-### Level 2: Unit Tests
-
-<Project-specific unit test commands>
-
-### Level 3: Integration Tests
-
-<Project-specific integration test commands>
-
-### Level 4: Manual Validation
-
-<Feature-specific manual testing steps - API calls, UI testing, etc.>
-
-### Level 5: E2E / Browser Automation
-
-Run the `agent-browser` skill to validate the feature end-to-end in a real browser.
-
-```bash
-# Start dev server (use project's start command from CLAUDE.md)
-<project-start-command>
-
-# Drive the browser
-agent-browser open http://localhost:<port>/<feature-route>
-agent-browser snapshot -i
-# Exercise happy path: fill inputs, click buttons, assert success state
-agent-browser screenshot screenshots/<ticket-id>-happy-path.png
-
-# Exercise key error/edge paths
-# e.g. submit empty form, unauthorized access, invalid input
-agent-browser screenshot screenshots/<ticket-id>-error-state.png
-
-# Assert no console errors
-agent-browser errors
-agent-browser close
-```
-
-Save all screenshots to `screenshots/` and include the paths in the completion checklist.
-See `.claude/skills/agent-browser/SKILL.md` for the full command reference and E2E Testing Protocol.
-
-### Level 6: Additional Validation (Optional)
-
-<MCP servers or additional CLI tools if available>
-
----
-
-## ACCEPTANCE CRITERIA
-
-<List specific, measurable criteria that must be met for completion>
-
-- [ ] Feature implements all specified functionality
-- [ ] All validation commands pass with zero errors
-- [ ] Unit test coverage meets requirements (80%+)
-- [ ] Integration tests verify end-to-end workflows
-- [ ] Code follows project conventions and patterns
-- [ ] No regressions in existing functionality
-- [ ] Documentation is updated (if applicable)
-- [ ] Performance meets requirements (if applicable)
-- [ ] Security considerations addressed (if applicable)
-
----
-
-## COMPLETION CHECKLIST
-
-- [ ] All tasks completed in order
-- [ ] Each task validation passed immediately
-- [ ] All validation commands executed successfully
-- [ ] Full test suite passes (unit + integration)
-- [ ] No linting or type checking errors
-- [ ] Level 5 agent-browser E2E validation passed (screenshots saved to `screenshots/`)
-- [ ] Manual testing confirms feature works (Level 4)
-- [ ] Acceptance criteria all met
-- [ ] Code reviewed for quality and maintainability
-
----
-
-## NOTES
-
-<Additional context, design decisions, trade-offs>
-```
-
-## Output Format
-
-**Filename**: `.claude/plans/{kebab-case-descriptive-name}.md`
-
-- Replace `{kebab-case-descriptive-name}` with short, descriptive feature name
-- Examples: `add-user-authentication.md`, `implement-search-api.md`, `refactor-database-layer.md`
-
-**Directory**: Create `.claude/plans/` if it doesn't exist
-
-## Quality Criteria
-
-### Context Completeness ✓
-
-- [ ] All necessary patterns identified and documented
-- [ ] External library usage documented with links
-- [ ] Integration points clearly mapped
-- [ ] Gotchas and anti-patterns captured
-- [ ] Every task has executable validation command
-
-### Implementation Ready ✓
-
-- [ ] Another developer could execute without additional context
-- [ ] Tasks ordered by dependency (can execute top-to-bottom)
-- [ ] Each task is atomic and independently testable
-- [ ] Pattern references include specific file:line numbers
-
-### Pattern Consistency ✓
-
-- [ ] Tasks follow existing codebase conventions
-- [ ] New patterns justified with clear rationale
-- [ ] No reinvention of existing patterns or utils
-- [ ] Testing approach matches project standards
-
-### Information Density ✓
-
-- [ ] No generic references (all specific and actionable)
-- [ ] URLs include section anchors when applicable
-- [ ] Task descriptions use codebase keywords
-- [ ] Validation commands are non interactive executable
-
-## Success Metrics
-
-**One-Pass Implementation**: Execution agent can complete feature without additional research or clarification
-
-**Validation Complete**: Every task has at least one working validation command
-
-**Context Rich**: The Plan passes "No Prior Knowledge Test" - someone unfamiliar with codebase can implement using only Plan content
-
-**Confidence Score**: #/10 that execution will succeed on first attempt
+## Quality bar
+
+- Another developer could execute it with no extra context; every file reference has line numbers.
+- Every task has a runnable validation step.
+- No generic placeholders left; no physics invented in a non-physics plan.
 
 ## Report
 
-After creating the Plan, provide:
-
-- Summary of feature and approach
-- Full path to created Plan file
-- Complexity assessment
-- Key implementation risks or considerations
-- Estimated confidence score for one-pass success
+Plan path, type and complexity, whether defaults change, key risks, and a confidence score (#/10) for
+one-pass execution.

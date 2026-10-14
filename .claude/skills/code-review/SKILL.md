@@ -1,114 +1,99 @@
 ---
 name: code-review
-description: Performs a technical code review of recently changed files for bugs, security issues, and standards compliance, then writes a report. Use before committing, as a pre-commit quality gate.
+description: Performs a technical code review of changed UEDGE files (MPPL Fortran, .v variable files, OpenMP/Jacobian code, Python layer, build files) for real bugs and rule violations, then writes a report. Use before committing, and in CI on pull requests.
 ---
 
 # Code Review
 
-Perform technical code review on recently changed files.
+Review recently changed files for **real bugs and rule violations**, not style preferences.
 
-## Core Principles
+## Load the standards first
 
-Review Philosophy:
+- `CLAUDE.md` (naming, core patterns, hard rules, gotchas).
+- The `.claude/context/` modules that match what changed:
+  `.m` → `mppl-fortran.md`; `.v` → `variables-forthon.md`; `bbb/pandf*`, `convert.m`, `ppp/` →
+  `openmp-jacobian.md`; `src/uedge/` → `python-layer.md`; physics → `physics-workflow.md`.
 
-- Simplicity is the ultimate sophistication - every line should justify its existence
-- Code is read far more often than it's written - optimize for readability
-- The best code is often the code you don't write
-- Elegance emerges from clarity of intent and economy of expression
+## Gather the change
 
-## What to Review
-
-Start by gathering codebase context to understand the codebase standards and patterns.
-
-Start by examining:
-
-- CLAUDE.md
-- README.md
-- Key files in the core module
-- Documented standards in the docs directory (and any `.claude/references/` docs)
-
-After you have a good understanding, run these commands:
+Locally:
 
 ```bash
 git status
+git diff HEAD --stat
 git diff HEAD
-git diff --stat HEAD
-```
-
-Then check the list of new files:
-
-```bash
 git ls-files --others --exclude-standard
 ```
 
-Read each new file in its entirety. Read each changed file in its entirety (not just the diff) to understand full context.
+On a PR, diff against the base branch instead (`git diff origin/<base>...HEAD`).
+Read every changed `.m`/`.F90`/`.py` file **in full** around the changed routines, not just the hunks.
+Classify the change as **refactor** or **physics** (from the PR description, plan, or spec) — it decides how
+the defaults rule applies.
 
-For each changed file or new file, analyze for:
+## Checklist
 
-1. **Logic Errors**
-   - Off-by-one errors
-   - Incorrect conditionals
-   - Missing error handling
-   - Race conditions
+### 1. Correctness (Fortran)
+- Loop bounds and guard cells (`0:nx+1`, `0:ny+1`); interior vs boundary cells.
+- Neighbours via `ixm1(ix,iy)` / `ixp1(ix,iy)`, never `ix±1` (cuts, X-points).
+- Staggered quantities: cell-centre vs x-face/y-face indices; `ifld`/`igsp` ranges (`nisp`, `nusp`, `ngsp`).
+- Integer division, int↔real mixing (`-Wconversion`), uninitialised locals, division by zero / negative
+  densities or temperatures.
+- Units: temperatures are stored in **J** (`te`, `ti`, `tg`); `ev` converts.
 
-2. **Security Issues**
-   - SQL injection vulnerabilities
-   - XSS vulnerabilities
-   - Insecure data handling
-   - Exposed secrets or API keys
+### 2. Residual, Jacobian, OpenMP (anything in the `pandf` call tree)
+- Every module variable **assigned** during RHS evaluation is `+threadprivate` in its `.v` file.
+- New loops use the `Selec` ranges (`i1..i8`, `j1..j8`) from `initialize_ranges`, not full-grid loops.
+- Stencil width unchanged, or the padding / `xlinc`/`xrinc`/`yinc` updated to match.
+- No `save`d locals; no accumulation into module arrays across calls (see `psorcxg` zeroing in `ppp`).
+- Non-smooth functions of solution variables (`if` on `te`, `max/min`, `abs`) flagged — they hurt Newton
+  convergence.
 
-3. **Performance Problems**
-   - N+1 queries
-   - Inefficient algorithms
-   - Memory leaks
-   - Unnecessary computations
+### 3. MPPL conversion hazards (`setup.py` `M2F` rules)
+- `#` inside strings/formats (becomes `!`); identifiers containing `float`, `break`, `while (`.
+- New `.m` file registered in **both** lists of `Makefile.Forthon` and the package `Package` file.
+- New `.f`/`.c` files force-added (gitignored patterns). No edits to generated `.F` files.
 
-4. **Code Quality**
-   - Violations of DRY principle
-   - Overly complex functions
-   - Poor naming
-   - Missing type hints/annotations
+### 4. Variables and interfaces (`.v`)
+- Units `[...]`, default `/.../`, `#` description on every new variable; `+input` on user switches.
+- Group placement matches the `Use(Group)` sites; dynamic `_real` arrays allocated via `gchange`.
+- `{}` parameters mirrored in `<pkg>.h`. Restart/save-relevant variables added to `src/uedge/hdf5.py`.
 
-5. **Adherence to Codebase Standards and Existing Patterns**
-   - Adherence to standards documented in the docs directory
-   - Linting, typing, and formatting standards
-   - Logging standards
-   - Testing standards
+### 5. Defaults rule
+- **Refactor:** any change in default results is a bug (CRITICAL).
+- **Physics:** default changes must be intended and documented (which defaults, why, which cases move).
+  New models/terms otherwise default off (`is*on = 0`, `cf* = 0.`).
 
-## Verify Issues Are Real
+### 6. Python layer (`src/uedge/`)
+- Logic errors, exception handling, save/restore format compatibility (old flat, UETOOLS, `uedge.hdf5`).
+- Matches surrounding style (no type-hint or logging framework demanded).
 
-- Run specific tests for issues found
-- Confirm type errors are legitimate
-- Validate security concerns with context
+### 7. Hygiene
+- No unrelated reformatting, debug prints left in `pandf`, or commented-out blocks added.
+- No secrets or local paths committed.
 
-## Output Format
+## Verify findings are real
 
-Save a new file to `.claude/code-reviews/[appropriate-name].md`
+Point to the exact line and the concrete failure (input/state → wrong result). Where cheap, confirm by reading
+the call sites or building. Drop anything you cannot substantiate.
 
-**Stats:**
+## Output
 
-- Files Modified: 0
-- Files Added: 0
-- Files Deleted: 0
-- New lines: 0
-- Deleted lines: 0
-
-**For each issue found:**
+**Locally:** save the report to `.claude/code-reviews/<short-name>.md`.
+**In CI (pull request):** post the same content as a single PR comment and do not modify files.
 
 ```
+Stats: files modified/added/deleted, +lines/-lines; change type: refactor | physics
+
 severity: critical|high|medium|low
-file: path/to/file.py
-line: 42
-issue: [one-line description]
-detail: [explanation of why this is a problem]
-suggestion: [how to fix it]
+file: bbb/pandf_plasma_energy.m
+line: 412
+issue: <one line>
+detail: <why it is wrong, concrete failure scenario>
+suggestion: <fix>
 ```
 
-If no issues found: "Code review passed. No technical issues detected."
+If nothing survives verification: "Code review passed. No technical issues detected."
 
-## Important
-
-- Be specific (line numbers, not vague complaints)
-- Focus on real bugs, not style
-- Suggest fixes, don't just complain
-- Flag security issues as CRITICAL
+Severity guide: CRITICAL = wrong results/defaults changed in a refactor/data race; HIGH = wrong in some
+configurations (X-point, multi-species, OMP); MEDIUM = robustness/solver risk; LOW = maintainability.
+Do not start fixing without the user's approval — hand off to `code-review-fix`.

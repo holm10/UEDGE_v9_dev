@@ -13,7 +13,9 @@ Investigate GitHub issue #$ARGUMENTS from this repository, identify the root cau
 **Prerequisites:**
 - Working in a local Git repository with GitHub origin
 - GitHub CLI installed and authenticated (`gh auth status`)
-- Valid GitHub issue ID from this repository
+- Valid GitHub issue ID. UEDGE issues usually live upstream: use `gh issue view $ARGUMENTS -R LLNL/UEDGE`
+  when the issue is not on `origin`
+- Read `CLAUDE.md` and the `.claude/context/` modules for the area involved before analysing code
 
 ## Investigation Process
 
@@ -40,9 +42,9 @@ This fetches:
 - Look for patterns or recent changes
 
 Use grep/search to find:
-- Error messages from issue
-- Related function names
-- Component identifiers
+- Error messages from the issue (`xerrab`/`remark` strings in `*.m`)
+- Variables and switches named in the issue (declared in `*/*.v`, used via `Use(Group)`)
+- The routine in the `pandf` call chain (`bbb/pandf.m`) or setup (`bbb/odesetup.m`) where the quantity is computed
 
 ### 3. Review Recent History
 
@@ -63,13 +65,16 @@ Look for:
 - Is this a logic error, edge case, or missing validation?
 - Are there related issues or symptoms?
 
-**Consider:**
-- Input validation failures
-- Edge cases not handled
-- Race conditions or timing issues
-- Incorrect assumptions
-- Missing error handling
-- Integration issues between components
+**Consider (UEDGE-typical causes):**
+- Index errors at guard cells, cuts or X-points (`ix±1` instead of `ixm1`/`ixp1`; `nxpt=2`; snowflake/slab
+  geometries)
+- Loop ranges in local (Jacobian) evaluation vs full RHS (`initialize_ranges`, `Selec`)
+- OpenMP: variables written in `pandf` that are not `+threadprivate`; chunk padding (compare serial vs parallel
+  with `ppp.CheckPandf1` / `ppp.CheckJac`)
+- Units (temperatures in J), species/indexing (`ifld`, `igsp`, `nisp` vs `nusp`)
+- MPPL conversion artefacts (`#`/`float`/`break` substitutions in `setup.py`)
+- Uninitialised or not-reallocated arrays after grid/species changes (`gchange`)
+- Save/restore format issues in `src/uedge/hdf5.py`
 
 ### 5. Assess Impact
 
@@ -78,7 +83,7 @@ Look for:
 - What features are affected?
 - Are there workarounds?
 - What is the severity?
-- Could this cause data corruption or security issues?
+- Does it change physical results of existing cases (which ones), and do published/benchmark runs depend on it?
 
 ### 6. Propose Fix Approach
 
@@ -124,9 +129,9 @@ Save analysis as: `docs/rca/issue-$ARGUMENTS.md`
 ## Reproduction
 
 **Steps to Reproduce:**
-1. [Step 1]
-2. [Step 2]
-3. [Observe issue]
+1. [Build type (serial/OpenMP), input deck or script, key switches]
+2. [Command, e.g. `bbb.exmain()`]
+3. [Observed error/value vs expected]
 
 **Reproduction Verified:** [Yes/No]
 
@@ -166,8 +171,8 @@ Save analysis as: `docs/rca/issue-$ARGUMENTS.md`
 **Severity Justification:**
 [Why this severity level]
 
-**Data/Security Concerns:**
-[Any data corruption or security implications]
+**Results Impact:**
+[Which cases/configurations give wrong results today; whether the fix will change default results]
 
 ## Proposed Fix
 
@@ -202,10 +207,10 @@ Save analysis as: `docs/rca/issue-$ARGUMENTS.md`
 2. [Test case 2 - verify no regression]
 3. [Test case 3 - edge cases]
 
-**Validation Commands:**
-```bash
-[Exact commands to verify fix]
-```
+**Validation:**
+- Reproduction script/input deck and expected outcome after the fix
+- `validate` skill suites to run (and `--omp` if the `pandf` tree or `ppp/` is involved)
+- Expected change in default results (none / named cases)
 
 ## Implementation Plan
 

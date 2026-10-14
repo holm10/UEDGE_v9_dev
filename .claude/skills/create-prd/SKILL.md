@@ -55,23 +55,21 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 - If building an agent: Tool designs with purpose, operations, and key features
 - If building an app: Core feature breakdown
 
-**8. Technology Stack**
-- Backend/Frontend technologies with versions
-- Dependencies and libraries
-- Optional dependencies
-- Third-party integrations
+**8. Code Basis**
+- Packages, files and routines affected (`bbb/pandf_*`, `.v` groups, `ppp/`, `svr/`, `src/uedge/`)
+- Build impact (new `.m` files, `Makefile.Forthon`/`Package` registration, Forthon/compiler requirements)
+- Dependencies (Python packages, rate/data files) and platform constraints (macOS/Linux, OpenMP)
 
-**9. Security & Configuration**
-- Authentication/authorization approach
-- Configuration management (environment variables, settings)
-- Security scope (in-scope and out-of-scope)
-- Deployment considerations
+**9. Physics & Numerics Impact**
+- Equations and terms affected; whether new physics needs a spec in `docs/physics_specs/`
+- **Default-results impact:** refactor (must be unchanged) vs intended physics/numerics change (which defaults
+  change, which reference cases move)
+- Solver/Jacobian/OpenMP implications (stencil, threadprivate state, convergence)
 
-**10. API Specification** (if applicable)
-- Endpoint definitions
-- Request/response formats
-- Authentication requirements
-- Example payloads
+**10. User-Facing Interface** (if applicable)
+- New/changed input variables and switches (`.v` declarations, defaults, units)
+- Python API changes (`uedge.*` modules, `rundt`, save/restore formats) and backward compatibility of input
+  decks and save files
 
 **11. Success Criteria**
 - MVP success definition
@@ -122,7 +120,7 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 - ✅ All required sections present
 - ✅ User stories have clear benefits
 - ✅ MVP scope is realistic and well-defined
-- ✅ Technology choices are justified
+- ✅ Default-results impact and physics-spec needs are stated
 - ✅ Implementation phases are actionable
 - ✅ Success criteria are measurable
 - ✅ Consistent terminology throughout
