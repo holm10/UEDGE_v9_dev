@@ -1,6 +1,6 @@
 ---
 name: create-prd
-description: Generates a comprehensive Product Requirements Document from the current conversation context and, optionally, a Jira epic. When given a Jira epic key (e.g. AIUE-5), it reads the epic, publishes the PRD as a Confluence page linked to that epic, and returns the page id to feed into /spec. Use when requirements have been discussed and you need to formalize them into a professional PRD before planning.
+description: Generates a comprehensive Product Requirements Document from the current conversation context and, optionally, a Jira epic. When given a Jira epic key (e.g. AIUE-5), it reads the epic, has the PRD adversarially reviewed by the uedge-reviewer agent until it is approved, publishes it as a Confluence page linked to that epic, and returns the page id to feed into /spec. Use when requirements have been discussed and you need to formalize them into a professional PRD before planning.
 argument-hint: "[optional-jira-epic-key] [optional-output-filename]"
 ---
 
@@ -13,6 +13,10 @@ Generate a comprehensive Product Requirements Document (PRD) based on the curren
 When a Jira epic key is given, the PRD is also published to Confluence, so that `/spec <page-id> <epic-key>` can
 slice it into tickets in a later session (see the two-session flow in the `spec` skill).
 
+**Nothing reaches Confluence without passing an adversarial review.** Before any create or update of a Confluence page,
+an independent `uedge-reviewer` agent must have reviewed the PRD and returned **APPROVE** (Step 5). This applies to
+new PRDs and to revisions of an existing PRD page.
+
 ## Configuration
 
 | Setting | Value |
@@ -21,6 +25,8 @@ slice it into tickets in a later session (see the two-session flow in the `spec`
 | Parent page for PRDs | `Product Requirements` (created in that space if missing) |
 | PRD page title | `PRD: <EPIC-KEY> - <epic summary without trailing period>` |
 | Local copy | `docs/prds/<EPIC-KEY>-<slug>.md` |
+| Review reports | `docs/reviews/<EPIC-KEY>-prd-round<N>.md` |
+| Max review rounds before escalating to the user | 3 |
 
 If the user names a different space or parent page, use that instead.
 
@@ -32,14 +38,14 @@ Parse `$ARGUMENTS` as up to two whitespace-separated tokens, in either order:
   before the number, so `AIUE5`, `aiue5` and `AIUE-5` all become `AIUE-5`.
 - **Output filename.** Any other token. It overrides the local copy path.
 
-Without an epic key, this skill behaves as before. It writes the PRD to the output filename (default
-`PRD.md`) and skips Steps 0, 5 and 6 below.
+Without an epic key, this skill writes the PRD to the output filename (default `PRD.md`) and skips Steps 0, 6
+and 7 below. The adversarial review (Step 5) is optional then: offer it in one line, and run it if the user says yes.
 
 ## Output File
 
 - With an epic key, write the local copy to the output filename if one was given, otherwise to
   `docs/prds/<EPIC-KEY>-<slug>.md`. `<slug>` is the epic summary in kebab case, cut to about 50 characters. Then
-  publish the PRD to Confluence (Step 5).
+  get it approved by the adversarial review (Step 5) and publish it to Confluence (Step 6).
 - Without an epic key, write it to the output filename (default: `PRD.md`).
 
 ## PRD Structure
@@ -176,11 +182,45 @@ whether default results may change. Generate the PRD only after they answer.
 - ✅ Implementation phases are actionable
 - ✅ Success criteria are measurable
 - ✅ Consistent terminology throughout
-- ✅ With an epic key: the PRD starts with a metadata line linking the epic (see Step 5)
+- ✅ With an epic key: the PRD starts with a metadata line linking the epic (see Step 6)
 
-### 5. Publish to Confluence (only with an epic key)
+Write the local copy now, before the review, so the PRD survives anything that fails later.
 
-Write the local copy first, so the PRD survives if publishing fails. Then:
+### 5. Adversarial review (required before any Confluence write)
+
+The author of the PRD (this session) can't review it independently. Spawn a **fresh** `uedge-reviewer` agent
+(Agent tool, `subagent_type: "uedge-reviewer"`). Never use a fork or a reused agent that saw the drafting. The
+reviewer can't see this conversation, so its prompt must be self-contained:
+
+- `stage: prd`, the round number, the epic key, and the path of the local PRD copy;
+- the requirement **decisions** taken in this session (the user's answers, mid-session additions), each marked as
+  binding, so the reviewer checks the PRD against them instead of second-guessing them;
+- for a revision of an existing Confluence PRD: what changed and why, and the path of a local copy of the previous
+  page body;
+- on rounds 2+: the previous review report path and your response to each finding (fixed where, or rebutted why).
+
+Then loop:
+
+1. Wait for the reviewer's completion notification. Don't read or summarize its result before then.
+2. Read `docs/reviews/<EPIC-KEY>-prd-round<N>.md`.
+3. **APPROVE** → go to Step 6.
+4. **REVISE** → fix every BLOCKER and MAJOR finding in the local copy (or write a specific rebuttal when the
+   finding is wrong). Apply cheap MINOR fixes. Fixes must not contradict a binding user decision. If a finding *does*
+   challenge one, ask the user rather than silently changing scope. Start round N+1 with a fresh reviewer.
+5. **REJECT** → stop. Show the user the reviewer's reasoning and ask how to proceed. Don't publish.
+6. If round 3 ends without APPROVE, stop and escalate. List the open BLOCKER/MAJOR findings and ask the user
+   whether to keep revising or to publish anyway.
+   - Publish anyway **only** on an explicit user instruction. In that case set the metadata status to
+     `Draft - review open (N findings)` and add a "## Open review findings" section at the end of the PRD that lists them.
+
+Record each round in the PRD's appendix as a "Review history" table (round, verdict, BLOCKER/MAJOR/MINOR counts,
+report path). Keep the review reports in `docs/reviews/`. They are committed with the PRD.
+
+### 6. Publish to Confluence (only with an epic key)
+
+**Precondition:** Step 5 returned APPROVE for the exact text being published, or the user explicitly overrode it as
+described in Step 5.6. If you edited the PRD after the approving round (beyond typo-level fixes), run one more
+round first.
 
 1. **Find the space.** Call `mcp__atlassian__getConfluenceSpaces` with `keys: ["SD"]` (or the space the user
    named) to get the numeric `spaceId`.
@@ -194,6 +234,7 @@ Write the local copy first, so the PRD survives if publishing fails. Then:
    ```markdown
    > **Jira epic:** [<EPIC-KEY>](https://<site>/browse/<EPIC-KEY>) - <epic summary>
    > **Status:** Draft · **Generated by:** create-prd · **Next step:** `/spec <this-page-id> <EPIC-KEY>`
+   > **Adversarial review:** <VERDICT> (round <N>, <B> blocker / <M> major / <m> minor raised in total) · report `docs/reviews/<EPIC-KEY>-prd-round<N>.md`
    ```
 
    The page id is unknown until the page exists. On a new page, publish with `<page-id>` as a placeholder,
@@ -211,7 +252,7 @@ Write the local copy first, so the PRD survives if publishing fails. Then:
 If any Confluence call fails, report the error verbatim. Point the user to the local copy and stop. Do not
 retry into a different space.
 
-### 6. Link the PRD back to the Jira epic (only with an epic key)
+### 7. Link the PRD back to the Jira epic (only with an epic key)
 
 The epic and the PRD should each point to the other:
 
@@ -237,11 +278,13 @@ Do not overwrite the epic's description.
 
 After creating the PRD:
 1. Confirm the file path where it was written
-2. With an epic key, also give the Confluence page title, page id and URL, say whether the page was created
+2. Give the review outcome: the final verdict, the number of rounds, the findings fixed or rebutted per round, and the
+   report paths. If the review was skipped (no epic key, user declined) or overridden, say so plainly
+3. With an epic key, also give the Confluence page title, page id and URL, say whether the page was created
    or updated, and say whether the epic comment was added
-3. Provide a brief summary of the PRD contents
-4. Highlight any assumptions made due to missing information
-5. Suggest next steps. With an epic key, give the exact command for the next session: `/spec <EPIC-KEY>`.
+4. Provide a brief summary of the PRD contents
+5. Highlight any assumptions made due to missing information
+6. Suggest next steps. With an epic key, give the exact command for the next session: `/spec <EPIC-KEY>`.
    It finds this page by its title. `/spec <page-id> <EPIC-KEY>` is equivalent. Review the PRD first and edit it in Confluence if needed, because `/spec`
    treats the Confluence page as the source of truth.
 
@@ -253,4 +296,6 @@ After creating the PRD:
 - For user-facing products, emphasize user stories and experience
 - This skill contains the complete PRD template structure - no external references needed
 - Re-running with the same epic key is safe. It updates the existing page and does not duplicate the epic
-  comment.
+  comment. Every rerun that changes the page goes through Step 5 again.
+- Never call `createConfluencePage` or `updateConfluencePage` for a PRD before Step 5 has passed. The one exception is
+  creating the empty "Product Requirements" parent page.

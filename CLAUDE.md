@@ -64,7 +64,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | New physics | agents `uedge-physics` (spec in `docs/physics_specs/`) → `uedge-reviewer` → `uedge-implementer` → `uedge-reviewer` |
 | Refactor, numerics, OpenMP, Python, build | `plan-feature` → `execute` → `validate` → `code-review` → `commit` (or `end-to-end-feature`) |
 | Bug from a GitHub issue | `rca` → `implement-fix` → `commit` |
-| Large epics | `create-prd` → `spec` (Jira/Confluence optional) |
+| Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) |
 | Process retrospective | `execution-report` → `system-review` |
 | Fresh machine | `init-project` |
 
