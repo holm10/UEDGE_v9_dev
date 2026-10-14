@@ -1,7 +1,7 @@
 ---
 name: spec
-description: Slice an epic or next-epic doc into PIV-sized tickets with a dependency graph. Turns a large strategic doc into the discrete units of work that the PIV loop consumes. Accepts a Confluence page id OR a local PRD/epic doc path; optionally cross-references a Jira epic key. Writes the breakdown to docs/specs/ and, when the input was a Confluence page, publishes it back as a child page of the PRD. When a Jira epic key is passed, it also creates the tickets as issues under that epic, skipping any that already exist.
-argument-hint: "[confluence-page-id OR local-doc-path] [optional-jira-epic-key]"
+description: Slice an epic or next-epic doc into PIV-sized tickets with a dependency graph. Turns a large strategic doc into the discrete units of work that the PIV loop consumes. Accepts a Confluence page id, a local PRD/epic doc path, OR just a Jira epic key (the PRD page published by create-prd is looked up automatically); optionally cross-references a Jira epic key. Writes the breakdown to docs/specs/ and, when the input was a Confluence page, publishes it back as a child page of the PRD. When a Jira epic key is passed, it also creates the tickets as issues under that epic, skipping any that already exist.
+argument-hint: "[jira-epic-key OR confluence-page-id OR local-doc-path] [optional-jira-epic-key]"
 ---
 
 # /spec — Slice an Epic into PIV-Sized Tickets
@@ -11,19 +11,31 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
 ## Recommended two-session PM flow
 
 **Session 1 — Draft the PRD.**
-The PM works with the agent to write or refine the PRD: goals, user stories, acceptance criteria, out-of-scope. At the end of the session, upload (or paste) the finished PRD into Confluence and note its page id. Keeping this separate from slicing avoids a bloated context window and lets the PRD stabilize before it is decomposed.
+The PM works with the agent to write or refine the PRD: goals, user stories, acceptance criteria, out-of-scope. At the end of the session, run `/create-prd <EPIC-KEY>`. It publishes the PRD to Confluence as `PRD: <EPIC-KEY> - <summary>`, links it from the epic, and prints the page id to use here. Keeping this separate from slicing avoids a bloated context window and lets the PRD stabilize before it is decomposed.
 
 **Session 2 — Run `/spec`.**
-With a primed session and the stable Confluence page id (or local file path) in hand, run `/spec` to decompose the PRD into tickets. The PRD is the source of truth; the agent does not re-draft it here.
+With a primed session, run `/spec <EPIC-KEY>` (or pass the Confluence page id or a local file path) to decompose the PRD into tickets. The PRD is the source of truth; the agent does not re-draft it here.
 
 > **Why two sessions?** PRD drafting and ticket decomposition are cognitively different tasks. Mixing them in one long session inflates the context window, often causes the agent to start slicing before requirements are settled, and makes it harder to review the PRD independently. The boundary also mirrors a real PM workflow.
 
 ## Input
 
-- `$1` — **Confluence page id** (numeric, e.g. `123456`) **or** a **local file path** to the epic doc, next-epic doc (brownfield), or PRD (greenfield).
-  - Detection: if `$1` is all digits → treat as a Confluence page id and fetch it via MCP.
-  - Otherwise → treat as a local file path and read it directly.
+- `$1` — one of:
+  - a **Jira epic key** (e.g. `AIUE-5`). The PRD page that `/create-prd` published for it is looked up in Confluence.
+  - a **Confluence page id** (numeric, e.g. `123456`).
+  - a **local file path** to the epic doc, next-epic doc (brownfield), or PRD (greenfield).
 - `$2` *(optional)* — a **Jira epic key** (e.g. `PROJ-42`) to cross-reference. If provided, fetch the epic and include its summary, description, and child issues as additional context alongside the PRD.
+
+Detect `$1` in this order:
+
+1. All digits → Confluence page id.
+2. An existing file → local file path.
+3. Matches `^[A-Za-z][A-Za-z0-9]*-?[0-9]+$` → Jira epic key. Normalize it to upper case with a hyphen before
+   the number (`AIUE5` → `AIUE-5`). This key is also the epic key for Steps 1 and 6. If `$2` is also given and
+   differs, stop and ask which one is meant.
+4. Anything else → treat as a local file path. If it does not exist, stop and say so.
+
+Below, **the epic key** means the key from `$1` (case 3) or `$2`, whichever was given.
 - A primed session — `/prime` should already have loaded the relevant codebase surface.
 
 ## Process
@@ -38,11 +50,25 @@ The PRD is the source of truth for this entire decomposition. Load it before doi
 2. Call `mcp__atlassian__getConfluencePage` with that `cloudId`, the page id, and `contentFormat: "markdown"`.
 3. Use the returned page content as the PRD.
 
+**If `$1` is a Jira epic key:** find the PRD page, then load it as for a page id.
+
+1. Obtain the `cloudId` via `mcp__atlassian__getAccessibleAtlassianResources`.
+2. Search Confluence with `mcp__atlassian__searchConfluenceUsingCql` for
+   `type = page AND title ~ "PRD: <EPIC-KEY>"`. Keep only pages whose title is exactly `PRD: <EPIC-KEY>` or
+   starts with `PRD: <EPIC-KEY> - `, so that `AIUE-5` does not match `AIUE-50`.
+3. If no page matches, read the epic's comments (`mcp__atlassian__getJiraIssue` with `fields: ["comment"]`).
+   Look for the `PRD: ... (Confluence page id ...)` comment that `/create-prd` posts, and use that page id.
+4. Then:
+   - **One page found:** say which page you are using (title, id, URL) and continue with it as the page id.
+   - **Several pages found:** list them and ask the user which one to use.
+   - **No page found:** stop. Tell the user to run `/create-prd <EPIC-KEY>` first, or to pass a page id or a
+     file path. Do not slice the bare Jira epic, because its description is not a PRD.
+
 **If `$1` is a file path:**
 
 Read the file directly. Use its contents as the PRD.
 
-**If `$2` is provided (Jira epic key):**
+**If an epic key is known (from `$1` or `$2`):**
 
 1. Obtain the `cloudId` via `mcp__atlassian__getAccessibleAtlassianResources` if not already fetched.
 2. Call `mcp__atlassian__getJiraIssue` with that `cloudId`, the epic key, and `responseContentFormat: "markdown"`.
@@ -89,7 +115,8 @@ Write to `docs/specs/<epic-slug>.md`:
 ### Step 5 — Publish the breakdown back to Confluence
 
 The breakdown is a PM artifact, so it belongs where the PM works, not only in the repo. If the PRD came from
-Confluence (i.e. `$1` was a page id), publish the breakdown as a **child page of the PRD**:
+Confluence (i.e. `$1` was a page id, or an epic key that resolved to a PRD page), publish the breakdown as a
+**child page of the PRD**:
 
 1. Obtain the `cloudId` via `mcp__atlassian__getAccessibleAtlassianResources` if not already fetched.
 2. Look for an existing page titled `Spec: <epic name> - Ticket Breakdown` in the same space
@@ -110,7 +137,7 @@ space to publish into.
 
 ### Step 6 — File the tickets in Jira
 
-**If `$2` (a Jira epic key) was provided, this step is REQUIRED.** A breakdown nobody can assign is only half
+**If an epic key is known (from `$1` or `$2`), this step is REQUIRED.** A breakdown nobody can assign is only half
 the job. Create the tickets for real:
 
 1. Get the `cloudId` via `mcp__atlassian__getAccessibleAtlassianResources` if not already fetched.
@@ -121,12 +148,12 @@ the job. Create the tickets for real:
    - Only create the slices that are genuinely missing. Never create a near-duplicate of an existing child.
 4. For each missing slice call `mcp__atlassian__createJiraIssue` with:
    - `cloudId`, `projectKey` (from step 2), `issueTypeName: "Story"` (or `"Task"` for pure chores)
-   - `parent_epic`/`parent` = the epic key from `$2`
+   - `parent_epic`/`parent` = the epic key
    - `summary` = the ticket title from your breakdown
    - `description` = scope, acceptance criteria, files likely touched, and the `Depends on:` line
 5. Report a table of what you created (key + summary + URL) and what you skipped as already present.
 
-If `$2` was **not** provided, skip this step and tell the user which epic key to pass to file the tickets.
+If no epic key is known, skip this step and tell the user which epic key to pass to file the tickets.
 
 > Order matters: write the breakdown document first (Step 4), publish to Confluence (Step 5), then create
 > issues. If issue creation fails partway, the breakdown still exists and the run is re-runnable, because
@@ -135,8 +162,8 @@ If `$2` was **not** provided, skip this step and tell the user which epic key to
 ## Output
 
 1. A ticket breakdown at `docs/specs/<epic-slug>.md` (always).
-2. A Confluence child page under the PRD (when the input was a Confluence page id).
-3. Real Jira issues under the epic, when an epic key was passed (Step 6). Existing children are never duplicated.
+2. A Confluence child page under the PRD (when the PRD came from Confluence, either by page id or by epic key).
+3. Real Jira issues under the epic, when an epic key was known (Step 6). Existing children are never duplicated.
 
 Each ticket then enters its own PIV loop starting at `/prime` → `/plan-feature`.
 

@@ -1,7 +1,7 @@
 ---
 name: create-prd
-description: Generates a comprehensive Product Requirements Document from the current conversation context. Use when requirements have been discussed and you need to formalize them into a professional PRD before planning.
-argument-hint: [output-filename]
+description: Generates a comprehensive Product Requirements Document from the current conversation context and, optionally, a Jira epic. When given a Jira epic key (e.g. AIUE-5), it reads the epic, publishes the PRD as a Confluence page linked to that epic, and returns the page id to feed into /spec. Use when requirements have been discussed and you need to formalize them into a professional PRD before planning.
+argument-hint: "[optional-jira-epic-key] [optional-output-filename]"
 ---
 
 # Create PRD: Generate Product Requirements Document
@@ -10,9 +10,37 @@ argument-hint: [output-filename]
 
 Generate a comprehensive Product Requirements Document (PRD) based on the current conversation context and requirements discussed. Use the structure and sections defined below to create a thorough, professional PRD.
 
+When a Jira epic key is given, the PRD is also published to Confluence, so that `/spec <page-id> <epic-key>` can
+slice it into tickets in a later session (see the two-session flow in the `spec` skill).
+
+## Configuration
+
+| Setting | Value |
+|---|---|
+| Confluence space for PRDs | `SD` (Software Development) |
+| Parent page for PRDs | `Product Requirements` (created in that space if missing) |
+| PRD page title | `PRD: <EPIC-KEY> - <epic summary without trailing period>` |
+| Local copy | `docs/prds/<EPIC-KEY>-<slug>.md` |
+
+If the user names a different space or parent page, use that instead.
+
+## Input
+
+Parse `$ARGUMENTS` as up to two whitespace-separated tokens, in either order:
+
+- **Jira epic key.** A token matching `^[A-Za-z][A-Za-z0-9]*-?[0-9]+$`. Normalize it to upper case with a hyphen
+  before the number, so `AIUE5`, `aiue5` and `AIUE-5` all become `AIUE-5`.
+- **Output filename.** Any other token. It overrides the local copy path.
+
+Without an epic key, this skill behaves as before. It writes the PRD to the output filename (default
+`PRD.md`) and skips Steps 0, 5 and 6 below.
+
 ## Output File
 
-Write the PRD to: `$ARGUMENTS` (default: `PRD.md`)
+- With an epic key, write the local copy to the output filename if one was given, otherwise to
+  `docs/prds/<EPIC-KEY>-<slug>.md`. `<slug>` is the epic summary in kebab case, cut to about 50 characters. Then
+  publish the PRD to Confluence (Step 5).
+- Without an epic key, write it to the output filename (default: `PRD.md`).
 
 ## PRD Structure
 
@@ -97,6 +125,30 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 
 ## Instructions
 
+### 0. Load the Jira Epic (only with an epic key)
+
+1. Call `mcp__atlassian__getAccessibleAtlassianResources` and take the `cloudId` of the site that has Jira
+   scopes. Reuse it for every later Atlassian call.
+2. Call `mcp__atlassian__getJiraIssue` with the epic key, `responseContentFormat: "markdown"`, and
+   `fields: ["summary", "description", "issuetype", "project", "status", "comment"]`.
+   - If the issue does not exist, stop and report this.
+   - If its type is not `Epic`, tell the user and ask whether to continue.
+3. Call `mcp__atlassian__searchJiraIssuesUsingJql` with `parent = <EPIC-KEY>` to list existing child issues.
+4. Look for an existing PRD. Search Confluence with `mcp__atlassian__searchConfluenceUsingCql` for
+   `type = page AND title ~ "PRD: <EPIC-KEY>"`. Keep only exact title-prefix matches, so that `AIUE-5` does
+   not match `AIUE-50`.
+   - If a PRD already exists, read it with `mcp__atlassian__getConfluencePage` (`contentFormat: "markdown"`).
+     Treat this run as a **revision** of that page, not a new PRD: keep what is still valid and change only
+     what the conversation changed.
+
+Use the epic summary, description, comments and child issues as input alongside the conversation. If the
+epic and the conversation conflict, the conversation wins, because it is more recent. Say in the PRD which
+one you followed.
+
+**If the epic has no description and the conversation has not discussed its requirements, do not invent a
+PRD.** Ask the user the key questions first: the goal, what is in and out of scope, the success criteria, and
+whether default results may change. Generate the PRD only after they answer.
+
 ### 1. Extract Requirements
 - Review the entire conversation history
 - Identify explicit requirements and implicit needs
@@ -124,6 +176,54 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 - ✅ Implementation phases are actionable
 - ✅ Success criteria are measurable
 - ✅ Consistent terminology throughout
+- ✅ With an epic key: the PRD starts with a metadata line linking the epic (see Step 5)
+
+### 5. Publish to Confluence (only with an epic key)
+
+Write the local copy first, so the PRD survives if publishing fails. Then:
+
+1. **Find the space.** Call `mcp__atlassian__getConfluenceSpaces` with `keys: ["SD"]` (or the space the user
+   named) to get the numeric `spaceId`.
+2. **Find or create the parent page.** Search with CQL for
+   `space = "SD" AND type = page AND title = "Product Requirements"`. If no such page exists, create it with
+   `mcp__atlassian__createConfluencePage`, giving it a one-line body: "PRDs for Jira epics. Each child page is
+   created by the create-prd skill and sliced into tickets by the spec skill."
+3. **Prepare the body.** Start with the same markdown as the local copy, then put this metadata block directly
+   under the H1 title:
+
+   ```markdown
+   > **Jira epic:** [<EPIC-KEY>](https://<site>/browse/<EPIC-KEY>) - <epic summary>
+   > **Status:** Draft · **Generated by:** create-prd · **Next step:** `/spec <this-page-id> <EPIC-KEY>`
+   ```
+
+   The page id is unknown until the page exists. On a new page, publish with `<page-id>` as a placeholder,
+   then update the page once with the real id. Do not use Mermaid diagrams, because Confluence's markdown
+   import does not render them. Use tables or indented lists instead.
+4. **Create or update the page.**
+   - If Step 0 found no PRD, call `mcp__atlassian__createConfluencePage` with `cloudId`, `spaceId`,
+     `parentId` set to the "Product Requirements" page id, `title` set to `PRD: <EPIC-KEY> - <summary>`,
+     `contentFormat: "markdown"`, and `body`.
+   - If Step 0 found a PRD, call `mcp__atlassian__updateConfluencePage` on that page id with
+     `contentFormat: "markdown"` and a `versionMessage` that says what changed. Never create a second PRD page
+     for the same epic.
+5. Record the page id and its web URL.
+
+If any Confluence call fails, report the error verbatim. Point the user to the local copy and stop. Do not
+retry into a different space.
+
+### 6. Link the PRD back to the Jira epic (only with an epic key)
+
+The epic and the PRD should each point to the other:
+
+1. Check the epic comments from Step 0. If one already contains this page id, skip this step.
+2. Otherwise call `mcp__atlassian__addCommentToJiraIssue` on the epic with `contentFormat: "markdown"`:
+
+   ```markdown
+   PRD: [<page title>](<page URL>) (Confluence page id `<page-id>`).
+   Slice into tickets with `/spec <page-id> <EPIC-KEY>`.
+   ```
+
+Do not overwrite the epic's description.
 
 ## Style Guidelines
 
@@ -137,9 +237,13 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 
 After creating the PRD:
 1. Confirm the file path where it was written
-2. Provide a brief summary of the PRD contents
-3. Highlight any assumptions made due to missing information
-4. Suggest next steps (e.g., review, refinement, planning)
+2. With an epic key, also give the Confluence page title, page id and URL, say whether the page was created
+   or updated, and say whether the epic comment was added
+3. Provide a brief summary of the PRD contents
+4. Highlight any assumptions made due to missing information
+5. Suggest next steps. With an epic key, give the exact command for the next session: `/spec <EPIC-KEY>`.
+   It finds this page by its title. `/spec <page-id> <EPIC-KEY>` is equivalent. Review the PRD first and edit it in Confluence if needed, because `/spec`
+   treats the Confluence page as the source of truth.
 
 ## Notes
 
@@ -148,3 +252,5 @@ After creating the PRD:
 - For highly technical products, emphasize architecture and technical stack
 - For user-facing products, emphasize user stories and experience
 - This skill contains the complete PRD template structure - no external references needed
+- Re-running with the same epic key is safe. It updates the existing page and does not duplicate the epic
+  comment.
