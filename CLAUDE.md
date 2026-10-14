@@ -54,6 +54,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | `.claude/context/openmp-jacobian.md` | Touching `pandf*`, `ppp/`, Jacobian code, or anything that writes shared arrays during RHS evaluation |
 | `.claude/context/testing.md` | Running, writing, or reasoning about tests and CI |
 | `.claude/context/physics-workflow.md` | Adding new physics (the spec → implement → review agent pipeline) |
+| `.claude/context/branching.md` | Creating a branch or worktree, committing, or touching both `.claude/`/`CLAUDE.md` and product code |
 | `.claude/context/python-layer.md` | Editing `src/uedge/*.py` (save/restore, `rundt`, balance, packaging) |
 
 ## Workflow (skills and agents)
@@ -67,6 +68,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) |
 | Process retrospective | `execution-report` → `system-review` |
 | Fresh machine | `init-project` |
+| Improve the AI layer itself | `feature/v9-ai-<slug>` branch, never on a ticket branch (`branching.md`) |
 
 ## Hard rules
 
@@ -76,6 +78,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 - New physics needs an approved spec in `docs/physics_specs/` before any Fortran is written (see `physics-workflow.md`).
 - Run the `validate` skill (build, smoke test, relevant regression suites, plus the OpenMP check when the `pandf` tree changed) before opening a PR. Report fnrm or diff failures verbatim.
 - Branches: `feature/v9-*` or `bugfix/v9-*` off `v9-develop`, rebased before merge. Never commit to `main`, `develop`, `v9-main`, or `v9-develop` (`doc/workflow.md`, `CONTRIBUTING.md`).
+- **One branch (and worktree, with its own venv) per ticket:** `feature/v9-<KEY>-<slug>` for Jira, `bugfix/v9-issue-<N>-<slug>` for GitHub issues. **AI-layer process changes** (skills, agents, hooks, settings) go only on `feature/v9-ai-<slug>`. A ticket branch may touch `CLAUDE.md`/`.claude/context/` only to keep them factually in line with its own code change, with the commit trailer `AI-layer: code-facts`. The PreToolUse hook enforces this on every `git commit` (`.claude/context/branching.md`).
 - Every new user-facing variable gets a units bracket and a `#` description in `.v`. Forthon builds the Python docs from them.
 
 ## Miscellaneous / Gotchas

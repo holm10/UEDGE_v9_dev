@@ -10,7 +10,8 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 ## Prerequisites
 
 - RCA document at `docs/rca/issue-$ARGUMENTS.md` (create it with the `rca` skill first if missing).
-- On a `bugfix/v9-*` branch, not `v9-develop` (`doc/workflow.md`).
+- On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
+  `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
 - Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
   issue is not on `origin`.
 

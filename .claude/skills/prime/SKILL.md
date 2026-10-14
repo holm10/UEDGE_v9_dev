@@ -44,6 +44,10 @@ git log --oneline v9-develop..HEAD
 
 Also list open work products: `docs/physics_specs/`, `docs/reviews/`, `docs/rca/`, `.claude/plans/`.
 
+Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
+(`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD` and report any
+violations (the wrong kind of change on this branch).
+
 ## Output
 
 Keep it short and scannable:
@@ -52,5 +56,7 @@ Keep it short and scannable:
 - **Relevant area** — packages, files, routines, `.v` groups, with `file:line`.
 - **Rules that bite here** — the specific hard rules / gotchas / context-module points that apply
   (e.g. threadprivate, refactor-vs-physics defaults, MPPL hazards).
-- **Branch state** — branch, ahead of `v9-develop` by N, uncommitted changes, open specs/plans/reviews.
+- **Branch state** — branch and its kind (protected / AI layer / ticket), ahead of `v9-develop` by N, uncommitted
+  changes, worktrees, open specs/plans/reviews, branch-policy violations. If the task doesn't match the branch kind
+  (product work on an AI-layer branch or the reverse), say which branch and worktree to switch to.
 - **Suggested next step** — `plan-feature`, the physics pipeline, `rca`, or a direct small change.

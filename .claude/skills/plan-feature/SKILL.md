@@ -28,6 +28,26 @@ Classify first — it decides the workflow and how the defaults rule applies (`C
 
 If the type is unclear, ask the user before continuing.
 
+## Phase 0b: Branch and worktree
+
+Each ticket gets its own branch and worktree (`.claude/context/branching.md`). Do this before writing anything:
+
+1. Name it. Use `feature/v9-<KEY>-<slug>` for a Jira ticket (take the key and the branch from the ticket's `Branch:`
+   line in `docs/specs/` if `spec` wrote one), `bugfix/v9-<KEY>-<slug>` for a Jira bug,
+   `bugfix/v9-issue-<N>-<slug>` for a GitHub issue, and `feature/v9-<slug>` when there is no ticket.
+   **If the request changes the AI layer itself** (skills, agents, hooks, settings), use `feature/v9-ai-<slug>`
+   and note that the plan is process work.
+2. If the current branch already is that branch, continue. Otherwise create a worktree from the base: `origin/v9-develop`, or
+   the parent ticket's branch for a stacked ticket. Until the AI layer is merged, use the AI-layer tip (see Bootstrap in
+   `branching.md`).
+   ```bash
+   git fetch origin
+   git worktree add -b <branch> ../uedge-wt/<KEY-or-slug> <base>
+   ```
+3. Tell the user the worktree path and that it needs its own venv before building
+   (`python -m venv .venv && . .venv/bin/activate`). Write the plan inside the worktree.
+4. Never plan product work on an AI-layer branch, and never plan AI-layer process changes on a ticket branch.
+
 ## Phase 1: Understand the request
 
 - Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High).
@@ -76,6 +96,7 @@ Validate the patterns and file references below before implementing.
 **Complexity**: Low/Medium/High
 **Default results**: Unchanged | Changed — <which defaults, why, which reference cases move>
 **Packages / files**: <list>
+**Branch / worktree**: <branch> @ <worktree path> (base: <base>)
 
 ## Problem and solution
 <What is wrong or missing; how this change addresses it.>

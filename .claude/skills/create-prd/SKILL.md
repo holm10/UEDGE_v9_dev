@@ -184,7 +184,9 @@ whether default results may change. Generate the PRD only after they answer.
 - ✅ Consistent terminology throughout
 - ✅ With an epic key: the PRD starts with a metadata line linking the epic (see Step 6)
 
-Write the local copy now, before the review, so the PRD survives anything that fails later.
+Write the local copy now, before the review, so the PRD survives anything that fails later. With an epic key,
+write it on the epic's planning branch `feature/v9-<EPIC-KEY>-planning` (create the branch and worktree as in
+`.claude/context/branching.md`). The PRD and its review reports are epic artifacts and never go on an AI-layer branch.
 
 ### 5. Adversarial review (required before any Confluence write)
 

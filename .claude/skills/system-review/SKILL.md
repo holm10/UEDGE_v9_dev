@@ -94,7 +94,10 @@ For each problematic divergence, identify the root cause:
 
 ### Step 5: Generate Process Improvements
 
-Based on patterns across divergences, suggest:
+Based on patterns across divergences, suggest the changes below. They are **process changes**: they're applied on a
+`feature/v9-ai-<slug>` branch in their own PR, never on the ticket branch that was reviewed
+(`.claude/context/branching.md`). For each one, say whether it's a process change (AI-layer branch) or a
+code-facts correction (allowed on the ticket branch with the trailer `AI-layer: code-facts`).
 
 - **CLAUDE.md updates:** Universal patterns or anti-patterns to document
 - **Plan skill updates:** Instructions that need clarification or missing steps

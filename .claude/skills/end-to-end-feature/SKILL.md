@@ -9,7 +9,9 @@ argument-hint: [feature-description]
 **Feature Description**: $ARGUMENTS
 
 This skill chains the 4 core PIV-loop skills for autonomous feature development. Never run it on
-`v9-develop`/`v9-main` — create a `feature/v9-*` branch first.
+`v9-develop`/`v9-main`, and never on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`). It runs on the
+ticket's own branch and worktree, which `plan-feature` creates in its Phase 0b (`.claude/context/branching.md`).
+After Step 1, `cd` into that worktree and stay there for every later step.
 
 ---
 

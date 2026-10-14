@@ -12,6 +12,7 @@ A hook is the one the agent never chooses: it fires automatically on a lifecycle
 | File | Event | What it does | Can it block? |
 |---|---|---|---|
 | `pre_tool_use.py` | **PreToolUse** | Blocks reading/writing/searching a real env file (committed `.env.example` templates are allowed), and blocks any `rm -rf` whose targets are outside this repository, are the repo root or `.git/`, or can't be resolved statically (`$VARS`, `xargs`, `find -exec`). Prints the reason to stderr and `exit(2)` → the tool is stopped and the agent is told why, so it adapts. | **Yes** — this is the guarantee |
+| `pre_tool_use.py` + `change_kind.py` | **PreToolUse** (`git commit`) | Branch policy (`.claude/context/branching.md`). Blocks commits to `main`/`develop`/`v9-main`/`v9-develop`, product files or ticket artifacts on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`), and AI-layer process files on a ticket branch unless the message has the `AI-layer: code-facts` trailer. It reads the staged files plus the paths named by `git add` in the same command. `change_kind.py` also runs on its own: `--staged`, `--range origin/v9-develop..HEAD`. | **Yes** |
 | `post_tool_use.py` | **PostToolUse** | Appends every tool call as one JSON line to `<repo>/logs/post_tool_use.jsonl` (gitignored), regardless of the agent's working directory — a full local audit trail of what the agent did. | No — the tool already ran; observe only |
 
 That split *is* the mental model: **pre = gate, post = log.** This is deliberately the whole hooks layer this

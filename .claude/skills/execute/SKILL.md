@@ -14,6 +14,9 @@ Read plan file: `$ARGUMENTS`
 
 ### 1. Read and Understand
 
+- Check the branch first: you must be on the plan's **Branch / worktree** (`git branch --show-current`). If you
+  aren't, `cd` into that worktree. If it doesn't exist, create it as in `plan-feature` Phase 0b. Never execute on a protected
+  or AI-layer branch (`.claude/context/branching.md`)
 - Read the ENTIRE plan carefully
 - Read `CLAUDE.md` and every `.claude/context/` module the plan references
 - Note the plan's **type** (physics / refactor / numerics / bug fix / Python-build) and whether default results
@@ -36,6 +39,9 @@ For EACH task in "Step by Step Tasks":
 - Edit `.m`/`.v`/`.F90`/`.py` sources only — never the generated `.F` files
 - New variables: units, default and `#` description in the `.v` file; `+threadprivate` if written inside `pandf`
 - Physics plans implement the approved spec exactly; do not alter equations or coefficients
+- If the work shows that a skill, agent or hook should change, **don't** change it here. Note it for the execution
+  report (`branching.md` → "Improving the AI layer while doing ticket work"). Updating `CLAUDE.md`/context
+  facts that this change makes untrue is allowed, in its own commit with the trailer `AI-layer: code-facts`
 
 #### c. Verify as you go
 - After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix the `.m`

@@ -10,7 +10,7 @@ and, if the call crosses a line you never want crossed, blocks it: print the
 reason to stderr and exit(2). Claude Code stops the tool and hands the reason
 back to the agent, so it adapts instead of doing the thing.
 
-Two guarantees ship here:
+Three guarantees ship here:
   1. The agent can never reach your secrets — not the env file, not the other
      credential files (ssh keys, .pem, .aws, .netrc, credentials.json), and not
      by dumping the process environment. Committed `.env.example` is allowed.
@@ -18,6 +18,11 @@ Two guarantees ship here:
      repository (never the repo root itself or .git/). Anything outside the
      repo, or any target that can't be resolved statically ($VARS, `cmd`,
      xargs, find -exec), is blocked.
+
+  3. A `git commit` must respect the branch policy (`.claude/context/branching.md`,
+     checked by `change_kind.py`): nothing on protected branches, no product files on
+     AI-layer branches, no AI-layer process files on ticket branches unless the message
+     carries the `AI-layer: code-facts` trailer.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
 exits 0, so a bug in this script can never brick your session.
@@ -197,6 +202,60 @@ def dangerous_rm_reason(tool_name: str, tool_input: dict, cwd):
     return None
 
 
+GIT = r"\bgit\s+(?:-C\s+(?P<C>\S+)\s+)?"
+GIT_COMMIT = re.compile(GIT + r"commit\b(?P<args>[^\n;&|]*)")
+GIT_ADD = re.compile(GIT + r"add\s+(?P<args>[^\n;&|]*)")
+GIT_NEW_BRANCH = re.compile(GIT + r"(?:checkout\s+-[bB]|switch\s+-[cC])\s+(?P<b>[^\s;&|]+)")
+CD = re.compile(r"(?:^|[;&|]\s*)cd\s+(?P<d>[^\s;&|]+)")
+
+
+def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
+    """Reason string if a `git commit` would break the branch policy (.claude/context/branching.md)."""
+    if tool_name != "Bash":
+        return None
+    command = tool_input.get("command", "")
+    m = GIT_COMMIT.search(command)
+    if not m:
+        return None
+    import subprocess
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import change_kind as ck
+
+    head = command[:m.start()]
+    workdir = cwd or str(_project_root())
+    for d in CD.finditer(head):
+        if UNRESOLVABLE.search(d.group("d")):
+            return None  # cannot tell where the commit runs; fail open
+        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
+    if m.group("C"):
+        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(m.group("C"))))
+
+    branch = ck.current_branch(workdir)
+    for b in GIT_NEW_BRANCH.finditer(head):
+        branch = b.group("b")
+
+    paths = ck.staged_paths(workdir)
+    for a in GIT_ADD.finditer(head):
+        try:
+            args = shlex.split(a.group("args"))
+        except ValueError:
+            args = a.group("args").split()
+        files = [x for x in args if not x.startswith("-")]
+        if any(x in (".", "-A", "--all") for x in args) or any(os.path.isdir(os.path.join(workdir, f)) for f in files):
+            out = subprocess.run(["git", "status", "--porcelain", "-uall"], cwd=workdir,
+                                 capture_output=True, text=True, check=True).stdout
+            paths += [line[3:].split(" -> ")[-1] for line in out.splitlines()]
+        else:
+            paths += files
+    commit_args = m.group("args").split()
+    if "--all" in commit_args or any(x.startswith("-") and not x.startswith("--") and "a" in x
+                                     for x in commit_args if not x.startswith("-m")):
+        paths += ck.modified_tracked_paths(workdir)
+
+    problems = ck.violations(branch, paths, command)
+    return " ".join(problems) if problems else None
+
+
 def main() -> None:
     try:
         data = json.load(sys.stdin)
@@ -211,6 +270,11 @@ def main() -> None:
         reason = dangerous_rm_reason(tool_name, tool_input, data.get("cwd"))
         if reason:
             print(BLOCKED_RM_MESSAGE.format(reason=reason), file=sys.stderr)
+            sys.exit(2)
+
+        reason = commit_hygiene_reason(tool_name, tool_input, data.get("cwd"))
+        if reason:
+            print("BLOCKED by branch policy: " + reason, file=sys.stderr)
             sys.exit(2)
 
         sys.exit(0)  # allow

@@ -104,13 +104,24 @@ Write to `docs/specs/<epic-slug>.md`:
    - Scope / acceptance criteria
    - Files touched (estimate)
    - Depends on: <none / TICKET-x>
+   - Branch: `feature/v9-<KEY>-<slug>` (fill in the key after Step 6) · base: `v9-develop` | `<parent ticket branch>` (stacked)
    ### TICKET-2 — ...
 ## Dependency graph
    <text or mermaid graph showing the order + parallel groups>
 ## Suggested execution order
    Wave 1 (parallel): TICKET-1, TICKET-3
    Wave 2: TICKET-2 (after TICKET-1)
+## Integration
+   Ticket PRs target `v9-develop` | `feature/v9-<EPIC>-integration` (only if tickets can't land one by one; say why)
 ```
+
+Branches follow `.claude/context/branching.md`: **one branch and worktree per ticket**, never one branch for a whole
+epic by default. If a ticket would need AI-layer process changes (skills, agents, hooks), split those into a separate
+`feature/v9-ai-<slug>` ticket. Updates that keep `CLAUDE.md`/`.claude/context/` factually correct stay inside the ticket
+that changes those facts.
+
+Write the breakdown on the epic's planning branch `feature/v9-<EPIC>-planning` (create it if needed). It sits next to
+the PRD copy and its review reports.
 
 ### Step 5 — Publish the breakdown back to Confluence
 
@@ -150,7 +161,10 @@ the job. Create the tickets for real:
    - `cloudId`, `projectKey` (from step 2), `issueTypeName: "Story"` (or `"Task"` for pure chores)
    - `parent_epic`/`parent` = the epic key
    - `summary` = the ticket title from your breakdown
-   - `description` = scope, acceptance criteria, files likely touched, and the `Depends on:` line
+   - `description` = scope, acceptance criteria, files likely touched, the `Depends on:` line, and the `Branch:`
+     line with the real key filled in (`feature/v9-<NEW-KEY>-<slug>`)
+   After creating the issues, update the `Branch:` lines in `docs/specs/<epic-slug>.md` (and on the Confluence page)
+   with the real keys.
 5. Report a table of what you created (key + summary + URL) and what you skipped as already present.
 
 If no epic key is known, skip this step and tell the user which epic key to pass to file the tickets.

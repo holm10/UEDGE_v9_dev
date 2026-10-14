@@ -16,6 +16,10 @@ Investigate GitHub issue #$ARGUMENTS from this repository, identify the root cau
 - Valid GitHub issue ID. UEDGE issues usually live upstream: use `gh issue view $ARGUMENTS -R LLNL/UEDGE`
   when the issue is not on `origin`
 - Read `CLAUDE.md` and the `.claude/context/` modules for the area involved before analysing code
+- Work on the issue's own branch: create `bugfix/v9-issue-$ARGUMENTS-<slug>` and its worktree
+  (`git worktree add -b <branch> ../uedge-wt/issue-$ARGUMENTS origin/v9-develop`, see
+  `.claude/context/branching.md`) before writing the RCA. The RCA document is a ticket artifact and is committed
+  there, not on an AI-layer branch
 
 ## Investigation Process
 

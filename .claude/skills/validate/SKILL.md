@@ -13,6 +13,15 @@ locally" means "green in CI". Commands and background: `CLAUDE.md` → *Build & 
 Arguments: `$ARGUMENTS`. Suites default to `D_only` plus the suites matching the changed area (below). `all` runs
 every suite; `--omp` forces step 4.
 
+## 0. Branch hygiene
+
+```bash
+uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD
+```
+
+❌ if it reports a VIOLATION, i.e. the wrong kind of change on this branch (`.claude/context/branching.md`). Report it
+verbatim. In a worktree, make sure the active venv belongs to this worktree (`python -c "import uedge; print(uedge.__file__)"`).
+
 ## 1. Build (serial, as CI)
 
 ```bash
