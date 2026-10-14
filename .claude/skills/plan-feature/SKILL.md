@@ -125,6 +125,13 @@ Execute top to bottom; each task is atomic.
 - OpenMP check (`ppp.CheckPandf1` / `CheckJac`) if the `pandf` tree or threadprivate vars change.
 - Edge cases: <topologies, species counts, switches>.
 
+## AI-layer facts affected
+<Every fact in `CLAUDE.md`, `.claude/context/*.md` (incl. `physics-models.md`, `architecture.md`) that this change
+makes untrue or incomplete: moved routines, new or renamed files, new switches/models, changed build steps,
+changed defaults. Find candidates with `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`
+after a dry run, or by grepping the AI layer for the files and routines you touch. Write "none" only after
+checking. Each entry becomes a final task with the trailer `AI-layer: code-facts`.>
+
 ## Validation commands
 Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any feature-specific commands.
 
@@ -133,6 +140,7 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 - [ ] Refactor: all suites unchanged · Physics: only the documented cases move
 - [ ] New variables visible from Python with units/docs
 - [ ] OpenMP serial-vs-parallel identical (if applicable)
+- [ ] AI-layer facts updated; drift check clean (`check_context_refs.py`)
 - [ ] <feature-specific criteria>
 
 ## Notes

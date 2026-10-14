@@ -67,7 +67,14 @@ the defaults rule applies.
 - Logic errors, exception handling, save/restore format compatibility (old flat, UETOOLS, `uedge.hdf5`).
 - Matches surrounding style (no type-hint or logging framework demanded).
 
-### 7. Hygiene
+### 7. AI-layer facts (`.claude/context/physics-models.md`, `branching.md`)
+- Run `uv run .claude/hooks/check_context_refs.py --changed origin/<base>`. Any problem line is a finding
+  (severity medium; high if a context module now gives wrong guidance on `pandf`, threadprivate or defaults).
+- The change adds or moves a model, switch, routine, file or build step, and `CLAUDE.md`, `.claude/context/`
+  or `physics-models.md` weren't updated to match: finding. The plan's "AI-layer facts affected" list is the checklist.
+- The PR changes AI-layer **process** files (skills, agents, hooks, settings) on a ticket branch: finding (high).
+
+### 8. Hygiene
 - No unrelated reformatting, debug prints left in `pandf`, or commented-out blocks added.
 - No secrets or local paths committed.
 

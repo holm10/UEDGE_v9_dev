@@ -20,7 +20,16 @@ uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD
 ```
 
 ❌ if it reports a VIOLATION, i.e. the wrong kind of change on this branch (`.claude/context/branching.md`). Report it
-verbatim. In a worktree, make sure the active venv belongs to this worktree (`python -c "import uedge; print(uedge.__file__)"`).
+verbatim.
+
+```bash
+uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop
+```
+
+❌ on any BROKEN, STALE, MOVED, NEW or MISSING line: the AI layer's description of the code is now wrong. Fix it on this
+branch: `--fix` handles moved line numbers; anything else means re-reading the claim and rewriting it. Then lock
+it with `--update` and commit with the trailer `AI-layer: code-facts`. Also list the "docs that cite files changed"
+output: re-read those passages and confirm they are still true (⚠️ until you have). In a worktree, make sure the active venv belongs to this worktree (`python -c "import uedge; print(uedge.__file__)"`).
 
 ## 1. Build (serial, as CI)
 
@@ -82,6 +91,7 @@ UEDGE validation — <branch> @ <short sha>
   Smoke import .......... ✅/❌  uedge_ver=<…>
   Suites ................ ✅/⚠️/❌  <suite: passed/failed, moved cases>
   OpenMP check .......... ✅/❌/skipped  <why skipped>
+  Branch / AI-layer facts ✅/⚠️/❌  <policy violations; drift check result; docs re-read>
 Overall: ✅ READY / ❌ NOT READY
 ```
 

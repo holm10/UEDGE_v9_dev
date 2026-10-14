@@ -63,9 +63,17 @@ Run the `commit` skill (`.claude/skills/commit/SKILL.md`).
 
 ---
 
+## Step 5: Learn - Feed process lessons back
+
+Run the `execution-report` skill and then the `system-review` skill on the plan and the report. `system-review`
+files each recommendation as an `ai-layer` issue. Nothing in `.claude/skills`, `.claude/agents` or
+`.claude/hooks` changes on this branch.
+
+---
+
 ## Final Summary
 
-After completing all 4 steps, provide:
+After completing all 5 steps, provide:
 
 ### Feature Implementation Complete
 
@@ -78,6 +86,7 @@ After completing all 4 steps, provide:
 2. ✅ Planning - Plan created at `.claude/plans/[feature-name].md`
 3. ✅ Execute - Feature implemented and validated
 4. ✅ Commit - Changes committed to git
+5. ✅ Learn - Execution report + system review; ai-layer issues filed: [keys]
 
 **Outputs:**
 - Plan document: `.claude/plans/[feature-name].md`

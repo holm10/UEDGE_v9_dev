@@ -172,6 +172,24 @@ Based on analysis, recommend specific actions:
 
 - [ ] Add [validation step] to execution checklist
 
+#### File the actions (required)
+
+Don't apply any of these actions yourself. Each one is a **process change** and goes through its own
+`feature/v9-ai-<slug>` branch and PR (`.claude/context/branching.md`). Queue them so they aren't lost:
+
+1. If the Atlassian MCP server is connected (`mcp__atlassian__getAccessibleAtlassianResources`), for each action:
+   - Search for duplicates: `project = AIUE AND labels = ai-layer AND statusCategory != Done AND summary ~ "<2-4 key words>"`.
+     If an open issue already covers it, add a comment with this review's evidence instead of a new issue.
+   - Otherwise create a `Task` in project `AIUE` with label `ai-layer`, summary `AI layer: <action>`, and a
+     description holding the evidence (the divergence, plan and report paths), the target file(s), and the proposed
+     change.
+2. If Jira isn't available, append the actions to `.claude/system-reviews/backlog.md` (a record file, allowed on any
+   branch) with date, feature, target file and proposed change.
+3. Code-facts corrections (a context module that is simply wrong about the code) are the exception: fix them on the
+   current branch with the trailer `AI-layer: code-facts`, and list them here as done.
+
+List the filed issue keys (or backlog entries) in the report.
+
 #### Key Learnings
 
 **What worked well:**

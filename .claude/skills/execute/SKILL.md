@@ -57,6 +57,18 @@ After completing implementation tasks:
 - Add any test or example artefacts the plan specifies (the regression suite itself lives on the `pytests`
   branch — do not invent a new test location)
 
+### 3b. Update the AI-layer facts
+
+Before validating, bring the AI layer's description of the code up to date (`.claude/context/branching.md`):
+
+1. Work through the plan's **AI-layer facts affected** list.
+2. Run `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`. Apply `--fix` for moved line numbers. Rewrite stale claims after re-reading the code. Lock with
+   `--update` only once each claim has been checked.
+3. New or changed model, switch or default → update the row in `.claude/context/physics-models.md`. New file,
+   package or build step → update `.claude/context/architecture.md` (and `CLAUDE.md` if a rule or gotcha changed).
+4. Commit these separately with the trailer `AI-layer: code-facts`. Only `CLAUDE.md` and `.claude/context/` may
+   change this way. Skills, agents and hooks never change on a ticket branch.
+
 ### 4. Run Validation Commands
 
 Run the `validate` skill with the suites the plan names, then any feature-specific commands from the plan:
@@ -79,6 +91,7 @@ Before completing:
 - ✅ All validation commands pass
 - ✅ Code follows project conventions
 - ✅ Documentation added/updated as needed
+- ✅ AI-layer facts updated and the drift check is clean (step 3b)
 
 ## Output Report
 

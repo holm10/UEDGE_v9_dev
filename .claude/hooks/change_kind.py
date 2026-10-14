@@ -27,8 +27,9 @@ Branch classes
   protected main, develop, v9-main, v9-develop            -> no commits at all
   ai        feature/v9-ai-*, v9-agentic                   -> process + record only
   ticket    every other branch                            -> product + artifact + record;
-            process paths only with the commit trailer `AI-layer: code-facts`
-            (= the edit only keeps the AI layer factually in line with the code this branch changes).
+            CLAUDE.md and .claude/context/** only with the commit trailer `AI-layer: code-facts`
+            (= the edit only keeps the AI layer factually in line with the code this branch changes);
+            other process paths (skills, agents, hooks, settings) never.
 """
 
 import argparse
@@ -42,6 +43,8 @@ CODE_FACTS_TRAILER = "AI-layer: code-facts"
 
 RECORD = re.compile(r"^\.claude/(execution-reports|system-reviews)/")
 ARTIFACT = re.compile(r"^(\.claude/plans/|docs/(prds|specs|reviews|rca|physics_specs)/)")
+# The only process paths a ticket branch may touch, and only with the code-facts trailer: descriptions of the code.
+CODE_FACTS = re.compile(r"^(CLAUDE\.md$|\.claude/context/)")
 PROCESS = re.compile(r"^(CLAUDE\.md$|\.mcp\.json$|\.claude/|\.githooks/|\.github/workflows/claude-[^/]*\.ya?ml$)")
 SHARED = {".gitignore"}
 
@@ -87,6 +90,12 @@ def violations(branch: str, paths, message: str = ""):
                        f"artifacts. Move these to a ticket branch: " + ", ".join(bad))
     else:
         bad = by_kind.get("process", [])
+        never = [p for p in bad if not CODE_FACTS.match(p)]
+        if never:
+            out.append(f"'{branch}' is a ticket branch; skills, agents, hooks and settings change only on a "
+                       f"feature/v9-ai-* branch (the code-facts trailer covers only CLAUDE.md and "
+                       f".claude/context/). Files: " + ", ".join(never))
+            bad = [p for p in bad if CODE_FACTS.match(p)]
         if bad and CODE_FACTS_TRAILER not in message:
             out.append(f"'{branch}' is a ticket branch; AI-layer process files need their own "
                        f"feature/v9-ai-* branch. If this edit only keeps the AI layer factually in line "

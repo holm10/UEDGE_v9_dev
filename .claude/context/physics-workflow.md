@@ -8,7 +8,10 @@ a fixed agent pipeline defined in `.claude/agents/`:
 2. **`uedge-reviewer`** — adversarial review of the spec → APPROVE / REVISE / REJECT.
 3. **`uedge-implementer`** — implements the approved spec in `.m`/`.v`, builds, runs tests. Does not change the
    physics; returns questions instead.
-4. **`uedge-reviewer`** — reviews the implementation.
+4. **`uedge-reviewer`** — reviews the implementation, including the model's row in `physics-models.md`.
+
+`.claude/context/physics-models.md` is the index of implemented models. Read it before specifying anything. The
+implementer updates it on the same branch as the code (trailer `AI-layer: code-facts`).
 
 ## Where things go
 

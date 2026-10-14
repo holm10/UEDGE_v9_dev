@@ -16,11 +16,11 @@ The physics is written in **MPPL Fortran** (`*/*.m`). `setup.py` converts it to 
 ## Core code patterns
 
 - **MPPL source layout** (`bbb/pandf_plasma_continuity.m:1-21`): `c!include` headers come first, then `IMPLICIT NONE`, local declarations, and `Use(...)` lines. `setup.py`'s `MoveDecs` rule reorders declarations ahead of the uses (`setup.py:217`).
-- **Comments:** `c` in column 1 marks a full-line comment. `#` starts an inline comment and is rewritten to `!` (`setup.py:635`). Continuation lines use `.` in column 6 (`bbb/pandf.m:561-562`).
+- **Comments:** `c` in column 1 marks a full-line comment. `#` starts an inline comment and is rewritten to `!` (`setup.py:635`). Continuation lines use `.` in column 6 (`bbb/pandf.m:573-575`).
 - **Fatal errors** use `call xerrab('*** message ***')` (`bbb/pandf_plasma_continuity.m:29`). Informational output uses `call remark(...)` (`bbb/convert.m:345`). There is no other error mechanism in Fortran.
 - **Dynamic arrays** are declared in `.v` with a leading `_` (`_real`, `_integer`) and allocated with `call gchange("Group",0)` (`bbb/odesetup.m:87`).
 - **The RHS and Jacobian go through `pandf(xc, yc, neq, time, yl, yldot)`** (`bbb/pandf.m:513`). `xc,yc = -1` evaluates the full RHS. Otherwise it evaluates locally around the perturbed cell for the finite-difference Jacobian. Loop ranges come from `initialize_ranges` (`bbb/pandf.m:31`). New terms must use those ranges and must not loop over the whole grid.
-- **Shared state written inside `pandf`** must be marked `+threadprivate` in `.v` (`bbb/bbb.v:1628`), or the OpenMP RHS and Jacobian will race.
+- **Shared state written inside `pandf`** must be marked `+threadprivate` in `.v` (`bbb/bbb.v:1629`), or the OpenMP RHS and Jacobian will race.
 - **The Python layer** (`src/uedge/`) imports with `from uedge import bbb, com` (`src/uedge/hdf5.py:2`). It reports through `print`, raises plain `Exception` (`src/uedge/hdf5.py:27`), and has no logging framework.
 
 ## Build & validation commands
@@ -55,6 +55,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | `.claude/context/testing.md` | Running, writing, or reasoning about tests and CI |
 | `.claude/context/physics-workflow.md` | Adding new physics (the spec → implement → review agent pipeline) |
 | `.claude/context/branching.md` | Creating a branch or worktree, committing, or touching both `.claude/`/`CLAUDE.md` and product code |
+| `.claude/context/physics-models.md` | Planning, specifying, implementing or reviewing anything that touches an equation or model (index of models, switches, routines, specs) |
 | `.claude/context/python-layer.md` | Editing `src/uedge/*.py` (save/restore, `rundt`, balance, packaging) |
 
 ## Workflow (skills and agents)
@@ -66,7 +67,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | Refactor, numerics, OpenMP, Python, build | `plan-feature` → `execute` → `validate` → `code-review` → `commit` (or `end-to-end-feature`) |
 | Bug from a GitHub issue | `rca` → `implement-fix` → `commit` |
 | Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) |
-| Process retrospective | `execution-report` → `system-review` |
+| Process retrospective | `execution-report` → `system-review` (files `ai-layer` Jira issues; runs at the end of `end-to-end-feature` and `implement-fix`) |
 | Fresh machine | `init-project` |
 | Improve the AI layer itself | `feature/v9-ai-<slug>` branch, never on a ticket branch (`branching.md`) |
 
@@ -80,6 +81,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 - Branches: `feature/v9-*` or `bugfix/v9-*` off `v9-develop`, rebased before merge. Never commit to `main`, `develop`, `v9-main`, or `v9-develop` (`doc/workflow.md`, `CONTRIBUTING.md`).
 - **One branch (and worktree, with its own venv) per ticket:** `feature/v9-<KEY>-<slug>` for Jira, `bugfix/v9-issue-<N>-<slug>` for GitHub issues. **AI-layer process changes** (skills, agents, hooks, settings) go only on `feature/v9-ai-<slug>`. A ticket branch may touch `CLAUDE.md`/`.claude/context/` only to keep them factually in line with its own code change, with the commit trailer `AI-layer: code-facts`. The PreToolUse hook enforces this on every `git commit` (`.claude/context/branching.md`).
 - Every new user-facing variable gets a units bracket and a `#` description in `.v`. Forthon builds the Python docs from them.
+- **Keep the AI layer true.** A change that moves, renames or adds code that `CLAUDE.md` or `.claude/context/` describe updates them on the same branch (`physics-models.md` for models and switches, `architecture.md` for files and build steps). `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop` must be clean before a PR (`validate` runs it).
 
 ## Miscellaneous / Gotchas
 

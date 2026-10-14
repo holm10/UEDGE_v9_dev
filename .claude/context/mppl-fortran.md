@@ -1,7 +1,7 @@
 # MPPL Fortran — writing `.m` source that survives conversion
 
 `.m` files are fixed-form Fortran with MPPL extensions. They are **converted by text substitution**
-(`setup.py` `M2F.subrules`, `:634-660`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
+(`M2F.subrules`, `setup.py:634-660`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
 are not a parser.
 
 ## File skeleton (copy from `bbb/pandf_plasma_continuity.m:1-21`)
@@ -31,7 +31,7 @@ c     Full-line comment: 'c' in column 1
 
 - `Use(Group)` → `use Group` (`Use2use`, `setup.py:160`). Groups are defined in `.v` files.
 - Declarations may be written before or after `Use(...)`; `MoveDecs` (`setup.py:217`) reorders them.
-- Continuation: non-blank char (convention `.`) in column 6 (`bbb/pandf.m:561-562`).
+- Continuation: non-blank char (convention `.`) in column 6 (`bbb/pandf.m:573-575`).
 - Preprocessor: `c!ifdef`/`c!else`/`c!endif`/`c!include` → `#ifdef`/… (`setup.py:637,643,644,653`).
 - Conditional lines: `c!omp …` enabled only when building with OpenMP (`Omp`, `setup.py:209-215`);
   `cpetsc`/`cunipetsc` for PETSc; `c!nopdb` when no PACT.
@@ -53,7 +53,7 @@ c     Full-line comment: 'c' in column 1
 - Fatal: `call xerrab('*** <ROUTINE>: message ***')` (`bbb/pandf_plasma_continuity.m:29`). Returns control
   to the Python/BASIS prompt; do not `stop`.
 - Message: `call remark('...')` (`bbb/convert.m:345`). Gate chatty output on `com.iprint` (`com/com.v:709`).
-- Interrupt points already exist in `pandf` (`check_kaboom`, `ruthere`, `bbb/pandf.m:540-544`); do not add more.
+- Interrupt points already exist in `pandf` (`check_kaboom`, `ruthere`, `bbb/pandf.m:548-552`); do not add more.
 
 ## Numerics conventions
 

@@ -5,7 +5,7 @@
 - Access Fortran state through package objects: `from uedge import bbb, com` (`src/uedge/hdf5.py:2`).
   Generic var lookup uses Forthon: `from Forthon import package, packageobject` (`src/uedge/hdf5.py:11`).
 - Classes are `Ue<Thing>` (`UeRun`, `src/uedge/rundt.py:17`; `UeBalance`, `src/uedge/balance.py:5`) with a thin
-  function wrapper (`rundt(**kwargs)`, `:1300`; `checkbal()`, `:1363`).
+  function wrapper (`rundt(**kwargs)`, `src/uedge/rundt.py:1300`; `checkbal()`, `src/uedge/balance.py:1363`).
 - User messages via `print`; failures via `raise Exception("...")` (`src/uedge/hdf5.py:27,70`). No logging module.
 - Imports frequently local to functions (heavy optional deps like matplotlib/scipy are in the `ueplot` extra,
   `pyproject.toml` `[project.optional-dependencies]`).

@@ -47,6 +47,12 @@ serial/parallel mismatch). Record the observed output — you will compare again
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
+## 4b. AI-layer facts
+
+Run `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`. If the fix moved or renamed code that `CLAUDE.md` or `.claude/context/` cite, or changed a default
+listed in `.claude/context/physics-models.md`, update those facts (as in `execute` step 3b). Commit them with the
+trailer `AI-layer: code-facts`.
+
 ## 5. Regression coverage
 
 The regression suite lives on the `pytests` branch and is being redesigned. Do not add tests to this repo.
@@ -77,6 +83,11 @@ Fixes <short description> (#$ARGUMENTS)
 ```
 
 Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
+
+## 6. Process lessons
+
+After the fix is committed, run `execution-report` and then `system-review`. Its recommendations become `ai-layer`
+issues (see `system-review`), never edits on this branch.
 
 ## Notes
 

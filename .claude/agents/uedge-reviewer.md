@@ -77,6 +77,7 @@ Check the code against the approved spec. Do not trust the implementer's report;
 6. **Tests** — Rebuild and rerun the test suite and the new validation tests yourself. Check that new tests actually test the physics (try to reason about whether a plausible bug would pass them). Flag loosened tolerances, skipped tests, or tests that only check "it runs".
 7. **Numbers** — Recompute at least one reported result independently (e.g. a short Python script evaluating the spec formula at a given state and comparing with UEDGE's output).
 8. **Style and maintainability** — Matches surrounding code, comments reference spec equations, no unrelated changes, no magic numbers. These are minor unless they hide a bug.
+9. **AI-layer facts** — `.claude/context/physics-models.md` has a correct row for the model (switches, default, routines, spec link), and `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop` is clean. A landed model with no row, or a wrong row, is MAJOR. Any change to skills, agents or hooks on the ticket branch is a BLOCKER (`branching.md`).
 
 Tell the main session before any long or resource-heavy run.
 

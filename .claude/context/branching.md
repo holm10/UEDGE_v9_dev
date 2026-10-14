@@ -9,7 +9,7 @@ physics, and leaves feature branches depending on unmerged tooling. This module 
 
 | Class | Paths | Belongs on |
 |---|---|---|
-| **process** | `CLAUDE.md`, `.mcp.json`, `.claude/**` (skills, agents, context, hooks, settings), `.githooks/**`, `.github/workflows/claude-*.yml` | an AI-layer branch |
+| **process** | `CLAUDE.md`, `.mcp.json`, `.claude/**` (skills, agents, context, hooks, settings), `.githooks/**`, `.github/workflows/claude-*.yml` | an AI-layer branch (`CLAUDE.md` and `.claude/context/**` also on ticket branches as code-facts) |
 | **artifact** | `.claude/plans/**`, `docs/{prds,specs,reviews,rca,physics_specs}/**` | the ticket/epic branch it belongs to |
 | **product** | everything else: `*/*.m`/`.F`/`.v`/`.F90`, `setup.py`, `Makefile.Forthon`, `src/uedge/`, CI, `doc/` | a ticket branch |
 | **record** | `.claude/execution-reports/**`, `.claude/system-reviews/**` | any branch |
@@ -83,11 +83,25 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
   from the ticket's history.
 - Prefer merging the AI layer first. Then this section goes away.
 
+## Guard rails on the AI layer changing itself
+
+- **Agents never apply process changes automatically.** `system-review` files them as `ai-layer` Jira issues
+  (fallback: `.claude/system-reviews/backlog.md`). They land through a `feature/v9-ai-*` PR that a person reviews.
+- **The code-facts trailer is narrow.** It covers only `CLAUDE.md` and `.claude/context/**`. The hook blocks
+  skills, agents, hooks and settings on ticket branches even with the trailer.
+- **Facts are checked, not trusted.** `check_context_refs.py` compares every cited `path:line` with the locked
+  text. `--update` (re-locking) is only allowed after the claim has been re-read. A reviewer who sees a lock
+  change without the matching doc or code change treats it as a finding.
+- **Backstop.** `.github/workflows/claude-context-drift.yml` runs the drift check and the branch-policy range check
+  on every PR to `v9-develop`, and the drift check weekly on `v9-develop`. A scheduled failure opens an `ai-layer`
+  GitHub issue.
+
 ## Checking
 
 ```bash
 uv run .claude/hooks/change_kind.py --staged                 # before a commit (the hook does this for agents)
 uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD   # a whole branch, before opening a PR
+uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop   # are the AI layer's code facts still true?
 ```
 
 Exit 0 means clean, 1 means violations (printed with the offending paths), 2 means the check couldn't run.

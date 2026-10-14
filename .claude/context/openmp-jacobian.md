@@ -9,16 +9,16 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 - **Local (Jacobian column):** `xc, yc ≥ 0` — `initialize_ranges` (`bbb/pandf.m:31-248`) shrinks loop bounds
   `i1..i8`, `j1..j8` (module `Selec`) to a stencil box around the perturbed cell using `xlinc`, `xrinc`, `yinc`.
   Every loop in the `pandf` tree must use these ranges, or the Jacobian is either wrong (too small) or slow (too big).
-- `jacobian_store_momentum` / `jacobian_store_volsources` save/restore state between columns (`bbb/pandf.m:556-559`).
+- `jacobian_store_momentum` / `jacobian_store_volsources` save/restore state between columns (`bbb/pandf.m:565-568`).
 
 ## OpenMP parallelism (`ppp/`)
 
-- Switches in `ppp/ppp.v`: `OMPParallelPandf1` (RHS, `:6`), `OMPParallelJac` (Jacobian, `:7`), `Nthreads` (`:14`).
+- Switches in `ppp/ppp.v`: `OMPParallelPandf1` (RHS, `ppp/ppp.v:6`), `OMPParallelJac` (Jacobian, `ppp/ppp.v:7`), `Nthreads` (`ppp/ppp.v:14`).
 - RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:902`) splits the grid into bulk chunks plus special **X-point
-  chunks** (`Make2DChunks`, `:3`), runs `OMPPandf`/`OMPPandf_XPT` per chunk with `FIRSTPRIVATE(ylcopy,yldotcopy)`,
+  chunks** (`Make2DChunks`, `ppp/omp_parallel.F90:3`), runs `OMPPandf`/`OMPPandf_XPT` per chunk with `FIRSTPRIVATE(ylcopy,yldotcopy)`,
   and sums only the `iv` indices each chunk owns (`REDUCTION(+:yldottot)`).
-- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`:495`, `:645`) — each thread builds columns with its own copy of
-  module state; `Selec` ranges are `copyin`'d (`:649`, `:715`).
+- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`ppp/omp_parallel.F90:495`, `ppp/omp_parallel.F90:645`) — each thread builds columns with its own copy of
+  module state; `Selec` ranges are `copyin`'d (`ppp/omp_parallel.F90:649`, `ppp/omp_parallel.F90:715`).
 - Per-thread copies of module variables come from `+threadprivate` in `.v`. The `OmpCopy<pkg>` modules used by
   `ppp` are generated at build time (Forthon `--omp`, `setup.py` `OMPargs`), not stored in the repo.
 

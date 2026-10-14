@@ -59,6 +59,16 @@ Run, in this order, and record results:
 
 Add the new tests and the input decks or Python scripts used to the repository's test/examples area so they can be rerun. If a test fails, investigate; never loosen tolerances or remove tests without reporting why.
 
+## 4b. Update the AI-layer facts
+
+Before reporting:
+
+- Add or update this model's row in `.claude/context/physics-models.md`: switches with their `.v` lines, default,
+  main routines with their first lines, and the spec link.
+- If you added files or routines or changed build registration, update `.claude/context/architecture.md`.
+- Run `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`. Fix every problem line, re-read the passages it lists, and lock with `--update` once checked.
+- Only `CLAUDE.md` and `.claude/context/` may change. Never edit skills, agents or hooks; report process issues instead.
+
 ## 5. Report
 
 Return to the main session with:
@@ -68,6 +78,8 @@ Return to the main session with:
 3. **Verification results**: each test with pass/fail, numbers, and convergence statistics.
 4. **Deviations from spec**: anything implemented differently and why (should normally be none).
 5. **Issues for the physics agent**: places where the spec was unclear, wrong, or caused numerical trouble.
+6. **AI-layer facts updated**: rows and modules changed, and the drift check result.
+7. **Process issues**: anything about the agents or skills that slowed you down (for `system-review`; don't fix them).
 
 # Responding to review
 

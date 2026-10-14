@@ -24,7 +24,7 @@
 | `odesetup.m` (~8k lines) | Problem setup, allocation (`gchange`), indexing `yl`↔(ix,iy,eq), `exmain` prelims |
 | `odesolve.m` | `exmain`/`uedriv` — solver loop, time stepping |
 | `oderhs.m` | Rates, sources, MC-neutral glue, misc RHS helpers |
-| `pandf.m` | **RHS driver** `pandf(xc,yc,neq,time,yl,yldot)` (`:513`), `initialize_ranges` (`:31`), `calc_rhs` (`:251`), `add_timestep` (`:390`) |
+| `pandf.m` | **RHS driver** `pandf(xc,yc,neq,time,yl,yldot)` (`bbb/pandf.m:513`), `initialize_ranges` (`bbb/pandf.m:31`), `calc_rhs` (`bbb/pandf.m:251`), `add_timestep` (`bbb/pandf.m:390`) |
 | `pandf_plasma_{continuity,momentum,energy}.m` | Ion continuity, parallel momentum, Te/Ti equations |
 | `pandf_gas_{continuity,energy}.m` | Neutral gas equations |
 | `pandf_potencur.m` | Potential & currents (`calc_currents`, `calc_fqp`) |

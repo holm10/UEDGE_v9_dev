@@ -25,7 +25,7 @@ name   type  [units]  /default/  +attrs  # doc string (shown in Python help)
 | Scalar input w/ default | `isteon integer /1/ +input #user:turns on (=1) electron energy eqn.` | `bbb/bbb.v:222` |
 | Fixed-size array | `isnion(nispmx) integer /nispmx*1/ +input #...` | `bbb/bbb.v:217` |
 | Coefficient | `cfneut real /1./ +input #Coef for fluid neutrals contrib's to resid's` | `bbb/bbb.v:279` |
-| Dynamic array (note `_`) | `ni(0:nx+1,0:ny+1,1:nisp) _real [m^-3] +threadprivate #ion density...` | `bbb/bbb.v:1628` |
+| Dynamic array (note `_`) | `ni(0:nx+1,0:ny+1,1:nisp) _real [m^-3] +threadprivate #ion density...` | `bbb/bbb.v:1629` |
 | Dynamic, computed | `isnionxy(0:nx+1,0:ny+1,nisp) _integer #calc:=1 for ni eqn on` | `bbb/bbb.v:236` |
 | Subroutine | `convsr_vo(i,j,yl:real) subroutine` (+ `# in i` arg doc lines) | `bbb/bbb.v:3362` |
 | Function | `ebindz(za:integer, zn:integer) real function` | `bbb/bbb.v:3568` |
@@ -48,5 +48,5 @@ Nothing in UEDGE's Python or in Forthon reads this attribute (Forthon's `pydump`
 4. If it is written anywhere inside the `pandf` call tree → `+threadprivate` (see `openmp-jacobian.md`).
 5. Dynamic arrays (`_real`) are allocated by `call gchange("Group",0)` — make sure the group is (re)allocated in
    `odesetup.m` after dims are known (`bbb/odesetup.m:87` pattern).
-6. If it must be saved/restored, add to the save list in `src/uedge/hdf5.py` (`hdf5_save` `varlist`, `:82`).
+6. If it must be saved/restored, add to the save list in `src/uedge/hdf5.py` (`hdf5_save` `varlist`, `src/uedge/hdf5.py:82`).
 7. Parameters in `{}` must be mirrored in `<pkg>.h` `#define`s (`bbb/bbb.h`).

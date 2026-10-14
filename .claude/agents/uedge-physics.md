@@ -15,6 +15,9 @@ Your output is a single physics specification file. It must be complete enough t
 
 ## 1. Frame the problem
 
+Start with `.claude/context/physics-models.md`. Find what already exists, and which switches and routines a new
+model would touch or overlap. The spec must say which row it adds or changes.
+
 - Restate the requested physics in a few sentences: what process, which species/equations it affects (ion continuity, parallel momentum, electron/ion energy, neutrals, impurities, potential), and the target regime (density, temperature, collisionality, geometry, device).
 - Identify what UEDGE already does in this area. Read the relevant source and variable descriptions in the repository so you know the existing model, its switches, and its approximations. Do not edit anything.
 
