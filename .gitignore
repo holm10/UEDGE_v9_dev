@@ -19,3 +19,9 @@ uedge.egg-info
 *.f
 pyscripts/__version__.py
 /dist
+
+# Local Claude Code audit logs (.claude/hooks/post_tool_use.py)
+logs/
+
+# Per-worktree virtualenvs (.claude/context/branching.md)
+.venv/
