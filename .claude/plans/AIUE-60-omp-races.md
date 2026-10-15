@@ -17,6 +17,106 @@ below). OpenMP Jacobian: unchanged at the default `jaccliplim=0`; with `jacclipl
 **Follow-up ticket**: AIUE-69 (non-default paths: double-null x-point `ghxpt`, coupled wall sources, `isimpon=5`,
 PETSc clip index)
 
+## Amendment 1 (implementation review round 1, I1-B1): no threadprivate scalars outside `bbb`
+
+**Problem.** Forthon's `--omp` generator gives every package's `OmpCopyScalar<pkg>` the same common block,
+`common /ompcommonscalarcopy/ <that package's scalar copies>`, with `firstprivate(/ompcommonscalarcopy/)`.
+- The extensions are loaded `RTLD_GLOBAL` in the order com, grd, flx, bbb, svr, wdf, api, aph, ppp
+  (`src/uedge/__init__.py:21-33`), and they are flat-namespace bundles. So the first loaded definition of
+  `_ompcommonscalarcopy_` serves every package.
+- Before AIUE-60 only `bbbpy.so` (89 scalars, 712 B) and `apipy.so` (96 B, loaded later) defined it. The A4 timers made `compy.so`
+  define an 80-byte block, and it loads first. So `OmpCopyScalarbbb` (now 91 scalars, 728 B) writes into it on every OpenMP Jacobian,
+  past its end into `com`'s `/iotable/` (the reviewer's probe: 62 words changed).
+- `iflag_aph` (B4) adds an 8-byte `aphpy.so` block. It is latent only because `aph` loads after `bbb`.
+
+**Options considered.**
+1. *Timers threadprivate, upstream fix.* Package-specific common names in Forthon's generator. This is out of this
+   repo, so not now; a follow-up ticket is proposed (below).
+2. *Timers move into `bbb`.* This changes the Python API (`com.ttimpjf` …) and the `wdf`/`api`/`aph` users. Rejected.
+3. *Timers shared, accumulation skipped inside parallel regions* via `omp_in_parallel()`. In MPPL that needs an
+   `external`/`logical` declaration in an OpenMP-only (`c!omp`) line. With `-fdefault-integer-8` a plain `logical`
+   declaration is `logical(8)`, against `omp_lib`'s `logical(4)` return (ABI risk). It also drops the timing of all
+   parallel work. Rejected.
+4. **Timers shared, update made atomic (chosen).**
+   - A new helper `acctim(acc, dt)` at the end of `com/misc.m` (after `tock`) does `acc = acc + dt` under a
+     fixed-form OpenMP sentinel line `c$omp atomic`.
+   - MPPL passes comment lines through unchanged (checked: `c ...` lines survive into `bbb/pandf.F`). gfortran with
+     `-fopenmp` therefore compiles the directive, and the serial build sees a comment: the same `acc = acc + dt`.
+   - Every A4 accumulation becomes `call acctim(<timer>, tock(<t>))` on the same line, so the change is line-neutral:
+     `bbb/pandf.m:636,758,760`; `bbb/pandf_gas_continuity.m:664,765,777,876`; `com/comutil.m:3654,3902`;
+     `aph/aphrates.m:596,773,1031`; `api/fmombal.m:248` (the `isimpon=5` path, blocked under OpenMP; converted for
+     uniformity).
+   - The 10 `com/com.v` lines go back to their original text: no `+threadprivate`, original doc strings.
+   - Timers then sum exactly over threads (before AIUE-60: lost updates). TSan sees atomics, so it doesn't report them.
+5. **`iflag_aph` (B4): replaced by a local, not threadprivate.**
+   - `rqa`, `rra` and `rsa` get a local `iflagl`, appended to their existing `integer nxcoef,nycoef` line
+     (`aph/aphrates.m:433,641,897`), and pass it to `B2VAhL` instead of `iflag_aph` (`:570,595,749,772,1007,1030`).
+     This is line-neutral.
+   - `iflag_aph` is not read after these calls (`git grep`), so results are unchanged.
+   - `aph/aph.v:203` goes back to its original text. `workh` (an array: per-routine `pcopy__`, not the scalar common)
+     stays `+threadprivate`, with the paren-free bound of `02e6e60`.
+
+**Invariant (to record in `openmp-jacobian.md` and `variables-forthon.md` checklist 4, code-facts).**
+- A `+threadprivate` **scalar** in package P adds a definition of the shared common `/ompcommonscalarcopy/`, sized by
+  P's threadprivate scalars.
+- The first definer in load order serves all packages. So **no package that loads before `bbb` (`com`, `grd`, `flx`)
+  may define threadprivate scalars**, and **no later package's block (`api`, `aph`, `ppp`, …) may be larger than
+  `bbb`'s**.
+- Threadprivate arrays are not affected.
+- New threadprivate scalars belong in `bbb`. AIUE-61 must check this if it adds any to `ppp.v`.
+
+**New pre-registered gates (in addition to Testing 1–6, all re-run on the amended tree).**
+- **G-common (static).** Script `docs/reviews/AIUE-60-common-check.py`. For each extension in the OpenMP venv, in
+  load order:
+  - whether it defines `_ompcommonscalarcopy_` (`nm -m`);
+  - the block size from the generated `build/temp.*/<pkg>_p.F90` (the variables of its `common /ompcommonscalarcopy/`
+    statement, joined over its `&` continuation lines, × 8 B; sizes checked at plan time: AIUE-56 `bbb` 89/712 B,
+    `api` 12/96 B; pre-amendment AIUE-60 `bbb` 91/728 B, `api` 96 B, `com` 10/80 B, `aph` 1/8 B).
+
+  **Pass:** the first definer in load order is `bbb`, and every other definer's block is ≤ `bbb`'s. Expected:
+  definers exactly `bbb` (91 scalars, 728 B) and `api` (96 B); `com` and `aph` define none. It is also run on the
+  AIUE-56 venv as a control (`bbb` 712 B, `api` 96 B: pass), and on the pre-amendment AIUE-60 venv as a negative
+  control (`com` first, 80 B: fail).
+- **G-iotable (dynamic).** The reviewer's probe, made robust to a missing `com` block, committed as
+  `docs/reviews/AIUE-60-iotable-probe.py`. Te box, `jac` arm, 4 threads, `itermx=1` (≥ 2 OpenMP Jacobians).
+  **Pass:** 0 changed `iotable` words, on the amended AIUE-60 build. Control: the pre-amendment build reports > 0
+  (the reviewer saw 62).
+- **TSan (Testing 5) after the amendment.** Same gate. The timer groups must stay absent, now because the updates are
+  atomic. The pre-registered expectation for out-of-loop groups adds: no `ompcommonscalarcopy_` report located in
+  `compy` or `aphpy`.
+- **Probe S, updated expectations.** `shared-writes` 161 → 147, with exactly the same 14 removals: the timer writes
+  become `call acctim(...)` arguments, so the assignment scan no longer lists them. `passed-args`: `workh` and
+  `iflag_aph` disappear; the timer variables now appear as `acctim` arguments (`com.Timing.*` and `com.Timespl.*`, 10
+  entries), so 137 → 145; they are listed and classified as atomic updates in the validation record. Any other change fails.
+- **Timing (report, flag > 10 %).** Interleaved full-problem `jac` runs at 4 threads, AIUE-56 and AIUE-60, K=5 each:
+  the ratio of medians of the harness `elapsed_s`, so the cost of the atomics is visible.
+
+**Follow-up ticket text proposed (Forthon / generated OpenMP copies).** "Forthon `--omp`
+(`wrappergenerator_ompextension.py`):
+(1) `OmpCopyScalar<pkg>` uses the same `common /ompcommonscalarcopy/` in every package. With `RTLD_GLOBAL` and
+flat-namespace / ELF interposition, the first loaded definition serves all packages. A package that loads earlier and
+has fewer threadprivate scalars makes later packages overflow the block (AIUE-60: `com` timers → `bbb` overwrote
+`com`'s `/iotable/`). Fix: package-specific names (`ompcommonscalarcopy_<pkg>`), or module variables instead of a
+common block.
+(2) `ProcessDim`/`GetSize` cut a dimension at the first `)`, so a bound with nested parentheses such as
+`2*k*(n+1)` produces uncompilable copy routines.
+Until fixed, UEDGE keeps the invariant in `openmp-jacobian.md` and checks it with `docs/reviews/AIUE-60-common-check.py`
+(candidate for the AIUE-57 OpenMP CI job)."
+
+**I1-m1 (stated).** B2 (`sputflxllim/rlim`) and B4 (`workh`) were never executed in a threaded run: no preset
+enables limiter sputtering or `istabon=5/6`, and the `nwfits` data `istabon=5/6` needs isn't on this machine. They
+are covered by Probe S, the build, the generated-code check (same `copyin(pcopy__)` per-thread allocation as the 500+
+exercised `bbb` arrays) and `B2VAhL`'s write-before-read. The validation record and the PR state this as untested at
+run time.
+
+**I1-m2 (deviations recorded in the validation record).**
+- (i) The plan's defaults gate (AIUE-56 bases) returns `INCOMPLETE` on tool policy: the base is not on
+  `origin/v9-develop`. Every comparison agreed. The substitute complete gate uses `base-serial`/`base-omp` at `0fac655`.
+  Reasoning: `0fac655` is an ancestor of `origin/v9-develop` and of `1553e75`, and the only product diff
+  `0fac655..1553e75` is AIUE-56's `OMPJacBuilder` copy order, which runs neither in serial nor with both switches 0.
+- (ii) After `02e6e60` the generated serial `aph_p.F90` and `aphpymodule.c` differ from the base in the text of
+  `workh`'s bound. The two forms are arithmetically equal, and the array size is unchanged.
+
 ## Problem and solution
 
 The AIUE-50 scan and the AIUE-55 RCA (`docs/rca/AIUE-8-omp-jacobian-nondeterminism.md` on the AIUE-62 branch,
