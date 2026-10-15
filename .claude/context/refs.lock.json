@@ -114,6 +114,8 @@
  "ppp/omp_parallel.F90:936": "",
  "ppp/omp_parallel.F90:959": "psorcxg = 0",
  "ppp/omp_parallel.F90:961": "psordis = 0",
+ "ppp/parallel.F90:30": "if (OMPParallelPandf1.gt.0) then",
+ "ppp/parallel.F90:36": "endif",
  "ppp/ppp.v:14": "Nthreads integer /64/ # Number of threads to be used to calculate the Jacobian",
  "ppp/ppp.v:15": "CheckPandf1 integer /0/ # [0/1]: Turn on on-the-fly comparison of parallel vs",
  "ppp/ppp.v:6": "OMPParallelPandf1 integer /0/ # [0]: serial pandf1 rhs calc [1] omp parallel pandf1 rhs calc",
