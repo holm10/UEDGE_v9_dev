@@ -80,7 +80,7 @@ Debian Te box 20/20 bitwise on both arms, full problem 20/20, and every Te group
 threads); Ubuntu 24.04 gcc 13.3 (`ubuntu_fix_k5_*`): Te box 5/5 bitwise on both arms, full problem 5/5,
 deterministic, C1-gate deviation 0; its serial references are bitwise equal to Debian's, and its 11 extensions have 0
 FMA instructions and 0 `ymm`/`zmm` operands (`ubuntu/fma_fixld.txt`) (macOS, same fix: Te box 1/30, full 0/30 at 4
-threads). The C1 gate's deviation is 0 in all Debian Te runs. **Bitwise and deterministic except where M3 appears:**
+threads). The C1 gate's deviation is 0 in all Debian Te runs except the M3 runs (full at 8 threads: ≤ 3.5e-10). **Bitwise and deterministic except where M3 appears:**
 `up` at ≥ 4 threads, and the full problem at 8 threads (K=5: jac 0/5, jacrhs 3/5, non-deterministic,
 `ctl_fix_t8_up_full_k5`; K=2: jac 2/2, jacrhs 1/2); every one of those mismatches is in `up` rows.
 
@@ -317,7 +317,7 @@ iterations and then drifts. Only the replay remedy reproduced serial's trajector
 | C1 (copy order; also the RHS arm) | AIUE-56 | fix committed on `bugfix/v9-AIUE-56-omp-jacobian-fix`; validation: static hazards 12 → 0, defaults bitwise unchanged (serial check, 42 cases, both builds), C1 gate PASS in every Te configuration, no slowdown |
 | F16 `areapl` race, timer/flag races, clip-index inconsistency, `emcoef` `copyin` (benign), `fmombal` SAVE arrays (`isimpon=5`) | **AIUE-60** | not started |
 | C2 / M2 (history inside the column loop) + the `OMPJacNchunks≠0` stack crash | **AIUE-61** | prototype shows option E works; production fix pending the owner's choice of path |
-| Linux characterisation, FMA on x86-64 | **AIUE-62** | done on `feature/v9-AIUE-62-linux-characterisation` (x86-64; arm64 not run). New: M3 (`up` rows, Linux) → **AIUE-65**; the Linux OpenMP build's missing `libgomp` link → **AIUE-64** |
+| Linux characterisation, FMA on x86-64 | **AIUE-62** | done on `feature/v9-AIUE-62-linux-characterisation` (emulated x86-64; arm64 not run). New: M3 (`up` rows, Linux) → **AIUE-65**; the Linux OpenMP build's missing `libgomp` link → **AIUE-64** |
 
 ## Characterisation before any fix (AIUE-54)
 

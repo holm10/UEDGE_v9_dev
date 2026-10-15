@@ -2,7 +2,7 @@ AIUE-62 build and environment record (linux/amd64, Docker Desktop 29.6.2 on macO
 
 == Images (scripts: tests/deterministic_omp/linux/)
 aiue62:amd64        FROM python:3.11-bookworm@sha256:5887f265d8d44d8b4734d3658b21d668edf5aaf92e4945bc0c984afbfab105d3 + gfortran binutils file (Debian bookworm)
-aiue62-ubuntu:amd64 FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 (link check only)
+aiue62-ubuntu:amd64 FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 (link check, then the K=5 bitwise runs of review round 1)
 container: docker run -d --platform linux/amd64 --cpus 5 --memory 7g -v <repo>:/mnt/repo:ro -v <out>:/out -v <scripts>:/scripts:ro -v <volume>:/work aiue62:amd64 sleep infinity
 uname: Linux 6.12.76-linuxkit x86_64; CPU 'VirtualApple @ 2.50GHz'; /proc/cpuinfo flags include: fma avx avx2 (no avx512f)
 Python 3.11.17, gfortran/gcc: GNU Fortran (Debian 12.2.0-14+deb12u1) 12.2.0
