@@ -143,7 +143,9 @@ solver's `jac`, the second into a local copy for the comparison); `CheckPandf1` 
 and aborts after scanning all entries. They change solver state, so they are diagnostics, not a baseline. The bitwise check against serial is the harness below.
 
 Test with a double-null / snowflake case too: X-point chunks are where regressions hide.
-Serial build (`--serial`) is what CI tests — it will **not** catch OpenMP races.
+The serial build (`--serial`) that `build-test-wheel.yml` tests will **not** catch OpenMP races. The OpenMP CI job
+`.github/workflows/build-test-omp.yml` (AIUE-57) does: it runs the flow below through
+`tests/deterministic_omp/ci/run_omp_ci.sh` on the default OpenMP build and gates on the `jac` arm, bitwise.
 
 ## Bitwise OpenMP-vs-serial harness (`tests/deterministic_omp/harness/`)
 
@@ -172,6 +174,8 @@ the capture source, iterations recorded), so a run where the arm did not take ef
 harness error, never a pass; so is a comparison report with errors. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
 The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
 (`python -m pytest tests/deterministic_omp/harness`).
+In CI (`run_omp_ci.sh`; locally `PYTHON=$PY tests/deterministic_omp/ci/run_omp_ci.sh pr`) a failing `jac` group is
+reported as configuration, arm, threads, equation and cell of the first mismatch; `jacrhs` only warns.
 
 ## Serial old-vs-new bitwise check (`tests/deterministic_omp/harness/serial_check.py`)
 

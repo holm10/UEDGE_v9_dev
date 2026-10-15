@@ -78,7 +78,15 @@ it with `MakeTests.py` on the `pytests` branch in a separate PR and explain the 
 
 ## CI facts / quirks
 
-- Builds with `--serial`, Python 3.11, `numpy==1.26.4`. OpenMP paths are not tested in CI.
+- `build-test-wheel.yml` builds with `--serial`, Python 3.11, `numpy==1.26.4`; it does not exercise OpenMP.
+- `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
+  (`pip install -v .`, Python 3.11, `numpy==1.26.4`) and runs `tests/deterministic_omp/ci/run_omp_ci.sh`, which runs
+  the harness unit tests, a smoke test and the OpenMP test flow (`tests/deterministic_omp/README.md`, "CI").
+  Push/PR: `tebox` (2, 4 threads, K=5, both arms) and `full` (2, 4 threads, K=2, `jac` arm), `--itermx 3`; nightly
+  (`schedule`, default branch only): `--all`, K=3. Gate: the `jac` arm, bitwise (`OMP_CI_JAC_TOLERANCE` is the
+  switch for a future tolerance gate); `jacrhs` is report-only. Red on the pre-fix code by design: not to be merged
+  before the OpenMP Jacobian fix (AIUE-56). Same steps locally:
+  `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`.
 - Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
 - `build-basis.yml` runs BASIS level-1/level-2 tests in Docker (`fusionbillm/basisuedge`); skip with `#@nobasis`.
