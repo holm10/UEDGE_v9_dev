@@ -10,26 +10,31 @@ exactly jaccliplim), so that Jacobian cannot tell the rules apart. The psetnk Ja
 is computed at the same initial state with the non-uniform sfscal sfsetnk just set. So one run (`run`, a
 fresh process): deck -> preset -> arm; jaccliplim = L; itermx = 1; isrnorm = 0 and ireorder = 0 (both arms:
 bbb.jac after exmain is then raw(r,c) * sfscal(r) / suscal(c) in natural order); exmain. Saves bbb.jac (CSR),
-sfscal and suscal.
+sfscal, suscal and which rows are Te equations.
 
   python -I AIUE-60-clip-check.py check --python NEW/bin/python [--base-python OLD/bin/python] \\
-         --preset full --clip 1e-6 --threads 4 --repeats 2 --out DIR
+         --preset full --clip 1e-6 --threads 4 --repeats 2 [--strict] --out DIR
 
 `check` runs, per build, a serial reference, a serial run with clip 0 (for the prediction) and K OpenMP-Jacobian
 runs, one at a time, and reports:
   predicted   from the serial clip-0 Jacobian: entries the row rule and the column rule keep differently at L
   G1 (new)    every OpenMP entry present on one side only is a threshold flip: | |J(r,c)| - L/suscal(c) | <=
-              TAU * max_c'|J(r,c')| (TAU = 1e-8, row max of that side's J; the row rule keeps |J(r,c)| > L/suscal(c)),
-              i.e. the band is in the scale of the C2 round-off residual (<= 7.2e-9 x row max, AIUE-56). If a run's
-              common values and sfscal are bitwise equal to serial, it must have no one-sided entry at all.
+              tau_eff * max_c'|J(r,c')| (row max of that side's J; the row rule keeps |J(r,c)| > L/suscal(c)), with
+              tau_eff = TAU + (max relative sfscal difference of the run) and TAU = 1e-8: the C2 round-off scale
+              (largest observed C2 deviation 7.15e-9 x row max, AIUE-56; an observed value, not a bound).
+              --strict (presets without C2, e.g. ni): additionally 0 one-sided entries when the run's common values
+              and sfscal are bitwise equal to serial.
+              Without --strict (presets with C2, e.g. full): a run with non-flips is "PASS (C2 tolerance)" if every
+              non-flip lies in a Te row (the C2 rows) within 1e-6 x row max of the threshold (the AIUE-56 C1-gate
+              bound); otherwise FAIL. The old column rule gives non-flips in every equation, up to 1 x row max.
               Reported per run: entries in the band (serial), value differences of common entries.
   G2          report only: sfscal differences serial vs OpenMP (count, max relative). sfscal comes from the
               sfsetnk Jacobian, which round-off (C2) may change; each side's J is scaled by its own sfscal, so the
-              band test above stays self-consistent. suscal must be bitwise equal (else exit 2: not comparable).
-  G3 (base)   negative control: every base OpenMP run has non-flip pattern differences (the case is sensitive)
+              band test above stays consistent within each side. suscal must be bitwise equal (else exit 2).
+  G3 (base)   negative control: every base OpenMP run has non-flips (the case is sensitive to the old rule)
   G4          the serial Jacobians of base and new are bitwise equal (pattern and values; serial unchanged)
 Exit: 0 all gates pass, 1 a gate fails, 2 harness error / precondition (suscal not bitwise, run failed).
-The harness core (presets, case files, rates) is read from --harness (AIUE-57 reviewed core by default).
+The harness core (presets, case files, rates, equation map) is read from --harness (AIUE-57 reviewed core).
 """
 import argparse
 import json
@@ -39,6 +44,8 @@ import sys
 import time
 
 DEFAULT_HARNESS = "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp"
+TAU = 1e-8  # band half-width, x row max: largest observed C2 deviation 7.15e-9 x row max (AIUE-56)
+C1_BOUND = 1e-6  # AIUE-56 C1-gate deviation bound, x row max
 
 
 def worker(a):
@@ -46,7 +53,8 @@ def worker(a):
     sys.path.insert(0, a.harness)
     sys.path.insert(0, os.getcwd())
     from harness.config import ARMS, DIAGNOSTIC_SWITCHES, apply_preset
-    from input_mod4 import bbb, ppp  # runs the deck in the run directory
+    from harness.worker import EQ_CODES, equation_map
+    from input_mod4 import bbb, com, ppp  # runs the deck in the run directory
 
     apply_preset(bbb, a.preset)
     for name in DIAGNOSTIC_SWITCHES:
@@ -63,8 +71,10 @@ def worker(a):
     bbb.exmain()
     neq = int(bbb.neq)
     nnz = int(bbb.jaci[neq]) - 1
+    eq, _ = equation_map(bbb, com, neq)
     out = {"jac": np.array(bbb.jac[:nnz]), "jacj": np.array(bbb.jacj[:nnz]), "jaci": np.array(bbb.jaci[: neq + 1]),
-           "sfscal": np.array(bbb.sfscal[:neq]), "suscal": np.array(bbb.suscal[:neq])}
+           "sfscal": np.array(bbb.sfscal[:neq]), "suscal": np.array(bbb.suscal[:neq]),
+           "is_te": eq == EQ_CODES.index("te")}
     meta = {"preset": a.preset, "arm": a.arm, "threads": a.threads, "clip": a.clip, "neq": neq, "nnz": nnz,
             "ijactot": int(bbb.ijactot), "iterm": int(bbb.iterm), "Nthreads": int(ppp.Nthreads),
             "OMPParallelJac": int(ppp.OMPParallelJac), "OMP_NUM_THREADS": os.environ.get("OMP_NUM_THREADS")}
@@ -123,51 +133,62 @@ def predicted(ser0, clip):
     return {"row_rule_keeps": int(n_row), "col_rule_keeps": int(n_col), "rules_differ": int(n_xor)}
 
 
-TAU = 1e-8  # band half-width in units of the row max (C2 residual <= 7.2e-9 x row max, AIUE-56)
-
-
 def row_max(d):
     import numpy as np
     ia, a = d["jaci"], np.abs(d["jac"])
     return np.array([a[ia[i] - 1:ia[i + 1] - 1].max() if ia[i + 1] > ia[i] else 0.0 for i in range(len(ia) - 1)])
 
 
-def in_band(v, r, c, su, rmax, clip):
-    """bbb.jac = raw*sf(r)/su(c) and the row rule keeps |raw*sf(r)| > clip, i.e. |J(r,c)| > clip/su(c). An entry is
-    a threshold flip when |J(r,c)| lies within TAU x (row max of J) of that threshold: the C2 scale."""
-    return abs(abs(v) - clip / su[c - 1]) <= TAU * rmax[r - 1]
+def dist_rowmax(v, r, c, su, rmax, clip):
+    """Distance of |J(r,c)| from the row-rule threshold clip/su(c), in units of the row max of J (the C2 scale)."""
+    return abs(abs(v) - clip / su[c - 1]) / max(rmax[r - 1], 1e-300)
 
 
 def pattern_diff(ser, omp, clip):
+    import numpy as np
     s, o = entries(ser), entries(omp)
     su = ser["suscal"]
     rmax_s, rmax_o = row_max(ser), row_max(omp)
+    sf_diff = int((ser["sfscal"] != omp["sfscal"]).sum())
+    sf_rel = float(np.abs(omp["sfscal"] / ser["sfscal"] - 1).max())
+    tau_eff = TAU + sf_rel
+    is_te = ser.get("is_te")
     only = [(rc, v, "serial") for rc, v in s.items() if rc not in o] + \
            [(rc, v, "omp") for rc, v in o.items() if rc not in s]
-    flips = nonflips = 0
+    flips = nonflips = nonflips_c2 = 0
     worst = 0.0
     for (r, c), v, side in only:
         rmax = rmax_s if side == "serial" else rmax_o  # each side's own J and row scale (its own sfscal)
-        if in_band(v, r, c, su, rmax, clip):
+        dist = dist_rowmax(v, r, c, su, rmax, clip)
+        if dist <= tau_eff:
             flips += 1
         else:
             nonflips += 1
-            worst = max(worst, abs(abs(v) - clip / su[c - 1]) / max(rmax[r - 1], 1e-300))
+            worst = max(worst, dist)
+            if is_te is not None and bool(is_te[r - 1]) and dist <= C1_BOUND:
+                nonflips_c2 += 1
     vdiff = sum(1 for rc in s if rc in o and s[rc] != o[rc])
-    band = sum(1 for (r, c), v in s.items() if in_band(v, r, c, su, rmax_s, clip))
-    sf_diff = int((ser["sfscal"] != omp["sfscal"]).sum())
-    sf_rel = float(abs(omp["sfscal"] / ser["sfscal"] - 1).max())
+    band = sum(1 for (r, c), v in s.items() if dist_rowmax(v, r, c, su, rmax_s, clip) <= TAU)
     return {"nnz_serial": len(s), "nnz_omp": len(o), "only_serial": sum(1 for x in only if x[2] == "serial"),
             "only_omp": sum(1 for x in only if x[2] == "omp"), "threshold_flips": flips, "non_flips": nonflips,
-            "worst_nonflip_dist_rowmax": float(worst), "value_diffs_common": vdiff,
-            "serial_entries_in_band": band, "sfscal_diffs": sf_diff, "sfscal_max_rel_diff": sf_rel}
+            "non_flips_te_within_c1_bound": nonflips_c2, "worst_nonflip_dist_rowmax": float(worst),
+            "value_diffs_common": vdiff, "serial_entries_in_band": band, "tau_eff": tau_eff,
+            "sfscal_diffs": sf_diff, "sfscal_max_rel_diff": sf_rel}
 
 
-def g1_pass(d):
-    """No non-flip one-sided entry; and if the common values and sfscal are bitwise equal to serial (no round-off
-    residual in this run), no one-sided entry at all."""
+def g1_verdict(d, strict):
+    """PASS: no non-flip (and, with strict, no one-sided entry at all in a run whose common values and sfscal are
+    bitwise equal to serial). Without strict: non-flips that all lie in Te rows within the C1-gate bound give
+    'PASS (C2 tolerance)'. Anything else: FAIL."""
     one_sided = d["only_serial"] + d["only_omp"]
-    return d["non_flips"] == 0 and (d["value_diffs_common"] > 0 or d["sfscal_diffs"] > 0 or one_sided == 0)
+    residual_free = d["value_diffs_common"] == 0 and d["sfscal_diffs"] == 0
+    if strict and residual_free and one_sided > 0:
+        return "FAIL"
+    if d["non_flips"] == 0:
+        return "PASS"
+    if not strict and d["non_flips_te_within_c1_bound"] == d["non_flips"]:
+        return "PASS (C2 tolerance)"
+    return "FAIL"
 
 
 def check(a):
@@ -193,12 +214,15 @@ def check(a):
                 print("ERROR: suscal differs from serial in", odir, "(runs not comparable)")
                 rc = 2
             d = pattern_diff(ser, omp, a.clip)
+            d["G1"] = g1_verdict(d, a.strict)
             d["run"] = odir
             d["elapsed_s"] = meta["elapsed_s"]
             b["runs"].append(d)
             print(label, "run%d" % k, json.dumps({x: d[x] for x in d if x != "run"}), flush=True)
         if label == "new":
-            b["G1"] = "PASS" if all(g1_pass(r) for r in b["runs"]) else "FAIL"
+            verdicts = [r["G1"] for r in b["runs"]]
+            b["G1"] = "FAIL" if "FAIL" in verdicts else ("PASS" if all(v == "PASS" for v in verdicts)
+                                                          else "PASS (C2 tolerance)")
         else:
             b["G3"] = "PASS" if all(r["non_flips"] > 0 for r in b["runs"]) else "FAIL (case not sensitive)"
     if a.base_python:
@@ -232,6 +256,7 @@ def main():
     c.add_argument("--python", required=True)
     c.add_argument("--base-python", default=None)
     c.add_argument("--repeats", type=int, default=3)
+    c.add_argument("--strict", action="store_true", help="G1 strict rule (presets without C2, e.g. ni)")
     c.add_argument("--out", required=True)
     a = p.parse_args()
     if a.cmd == "run":

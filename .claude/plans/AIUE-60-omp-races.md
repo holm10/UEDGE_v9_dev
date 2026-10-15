@@ -1,8 +1,8 @@
 # Feature: AIUE-60 — Fix the remaining OpenMP races in the `pandf` tree and the clip-index inconsistency
 
 Validate the patterns and file references below before implementing. Line numbers are at `1553e75` (AIUE-56 tip).
-Revised after plan review round 1 (`docs/reviews/AIUE-60-plan-round1.md`, responses in
-`docs/reviews/AIUE-60-plan-round1-response.md`).
+Revised after plan reviews round 1 and 2 (`docs/reviews/AIUE-60-plan-round{1,2}.md`, responses in
+`docs/reviews/AIUE-60-plan-round{1,2}-response.md`).
 
 ## Summary
 **Type**: Bug fix (numerics/parallel; OpenMP build only)
@@ -158,10 +158,14 @@ team covers the Jacobian team.
 - **VALIDATE**: OpenMP build; clip check (Testing 4).
 
 ### 4. Run Probe S and `scan_ompcopy.py` on the built tree
-- `python -I docs/reviews/AIUE-60-shared-writes.py <tree> pandf` and `AIUE-60-passed-args.py <tree>`. Expected after the
-  fix: A1, A2, A4, B2 and B4 are gone. What remains is Part C, plus `ext_verbose`, the MC/PNC variables, the
-  `TimingPandfOn`-gated `PandfTiming` accumulators, and `nfsp` (the static probe still sees the guarded assignment).
-  Each remaining entry is listed with its class in the validation record.
+- `python -I docs/reviews/AIUE-60-shared-writes.py <tree> pandf` and `AIUE-60-passed-args.py <tree>`.
+- **Numeric expectations (L2-m2).** Today the outputs list 161 and 137 variables (re-confirmed at `203a5ff`).
+  - `shared-writes`: **161 → 147**. Exactly these 14 disappear: `areapl`, `sputflxllim`, `sputflxrlim`,
+    `timingpandfon`, the 8 `com.Timing` entries and the 2 `com.Timespl` entries.
+  - `passed-args`: **137 → 135**. Exactly `workh` and `iflag_aph` disappear.
+  - The post-fix outputs are diffed against the pre-fix outputs (saved in the validation record). Any other added or
+    removed line fails this check.
+  - `nfsp` stays in the list: the probe still sees the guarded assignment.
 - `scan_ompcopy.py` (AIUE-50, `tests/deterministic_omp/tools/`) on the AIUE-60 OpenMP build tree: 0 copy-order hazards.
 
 ### 5. UPDATE the AI layer (own commit, trailer `AI-layer: code-facts`)
@@ -195,19 +199,50 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
    AIUE-60 builds: pass.
 3. **OpenMP results unchanged or closer to serial, both arms.** Use the AIUE-52 flow from the reviewed harness:
    `/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp/harness/cli.py flow --all --arms jac,jacrhs --threads 2,4 --repeats 2 --max-jobs 2 --gate none`.
-   Run it for `AIUE-56-omp` and `AIUE-60-omp`, one after the other.
-   - **Jacobian arm gates:**
-     - (a) Every `jac` group that is PASS for AIUE-56 is PASS for AIUE-60.
-     - (b) In every other `jac` group, every AIUE-60 mismatch is in Te rows (as for AIUE-56: residual C2).
-     - (c) The AIUE-56 C1-gate bounds hold on every AIUE-60 one-evaluation `jac` run (`docs/reviews/AIUE-56-c1-gate.py`:
-       Te-row max ≤ 10 × serial; every deviation ≤ 1e-6 × serial row max).
-   - **Parallel-RHS arm gates (no regression, not correctness: AIUE-58 found the parallel RHS defects R1–R4, which
-     AIUE-59 fixes):**
-     - (d) Every `jacrhs` group that is PASS for AIUE-56 is PASS for AIUE-60.
-     - (e) Per `jacrhs` group, the set of row equations with mismatches (Jacobian, `yldot`, RHS probe) for AIUE-60 is a
-       subset of the AIUE-56 set.
-     - (f) No `jacrhs` group fails by a crash, timeout or UEDGE error on AIUE-60 unless it also did on AIUE-56.
-   - Counts of runs agreeing with serial are reported per group, not gated: both builds are non-deterministic there.
+   Run it for `AIUE-56-omp` and `AIUE-60-omp`, one after the other. The gates are judged per run and per section
+   (`flow.json`: every comparison report with its `sections`), not on group verdicts or merged equation sets (L2-M1).
+   - **Classes, fixed in advance from AIUE-56 evidence, not from this flow's outcome.**
+     - **Class X** (`ti`, `ni`, `up`, `ng`) was bitwise in every recorded AIUE-56 run: `jac` 5/5 at 4 threads, the
+       `base-omp` controls 3/3, and AIUE-52 PASS at 2/4/8 threads. The AIUE-58 probes at `yl0` were equal for these
+       presets.
+     - **Class Y** (`tebox`, `full`, `te`, `phi`=`te_phi`) carries the C2 residual in Te rows, which is only
+       intermittently bitwise (`AIUE-56-validation.txt`: Te box 1/5 and 1/30, full 2/5 and 0/30, `te`/`te_phi` 0/5).
+   - **Section families.**
+     - Jacobian sections: `jacobian:*`.
+     - RHS sections: `yldot`, `yldot_probe`, `sfscal`, `suscal`, `fnrm_final`, `fnrm_printed`. The harness's ±0 rule
+       for parallel-RHS vectors stays in force.
+   - **Gates. Every AIUE-60 run must satisfy all of these, on both arms:**
+     - (a) **Class X, every section:** bitwise equal to serial and to the group's other runs, i.e. group PASS.
+     - (b) **Class Y, Jacobian sections:** every mismatch lies in a Te row (C2).
+     - (c) **Class Y, Jacobian sections:** the AIUE-56 C1-gate bounds hold on every one-evaluation run
+       (`docs/reviews/AIUE-56-c1-gate.py`: Te-row max ≤ 10 × serial; every deviation ≤ 1e-6 × serial row max).
+     - (d) **Every class, RHS sections:** bitwise equal to serial in every run.
+       - On `jac` this is a property of the serial RHS, the scaling and the solver.
+       - On `jacrhs` it holds on AIUE-56 for one-evaluation runs: Te box and full K=5, all agreeing in
+         `AIUE-56-validation.txt`, and AIUE-58 RCA "Why the earlier RHS checks were green". R1 needs a state change,
+         and R2/R3 need an input change or a second `exmain`, none of which a one-evaluation run has.
+       - (d) is checked **per section**. A new Te-row mismatch in `yldot` or `yldot_probe`, for example from the plate
+         BCs that read `areapl`, therefore fails even in a group whose Jacobian sections carry C2 in Te rows. This closes
+         the blind spot of the old equation-set gate (e).
+     - (f) No run fails by a crash, timeout or UEDGE error on AIUE-60 unless the same group/arm/threads also did on
+       AIUE-56 in this flow.
+   - **Mechanical fallback (fixed in advance).** If an AIUE-56 run in this flow itself violates (a) or (d) for a group
+     and section, AIUE-56 has shown that the property is intermittent there. For that group and section, AIUE-60 is then
+     judged by the re-run rule below instead of (a)/(d).
+   - **Re-run rule.** Any group that fails (a)–(d) or (f) is re-run at K=5 on **both** builds, with the same
+     configuration, arm and thread count, one build after the other. The failure is a **confirmed regression** only if
+     the violated property fails in more AIUE-60 re-runs than AIUE-56 re-runs. Otherwise it is recorded as
+     pre-existing, with both counts. Each confirmed regression fails the acceptance criterion.
+   - **Why false failures are unlikely.** Each gate rests on a property that held in every recorded AIUE-56 run of the
+     same kind:
+     - (a) and (d): bitwise in 5/5, 3/3, K=2 and K=5 samples;
+     - (b) and (c): held in all 70+ AIUE-56 one-evaluation runs, with C1 gate PASS throughout;
+     - (f): no AIUE-56 crash in one-evaluation runs.
+
+     So no gate depends on which way an intermittent baseline group fell. A false failure would need an event never
+     observed on AIUE-56, and the re-run rule then compares rates on both builds, so a single unlucky run can't fail
+     the ticket.
+   - Reported, not gated: the counts of runs agreeing with serial per group, and group verdicts.
    - 8 threads are not run (machine rule); this is stated as a gap.
    - **Cross-build bitwise (deterministic configuration):** `cli.py check --preset tebox --arm jac --threads 4 --repeats 2
      --ppp '{"OMPJacNchunks": -1, "OMPAutoBalance": 0}'` for both builds. With contiguous chunks the runs are identical to
@@ -216,14 +251,25 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
    - The same check is run on the `jacrhs` arm. It is gated as AGREE only if both builds show run0 = run1 (then it is
      deterministic); otherwise it is report-only and stated.
 4. **Clip, `jaccliplim>0`**: `docs/reviews/AIUE-60-clip-check.py check --python AIUE-60-omp --base-python AIUE-56-omp
-   --clip 1e-6 --threads 4`, presets `ni` (`--repeats 3`) and `full` (`--repeats 2`). Precondition, met by Probe C:
-   `rules_differ` > 0 for both presets. **Gates:**
+   --clip 1e-6 --threads 4`, presets `ni` (`--repeats 3 --strict`) and `full` (`--repeats 2`, not strict). Precondition,
+   met by Probe C: `rules_differ` > 0 for both presets. **Gates:**
    - **G1**: every one-sided entry of an AIUE-60 OpenMP run is a threshold flip,
-     `| |J(r,c)| − L/suscal(c) | ≤ τ·max_c'|J(r,c')|` with τ = 1e-8, computed on the side that holds the entry. This is
-     the C2 scale: the residual is ≤ 7.2e-9 × row max (AIUE-56). If a run's common values and `sfscal` are bitwise equal
-     to serial (no residual in that run; Probe C saw this for both presets), it must have **0 one-sided entries**. For
-     `ni`, whose flow groups are bitwise, the expected result is 0. The band population (2.4–2.6 % of entries in Probe C)
-     is reported per run.
+     `| |J(r,c)| − L/suscal(c) | ≤ τ_eff·max_c'|J(r,c')|`, computed on the side that holds the entry, with
+     `τ_eff = τ + sfscal_max_rel_diff` of the run and τ = 1e-8.
+     - **τ is an observed value, not a bound.** The largest C2 deviation seen in AIUE-56 is 7.15e-9 × row max (`te_phi`).
+       When `sfscal` differs, the distance to the threshold also gains the relative `sfscal` change, which is why that
+       term is added. Together this can reach about 1.4e-8 × row max.
+     - **`ni` (`--strict`, a class-X preset with no C2):** τ_eff is used, and in addition a run whose common values and
+       `sfscal` are bitwise equal to serial must have **0 one-sided entries**. Expected: 0.
+     - **`full` (C2 preset; the strict rule is not applied):** a straddling C2-perturbed entry can be one-sided while the
+       common values stay bitwise, because the C2 entries may all be clipped at L = 1e-6.
+       - A run with non-flips under τ_eff gets the verdict "PASS (C2 tolerance)" if **every** non-flip lies in a Te row
+         and within 1e-6 × row max of the threshold (the AIUE-56 C1-gate bound, the same tolerance gate 3(c) uses).
+       - Anything else is FAIL. The old column rule fails this decisively: it gives non-flips in every equation, up to
+         1 × row max (Probe C: 734 080, worst 0.999999 × row max).
+       - "PASS (C2 tolerance)" counts as a pass and is reported with the number of such entries.
+     - The band population (Probe C: 2.4–2.6 % of entries) is reported per run.
+     - The script records the Te rows from the harness equation map.
    - **G2 (report only)**: `sfscal` differences between serial and OpenMP. `sfscal` comes from the `sfsetnk` Jacobian,
      which C2 round-off may change. Each side's `bbb.jac` is scaled by its own `sfscal`, so the G1 test stays
      consistent within each side, and the run is judged by G1 with the band rule. `suscal` must be bitwise equal; if it
@@ -273,17 +319,18 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
 ## Acceptance criteria
 - [ ] Builds without new warnings in touched files; threadprivate directives present (OpenMP) and absent (serial)
 - [ ] AIUE-53 serial check AGREE, complete gate, both pairs; `D_only` passes in both builds
-- [ ] Flow gates 3(a)–(f); the cross-build bitwise AGREE on `jac` (and on `jacrhs` if it is deterministic)
-- [ ] Clip check G1, G3 and G4 PASS on `ni` and `full`; G2 reported
+- [ ] Flow gates 3(a)–(d), (f) per run and section, no confirmed regression after the re-run rule; the cross-build
+      bitwise AGREE on `jac` (and on `jacrhs` if it is deterministic)
+- [ ] Clip check: G1 PASS on `ni` (strict), PASS or "PASS (C2 tolerance)" on `full`; G3 and G4 PASS; G2 reported
 - [ ] TSan after: no global-symbol race in the Jacobian loop; before shows the listed groups
-- [ ] Probe S after the fix: only the listed remainder; `scan_ompcopy.py` 0 hazards
+- [ ] Probe S after the fix: 147 and 135 entries, exactly the listed removals; `scan_ompcopy.py` 0 hazards
 - [ ] AI-layer edits of task 5 (`AI-layer: code-facts`); drift check clean
 - [ ] Not this ticket's acceptance: the Linux M3 `up`-row residual (AIUE-65); AIUE-62 already saw that making `areapl`
       threadprivate doesn't remove it
 
 ## Merge order and note for AIUE-61 (`bugfix/v9-AIUE-61-omp-static-partition`, plan `4dea642`)
 - **AIUE-60 lands first. AIUE-61 then rebases onto AIUE-60 and re-runs its gates on the combined tree** (AIUE-61's plan
-  is being revised to say the same). Reason: AIUE-61's per-chunk reset (a full `pandf(-1,-1)` on each worker) adds
+  says the same, `:29-31,303`). Reason: AIUE-61's per-chunk reset (a full `pandf(-1,-1)` on each worker) adds
   parallel full evaluations, which write `areapl`, `nfsp`, `TimingPandfOn` and `ttimpfe` (the `xc<0` timer) on workers.
   AIUE-60 makes all of these safe, so AIUE-61's determinism gates are measured on race-free code.
 - Textual overlap:
