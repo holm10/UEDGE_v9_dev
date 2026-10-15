@@ -6,24 +6,22 @@ depends on an unmerged ticket. Each ticket gets a fresh `uedge-reviewer` adversa
 (reports in that ticket's `docs/reviews/`). Jira: In Progress while worked on, **In Review** once the adversarial
 review approves (awaiting the owner's review / PR). Owner decisions are prepared, never taken.
 
-## Status board (updated 02:20)
+## Status board (updated 03:10)
 
 | Ticket | Branch (local, not pushed) | State | Notes |
 |---|---|---|---|
-| AI layer | `feature/v9-ai-adversarial-ticket-review` | **APPROVED** (round 2), minors fixed `7303742` | Review gates in `end-to-end-feature`, `execute`, `plan-feature`, `implement-fix`; `plan` stage + run budget in `uedge-reviewer`. Reports on the planning branch |
-| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | **APPROVED** r1; Jira In Review | Trim bitwise-proven; rate files already in repo |
-| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | r1 REVISE (slots allocated up front) → implementer fixing | `bbb.jaccapture`, default-off bitwise-neutral |
-| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` (on 46) | r1 REVISE (1B/5M) → fixed → **r2 APPROVE**; r2 minors fixed `f46f7a4`; r3 delta review running | `check_arm`, strict comparator, provenance |
-| AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` (on 46) | r1 REVISE (1 major: C1 also breaks the RHS arm) → fixes queued; agent now hunting M2 | **Found root cause C1** |
-| AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` (on 49 @fbe0adf) | r1 REVISE (1B) → fixed; r2 review running | full matrix data |
-| AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` (on 49 @fbe0adf) | r1 REVISE (1B: no Newton iterations) → implementer fixing + rebasing | |
-| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` (on 50) | written `e4f738c`; review pending | K=20 pre-fix rates |
-| AIUE-55 RCA | — | data being collected (P3-m3, M2) | owner decision 9 prepared here |
-| AIUE-56 fix (C1) | `bugfix/v9-AIUE-56-omp-jacobian-fix` | plan r1, r2 REVISE (verification protocol) → r3 (final) running; code not yet written | fix = copy scalars before arrays |
-| AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` (on 52) | subagent implementing | can't run on GitHub without pushing |
-| AIUE-51 diagnostics | — | not needed so far (optional) | |
-| AIUE-58/59 RHS (bonus) | — | not started; C1 fix also fixes the Te-box RHS arm | |
-| AIUE-48 coordination | — | owner task | |
+| AI layer | `feature/v9-ai-adversarial-ticket-review` | **APPROVED** (r2) | Review gates in `end-to-end-feature`, `execute`, `plan-feature`, `implement-fix` |
+| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | **APPROVED** r1 → Jira In Review | |
+| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | r1 REVISE → fixed (lazy slots) → r2 review running | |
+| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` (on 46) | **APPROVED** r3 → Jira In Review, tip `de57d59` | `check_arm`, strict comparator |
+| AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` (on 46) | r1 REVISE (doc-level; C1 confirmed) → fixes queued after the M2 hunt | **found root cause C1** |
+| AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` | r2 REVISE (core API mismatch) → being rebased onto the core | |
+| AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` (on 49) | r1 REVISE → fixed, rebased → r2 review running | 42 cases incl. Newton iterations |
+| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` (on 50) | r1 review running | K=20 pre-fix rates |
+| AIUE-55 RCA | `feature/v9-AIUE-55-omp-jacobian-rca` (on 54) | drafted (uncommitted); waits for the M2 findings | **owner decision 9 prepared here** |
+| AIUE-56 fix (C1) | `bugfix/v9-AIUE-56-omp-jacobian-fix` | fix committed `4fae2f9`; plan review escalated after r3 (verification detail, applied); validation running | C1 gate PASS on all Te-box runs so far |
+| AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` (on 52) | subagent implementing | can't run on GitHub without a push |
+| AIUE-51 / 58 / 59 / 48 | — | not started (optional / bonus / owner task) | the C1 fix also fixes the Te-box RHS arm |
 
 ## Log
 
@@ -88,3 +86,13 @@ review approves (awaiting the owner's review / PR). Owner decisions are prepared
   per thread leaves it → likely another per-thread state effect (C2?) — AIUE-50 agent investigating.
 - **02:15** Several review rounds in flight; the plan-stage gate for AIUE-56 caught a weak verification protocol twice
   (pre-registered C1 gate now: static scan, serial check, magnitude and deviation bounds, check_arm).
+- **02:35** AIUE-56 fix committed (`4fae2f9`: copy threadprivate scalars before arrays in `OMPJacBuilder`). Static scan:
+  12 copy-order hazards on `base-omp` → **0** on AIUE-56. C1 gate (pre-registered: max|J| Te rows ≤ 10× serial and every
+  differing entry ≤ 1e-6 × serial row max): **PASS** in Te box K=30 at 4 threads, K=5 at 2 and 8 threads, `te`, `te_phi`
+  (worst 7e-9 of row max); pre-fix control FAIL (2.6e38). Ti/ni/up/ng still bitwise equal. Bitwise agreement with
+  serial: Te box 1/30 — the residual M2 (finite-difference-noise level) is what keeps the epic's bitwise criterion
+  open; that is the owner's decision 9.
+- **02:40** Plan review for AIUE-56 reached round 3 without APPROVE (each round narrowed: 3M → 3M → 1M, all about the
+  verification protocol; all three confirmed the code fix itself). Per the review loop: escalated to the owner;
+  implementation proceeded under the open escalation (recorded in `docs/reviews/AIUE-56-plan-responses.md`).
+- **03:00** Machine load average ~140 on 14 cores (7–9 agents + validation runs): everything is slow, timings inflated.
