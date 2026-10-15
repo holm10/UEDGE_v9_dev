@@ -328,3 +328,58 @@ The owner's original check, from inside a copy of `case/` (with the environment 
 
 These values are for orientation. Bitwise comparisons are always made against a reference run of the same build on
 the same machine, never against this table.
+
+## CI: `build-test-omp.yml` (AIUE-57)
+
+> **Do not merge this workflow before the OpenMP Jacobian fix (AIUE-56).** On the pre-fix code it is red on every
+> run by design (copy-order defect C1, all Jacobian groups fail in Te rows). Even with C1 fixed it stays red under
+> the default **bitwise** gate as long as the round-off residual M2 remains (1–2 Te-row entries at ~1e-7 relative
+> on the Te box, see `docs/reviews/AIUE-57-validation.txt`). Whether the gate stays bitwise or gets a fallback
+> tolerance is the owner's decision 9; the switch is described below.
+
+`.github/workflows/build-test-omp.yml` builds the **default OpenMP build** (`pip install -v .`) on `ubuntu-latest`
+(4 vCPUs) with Python 3.11, `numpy==1.26.4` and `h5py`, and calls `tests/deterministic_omp/ci/run_omp_ci.sh`. The
+script holds every CI step, so the same steps run locally:
+
+```bash
+PYTHON=/path/to/omp-venv/bin/python tests/deterministic_omp/ci/run_omp_ci.sh pr        # the PR set
+PYTHON=... OMP_CI_CORES=4 OMP_CI_MAX_JOBS=2 OMP_CI_OUT=/tmp/omp-ci tests/deterministic_omp/ci/run_omp_ci.sh nightly
+PYTHON=... OMP_CI_FLOWS="tebox|tebox|4|2|jac" tests/deterministic_omp/ci/run_omp_ci.sh  # a custom quick flow
+```
+
+Steps: the harness and CI unit tests (`harness/`, `ci/`, no build needed), an import smoke test (empty `HOME`,
+`python -I`), the AIUE-52 flow for the selected set, and `ci/report.py`, which writes the combined `summary.md`,
+appends it to `$GITHUB_STEP_SUMMARY`, and annotates the run. The rate files are the tracked ones in
+`builder/test/Forthon_cases/Forthon_case5/` (AIUE-46); nothing is downloaded. The harness sets
+`OMP_STACKSIZE=512M`.
+
+| Trigger | Set | Flows (all `--itermx 3`, one serial reference per configuration) | Timeout |
+|---|---|---|---|
+| `push`, `pull_request`, manual `pr` | `pr` | `tebox` at 2, 4 threads, K=5, arms `jac` and `jacrhs`; `full` at 2, 4 threads, K=2, arm `jac` | 30 min (budget 20) |
+| `schedule` (03:17 UTC daily), manual `nightly` | `nightly` | `--all`: every configuration at 2, 4, 8 threads, K=3, both arms | 150 min |
+
+- **Gating.** The Jacobian arm (`jac`) gates: the job is red when any `jac` group is not bitwise equal to serial in
+  all K runs and between runs (exit 1), or when the flow cannot judge (exit 2: failed serial reference, an arm that
+  did not take effect, a failed smoke or unit test). The Jacobian + parallel RHS arm (`jacrhs`) is **report-only**:
+  its failures appear as warnings and in the summary but do not set the exit code. `OMP_CI_GATE` in the workflow
+  selects the gated arm (`jac`; `all` or `jacrhs` need `jacrhs` in every flow, so they fit only `nightly`).
+- **Gate mode (decision 9), one switch.** `OMP_CI_JAC_TOLERANCE` in the workflow `env`. Empty (the default): bitwise.
+  A value is passed to the flow as `--jac-tolerance VALUE`. The harness has no tolerance comparator yet, so a value
+  stops the job with exit 2 and a message until the harness ticket adds that option; no other file has to change.
+- **What a failure says.** One `GATED` line (and a GitHub `::error::` annotation) per failing group, in run order,
+  naming the configuration, arm, threads, the row equation and cell of the first mismatch, and how many runs agreed,
+  e.g. `configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs
+  agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [...]`. A group whose runs
+  all crashed says so (`no comparable mismatch, the OpenMP run(s) failed; ... exited with -11`). With `--itermx 3`
+  a wrong Jacobian changes the Newton path, so on the full problem later iterates differ in every equation and the
+  first mismatch can be in an `ni` row; the Te box and the `mismatch rows` column localise it.
+- **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
+  `flow.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`, `record.json`,
+  `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded; rerun locally.
+- **Budget.** The PR job is estimated at 10–17 min on `ubuntu-latest` (derivation in
+  `docs/reviews/AIUE-57-validation.txt`); the `Wall time` step writes the measured job and build time to the step
+  summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` (first `tebox` K=5 → 3, then `full` to
+  4 threads only); the nightly set keeps the full matrix.
+- **Scheduled runs** start only from the repository's default branch; until the workflow is there, use the manual
+  `workflow_dispatch` with `set: nightly`.
+- Exit codes of `run_omp_ci.sh`: 0 the gated arm agrees, 1 a gated mismatch, 2 setup or harness error.

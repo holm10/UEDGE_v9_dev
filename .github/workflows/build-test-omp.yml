@@ -1,0 +1,97 @@
+name: OpenMP determinism - OpenMP Jacobian vs serial
+
+# AIUE-57 (epic AIUE-8). Builds the default OpenMP UEDGE and runs the AIUE-52 test flow
+# (tests/deterministic_omp/harness/cli.py flow) through tests/deterministic_omp/ci/run_omp_ci.sh,
+# which runs the same steps locally. The Jacobian arm gates (bitwise by default); the
+# Jacobian + parallel RHS arm is report-only. See tests/deterministic_omp/README.md, "CI".
+#
+# DO NOT MERGE before the OpenMP Jacobian fix (AIUE-56): on the pre-fix code this job is red by
+# design, on every run.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 3 * * *"   # nightly full matrix (runs only from the default branch)
+  workflow_dispatch:
+    inputs:
+      set:
+        description: "CI set: pr (reduced, <= 20 min) or nightly (full matrix)"
+        required: true
+        default: pr
+        type: choice
+        options: [pr, nightly]
+
+concurrency:
+  group: omp-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  omp-determinism:
+    name: OpenMP determinism (${{ github.event_name == 'schedule' && 'nightly' || inputs.set || 'pr' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.set == 'nightly') && 150 || 30 }}
+    env:
+      OMP_CI_SET: ${{ github.event_name == 'schedule' && 'nightly' || inputs.set || 'pr' }}
+      OMP_CI_OUT: ${{ github.workspace }}/omp-ci-out
+      OMP_CI_GATE: jac
+      # Gate-mode switch (decision 9). Empty: the Jacobian arm gates bitwise. A value is passed to the
+      # flow as --jac-tolerance once the harness has a tolerance comparator; until then it stops with exit 2.
+      OMP_CI_JAC_TOLERANCE: ""
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Record start time
+      run: echo "OMP_CI_T0=$(date +%s)" >> "$GITHUB_ENV"
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install pip dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "forthon>=0.10.7" numpy==1.26.4 h5py pytest
+
+    - name: Build UEDGE (default OpenMP build)
+      run: |
+        gfortran --version | head -1
+        t0=$(date +%s)
+        python -m pip install -v .
+        echo "OMP_CI_BUILD_S=$(( $(date +%s) - t0 ))" >> "$GITHUB_ENV"
+
+    - name: Unit tests, smoke test and OpenMP test flow
+      env:
+        PYTHON: python
+      run: |
+        echo "nproc $(nproc); $(free -g | awk '/Mem:/ {print $2}') GB RAM"
+        bash tests/deterministic_omp/ci/run_omp_ci.sh "$OMP_CI_SET"
+
+    - name: Wall time
+      if: always()
+      run: |
+        total=$(( $(date +%s) - OMP_CI_T0 ))
+        line="Job wall time ${total} s (build ${OMP_CI_BUILD_S:-?} s), set ${OMP_CI_SET}"
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
+        mkdir -p "$OMP_CI_OUT" && echo "$line" >> "$OMP_CI_OUT/timing.txt"
+
+    - name: Upload summaries and run logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: omp-ci-${{ env.OMP_CI_SET }}-${{ github.run_id }}-${{ github.run_attempt }}
+        if-no-files-found: warn
+        retention-days: 30
+        # record.npz (the compared arrays, ~60 MB per full-problem run) are not uploaded
+        path: |
+          omp-ci-out/summary.md
+          omp-ci-out/timing.txt
+          omp-ci-out/ci.log
+          omp-ci-out/**/summary.md
+          omp-ci-out/**/flow.json
+          omp-ci-out/**/run.log
+          omp-ci-out/**/record.json
+          omp-ci-out/**/spec.json
+          omp-ci-out/**/*.log
