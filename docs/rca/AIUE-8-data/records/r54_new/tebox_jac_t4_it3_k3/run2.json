@@ -1,0 +1,86 @@
+{
+ "capture": {
+  "count": 0,
+  "hook": false
+ },
+ "elapsed_s": 3.07,
+ "fnrm_final_hex": "0x1.c4f153f28e29cp-37",
+ "ijactot": 2,
+ "iterations": [
+  {
+   "fnrm_printed": "0.1758746275297448",
+   "iter": 0,
+   "nfe": 1,
+   "omp": false
+  },
+  {
+   "fnrm_printed": "0.3975539431835207E-02",
+   "iter": 1,
+   "nfe": 3,
+   "omp": false
+  },
+  {
+   "fnrm_printed": "0.4918166082600103E-05",
+   "iter": 2,
+   "nfe": 6,
+   "omp": false
+  },
+  {
+   "fnrm_printed": "0.1287340544385291E-10",
+   "iter": 3,
+   "nfe": 11,
+   "omp": false
+  }
+ ],
+ "label": "tebox_jac_t4_it3",
+ "neq": 25,
+ "nnz_post": 169,
+ "numvar": 1,
+ "post_exmain_from": "psetnk",
+ "post_exmain_permuted": true,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 4,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 0,
+  "OMP_NUM_THREADS": "4",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 0,
+  "build": {
+   "compiler": [],
+   "extensions_sha256": "bb24d0d9e812643bfbdc412302861b1d35ae14c7b6a8ec0a57c2b540be83a78d",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/Users/holma/Documents/uedge/src/uedge-wt/base-omp",
+   "source_dirty": false,
+   "source_head": "0fac6550b888c42a4b2033167b3446d952e3d71d",
+   "uedge_file": "/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/lib/python3.13/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "de57d59c7258252b12a819f530be427504e16f5a",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "premeth": "ilut",
+  "python": "3.13.12",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": false,
+ "spec": {
+  "arm": "jac",
+  "capture": 16,
+  "itermx": 3,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "tebox",
+  "rhs_probe": true,
+  "threads": 4
+ }
+}

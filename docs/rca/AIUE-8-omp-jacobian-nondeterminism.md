@@ -9,68 +9,194 @@ gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACK
 
 ## Characterisation before any fix (AIUE-54)
 
+**Platform: macOS only. Linux has not been characterised.** No Linux host was available locally (no running Docker
+daemon). The AIUE-57 CI job will run only the Te box and the full problem at 2 and 4 threads on ubuntu-latest (PRD
+§7.6). The rest of the Linux characterisation is an **owner decision, still open**: `te`, `ti`, `ni`, `up`, `ng`,
+`te_phi`, 8 threads, the jacrhs arm beyond what the CI job reports, and the K=20 rates. The named follow-up is a Linux
+run of the same commands as below: `flow --all --repeats 2` and `flow --configs tebox|full --threads 4 --repeats 20`,
+on a libgomp-only build (PRD R4). Until that run exists, nothing in this section says anything about Linux.
+
 Build: OpenMP build of `v9-develop` `0fac655` (`venvs/base-omp`), macOS arm64, gfortran 15.2, Homebrew LLVM
-clang/libomp. Tools: the AIUE-49 harness and the AIUE-52 flow (`tests/deterministic_omp/harness/`). Every run is a
-fresh `python -I` process with an empty `HOME` and `OMP_STACKSIZE=512M`; "serial" is a reference run of the same
-build with both OpenMP switches 0. One evaluation per run (`ftol=1e20`: the `sfsetnk` Jacobian and the iteration-0
-residual) unless stated. "Agree" means bitwise equal in every compared quantity (Jacobian entries and pattern,
-`sfscal`, `suscal`, `yldot`, the RHS probe, `fnrm`). **Linux was not available locally (no running Docker daemon):
-every number here is macOS only; Linux comes with the CI job (AIUE-57).**
+clang/libomp. Every run is a fresh `python -I` process with an empty `HOME` and `OMP_STACKSIZE=512M`. "Serial" is a
+reference run of the same build with both OpenMP switches 0. Unless stated, a run is one evaluation (`ftol=1e20`: the
+`sfsetnk` Jacobian and the iteration-0 residual). **"Agree"** means bitwise equal in every compared quantity:
+- the post-`exmain` Jacobian, pattern and values;
+- `sfscal` and `suscal`;
+- `fnrm`, both the final value's hex and every printed value;
+- `ijactot`;
+- `yldot` and the RHS probe. Here a difference in the sign of a zero is allowed only when the RHS ran in parallel
+  (PRD P3-m2).
 
-### Matrix: every configuration, both arms, 2/4/8 threads (K=2 fresh runs each)
+### Data and provenance
 
-From the AIUE-52 acceptance run (`flow --all --repeats 2`; record `docs/reviews/AIUE-52-validation.txt` on
-`feature/v9-AIUE-52-omp-test-flow`). `phi_te` was a temporary preset equal to the committed `te_phi` (Te and phi on).
+Everything below is generated from the committed data in `docs/rca/AIUE-8-data/`:
+- `records/<data set>/…/<run>.json`: every run's `record.json`, including the failed runs. The `record.npz` arrays
+  stay in the session scratch directory; the full-problem ones are 59 MB each.
+- `prefix_runs.csv`: one row per run, with the harness commit, status, `ijactot`, the iteration count, the
+  iteration-0 and last printed `fnrm`, which Jacobian is stored, and mismatch counts per section against the run's
+  serial reference.
+- `prefix_stats.txt`: per-group numbers. Every number in this section comes from this file or from the CSV.
+- `make_prefix_data.py`: the script that wrote all three from the run directories (it needs the `.npz` files).
+
+| Data set | What | Harness commit | Machine load (1-min average) |
+|---|---|---|---|
+| `k2_all` | AIUE-52 acceptance run `flow --all --repeats 2`: 8 configurations × 2 arms × 2/4/8 threads, 104 runs | `fbe0adf` (AIUE-49 core) plus the AIUE-52 flow code, then uncommitted | 10–40 |
+| `k20_tebox`, `k20_full` | `flow --configs tebox` / `--configs full`, `--threads 4 --repeats 20` | `5fb700b`: the AIUE-52 tip before its round-1 review, which was later rebased away. That is before the flow's arm check | ~40 (full) |
+| `ctl_base_t4_k3` | Pre-fix controls for AIUE-56: `check --arm jac --threads 4 --repeats 3`, for the same 8 configurations | `de57d59` (reviewed AIUE-49 core) | 60–180 |
+| `r54_new` | This revision: the PRD §6.3 Te-box rows, and timings with `--itermx 3` | `de57d59` | 24–113 |
+| `k2_extra` | `full`/jacrhs runs from the other one-evaluation K=2 flows, used only for the overflow rate: `acc_all_k2` (the first `--all` run) and `quick`, both `fbe0adf`; `r1/quick` (`5fb700b`); `rev52/quick` (the AIUE-52 reviewer's run) | as listed. A failed run writes no provenance | 10–40 (`acc_all_k2`, `quick`); not recorded for the others |
+
+- **No false agree.** All 197 records that completed have `ParallelJac`, `ParallelPandf1`, `Nthreads` and
+  `OMP_NUM_THREADS` as their arm requires. Every one of them holds `sfscal`, `suscal`, `yldot` and `yldot_probe`. So
+  the harness versions from before the arm check (`fbe0adf`, `5fb700b`) produced no "agree" for an arm that did not
+  take effect.
+- **Paths.** The harness (`tests/deterministic_omp/harness/`) is not on this branch: it lives on
+  `feature/v9-AIUE-49-omp-harness-core` (core) and `feature/v9-AIUE-52-omp-test-flow` (flow). The AIUE-52 record
+  cited below is `docs/reviews/AIUE-52-validation.txt` on `feature/v9-AIUE-52-omp-test-flow`. Merge order: AIUE-49,
+  AIUE-52, then this branch.
+
+### Which runs took a Newton step (read this before the tables)
+
+`ftol=1e20` stops `nksol` after iteration 0 only if the iteration-0 `fnrm` is at most 1e20. When the parallel RHS
+makes it larger, `nksol` takes a step:
+- the log shows `npe = 2` and `OMP iter= 1`;
+- the record has `ijactot = 2` and two entries in `iterations`.
+
+The stored Jacobian, `nnz`, `sfscal`, `yldot` and `fnrm_final` then come from the **later** iteration. That Jacobian
+is the row-normalised one: max |entry| = 1.0 in all 18 such K=20 runs. It is therefore not comparable with serial's
+iteration-0 Jacobian. The CSV column `stored_jacobian` marks these runs. Where a group mixes the two kinds, the
+tables below report them separately.
+
+| Configuration / arm | Threads | Iteration-0 `fnrm` > 1e20 | Outcome |
+|---|---|---|---|
+| `tebox` / jacrhs | 4 (K=20) | **18/20**: 4.9e30 – 1.005e31 | The step recovers: last printed `fnrm` 0.0043–0.207. The other 2 runs (run5, run14) are ordinary: 0.1645, 0.1670 |
+| `tebox` / jacrhs | 2 / 4 / 8 (K=2) | 1/2, 2/2, 2/2 | as above |
+| `tebox` / jac | 1, 2, 4, 8 | 0 of all 46 runs | — |
+| `full` / jacrhs | 2 | **10/10** (`k2_all`, `k2_extra`): 1.7e24 – 1.31e31 | every run stops with `overflow: SVR routine lusol0 loop 40` |
+| `full` / jacrhs | 4 | **4/10**: `acc_all_k2` 2/2 (1.9e25, 9.9e25), `rev52/quick` 2/2 (2.5e30, 1.8e26) | the 4 stop with the lusol0 overflow. In the other 6 (`k2_all`, `quick`, `r1/quick`) `fnrm` is 1.535419111648416–…429 |
+| `full` / jacrhs | 8 | 0/4 (`k2_all`, `acc_all_k2`) | `fnrm` 1.535419111648427–…441 |
+| `full` / jac, and every other configuration and arm whose iteration 0 completed | all | 0 | — |
+
+So the RHS-arm overflow on the full problem is a rate, not a 2-thread effect: 10/10 at 2 threads, 4/10 at 4, 0/4
+at 8. With `--itermx 3`, the AIUE-57 CI run `ci_base_pr` overflows in 2/2 runs at 2 threads and 2/2 at 4 threads.
+One of those 4-thread runs had an ordinary iteration-0 `fnrm` (1.535419111648428) and overflowed in a later
+iteration. The earlier text of this section gave "fnrm 2.4e31". That value came from `acc_all_k2` run0, which
+printed `0.2395993421575909E+31`, so it is in fact 2.4e30, and it was misread. The runs the matrix cites
+(`k2_all`) have 6.06e30 and 1.74e24.
+
+### Matrix: every configuration, both arms, 2/4/8 threads (K=2 fresh runs each, `k2_all`)
+
+`phi_te` was a temporary preset equal to the committed `te_phi` (Te and phi on). "Entries" counts Jacobian
+entries that differ from serial in value or pattern (extra + missing + value).
 
 | Configuration | neq | Jacobian arm (2/4/8 threads) | Jacobian + RHS arm (2/4/8 threads) |
 |---|---|---|---|
-| `tebox` (owner's Te box) | 25 | FAIL at all three: Te rows, repeats differ | FAIL at all three: Te rows of the Jacobian and of `yldot`, repeats differ |
-| `full` | 44352 | FAIL at all three: Te rows only (≈0.45M / 0.61M / 0.77M entries vs serial), repeats differ | 2 threads: both runs stop with `overflow: SVR routine lusol0 loop 40` (fnrm 2.4e31); 4, 8: FAIL in Te rows, incl. 2–2.5k Te entries of `yldot` |
-| `te` (Te alone) | 3168 | FAIL at all three: Te rows, repeats differ | crashes at all three (SIGSEGV, exit −11, or RuntimeError) |
-| `ti`, `ni`, `up`, `ng` (alone) | 3168 / 25344 / 6336 / 3168 | **PASS** at all three | **PASS** at all three (with ±0 equal in the parallel-RHS `yldot`, PRD P3-m2) |
-| `te_phi` (Te + phi) | 6336 | FAIL at all three: only Te rows differ, phi rows agree | crashes at all three (SIGSEGV) |
-
-Answers to the PRD's open questions:
-
-- **Ion energy (Ti):** clean on both arms at 2/4/8 threads.
-- **Potential (phi):** phi can't be isolated without Te. Phi alone, phi with ni+up, phi with ni+up+ti and the full
-  problem without Te all stop in **serial** with "Jacobian row = 0" at phi(ix=11, iy=1) (e.g. iv 924/1008/1092). With
-  Te on (`te_phi`), the phi rows agree with serial and only Te rows differ. So phi shows no defect of its own, but it
-  can't get an independent verdict while the Te defect exists.
-- **The RHS arm is worse than the Jacobian arm:** it crashes (SIGSEGV) whenever Te is on without the other plasma
-  equations, and overflows the linear solver on the full problem at 2 threads.
+| `tebox` (owner's Te box) | 25 | FAIL at all three: Te rows only, repeats differ | FAIL at all three, but 5 of the 6 runs took a Newton step (table above). The one comparable run (2 threads) differs in Te rows of the Jacobian |
+| `full` | 44352 | FAIL at all three: Te rows only. 448,768–449,736 / 601,948–610,901 / 774,378–777,247 entries. Repeats differ | 2: both runs stop with the lusol0 overflow. 4 and 8: FAIL in Te rows only. 651,109–655,853 and 627,405–766,390 entries; `yldot` differs in 2198–2560 and 2158–2560 Te entries, plus 345 zeros of opposite sign |
+| `te` (Te alone) | 3168 | FAIL at all three: Te rows only, repeats differ | Every run crashes: SIGSEGV (exit −11), or a RuntimeError at 2 threads |
+| `ti`, `ni`, `up`, `ng` (each alone) | 3168 / 25344 / 6336 / 3168 | **PASS** at all three | **PASS** at all three. `ni` and `ti` have 255 and 36 zeros of opposite sign in `yldot`, which P3-m2 allows |
+| `te_phi` (Te + phi) | 6336 | FAIL at all three: only Te rows differ, phi rows agree | Every run crashes (SIGSEGV) |
 
 ### Pre-fix rates at 4 threads (K=20 fresh runs, PRD §11, P3-m4)
 
-Data: `docs/rca/AIUE-8-data/prefix_k20_4threads.csv` (one row per run) and the flow summaries next to it.
+| Configuration / arm | Runs | Agree with serial | Distinct results | Iteration-0 `fnrm` | Stored nonzeros | Serial reference |
+|---|---|---|---|---|---|---|
+| `tebox` / jac | 20 | **0/20** | 20 of 20 (no two runs equal) | 20 distinct, 0.1357213635807744 – 0.1786270608456234 | 10 distinct, 176–187 | `fnrm` 0.3221264477609989, nnz 169 |
+| `tebox` / jacrhs, no Newton step (run5, run14) | 2 | **0/2** | 2 of 2 | 0.1645118081253171, 0.1670300684916609 | 181, 177 | as above |
+| `tebox` / jacrhs, Newton step taken | 18 | **0/18**, not comparable: the stored quantities are from iteration 1 | 18 of 18 | 18 distinct, 4.9e30 – 1.005e31 | not iteration 0: 304 (15 runs) or 169 (3 runs), row-normalised | as above |
+| `full` / jac | 20 | **0/20** | 20 of 20 | 16 distinct, 1.535419111648367 (5 runs) – 1.537122945485376 | 20 distinct, 3,632,025 – 3,677,607 | `fnrm` 1.918820629111277, nnz 3,190,290 |
 
-| Configuration | Arm | Agree with serial | Distinct iteration-0 `fnrm` among the 20 runs | Distinct nonzero counts | Serial reference |
-|---|---|---|---|---|---|
-| `tebox` | jac | **0/20** | 20 (0.1487 … 0.1775) | 10 (176–189) | fnrm 0.3221264477609989, nnz 169 |
-| `tebox` | jacrhs | **0/20** | 20 (≈8e30) | 4 | as above |
-| `full` | jac | **0/20** | 16 (most common 1.535419111648367, 5 runs) | 20 | fnrm 1.918820629111277, nnz 3190290 |
+- **The §11 pre-fix requirements hold.** The full problem disagrees with serial in 20/20 runs. The Te box disagrees
+  in 20/20 runs on each arm, and no two of its runs are equal.
+- **The full Jacobian is never stable.** Every run differs from every other in pattern and values. In each run:
+  - the Te rows of `sfscal` differ in 2937–2940 places, and no other rows;
+  - `yldot` is equal to serial (20/20);
+  - max |J| is 5.98e43, against 1.7e14 in serial.
+- **The full pattern is not a superset of serial's.** Each run has 443,011–487,854 extra entries and lacks 225–1736
+  of serial's entries, all in Te rows. By column equation, the extra entries are ni 53–54 %, up 17–18 %, ng 9 %,
+  te 7–8 %, ti 6 %, phi 6–7 %, the same in every run. This is a different count from the matrix's "entries"
+  (602,423–665,917 at 4 threads in K=20), which also counts value differences.
+- **The Te-box pattern (jac arm) is a superset of serial's.** Each run has 7–18 extra entries and 0 missing.
+- **RHS arm, comparable runs only.** In run5 and run14, `yldot` equals serial in both. The RHS probe equals
+  serial in run5 only; in run14 all 25 entries differ. The 18 runs that took a Newton step all differ in `yldot`
+  (8–25 Te entries), but that `yldot` belongs to a different iterate.
 
-- The §11 pre-fix requirements hold: the full problem disagrees with serial in 20/20 runs, and the Te box is
-  non-deterministic in 20/20 (every run differs from every other).
-- **Correction to PRD §6.3:** the full problem's printed `fnrm` is *not* stable from run to run (16 distinct values in
-  20 runs here; planning saw 7/7 equal). The full Jacobian is never stable: every run has a different number of
-  nonzeros (3.62–3.69M vs 3.19M serial). The OpenMP pattern has ~0.5M extra entries, all in Te rows, spread over
-  every column equation (te/ni dominates).
+### PRD §6.3, row by row
+
+| §6.3 observation | Status | Evidence |
+|---|---|---|
+| Te box, 4 threads: `fnrm` differed in 10/10 runs (0.146–0.185; serial 0.322) | **Confirmed, range corrected**: 20/20 runs differ (K=20). The range is 0.1357–0.1786; 0.1357–0.1930 over all 25 one-evaluation 4-thread jac runs | `k20_tebox`, `ctl_base_t4_k3` |
+| …the sparsity pattern differed every run | **Confirmed**: 10 distinct nnz in 20 runs, and a superset of serial in every run | `k20_tebox` |
+| …`sfscal` differed in 4–19 of 25 rows | **Corrected**: 17–20 rows (K=20), 17–21 over all 25 4-thread jac runs; 14–15 at 2 threads and 21 at 8 (K=2) | `k20_tebox`, `ctl_base_t4_k3`, `k2_all` |
+| …`yldot` bitwise identical | **Confirmed** on the jac arm, in 20/20 runs | `k20_tebox` |
+| …Te diagonal entries reached ≈ −2.6e43 | **Confirmed**: max \|J\| is 2.22e43–2.60e43 per run, against 5.6e5 in serial | `k20_tebox` |
+| …off-diagonal entries equal another column's diagonal exactly | **Not re-measured** here. AIUE-50 §C1 explains it (stale column) | — |
+| …both builds behaved the same (April 2026 beta) | **Not re-measured.** That build was not rebuilt, and the epic's acceptance is on `v9-develop` | — |
+| Te box, serial, repeated: bitwise identical | **Confirmed**: 3/3 serial repeats agree with the serial reference | `r54_new/tebox_serial_k3` |
+| Te box, OpenMP with 1 thread: equal to serial | **Confirmed**: 3/3 on the jac arm, and **extended**: 3/3 on the jacrhs arm | `r54_new/tebox_jac_t1_k3`, `tebox_jacrhs_t1_k3` |
+| Te box, 4 threads, `OMPJacNchunks=-1`, `OMPAutoBalance=0`: still non-deterministic, 3 distinct `fnrm` in 4 runs | **Confirmed**: 0/4 agree, 3 distinct `fnrm` in 4 runs (0.2612 × 2, 0.0456, 0.0877). `OMPJacNchunks=-1` alone: 0/4 agree, 2 distinct (0.2612 × 3, 0.1606). The M2 investigation measured the same settings on the C1-swap build (`scratchpad/m2/tebox_static.txt`). That is **after** the C1 fix (2 Te entries off, `fnrm` equal) and is not a pre-fix result | `r54_new/tebox_jac_t4_static_k4`, `tebox_jac_t4_nchunks_k4` |
+| Te box, 4 threads, individual physics off (H radiation, Joule, E×B, grad-B, flux limit) | **Not re-measured.** The harness has no switch for deck physics, and AIUE-50 found the cause (C1) in the Jacobian loop, independent of these terms | — |
+| Te only, whole grid, 4 threads: non-deterministic in 3/3 runs, different pattern each time | **Confirmed**: 0/5 agree (K=2 plus 3 controls). Every run has its own result, with the mismatch in Te rows only | `k2_all`, `ctl_base_t4_k3/te` |
+| Ti / ni / up / ng only, 4 threads: bitwise equal to serial, 3 runs each | **Confirmed and extended**: 48/48 K=2 runs agree, on both arms and at 2/4/8 threads, plus 12/12 controls (3 per configuration, 4 threads, jac arm) | `k2_all`, `ctl_base_t4_k3` |
+| phi only: not a valid isolation (serial aborts, "Jacobian row = 0 for eqn iv = 84") | **Not re-measured for phi alone.** iv 84 rests on the planning note only. Confirmed for the other phi isolations, each in serial: phi+ni+up (iv 924), phi+ni+up+ti (iv 1008), and the full problem without Te (iv 1092). All these iv map to phi(ix=11, iy=1), with nx+2 = 72 and numvar = 11/12/13 (and 1 for iv 84) | `scratchpad/phi/*/out.log`; `AIUE-52/{probe_phi_niup_serial, phi_all/phi/serial, acc_all_k2/full_note/serial}/run.log` |
+| Full problem, 4 and 8 threads: the same `fnrm` in 7/7 runs (1.53541911164836…) | **Corrected**: 16 distinct values in 20 runs at 4 threads. The most common is 1.535419111648367 (5 runs); the range runs to 1.537122945485376 | `k20_full` |
+| …2940 of the 3168 Te rows of `sfscal` differ | **Confirmed**: 2937–2940 per run, all of them Te rows | `k20_full` |
+| …the run-to-run stability of the full Jacobian was not checked | **Answered**: it is never stable (20 distinct results in 20 runs) | `k20_full` |
+| Full problem, jacrhs, 4 threads: `yldot` differs in about 2200 Te rows | **Confirmed, in the runs without the blow-up**: 2198–2560 Te entries (4 and 8 threads), plus 345 opposite-sign zeros. 4/10 runs at 4 threads instead blow up and overflow (table above) | `k2_all`, `k2_extra` |
+| …`fnrm` varied in the 15th digit | **Confirmed, in the same runs**: 1.535419111648416–…441. These also differ from every jac-arm value | `k2_all`, `k2_extra` |
+| Run time ≈ 2 s (Te box) and 12 s (full problem) at 4 threads, iteration 0 | See the timing below. The Te box is 1.4–4.6 s at load 10–40. The full problem took 17–20 s at the lowest load measured, and 54–158 s under load | — |
+
+### Answers to the PRD's open questions
+
+- **Ion energy (Ti): clean.** Alone, it agrees on both arms at 2/4/8 threads. That rests on 12 K=2 runs plus 3
+  controls at 4 threads. In the coupled full problem, the 20/20 K=20 runs and the 6 jac and 4 jacrhs K=2 runs that
+  completed (one evaluation each) have mismatches only in Te rows: no Ti row differs in value, pattern, `sfscal` or `yldot`.
+- **Potential (phi): no phi-row mismatch was observed, but phi can't be judged independently.**
+  - Phi can't be isolated without Te, because every phi isolation that was run stops in **serial** (row above).
+  - With Te on (`te_phi`), the jac arm differs from serial only in Te rows: phi rows agree in 6/6 runs (K=2) and in
+    3/3 controls.
+  - The jacrhs arm segfaults in `te_phi` in 6/6 runs, so it gives no verdict on phi.
+- **The RHS arm is worse than the Jacobian arm.** It crashes (SIGSEGV) whenever Te is on without the other plasma
+  equations. Its iteration-0 `fnrm` blows up to 4.9e30–1.0e31 in 18/20 Te-box runs at 4 threads. On the full problem,
+  that blow-up overflows the linear solver in 10/10 runs at 2 threads and 4/10 at 4 threads.
 
 ### Timing (for the CI budget, AIUE-57)
 
-Measured while other agents loaded the machine (load average 10–75 on 14 cores), so these are upper bounds.
+These are wall times from the committed records (`elapsed_s`, one process) and the flow summaries, on this
+14-core M-series machine. The machine was shared with other sessions at all times, so the load is stated per row.
+No measurement here is on an idle machine, and **none is on a 4-vCPU Linux runner**.
 
-| Run | Wall time |
-|---|---|
-| Te box, one run (serial or 4 threads) | 2–6 s |
-| `flow --configs tebox --threads 4` (K=2, both arms) | 5–23 s |
-| Full problem, serial reference, one evaluation | 35–55 s |
-| Full problem, 4 threads, one evaluation | 11–13 s |
-| Full-problem comparison (two records, ~3.6M entries) | ~5 s |
-| `flow` quick set (tebox + full, 2 and 4 threads, both arms, K=2) | 127 s (idle-ish) to 1260 s (load ~90) |
-| `flow --all` (8 configurations × 2 arms × 3 thread counts, K=2) | 368 s |
-| K=20 full problem, 4 threads, `--cores 8 --max-jobs 2` | 29 min (load ~40) |
+| Run | Build | Load (1-min average) | Wall time |
+|---|---|---|---|
+| Te box, one evaluation, serial or 1–8 threads | base | 10–40 | 1.4–4.6 s per run (K=2, K=20, `r54_new`); up to 5.9 s for a jacrhs run that takes a Newton step |
+| Te box, one evaluation, 4 threads | base | 60–180 | 11–13 s per run (controls) |
+| Te box, `--itermx 3`, serial / 2 threads / 4 threads | base | ~30 | 1.7 / 1.7–2.6 / 2.9–3.2 s per run (`r54_new`) |
+| Te box, `--itermx 3`, serial / 4 threads | AIUE-56 fix | 60–180 | 11.1 / 9.9–13.0 s per run (`v56/new_tebox_t4_it3_k5`) |
+| Full problem, one evaluation, serial | base | 10–40 | 56.4 s (`k2_all`), 51.5 s (`quick`) |
+| Full problem, one evaluation, serial | base | ~40, and 60–180 | 317.9 s (`k20_full`), 297.8 s (controls) |
+| Full problem, one evaluation, 2 / 4 / 8 threads | base | 10–40 | 33.6–34.4 / 18.2–19.9 / 7.0–7.1 s (`k2_all`, jac); jacrhs 4 and 8 threads: 17.2–17.4 / 10.4–10.9 s |
+| Full problem, one evaluation, 4 threads | base | ~40 (K=20, 2 jobs on 8 cores), and 60–180 | 54.5–157.5 s (`k20_full`), 99.0–110.7 s (controls) |
+| Full problem, `--itermx 3`, serial / 2 threads / 4 threads, one run each, two checks side by side | base | 24–113 | 212.4–213.7 / 237.7 / 128.6 s (`r54_new/full_jac_t*_it3_k1`). After 3 iterations the mismatch is in every equation's rows, not only Te: the iterate has moved |
+| Full problem, `--itermx 3`, serial / 4 threads | AIUE-56 fix | 60–180 | 953.6 / 114.6–493.0 s (`v56/new_full_t4_it3_k5`) |
+| Full problem, `--itermx 3`, serial / 4 threads (AIUE-57 validation §5) | not stated there | 15–25 | 99.3 / 46.3 s; serial one evaluation in the same session 38.2 s |
+| `flow` quick set (Te box + full, 2 and 4 threads, both arms, K=2) | base | ~40 | 127.2 s total (`quick`) |
+| same | base | not recorded (reviewer session, heavy) | 632.5 s (`r1/quick`), 1259.3 s (`rev52/quick`) |
+| `flow --all` (K=2, 104 runs) | base | 10–40 | 367.6 s total (276.5 s runs, 91 s comparison) |
+| `flow --configs tebox --threads 4 --repeats 20`, both arms | base | ~40 | 75.0 s total |
+| `flow --configs full --threads 4 --repeats 20`, `--cores 8 --max-jobs 2` | base | ~40 | 1755.0 s total (1292.1 s runs) |
+| OpenMP build (`pip install -v .`), from log creation to its last write | base and branches | outside / inside 02:18–03:37, when AIUE-57 reports load 60–180 | 110–317 s (8 builds) / 565–1164 s (5 builds) (`uedge-wt/logs/*omp*build*.log`, `*nofma*`, `*tsan*`; local Homebrew toolchain) |
+
+What the CI budget can take from this:
+- **Ratios, not absolute times.** Measured in the same session at low load, `--itermx 3` costs about 2.6× a single
+  evaluation for the full serial reference (AIUE-57, 99.3 s against 38.2 s). In this revision's runs (load ~30) it costs
+  ~1.1× for the Te box serial and ~2× at 4 threads (2.9–3.2 s against 1.5–1.8 s for one evaluation at 4 threads).
+- **4 threads against serial.** At 4 threads, a full-problem evaluation takes about a third of the serial time
+  (18–20 s against 56 s).
+- **Load matters more than anything else.** At load ≥ 60, the same run takes 5–8× its time at load 10–40 (full serial 56 s → 298–318 s, full 4 threads 18–20 s → 99–111 s, Te box 1.5 s → 11–13 s).
+
+What is missing for a 4-vCPU Linux budget: any measurement on Linux or on 4 cores; a CI build time; and a
+comparison time for `--itermx 3` records. The CI job's own "Wall time" step (AIUE-57) is the first source for all
+three. Until it has run, the AIUE-57 estimate (~14–21 min) stays an estimate.
 
 ## Shared-state scan (AIUE-50)
 
