@@ -192,3 +192,8 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   **AIUE-58 RCA done** (`ee291a4`, in review): the parallel RHS is still wrong post-fix: R1 `hcyn` chunk-edge range
   (one-line fix shown), R2 stale threadprivate inputs, R3 dangling `emcoef` copyin pointer after `ueinit` with
   icntnunk=1 (SIGSEGV 6/8), R4 `xerrab` on a worker thread segfaults (also the AIUE-54 pre-fix crashes).
+- **14:10 Owner decision on AIUE-59:** fix all of R1-R4 (AIUE-58 option A) plus the AIUE-61 Q6 post-Jacobian worker
+  refresh. Only R1's fix was tested in AIUE-58 (scratch build), so AIUE-59's validation must show the combined fix
+  makes the parallel RHS correct (probe at perturbed states and after input changes, `--itermx 5`, two-exmain
+  `icntnunk=1` sequences, R4 raises instead of crashing), and switches the AIUE-57 RHS arm to gating. Jira AIUE-59
+  rewritten; it depends on AIUE-61/60 (same files).
