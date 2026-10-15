@@ -32,34 +32,11 @@ import subprocess
 import threading
 import time
 
-from harness.compare import compare_records
-from harness.config import ARMS, PRESETS, RunSpec
+from dataclasses import asdict
+
+from harness.compare import check_arm, compare_records
+from harness.config import PRESETS, RunSpec
 from harness.runner import HarnessError, Record, run_spec
-
-try:  # the harness core provides check_arm (AIUE-49); until then the same checks are made here
-    from harness.compare import check_arm
-except ImportError:
-    def check_arm(record, spec):
-        """Problems showing that the run's arm did not take effect (empty list: it did)."""
-        prov = record.meta.get("provenance") or {}
-        if not prov:
-            return ["no provenance in the record"]
-        problems = []
-
-        def expect(name, ok, want):
-            if name not in prov:
-                problems.append("{} missing from provenance".format(name))
-            elif not ok(prov[name]):
-                problems.append("{}={} (expected {})".format(name, prov[name], want))
-
-        for name, value in ARMS[spec.arm].items():
-            expect(name, lambda v, value=value: int(v) == value, value)
-        par_jac, par_rhs = ARMS[spec.arm]["OMPParallelJac"], ARMS[spec.arm]["OMPParallelPandf1"]
-        expect("ParallelJac", lambda v: (int(v) > 0) == bool(par_jac), ">0" if par_jac else 0)
-        expect("ParallelPandf1", lambda v: (int(v) > 0) == bool(par_rhs), ">0" if par_rhs else 0)
-        expect("Nthreads", lambda v: int(v) == spec.threads, spec.threads)
-        expect("OMP_NUM_THREADS", lambda v: str(v) == str(spec.threads), spec.threads)
-        return problems
 
 # The harness preset used for the phi isolation (named only here). phi alone and full_note (the full
 # problem with isteon=0) fail in serial on this case ("Jacobian row = 0" for phi(ix=11,iy=1)); Te and phi
@@ -101,6 +78,14 @@ def group_verdict(group):
     "errors" (harness errors: ERROR). Returns the verdict."""
     reports = group.get("reports", [])
     failures = group.get("run_failures", [])
+    # a report with errors (compare_records: wrong arm, missing quantity, different problem) can't be
+    # trusted: ERROR with its first error as the reason, never an unexplained FAIL
+    for r in reports:
+        if r.get("errors"):
+            msg = "{}: {}".format(r.get("kind", "comparison"), r["errors"][0])
+            if msg not in group.setdefault("errors", []):
+                group["errors"].append(msg)
+    reports = [r for r in reports if not r.get("errors")]
     agreement = [r for r in reports if r["kind"].startswith("agreement")]
     determinism = [r for r in reports if r["kind"].startswith("determinism")]
     repeats = group.get("repeats", len(agreement) + len(failures))
@@ -166,6 +151,8 @@ def exit_code(verdicts, gate):
     if gate in OMP_ARMS and gate not in verdicts:
         raise ValueError("--gate {} but the {} arm was not run".format(gate, gate))
     gated = [verdicts[a] for a in gated_arms(gate, verdicts)]
+    if not gated and gate != "none":
+        return 2  # nothing to judge (as cli.exit_code([]))
     if ERROR in gated:
         return 2
     if FAIL in gated:
@@ -271,7 +258,8 @@ class Job:
 
 
 # HarnessError messages from runner.py that are about the harness, not the build under test
-HARNESS_SIDE = ("already exists", "case file missing", "expected the deck's and the caller's nksol output")
+HARNESS_SIDE = ("already exists", "case file missing", "expected the deck's and the caller's nksol output",
+                "unreadable record")
 
 
 def classify_failure(err):
@@ -401,7 +389,7 @@ def compare_group(group, serial_record, serial_error, run_dirs, run_errors, rhs_
         if err:
             group["errors"].append("run{}: {}".format(k, failure_reason(err)))
             continue
-        problems = check_arm(rec, spec) if spec is not None else []
+        problems = check_arm(rec, asdict(spec)) if spec is not None else check_arm(rec)
         if problems:
             group["errors"].append("run{}: arm did not take effect: {}".format(k, "; ".join(problems)))
             continue
@@ -465,7 +453,7 @@ def run_flow(out, configs, arms, threads, repeats, python=None, cores=None, max_
         sj = serial_jobs[c]
         serial_record, serial_error = (None, sj.error) if sj.error else _load(sj.rundir)
         if serial_record is not None:
-            problems = check_arm(serial_record, sj.spec)
+            problems = check_arm(serial_record, asdict(sj.spec))
             if problems:
                 serial_record, serial_error = None, "serial arm did not take effect: " + "; ".join(problems)
         for g in groups:

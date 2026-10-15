@@ -174,15 +174,15 @@ $PY $H flow --list                                                           # t
 - **Group verdict** (configuration, arm, threads): PASS when all K runs agree bitwise with serial **and** with each
   other (the first successful run vs every later one). An OpenMP run that fails in the build while the serial
   reference ran (UEDGE error or solver stop, crash by signal, non-zero exit, timeout) is a FAIL. ERROR (harness,
-  cannot judge) is: a failed serial reference; a run whose record shows the arm did not take effect (`check_arm`:
-  the serial reference must have `OMPParallelJac`, `OMPParallelPandf1`, `ParallelJac`, `ParallelPandf1` all 0; an
-  OpenMP run must have `ParallelJac` > 0, plus `ParallelPandf1` > 0 on `jacrhs`, and `Nthreads` and
-  `OMP_NUM_THREADS` equal to the requested threads; so a serial build gives ERROR, never PASS); an unreadable or
-  truncated record; a harness-side failure (existing run directory, `OSError`, a Python error in the worker or
-  driver). **Arm verdict:** ERROR if any group is ERROR, else FAIL if any group fails, else PASS.
+  cannot judge) is: a failed serial reference; a run whose record fails `compare.check_arm` against the spec the
+  flow requested (the check described under "Is it really the arm it claims?" above, so a serial build gives ERROR,
+  never PASS); a comparison report with `errors` (missing quantity, different problem, wrong arm), shown with its
+  first error; an unreadable or truncated record (`unreadable record.json/npz`); a harness-side failure (existing run
+  directory, `OSError`, a Python error in the worker or driver). **Arm verdict:** ERROR if any group is ERROR, else
+  FAIL if any group fails, else PASS.
 - **Exit code** (`--gate`, default `jac`): 2 if a gated arm is ERROR, 1 if a gated arm FAILs, 0 otherwise; the other
   arm is still run and reported. `--gate jacrhs` and `--gate all` gate on that arm or on both, `--gate none` only
-  reports (0). Bad arguments or an existing `--out` give 2.
+  reports (0). Bad arguments, an existing `--out`, or a gate with nothing to judge give 2.
 - **Concurrency:** runs share a core budget (`--cores`, default all cores; a run takes `threads` cores, serial 1)
   and at most `--max-jobs` (default 8; a full-problem run peaks at ~1.4 GB) run at a time. Serial references and the
   expensive configurations start first. `--max-jobs 1` runs everything one after the other. Ctrl-C sends SIGTERM to

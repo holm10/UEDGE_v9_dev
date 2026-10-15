@@ -334,3 +334,37 @@ runs 497.8 s wall, total 632.5 s; exit code 1 (gate jac)
 Note on section 1: its temporary phi_te preset ({"keep": ["isteon", "isphion"], "set": []}) is identical to the
 committed te_phi preset, so the phi_te rows of section 1 are the --all results for configuration phi as committed
 (serial neq 6336 and fnrm 1.890747266414930 match R1.3).
+
+=================================================================================================
+## Round 2 revision (review docs/reviews/AIUE-52-implementation-round2.md), rebased onto the final harness core
+Branch rebased onto feature/v9-AIUE-49-omp-harness-core de57d59; compare.py, config.py, runner.py, worker.py and
+test_harness.py are the core's unchanged (git diff de57d59 HEAD touches only cli.py, flow.py, test_flow.py in harness/).
+Flows ran with --cores 4 --max-jobs 2 (at most 2 UEDGE processes) at load average 56-66 (1-min).
+
+### Unit tests (core + flow)
+$ python -m pytest tests/deterministic_omp/harness
+107 passed in 4.20s
+
+### R2.1 Serial build, Te box, jac arm, 4 threads: ERROR, exit 2
+$ base-serial/bin/python cli.py flow --configs tebox --threads 4 --arms jac --python base-serial/bin/python --cores 4 --max-jobs 2   (real 11.64, exit 2)
+| tebox | jac | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no Open |
+ARM jac: ERROR  (gated)
+
+### R2.2 Serial build, Te box, both arms, 4 threads: ERROR on both arms, exit 2
+$ base-serial/bin/python cli.py flow --configs tebox --threads 4 --python base-serial/bin/python --cores 4 --max-jobs 2   (real 20.52, exit 2)
+| tebox | jac | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no Open |
+| tebox | jacrhs | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jacrhs arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jacrhs arm but ParallelPandf1=0; jacrhs arm but the RHS probe did not take the parallel branch; jacrhs arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jacrhs arm  |
+ARM jac: ERROR  (gated)
+ARM jacrhs: ERROR  (report only)
+
+### R2.3 OpenMP build, Te box, both arms, 4 threads: FAIL in Te rows, exit 1
+$ $PY cli.py flow --configs tebox --threads 4 --python $PY --cores 4 --max-jobs 2   (real 28.26, exit 1)
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | ?,te | fnrm_final,fnrm_printed,jac:post_exmain,jac:post_exmain (permuted indices),jacobian_count,sfscal,yldot,yldot_probe | jacobian_count: ['post_exmain'] vs ['post_exmain (permuted indices)'] [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+jacrhs: run0's iteration-0 fnrm (parallel RHS) was 0.1057089980129120E+32 > ftol=1e20, so nksol iterated once more
+(ijactot 2, fnrm 0.8724380714266029E-02 at iteration 1); run1 printed 0.1527028258321631 and stopped (ijactot 1);
+serial 0.3221264477609989. The core therefore reports jacobian_count ['post_exmain'] vs ['post_exmain (permuted
+indices)'] for run0; the permuted post-exmain Jacobian is compared by position, not mapped to cells, hence '?' in the
+mismatch-rows column. All mismatches mapped to cells are in Te rows.

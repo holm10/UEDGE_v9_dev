@@ -1,6 +1,7 @@
 """Unit tests of the test flow (verdicts, exit codes, scheduling) with fake runs; no UEDGE build needed."""
 import json
 import os
+from dataclasses import asdict
 import sys
 import threading
 import time
@@ -11,9 +12,10 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import cli, flow  # noqa: E402
-from harness.config import ARMS, PRESETS, RunSpec  # noqa: E402
+from harness.config import PRESETS, RunSpec  # noqa: E402
 from harness.runner import HarnessError  # noqa: E402
 from harness.test_harness import FakeRecord, csr  # noqa: E402
+from harness.test_harness import provenance as core_provenance  # noqa: E402
 
 M = csr([[1.0, None], [None, 2.0]])
 
@@ -109,12 +111,20 @@ def test_plan_validation():
 
 # ---------------------------------------------------------------- the whole flow with fake runs
 def provenance(spec, **override):
-    """What an OpenMP build records when the arm took effect (worker.py provenance keys)."""
-    arm = ARMS[spec.arm]
-    prov = {"commit": "fake", "Nthreads": spec.threads, "OMP_NUM_THREADS": str(spec.threads),
-            "ParallelJac": arm["OMPParallelJac"], "ParallelPandf1": arm["OMPParallelPandf1"], **arm}
+    """What an OpenMP build records when the arm took effect (the core's provenance fields)."""
+    prov = core_provenance(spec.arm, spec.threads, commit="fake")
     prov.update(override)
     return prov
+
+
+def fake_record(spec, yldot, prov=provenance):
+    """A FakeRecord as the worker would write it for `spec` (the core's fields: spec, provenance,
+    iterations, rhs_probe_parallel on jacrhs, the arrays and the equation maps)."""
+    rec = FakeRecord(spec.label(), M, yldot, arm=spec.arm, threads=spec.threads, parallel=spec.arm == "jacrhs")
+    rec.meta["label"] = spec.label()
+    rec.meta["spec"] = asdict(spec)
+    rec.meta["provenance"] = prov(spec)
+    return rec
 
 
 def fake_runner(behaviour, calls=None, prov=provenance):
@@ -124,10 +134,7 @@ def fake_runner(behaviour, calls=None, prov=provenance):
         if calls is not None:
             calls.append((spec, rundir))
         os.makedirs(rundir)
-        yldot = behaviour(spec, rundir)
-        rec = FakeRecord(spec.label(), M, yldot)
-        rec.meta["label"] = spec.label()
-        rec.meta["provenance"] = prov(spec)
+        rec = fake_record(spec, behaviour(spec, rundir), prov)
         np.savez(os.path.join(rundir, "record.npz"), **rec.arrays)
         with open(os.path.join(rundir, "record.json"), "w") as f:
             json.dump(rec.meta, f)
@@ -280,38 +287,38 @@ def test_scheduler_max_jobs(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------- the arm must have taken effect (review I1-B1)
-class Rec:
-    def __init__(self, prov):
-        self.meta = {"provenance": prov}
-
-
+# check_arm is the core's (harness.compare); these cases pin what the flow relies on.
 @pytest.mark.parametrize("arm,threads", [("serial", 1), ("jac", 4), ("jacrhs", 2)])
 def test_check_arm_ok(arm, threads):
     spec = RunSpec(preset="tebox", arm=arm, threads=threads)
-    assert flow.check_arm(Rec(provenance(spec)), spec) == []
+    assert flow.check_arm(fake_record(spec, [1.0, 2.0]), asdict(spec)) == []
 
 
 @pytest.mark.parametrize("arm,override,bad", [
-    ("jac", {"ParallelJac": 0}, "ParallelJac"),             # serial build: switch set, parallel Jacobian off
-    ("jacrhs", {"ParallelPandf1": 0}, "ParallelPandf1"),
-    ("jac", {"Nthreads": 1}, "Nthreads"),                  # clamped by OMP_GET_MAX_THREADS
-    ("jac", {"OMP_NUM_THREADS": "1"}, "OMP_NUM_THREADS"),
-    ("jac", {"OMPParallelJac": 0}, "OMPParallelJac"),
-    ("serial", {"ParallelJac": 1}, "ParallelJac"),
-    ("serial", {"OMPParallelPandf1": 1}, "OMPParallelPandf1"),
+    ("jac", {"ParallelJac": 0}, "ParallelJac=0"),            # serial build: switch set, parallel Jacobian off
+    ("jacrhs", {"ParallelPandf1": 0}, "ParallelPandf1=0"),
+    ("jac", {"Nthreads": 1}, "Nthreads=1"),                  # clamped by OMP_GET_MAX_THREADS
+    ("jac", {"OMP_NUM_THREADS": "1"}, "OMP_NUM_THREADS=1"),
+    ("jac", {"openmp_build": False}, "no OpenMP runtime"),
+    ("jac", {"CheckJac": 1}, "CheckJac=1"),
+    ("serial", {"ParallelJac": 1}, "ParallelJac=1"),
+    ("serial", {"OMPParallelPandf1": 1}, "OMPParallelPandf1=1"),
 ])
 def test_check_arm_problems(arm, override, bad):
     spec = RunSpec(preset="tebox", arm=arm, threads=4 if arm != "serial" else 1)
-    problems = flow.check_arm(Rec(provenance(spec, **override)), spec)
-    assert problems and any(p.startswith(bad) for p in problems)
+    rec = fake_record(spec, [1.0, 2.0], prov=lambda s: provenance(s, **override))
+    problems = flow.check_arm(rec, asdict(spec))
+    assert any(bad in p for p in problems), problems
 
 
-def test_check_arm_missing_provenance():
+def test_check_arm_uses_requested_spec():
+    # the flow checks every record against the spec it asked for, not only the record's own
     spec = RunSpec(preset="tebox", arm="jac", threads=4)
-    assert flow.check_arm(Rec({}), spec)
-    prov = provenance(spec)
-    del prov["ParallelJac"]
-    assert any("missing" in p for p in flow.check_arm(Rec(prov), spec))
+    asked = asdict(RunSpec(preset="tebox", arm="jac", threads=8))
+    assert any("8 requested" in p for p in flow.check_arm(fake_record(spec, [1.0, 2.0]), asked))
+    rec = fake_record(spec, [1.0, 2.0])
+    rec.meta["provenance"] = {}
+    assert flow.check_arm(rec, asdict(spec))
 
 
 def test_cli_flow_serial_build_is_error(tmp_path, monkeypatch):
@@ -323,7 +330,7 @@ def test_cli_flow_serial_build_is_error(tmp_path, monkeypatch):
     assert run_cli(tmp_path, monkeypatch, same, "--arms", "jac", prov=serial_build) == 2
     data = json.loads((tmp_path / "out" / "flow.json").read_text())
     assert data["verdicts"] == {"jac": "ERROR"}
-    assert "arm did not take effect: ParallelJac=0" in data["groups"][0]["errors"][0]
+    assert data["groups"][0]["errors"][0].startswith("run0: arm did not take effect: jac arm but ParallelJac=0")
     assert run_cli(tmp_path, monkeypatch, same, "--gate", "none", prov=serial_build, name="o2") == 0
 
     def serial_ref_parallel(spec):  # the serial reference must have both switches off
@@ -331,7 +338,8 @@ def test_cli_flow_serial_build_is_error(tmp_path, monkeypatch):
 
     assert run_cli(tmp_path, monkeypatch, same, prov=serial_ref_parallel, name="o3") == 2
     g = json.loads((tmp_path / "o3" / "flow.json").read_text())["groups"][0]
-    assert g["errors"][0].startswith("serial reference failed: serial arm did not take effect: ParallelJac=1")
+    assert g["errors"][0].startswith("serial reference failed: serial arm did not take effect: "
+                                     "serial arm but ParallelJac=1")
 
 
 # ---------------------------------------------------------------- harness-side vs build failures (I1-m2)
@@ -345,6 +353,8 @@ def test_cli_flow_serial_build_is_error(tmp_path, monkeypatch):
     (HarnessError("run in /x exited with -11 and wrote no record (see run.log)"), False),
     (HarnessError("run in /x failed:\nTraceback\nRuntimeError:  ** overflow: SVR routine lusol0"), False),
     (HarnessError("run in /x exited with 1"), False),
+    (HarnessError("unreadable record.json in /x: Expecting value: line 1 column 1 (char 0)"), True),
+    (HarnessError("unreadable record.npz in /x: BadZipFile()"), True),
     (HarnessError("run in /x failed:\nTraceback\nKeyError: 'jac_post'"), True),  # a bug in the worker
     (HarnessError("run in /x timed out after 3600 s"), False),
 ])
@@ -414,3 +424,35 @@ def test_scheduler_interrupt_terminates_children(tmp_path, monkeypatch):
     assert seen == [True]
     monkeypatch.setattr(flow, "run_flow", lambda *a, **k: interrupted())
     assert cli.main(["flow", "--configs", "tebox", "--out", str(tmp_path / "o")]) == 130
+
+
+# ---------------------------------------------------------------- report-level errors (review I2-m1)
+def test_group_report_errors_are_error():
+    bad = {"kind": "agreement (serial vs run0)", "agree": False, "errors": ["b (x): yldot missing from the record"],
+           "sections": {}}
+    g = group(bad, rep("agreement (serial vs run1)", True), rep("determinism (run0 vs run1)", True))
+    assert flow.group_verdict(g) == flow.ERROR
+    assert g["errors"][0] == "agreement (serial vs run0): b (x): yldot missing from the record"
+
+
+def test_cli_flow_missing_vector_is_error(tmp_path, monkeypatch):
+    base = fake_runner(lambda s, d: [1.0, 2.0])
+
+    def run_spec(spec, rundir, python=None):
+        rec = base(spec, rundir, python)
+        if spec.arm == "jac" and rundir.endswith("run1"):  # rewrite the record without yldot
+            arrays = {k: v for k, v in rec.arrays.items() if k != "yldot"}
+            np.savez(os.path.join(rundir, "record.npz"), **arrays)
+        return rec
+
+    monkeypatch.setattr(flow, "run_spec", run_spec)
+    code = cli.main(["flow", "--configs", "tebox", "--threads", "2", "--out", str(tmp_path / "o")])
+    assert code == 2
+    g = json.loads((tmp_path / "o" / "flow.json").read_text())["groups"][0]
+    assert g["verdict"] == "ERROR" and any("yldot missing from the record" in e for e in g["errors"])
+    assert "yldot missing" in (tmp_path / "o" / "summary.md").read_text()
+
+
+def test_exit_code_nothing_gated_is_error():
+    assert flow.exit_code({}, "all") == 2
+    assert flow.exit_code({}, "none") == 0
