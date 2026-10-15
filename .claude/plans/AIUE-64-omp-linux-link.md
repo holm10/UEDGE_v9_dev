@@ -75,8 +75,8 @@ change the serial build, which this ticket must not do. The quirk is also load-b
 calls `omp_get_thread_num_`/`omp_get_wtime_` (`ppp/parallel.F90:213,286,340`; `nm -u` on `venvs/base-serial`),
 which on macOS resolve only through the serial `uedgeC`'s libomp, and which on Linux `--as-needed` toolchains are
 already unresolved in the serial build (a latent lazy-binding failure if those calls are reached). **Owner decision:
-a separate follow-up ticket** (filed by the main session, carrying review finding L1-m2, so that the follow-up does
-not simply drop `-fopenmp` from the serial `uedgeC` link). Not changed here.
+a separate follow-up ticket, AIUE-67** (filed by the main session, carrying review finding L1-m2, so that the
+follow-up does not simply drop `-fopenmp` from the serial `uedgeC` link). Not changed here.
 
 **Fix.** In the OpenMP build on Linux only, run `make -f Makefile.Forthon` with `-fopenmp` appended to `LDFLAGS` in
 the environment of that one subprocess. setuptools appends `LDFLAGS` from the environment to `LDSHARED` for every
@@ -211,8 +211,12 @@ selected records are committed in task 5 (owner decision, see Notes on records).
     that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link
     (`setup.py:<new line>`). macOS relies on `uedgeC` loading libomp."
   - add (as a new step between the current 3 and 4, renumbering 4 → 5): "`build.run` then builds the C extension
-    `uedgeC` (`setup.py:772,781-803`), linked with `-fopenmp`." Keep the existing import step's text; it is still
-    true.
+    `uedgeC` (`setup.py:<build.run line>,<Extension lines>`), linked with `-fopenmp`." Keep the existing import
+    step's text; it is still true.
+  - **Line numbers (review L2-m1)**: take every new `setup.py` line number from the *edited* file (`grep -n`), not
+    from this plan: task 1 adds about 16 lines above `build.run(self)` and the `uedgeC` `Extension` (pre-edit
+    `:772`, `:781-803`). `--update` locks whatever text is on the cited line without checking it, so check every
+    new citation by eye before `--update`.
 - **Drift check (review L1-m5)**: the new `setup.py:<line>` citations will be reported as **NEW** (exit 1) by
   `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`, so `--update` is certain to be needed.
   Check that NEW (for the citations just added and verified by hand) is the only problem reported; only then run
@@ -288,7 +292,7 @@ Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
   log. Both import. The anchored `nm -D --undefined-only` OpenMP set and the L1 `ldd -r` filter give the same
   output for both: `ppppy` lists `omp_get_thread_num_` and `omp_get_wtime_` (the serial `ppppy` calls them, see
   the side finding; unresolved on this `--as-needed` toolchain), every other extension is empty. That is the
-  pre-existing quirk for the follow-up ticket, recorded, not fixed here.
+  pre-existing quirk for the follow-up ticket AIUE-67, recorded, not fixed here.
 - **L5 AIUE-57 replay + short Te-box flow** (Ubuntu, on the `fix` build): clone the AIUE-57 harness
   (`clone_harness.sh 8ee189d76b0232cedfe17088574935b10b857df5`). The `fix` build already replayed the workflow's
   "Install pip dependencies" and "Build UEDGE (default OpenMP build)" steps (L1: same pip commands,
@@ -384,7 +388,7 @@ Checked `CLAUDE.md` and `.claude/context/*.md` for `setup.py`, link, `LDFLAGS`, 
 
 ## Open questions — resolved by the owner (round 1)
 1. *Linux evidence*: committed on this branch under `docs/rca/AIUE-8-data/linux/aiue64/` (task 5), after M3.
-2. *Serial `uedgeC` linked with `-fopenmp`*: left as is here; a separate follow-up ticket, filed by the main session,
-   carries review finding L1-m2 (the serial `ppppy` depends on it).
+2. *Serial `uedgeC` linked with `-fopenmp`*: left as is here; the follow-up ticket **AIUE-67** (filed by the main
+   session) carries review finding L1-m2 (the serial `ppppy` depends on it).
 3. *Wheel/auditwheel check*: deferred. The wheel already vendors `libgomp` today; see "Not claimed".
 4. *L5 flow set*: the reduced set is enough. The unmodified `pr` set is AIUE-57's own validation.
