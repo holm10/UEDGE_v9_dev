@@ -1,0 +1,179 @@
+AIUE-60 validation (macOS arm64, gfortran 15, Homebrew LLVM clang/libomp; fix 3bb994b + workh bound 02e6e60)
+Tools: harness core AIUE-57 8ee189d (flow, check, compare, worker); serial check AIUE-53 15ae327; AIUE-50 tools 32ac1af
+(scan_ompcopy.py, tsan_summary.py, scan_saved_locals.py imported by Probe S); Probe S scripts SHA-256 6eeeacdad36dbdec… (shared-writes),
+c8c8ce78efd66bc7… (passed-args). Builds: venvs/AIUE-60-omp (AIUE-60 @ 02e6e60), venvs/AIUE-60-serial (AIUE-60-serial @ 02e6e60);
+base venvs/AIUE-56-omp (AIUE-56 build of 4fae2f9; tree HEAD 1553e75, docs only since), venvs/AIUE-56-serial (4fae2f9);
+v9-develop venvs/base-serial, venvs/base-omp (0fac655). Scripts: docs/reviews/AIUE-60-run_protocol.sh, AIUE-60-tsan.sh,
+AIUE-60-tsan-prep.py, AIUE-60-run-donly.py, AIUE-60-flow-gates.py, AIUE-60-clip-check.py.
+
+## Deviation from the plan (implementation)
+- aph/aph.v workh: Forthon's --omp generator (ProcessDim/GetSize) cuts a dimension at the first ')', so
+  +threadprivate on workh(1:nxdata_aph*nydata_aph+2*kxords_aph*(nxdata_aph+1)) did not compile (aph_p.F90). The bound is
+  rewritten as the equal nxdata_aph*nydata_aph+2*kxords_aph*nxdata_aph+2*kxords_aph (commit 02e6e60); size unchanged.
+- TSan: cli.py run under DYLD_INSERT_LIBRARIES segfaulted at start-up (-11, no output) in every run; the harness worker
+  is started directly in a run directory prepared with harness.runner.prepare_rundir (AIUE-60-tsan-prep.py), with
+  OMP_STACKSIZE=64M (TSan). Every TSan run wrote its record (ParallelJac=1, Nthreads=4 checked on pre_tebox) and
+  then exited 134 at interpreter shutdown.
+
+## 1. Build hygiene: PASS
+OpenMP build: threadprivate directives for areapl, timingpandfon, sputflxllim (bbb_p.F90), ttimpjf, ttimpfe, totintrv,
+totb2val (com_p.F90), workh, iflag_aph (aph_p.F90); none for ghxpt, fngysi. Serial build: 0 threadprivate lines in every
+*_p.F90. Warnings in the build log for pandf.F 0, parallel.F90 0, aph_p.F90 0, com_p.F90 0, bbb_p.F90 4 (base 4: same).
+scan_ompcopy.py (AIUE-60 OpenMP tree): bbb 526 threadprivate/526 copied; com 10/10; api 25/25; aph 2 threadprivate,
+0 copied (by design: scratch, no OmpCopy call); 0 copy-order hazards.
+
+## 2. Defaults unchanged
+AIUE-56 builds vs AIUE-60 builds (plan pair), 42 cases, both pairs: every comparison AGREE; tool verdict verbatim:
+    NOT THE GATE: serial base: HEAD 4fae2f992ba6 is not origin/v9-develop or an ancestor of it
+    NOT THE GATE: omp0 base: HEAD 1553e756539b of /Users/holma/Documents/uedge/src/uedge-wt/AIUE-56 was committed after the build was installed; the recorded HEAD may not be what was built (reinstall)
+    NOT THE GATE: omp0 base: HEAD 1553e756539b is not origin/v9-develop or an ancestor of it
+  RESULT: INCOMPLETE (what ran agrees bitwise; not the gate: base not on origin/v9-develop, build older than HEAD)  [pairs serial+omp0, cases all (42)]  (458.8 s)
+v9-develop (base-serial/base-omp 0fac655) vs AIUE-60 builds, complete gate, verbatim:
+  RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (912.3 s)
+Upstream pytests D_only, one process per file (pytest-isolate not installed), AIUE-60 vs AIUE-56 builds:
+  omp: 125 files, 121 pass, 4 fail; serial: 125 files, 120 pass, 5 fail; per-file outcomes identical to AIUE-56 in both.
+  Pre-existing failures (both builds): nonog/ineudif0, ineudif1, ineudif3, tg_atom_cftiexclg0p5; serial also nonog/concap.
+
+## 3. Flow gates (flow --all --arms jac,jacrhs --threads 2,4 --repeats 2; AIUE-56 then AIUE-60): PASS
+  tebox jac t2           PASS  GATE PASS
+  tebox jac t4           PASS  GATE PASS
+  tebox jacrhs t2        PASS  GATE PASS
+  tebox jacrhs t4        PASS  GATE PASS
+  full jac t2            PASS  GATE PASS
+  full jac t4            PASS  GATE PASS
+  full jacrhs t2         PASS  GATE PASS
+  full jacrhs t4         PASS  GATE PASS
+  te jac t2              PASS  GATE PASS
+  te jac t4              PASS  GATE PASS
+  te jacrhs t2           PASS  GATE PASS
+  te jacrhs t4           PASS  GATE PASS
+  ti jac t2              PASS  
+  ti jac t4              PASS  
+  ti jacrhs t2           PASS  
+  ti jacrhs t4           PASS  
+  ni jac t2              PASS  
+  ni jac t4              PASS  
+  ni jacrhs t2           PASS  
+  ni jacrhs t4           PASS  
+  up jac t2              PASS  
+  up jac t4              PASS  
+  up jacrhs t2           PASS  
+  up jacrhs t4           PASS  
+  ng jac t2              PASS  
+  ng jac t4              PASS  
+  ng jacrhs t2           PASS  
+  ng jacrhs t4           PASS  
+  phi jac t2             PASS  GATE PASS
+  phi jac t4             PASS  GATE PASS
+  phi jacrhs t2          PASS  GATE PASS
+  phi jacrhs t4          PASS  GATE PASS
+  FLOW GATES PASS
+Class Y agreement with serial (report only):
+   flow56 tebox/jac/t2:0/2 tebox/jac/t4:0/2 tebox/jacrhs/t2:0/2 tebox/jacrhs/t4:0/2 full/jac/t2:2/2 full/jac/t4:1/2 full/jacrhs/t2:2/2 full/jacrhs/t4:0/2 te/jac/t2:0/2 te/jac/t4:0/2 te/jacrhs/t2:0/2 te/jacrhs/t4:0/2 phi/jac/t2:0/2 phi/jac/t4:0/2 phi/jacrhs/t2:0/2 phi/jacrhs/t4:0/2
+   flow60 tebox/jac/t2:0/2 tebox/jac/t4:0/2 tebox/jacrhs/t2:0/2 tebox/jacrhs/t4:0/2 full/jac/t2:2/2 full/jac/t4:2/2 full/jacrhs/t2:2/2 full/jacrhs/t4:0/2 te/jac/t2:0/2 te/jac/t4:0/2 te/jacrhs/t2:0/2 te/jacrhs/t4:0/2 phi/jac/t2:0/2 phi/jac/t4:0/2 phi/jacrhs/t2:0/2 phi/jacrhs/t4:0/2
+Every failing section in either flow is jacobian:post_exmain of a class-Y group, Te rows only; the RHS sections
+(yldot, yldot_probe, sfscal, suscal, fnrm_final, fnrm_printed) agree in all 64 agreement reports of each flow.
+No group needed the re-run rule. Cross-build bitwise, tebox, OMPJacNchunks=-1, OMPAutoBalance=0, 4 threads:
+  jac: AIUE-56 run0 vs AIUE-60 run0: AGREE; determinism run0 vs run1: AIUE-56 AGREE, AIUE-60 AGREE
+  jacrhs: AIUE-56 run0 vs AIUE-60 run0: AGREE; determinism run0 vs run1: AIUE-56 AGREE, AIUE-60 AGREE (so jacrhs is gated: AGREE)
+
+## 4. Clip check, jaccliplim=1e-6, 4 threads (AIUE-60 new, AIUE-56 base)
+  ni: RESULT {"G1": "PASS", "G3": "PASS", "G4": "PASS", "exit": 0}
+    new serial nnz 636497 predicted {'row_rule_keeps': 636497, 'col_rule_keeps': 594104, 'rules_differ': 69401}
+    new run0: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    new run1: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    new run2: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    base serial nnz 636497 predicted {'row_rule_keeps': 636497, 'col_rule_keeps': 594104, 'rules_differ': 69401}
+    base run0: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+    base run1: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+    base run2: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+  full: RESULT {"G1": "PASS", "G3": "PASS", "G4": "PASS", "exit": 0}
+    new serial nnz 2474283 predicted {'row_rule_keeps': 2474283, 'col_rule_keeps': 2402093, 'rules_differ': 812962}
+    new run0: nnz 2474283/2474283 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 59033
+    new run1: nnz 2474283/2474283 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 59033
+    base serial nnz 2474283 predicted {'row_rule_keeps': 2474283, 'col_rule_keeps': 2402093, 'rules_differ': 812962}
+    base run0: nnz 2474283/2402093 one-sided 442576+370386 non-flips 734080 G1 FAIL sfscal diffs 0 common-value diffs 0 band 59033
+    base run1: nnz 2474283/2402093 one-sided 442576+370386 non-flips 734080 G1 FAIL sfscal diffs 0 common-value diffs 0 band 59033
+  AIUE-60 OpenMP clipped Jacobians have exactly the serial pattern (0 one-sided entries) in all 5 runs; the AIUE-56 runs
+  keep the column-rule set (G3). G2: sfscal bitwise in every run.
+
+## 5. TSan (Te box, ng, Te box --itermx 2, full; 4 threads; pre = 1553e75, post = 02e6e60)
+  2026-10-15 16:01:16 pre_tebox exit 134 record=yes reports=310
+  2026-10-15 16:01:40 pre_ng exit 134 record=yes reports=663
+  2026-10-15 16:01:54 pre_tebox_it2 exit 134 record=yes reports=441
+  2026-10-15 16:04:44 pre_full exit 134 record=yes reports=692
+  2026-10-15 16:04:53 post_tebox exit 134 record=yes reports=105
+  2026-10-15 16:05:13 post_ng exit 134 record=yes reports=78
+  2026-10-15 16:05:26 post_tebox_it2 exit 134 record=yes reports=103
+  2026-10-15 16:07:43 post_full exit 134 record=yes reports=81
+  2026-10-15 16:07:44 end
+  -- pre_tebox (in-loop groups)
+       82  yes               __timing_MOD_ttimpjf  |  timimpfj_ pandf.F:760
+       14  yes               __timing_MOD_ttngxlog  |  neudifpg_ pandf_gas_continuity.F:664
+       14  yes               __timespl_MOD_totintrv  |  b1vahl_ comutil.F:3902
+       13  yes               __timing_MOD_ttngfd2  |  neudifpg_ pandf_gas_continuity.F:777
+       13  yes               __timing_MOD_ttngfxy  |  neudifpg_ pandf_gas_continuity.F:876
+       13  yes               __timing_MOD_ttnpg  |  pandf_ pandf.F:636
+       12  yes               __dim_MOD_nfsp  |  initialize_ranges_ pandf.F:50
+       12  yes               __timing_MOD_ttngylog  |  neudifpg_ pandf_gas_continuity.F:765
+       10  yes               __pandftiming_MOD_timingpandfon  |  pandf_ pandf.F:574
+        8  yes               heap block  |  dcopy_u_ blasext.F:1292; dcopy_u_ blasext.F:1293; sfsetnk_ oderhs.F:2340
+  -- pre_ng (in-loop groups)
+      346  yes               __timing_MOD_ttimpjf  |  timimpfj_ pandf.F:760
+       53  yes               __rccoef_MOD_areapl  |  left_boundary_ pandf_boundary.F:3544; right_boundary_ pandf_boundary.F:4277
+       45  yes               __timespl_MOD_totintrv  |  b1vahl_ comutil.F:3902
+       16  yes               __timing_MOD_ttngxlog  |  neudifpg_ pandf_gas_continuity.F:664
+       15  yes               __dim_MOD_nfsp  |  initialize_ranges_ pandf.F:50
+       15  yes               __pandftiming_MOD_timingpandfon  |  pandf_ pandf.F:574
+       15  yes               __timing_MOD_ttngylog  |  neudifpg_ pandf_gas_continuity.F:765
+       15  yes               __timing_MOD_ttngfd2  |  neudifpg_ pandf_gas_continuity.F:777
+       15  yes               __timing_MOD_ttngfxy  |  neudifpg_ pandf_gas_continuity.F:876
+       15  yes               __timing_MOD_ttnpg  |  pandf_ pandf.F:636
+        1  yes               heap block  |  sfsetnk_ oderhs.F:2340; localjacbuilder_ parallel.F90:292
+  -- pre_full (in-loop groups)
+      308  yes               __timing_MOD_ttimpjf  |  timimpfj_ pandf.F:760
+      160  yes               __rccoef_MOD_areapl  |  left_boundary_ pandf_boundary.F:3166; right_boundary_ pandf_boundary.F:3882; right_boundary_ pandf_boundary.F:4277
+       58  yes               __timespl_MOD_totintrv  |  b1vahl_ comutil.F:3902
+       14  yes               __timing_MOD_ttngxlog  |  neudifpg_ pandf_gas_continuity.F:664
+       13  yes               __dim_MOD_nfsp  |  initialize_ranges_ pandf.F:50
+       13  yes               __pandftiming_MOD_timingpandfon  |  pandf_ pandf.F:574
+       13  yes               __timing_MOD_ttngylog  |  neudifpg_ pandf_gas_continuity.F:765
+       13  yes               __timing_MOD_ttngfd2  |  neudifpg_ pandf_gas_continuity.F:777
+       13  yes               __timing_MOD_ttngfxy  |  neudifpg_ pandf_gas_continuity.F:876
+       13  yes               __timing_MOD_ttnpg  |  pandf_ pandf.F:636
+  -- post_tebox (in-loop groups)
+       20  yes               heap block  |  dcopy_u_ blasext.F:1294; convsr_aux2_ convert.F:866; dcopy_u_ blasext.F:1295
+  -- post_ng (in-loop groups)
+  -- post_tebox_it2 (in-loop groups)
+        3  yes               heap block  |  localjacbuilder_ parallel.F90:270; sfsetnk_ oderhs.F:2340; localjacbuilder_ parallel.F90:292
+  -- post_full (in-loop groups)
+  Gate (after): PASS. No in-loop report on a global symbol in any post run. Every in-loop report (post_tebox 20,
+  post_tebox_it2 3, post_ng 0, post_full 0) pairs a read in localjacbuilder_ with a write by the main thread outside any
+  parallel region (sfsetnk oderhs.F:2340, set_dt oderhs.F:2450, get_fnrm, gridseq/s2copy -> convsr_aux2): ordered by the
+  region's join, which TSan cannot see in the uninstrumented libomp (the AIUE-50 false-positive class). Before: every
+  expected group (ttimpjf, totintrv, ttngxlog/ylog/fd2/fxy, ttnpg, TimingPandfOn, nfsp; areapl on ng and full).
+  Out-of-loop groups (setarraypointer/OmpCopy buffers, ompcommonscalarcopy_ now also from OmpCopyScalarcom): report only.
+
+## 6. Static (Probe S): PASS
+  shared-writes: 161 -> 147; passed-args: 137 -> 135. Removed lines (diff pre=AIUE-56 tree, post=AIUE-60 tree at 02e6e60); the only added line is the new count
+  '145 reachable units; 147 variables':
+    < bbb.PandfTiming.timingpandfon: 2  bbb/pandf.m:576(pandf), bbb/pandf.
+    < bbb.Rccoef.areapl: 8  bbb/pandf_boundary.m:3091(left_boundary), bbb/
+    < bbb.Rccoef.sputflxllim: 3  bbb/pandf_boundary.m:4957(limiter_patch),
+    < bbb.Rccoef.sputflxrlim: 3  bbb/pandf_boundary.m:5041(limiter_patch),
+    < com.Timespl.totb2val: 3  aph/aphrates.m:596(rqa), aph/aphrates.m:773
+    < com.Timespl.totintrv: 2  com/comutil.m:3902(b1vahl), com/comutil.m:3
+    < com.Timing.ttimpc: 1  api/fmombal.m:247(fmombal)
+    < com.Timing.ttimpfe: 1  bbb/pandf.m:758(timimpfj)
+    < com.Timing.ttimpjf: 1  bbb/pandf.m:760(timimpfj)
+    < com.Timing.ttngfd2: 1  bbb/pandf_gas_continuity.m:777(neudifpg)
+    < com.Timing.ttngfxy: 1  bbb/pandf_gas_continuity.m:876(neudifpg)
+    < com.Timing.ttngxlog: 1  bbb/pandf_gas_continuity.m:664(neudifpg)
+    < com.Timing.ttngylog: 1  bbb/pandf_gas_continuity.m:765(neudifpg)
+    < com.Timing.ttnpg: 1  bbb/pandf.m:636(pandf)
+    < 145 reachable units; 161 variables
+    < aph.Aphwrk.iflag_aph 6 aph/aphrates.m:1006(rsa->b2vahl); aph/aphrate
+    < aph.Aphwrk.workh 6 aph/aphrates.m:1006(rsa->b2vahl); aph/aphrates.m:
+
+## AI layer
+  uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop: OK (new references locked after re-reading).
