@@ -105,8 +105,10 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
 - **`check`** runs a serial reference of the same build and K OpenMP runs, and reports agreement with serial and
   determinism (run 0 vs run k) separately. It writes `check.json` with every report and the provenance (commit,
   platform, thread and chunking settings).
-- **What is compared, bitwise** (`harness/compare.py`): every Jacobian the run produced (the post-`exmain` `bbb.jac`
-  arrays; plus the raw captured Jacobians once AIUE-47's hook is available), as sets of (row, column) entries, so a
+- **What is compared, bitwise** (`harness/compare.py`): every Jacobian the run produced, as sets of (row, column)
+  entries: the raw Jacobians of AIUE-47's capture hook (`bbb.jaccapture`, one per `sfsetnk`/`psetnk` call, before
+  scaling, row normalisation and reordering; recorded with the routine that produced them, `jac_calc` or
+  `jac_calc_parallel`) when the build has the hook, and the post-`exmain` `bbb.jac` arrays always. So a
   changed sparsity pattern shows up as entries "only in a/b"; `sfscal`, `suscal`, `yldot`; one more RHS evaluation
   through the solver path (`ffun`, the parallel RHS on the `jacrhs` arm); the final `get_fnrm()` as `float.hex`; and
   the `fnrm` sequence nksol printed. ±0 count as different and any NaN/Inf fails, except for the RHS probe of a
@@ -116,6 +118,8 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   counted per (row equation, column equation) pair, e.g. `te/ni: 387007; first value row te(ix=1,iy=1) col
   ni[0](ix=1,iy=1)`.
 - **Exit codes:** 0 everything agrees, 1 at least one mismatch, 2 harness error (missing file, failed run).
+- **Capture slots:** `RunSpec.capture` (default 16) raw Jacobians are kept; a run that produces more is a harness
+  error, never a silent truncation. A build without the hook compares the post-`exmain` Jacobian only.
 - **Limits:** the per-iteration `fnrm` is available only as the 16 digits nksol prints; the float64 value is
   recorded for the final state. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
   by the harness.

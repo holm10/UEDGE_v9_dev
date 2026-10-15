@@ -63,9 +63,41 @@ def equation_map(bbb, com, neq):
     return eq, species
 
 
-def capture_description(bbb):
-    """Which Jacobians this build can give us (AIUE-47 capture hook, or post-exmain arrays)."""
-    return {"hook": False}
+SOURCES = {1: "jac_calc", 2: "jac_calc_parallel"}
+CALLERS = {0: "other", 1: "sfsetnk", 2: "psetnk"}
+
+
+def has_capture_hook(bbb):
+    """True if the build has the AIUE-47 raw-Jacobian capture (bbb group Jacobian_capture)."""
+    return "jaccapture" in bbb.varlist()
+
+
+def start_capture(bbb, slots):
+    bbb.jaccapture = slots
+    bbb.jaccapskip = 0
+    bbb.jaccapcount = 0
+    bbb.jaccapn = 0
+
+
+def collect_capture(bbb, arrays):
+    """Copy the captured raw Jacobians into arrays (capjac_k, capjacj_k, capjaci_k, 0-based k)
+    and describe them. Raw = before sfsetnk/psetnk scale, normalise or reorder."""
+    import numpy as np
+
+    n = int(bbb.jaccapn)
+    desc = {"hook": True, "count": n, "seen": int(bbb.jaccapcount), "slots": int(bbb.jaccapture),
+            "source": [], "caller": [], "seq": []}
+    for k in range(n):
+        neq, nnz = int(bbb.jaccapneq[k]), int(bbb.jaccapnnz[k])
+        arrays["capjac_{}".format(k)] = np.array(bbb.jaccapv[:nnz, k])
+        arrays["capjacj_{}".format(k)] = np.array(bbb.jaccapj[:nnz, k])
+        arrays["capjaci_{}".format(k)] = np.array(bbb.jaccapi[: neq + 1, k])
+        desc["source"].append(SOURCES.get(int(bbb.jaccapsrc[k]), "unknown"))
+        desc["caller"].append(CALLERS.get(int(bbb.jaccapfrom[k]), "unknown"))
+        desc["seq"].append(int(bbb.jaccapseq[k]))
+    if int(bbb.jaccapcount) > n:
+        desc["truncated"] = True  # more Jacobians than slots: raise RunSpec.capture
+    return desc
 
 
 def run(spec):
@@ -82,6 +114,9 @@ def run(spec):
         bbb.ftol = 1e20
     else:
         bbb.itermx = spec.itermx
+    hook = has_capture_hook(bbb) and spec.capture > 0
+    if hook:
+        start_capture(bbb, spec.capture)  # after the deck, so its populate exmain isn't captured
 
     bbb.exmain()
 
@@ -104,7 +139,7 @@ def run(spec):
         "numvar": int(bbb.numvar),
         "fnrm_final_hex": float(bbb.get_fnrm(bbb.dtreal)).hex(),
         "ijactot": int(bbb.ijactot),
-        "capture": capture_description(bbb),
+        "capture": collect_capture(bbb, arrays) if hook else {"hook": False, "count": 0},
         "post_exmain_jacobian": ("sfsetnk Jacobian scaled by 1/suscal (ftol=1e20: no psetnk row "
                                  "normalisation or reordering)" if spec.itermx is None else
                                  "last psetnk Jacobian: scaled, row-normalised, possibly RCM-permuted"),

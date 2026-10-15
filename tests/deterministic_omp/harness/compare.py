@@ -148,6 +148,10 @@ def compare_records(a, b, rhs_signed_zero_equal=None):
         add("neq", {"error": "neq {} vs {}".format(neq, b.meta["neq"]), "mismatches": 1})
         return report
     eq, species, igyl = a.arrays["eq"], a.arrays["species"], a.arrays["igyl"]
+    for side, rec in (("a", a), ("b", b)):
+        if rec.meta.get("capture", {}).get("truncated"):
+            add("capture_" + side, {"error": "{} saw more Jacobians than capture slots ({}); raise RunSpec.capture"
+                .format(rec.label, rec.meta["capture"]["slots"]), "mismatches": 1})
 
     ja, jb = jacobians(a), jacobians(b)
     if [n for n, _ in ja] != [n for n, _ in jb]:

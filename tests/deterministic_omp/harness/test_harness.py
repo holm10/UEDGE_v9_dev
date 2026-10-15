@@ -208,3 +208,20 @@ def test_cli_compare_exit_codes(tmp_path):
     assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "b")]) == 0
     assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "c")]) == 1
     assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "missing")]) == 2
+
+
+def test_captured_jacobians_compared_and_truncation_is_error():
+    m = csr([[1.0, None], [None, 2.0]])
+    m2 = csr([[1.0, None], [None, 2.5]])
+    a = FakeRecord("a", m, [0.0, 1.0])
+    b = FakeRecord("b", m, [0.0, 1.0])
+    for rec, cap in ((a, m), (b, m2)):
+        rec.meta["capture"] = {"hook": True, "count": 1, "slots": 1}
+        rec.arrays.update({"capjac_0": cap[0], "capjacj_0": cap[1], "capjaci_0": cap[2]})
+    r = compare_records(a, b)
+    assert r["sections"]["jacobian:captured[0]"]["value"] == 1 and r["sections"]["jacobian:post_exmain"]["mismatches"] == 0
+    b.arrays["capjac_0"] = m[0]
+    assert compare_records(a, b)["agree"]
+    b.meta["capture"]["truncated"] = True
+    r = compare_records(a, b)
+    assert not r["agree"] and "error" in r["sections"]["capture_b"]

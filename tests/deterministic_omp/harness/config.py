@@ -68,6 +68,9 @@ class RunSpec:
     # also evaluate the RHS once more after exmain through ffun (the solver's RHS path),
     # to capture yldot from the parallel RHS on the jacrhs arm
     rhs_probe: bool = True
+    # number of raw Jacobians to keep with the AIUE-47 capture hook (builds without the hook
+    # ignore it); every Jacobian of a run fits for itermx up to capture-1
+    capture: int = 16
 
     def validate(self):
         if self.preset not in PRESETS:
