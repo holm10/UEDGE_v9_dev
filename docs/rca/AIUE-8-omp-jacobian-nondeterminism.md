@@ -104,8 +104,8 @@ investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
 
 So: **the serial Jacobian depends on the history inside its column loop, and bitwise OpenMP = serial is reachable
 without changing serial results** — by reproducing that history on the workers (replay), an OpenMP-only change
-(PRD §9: "chunking, resets and copy coverage … in scope without escalation"). The cost exceeds 10 % (≈ +18 % at best),
-which is a §9 *report to the owner*, not a §9(a) escalation. Removing the trigger instead (`-ffp-contract=off`,
+(PRD §9: "chunking, resets and copy coverage … in scope without escalation"). The estimated cost (≈ 4.4 % × T for one chunk per thread: ≈ +9 % at 2 threads,
++18 % at 4, +35 % at 8; not measured) exceeds 10 % from 4 threads on, which is a §9 *report to the owner*, not a §9(a) escalation. Removing the trigger instead (`-ffp-contract=off`,
 history-free columns) also reaches bitwise but changes serial. The FMA attribution is inferred (identical inputs plus
 the flag's effect); arm64/gfortran 15 only: on x86-64, `-O3` without `-march` does not emit FMA, so M2 may not appear
 on the Linux CI runner (AIUE-62).
@@ -137,7 +137,7 @@ to take and whether the cost is acceptable; the evidence per option:
 
 **Per configuration, thread count and arm (macOS):**
 
-| Configuration | Arm | Threads | C1 fix alone (AIUE-56) | + replay R=ubw (prototype) | `-ffp-contract=off` (+ C1) || static partition, no replay (F) |
+| Configuration | Arm | Threads | C1 fix alone (AIUE-56) | + replay R=ubw (prototype) | `-ffp-contract=off` (+ C1) | static partition, no replay (F) |
 |---|---|---|---|---|---|---|
 | `ti`, `ni`, `up`, `ng` | jac | 4 | **bitwise 5/5** (AIUE-56) | not run (no residual to remove) | not run | not run |
 | `tebox` | jac | 2 / 4 / 8 | 1/5 / 1/30 / 0/5 bitwise; C1 gate PASS | 4 threads: **3/3** (contiguous and default chunks) | 4 threads: **3/3** | 4 threads: 0/3 bitwise vs serial, runs identical to each other 3/3 |
@@ -149,12 +149,12 @@ to take and whether the cost is acceptable; the evidence per option:
 
 | Option | What | OpenMP vs serial | Serial results | Cost / risk |
 |---|---|---|---|---|
-| **E. Replay** (OpenMP-only): few contiguous chunks + replay of the preceding `ubw` columns per chunk; heap-allocated per-chunk arrays (fixes the `OMPJacNchunks≠0` crash) | reproduces serial's history on the workers | bitwise and deterministic where tested (Te box, full, 4 threads) | **unchanged** | ≈ +18 % Jacobian work at one chunk per thread (reported per §9); needs OpenMP-only chunk construction (the default switch values stay); remaining configurations/threads/arms and Linux to be shown |
+| **E. Replay** (OpenMP-only): few contiguous chunks + replay of the preceding `ubw` columns per chunk; heap-allocated per-chunk arrays (fixes the `OMPJacNchunks≠0` crash) | reproduces serial's history on the workers | bitwise and deterministic where tested (Te box, full, 4 threads) | **unchanged** | estimated ≈ 4.4 % × T Jacobian work at one chunk per thread (+18 % at 4 threads; not measured; reported per §9); needs OpenMP-only chunk construction (the default switch values stay); remaining configurations/threads/arms and Linux to be shown |
 | A. `-ffp-contract=off` for the Fortran build | removes the trigger | bitwise and deterministic where tested | **changes** (fnrm 3.4e-9 relative; every Te-box yldot) → declared change of defaults, references re-blessed; pytests effect not measured | speed effect not measured |
 | A′. the flag only on the `pandf` tree | narrower A | expected same (not shown) | changes in those files | per-file build rules |
 | C. History-free columns (restore from a saved full-RHS state) | removes the history in both loops | bitwise expected | changes at round-off | larger change in `jac_calc` + `LocalJacBuilder` |
 | B. **Tolerance gate** (keep the C1 build, default dynamic chunks) | none | not bitwise, **not deterministic** with the default dynamic, auto-balanced chunks (full problem: two runs differ in 70 entries, `replay/t_c1_dflt_1` vs `_2`) — so it does **not** meet PRD §11's fallback; usable only as an interim CI gate | unchanged | gate: AIUE-56's bounds; measured serial-history spread ≤ 5.6e-10 × row max (Te box) and ≤ 4.6e-9 (full) — the 1e-6 bound is a margin over that, not derived from it |
-| F. **Static partition + tolerance** (§11 fallback): contiguous chunks fixed per thread (no auto-balance), no replay; heap per-chunk arrays (crash fix as in E) | removes the run-to-run variation, not the residual | not bitwise vs serial (Te box: the same 2 entries every run; full, 16 static chunks: 5698 entries vs serial) but **bitwise reproducible across runs** (Te box 3/3; full `t_c1_n16_1` vs `_2` identical) — meets PRD §11's fallback as written, on this evidence | unchanged | tolerance as in B; the cost of leaving dynamic/auto-balanced scheduling (load balance) not measured; determinism at 2/8 threads, across fresh sessions in CI and over Newton iterations not shown |
+| F. **Static partition + tolerance** (candidate §11 fallback): contiguous chunk boundaries fixed (`OMPAutoBalance=0`), no replay; heap per-chunk arrays (crash fix as in E). **As tested, chunks are still handed out by `schedule(dynamic,OMPLoopJacNchunk)` (`ppp/omp_parallel.F90:712`, `OMPLoopJacNchunk=1`) and worker state carries from chunk to chunk, so which history a chunk starts from depends on the timing-dependent assignment**; a production F needs `schedule(static)` with one chunk per thread, or a fixed worker state at every chunk start | removes the run-to-run variation (empirically), not the residual | not bitwise vs serial (Te box: the same 2 entries every run; full, 16 static chunks: 5698 entries vs serial; AIUE-56 tolerance gate PASS on those records, worst 4.59e-9 × row max) but **bitwise identical between runs where tested** (Te box 3/3; full `t_c1_n16_1` vs `_2`): consistent with PRD §11's fallback at 4 threads on this evidence; reproducibility is empirical, not guaranteed, with the tested scheduling | unchanged | tolerance as in B; load-balance cost of static scheduling not measured; 2/8 threads, fresh CI sessions and Newton iterations not shown. Unlike F, E rebuilds the history whichever thread runs a chunk |
 | D. Bitwise gate only where the platform has no FMA (x86-64 without `-march`) | none | to be measured (AIUE-62) | unchanged | platform-dependent |
 
 **Recommendation (owner to accept or reject):** E if bitwise agreement with serial is wanted (AIUE-61: OpenMP-only,
