@@ -57,7 +57,11 @@ def gate(serial, run):
     eq = sarr["eq"]
     problems = []
     worst = {"magnitude": 0.0, "deviation": 0.0}
-    for (name, sv, sj, si, loc), (_, rv, rj, ri, _) in zip(matrices(smeta, sarr), matrices(rmeta, rarr)):
+    ms, mr = matrices(smeta, sarr), matrices(rmeta, rarr)
+    if [m[0] for m in ms] != [m[0] for m in mr]:
+        problems.append("different Jacobians: serial {} vs run {}".format([m[0] for m in ms], [m[0] for m in mr]))
+        return problems, worst
+    for (name, sv, sj, si, loc), (_, rv, rj, ri, _) in zip(ms, mr):
         srow, scol, sval = as_dict(sv, sj, si)
         rrow, rcol, rval = as_dict(rv, rj, ri)
         rowmax = np.zeros(neq)

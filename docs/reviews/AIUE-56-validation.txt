@@ -54,3 +54,83 @@ new_full_rhs_t4_k5 exit 1 :: CHECK full_jacrhs_t4_it0: MISMATCH
 new_full_t4_k30 exit 1 :: CHECK full_jac_t4_it0: MISMATCH
 new_full_t4_it3_k5 exit 1 :: CHECK full_jac_t4_it3: MISMATCH
 end Thu Oct 15 03:56:46 PDT 2026
+
+# Addendum after implementation review round 1
+
+Tool commits: the first 9 directories in protocol.log used the harness core at cf23ddf, the rest de57d59 (docs-only difference); serial check AIUE-53 0f5190e; gate script = this branch.
+
+## Timing (interleaved, one run at a time, full problem, jac arm, 4 threads, harness run, elapsed_s)
+base 1 14.9
+AIUE-56 1 30.5
+base 2 80.04
+AIUE-56 2 74.07
+base 3 76.45
+AIUE-56 3 66.73
+base 4 67.29
+AIUE-56 4 57.21
+base 5 38.95
+AIUE-56 5 38.18
+base 6 42.46
+AIUE-56 6 44.12
+base 7 42.98
+AIUE-56 7 40.87
+base 8 40.22
+AIUE-56 8 40.46
+ratio new/base median 0.9947331460674157
+
+=> no measurable slowdown (ratio of medians 0.995).
+
+## Upstream pytests D_only with the OpenMP builds (switches default 0), one process per test file (pytest-isolate not installed)
+IDENTICAL outcomes per file
+
+(base-omp and AIUE-56-omp: per-file outcomes identical; the same 3 files fail in both builds)
+
+## Residual, RHS arm, --itermx runs
+## --itermx 3 runs (report-only): printed fnrm sequence, sfscal, final fnrm vs serial
+new_tebox_t4_it3_k5 serial: ['0.3221264477609989', '0.1295818223118249E-01', '0.3022148351236412E-04', '0.3833757148333837E-09']
+   run0 ['0.3221264477609989', '0.1295818224299760E-01', '0.3022147515654591E-04', '0.3833646248344860E-09'] | sfscal mism 0 | fnrm_final differs
+   run1 ['0.3221264477609989', '0.1295818224299760E-01', '0.3022147515654591E-04', '0.3833646248344860E-09'] | sfscal mism 0 | fnrm_final differs
+   run2 ['0.3221264477609989', '0.1295818224299760E-01', '0.3022147515654591E-04', '0.3833646248344860E-09'] | sfscal mism 0 | fnrm_final differs
+   run3 ['0.3221264477609989', '0.1295818223118249E-01', '0.3022148351236412E-04', '0.3833757148333837E-09'] | sfscal mism 0 | fnrm_final equal
+   run4 ['0.3221264477609989', '0.1295818223600488E-01', '0.3022147868886503E-04', '0.3833456904149810E-09'] | sfscal mism 0 | fnrm_final differs
+new_full_t4_it3_k5 serial: ['1.918820629111277', '1.836097068513709', '1.782757715864211', '1.762443625980891']
+   run0 ['1.918820629111277', '1.846371032760568', '1.806815882143035', '1.767181389775354'] | sfscal mism 0 | fnrm_final differs
+   run1 ['1.918820629111277', '1.849401679207407', '1.800522960119520', '1.737396080384448'] | sfscal mism 0 | fnrm_final differs
+   run2 ['1.918820629111277', '1.889452194947986', '1.829915514339002', '1.768000878029651'] | sfscal mism 0 | fnrm_final differs
+   run3 ['1.918820629111277', '1.836423160113296', '1.777086431041446', '1.764036833223303'] | sfscal mism 0 | fnrm_final differs
+   run4 ['1.918820629111277', '1.842404549349753', '1.777742058737020', '1.765716318720704'] | sfscal mism 0 | fnrm_final differs
+
+## jacrhs arm (report-only), 4 threads, K=5, one evaluation
+   new_tebox_rhs_t4_k5  {'jacobian:post_exmain': 1}
+   new_tebox_rhs_t4_k5  {'jacobian:post_exmain': 1}
+   new_tebox_rhs_t4_k5  {'jacobian:post_exmain': 1}
+   new_tebox_rhs_t4_k5  {'jacobian:post_exmain': 2}
+   new_tebox_rhs_t4_k5  {'jacobian:post_exmain': 2}
+   new_full_rhs_t4_k5  {'jacobian:post_exmain': 1851}
+   new_full_rhs_t4_k5  {'jacobian:post_exmain': 1966}
+   new_full_rhs_t4_k5  {'jacobian:post_exmain': 1835}
+   new_full_rhs_t4_k5  {'jacobian:post_exmain': 1410}
+   new_full_rhs_t4_k5  {'jacobian:post_exmain': 1896}
+
+## residual location, one-evaluation jac runs (agreement with serial)
+   new_tebox_t4_k30 mismatches per run min/median/max 0 1 2 | pairs {'te/te': 41} | most frequent first rows [('te(ix=4,iy=20)', 41)]
+   other differing sections: none
+   new_full_t4_k30 mismatches per run min/median/max 903 1639 2428 | pairs {'te/ni': 28578, 'te/te': 3624, 'te/phi': 3523, 'te/ti': 3423, 'te/up': 7408, 'te/ng': 3706} | most frequent first rows [('te(ix=7,iy=3)', 279), ('te(ix=68,iy=3)', 167), ('te(ix=1,iy=4)', 99), ('te(ix=2,iy=11)', 21)]
+   other differing sections: none
+
+## Epic criterion (carried by the last fix ticket): met / not met / not run
+| Line | Status |
+|---|---|
+| Te box 4 threads 30/30 bitwise | not met: 1/30 (residual C2/M2; owner decision 9 / AIUE-61) |
+| Full problem 4 threads 30/30 | not met: 0/30 |
+| 2 and 8 threads 5/5 | not met: Te box 1/5 (2t), 0/5 (8t); full 2/5 (2t), 0/5 (8t) |
+| Other configurations 4 threads 5/5 | ti/ni/up/ng met (5/5); te, te_phi not met (0/5) |
+| >= 3 Newton iterations, every Jacobian compared | not run as specified: no AIUE-47 hook in this build (post-exmain psetnk Jacobian compared by position; report-only above) |
+| Linux and macOS | macOS only; Linux not run (environment) |
+| Serial check both builds | met (AGREE, complete gate, 42 cases) |
+| OpenMP-build pytests | D_only met (identical per-file outcomes); other suites not run |
+| Timing | met (no slowdown) |
+| Code facts | met (47e02cc, 205bd09) |
+
+## C1 on the RHS arm (Jacobian-then-RHS sequence)
+With the fix, the jacrhs Te box shows only the 1-2 residual Jacobian entries; yldot, yldot_probe and fnrm are bitwise equal to serial (above). Pre-fix (AIUE-54): all 25 Te rows of yldot wrong, fnrm ~1e31. OMPParallelPandf1=1 forces OMPParallelJac=1 (ppp/parallel.F90:30-36), so the parallel RHS always follows a Jacobian copy in the nksol sequence.
