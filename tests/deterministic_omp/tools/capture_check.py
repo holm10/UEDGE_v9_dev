@@ -291,7 +291,7 @@ def parent(argv):
     ok = True
     keys = sorted(set(base) | set(new))
     for key in keys:
-        if key in ("slots",) or key.startswith("jaccap"):
+        if key in ("slots", "capture_alloc", "capture_run_checks") or key.startswith("jaccap"):
             continue  # capture-only fields, absent in the reference build
         b, n = base.get(key), new.get(key)
         same = b == n
