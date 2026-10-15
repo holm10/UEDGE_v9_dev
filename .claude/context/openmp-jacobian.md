@@ -71,6 +71,8 @@ answers "does OpenMP equal serial here, and where not?" in seconds; without `--c
 4, 8 threads. Each (configuration, arm, threads) group runs K fresh processes (`--repeats`, default 2) against one serial
 reference of the same build and must agree with serial and across repeats. There is one verdict per arm (`jac` =
 `OMPParallelJac`, `jacrhs` = plus `OMPParallelPandf1`); the exit code follows `--gate jac|jacrhs|all|none` (default
-`jac`): 0 pass, 1 fail, 2 harness error. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
+`jac`): 0 pass, 1 fail, 2 harness error. A run whose record shows the arm did not take effect (`ParallelJac`,
+`ParallelPandf1`, `Nthreads`, `OMP_NUM_THREADS` not as requested, e.g. a `--serial` build) is a harness error, never a
+pass. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
 The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
 (`python -m pytest tests/deterministic_omp/harness`).
