@@ -66,4 +66,4 @@ c     Full-line comment: 'c' in column 1
 ## Hand-written free-form sources
 
 `ppp/*.F90`, `svr/petsc-uedge.F90`, `com/petscMod.F90` are free-form F90 and are **not** run through `M2F`
-— use standard `USE Group, ONLY: …`, `!` comments, `&` continuation (`ppp/omp_parallel.F90:902-930`).
+— use standard `USE Group, ONLY: …`, `!` comments, `&` continuation (`ppp/omp_parallel.F90:908-936`).
