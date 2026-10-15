@@ -24,7 +24,7 @@ tolerance, A `-ffp-contract=off` (changes serial), B tolerance gate (interim CI 
 | AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` | 32ac1af | **APPROVED** r2 (found C1) | In Review |
 | AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` | 3c03d1c | **APPROVED** r3 | In Review |
 | AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` | 15ae327 | **APPROVED** r3 | In Review |
-| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` | c4cc9ff | r2 REVISE on **one owner decision** (Linux deferral to AIUE-62) | In Progress |
+| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` | c4cc9ff | I1-M4 resolved by AIUE-62 (owner, 13:42) | In Review |
 | AIUE-55 RCA + decision 9 | `feature/v9-AIUE-55-omp-jacobian-rca` | 01e2d8e | **APPROVED** r4 (owner-authorised); addendum: Newton steps, phi | In Review |
 | AIUE-56 C1 fix | `bugfix/v9-AIUE-56-omp-jacobian-fix` | 1553e75 | implementation **APPROVED** r3; plan **APPROVED** r4 (owner-authorised) | In Review |
 | AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | 8ee189d | **APPROVED** r2. **Don't merge** before AIUE-56 and a gate that can be green | In Review |
@@ -177,3 +177,7 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   as the new default OpenMP Jacobian behaviour; the owner confirmed this as an exception to the no-default-change rule.
   Implementation: AIUE-61 (rewritten). Started AIUE-61, AIUE-64 (Linux link), AIUE-60 (races) to plan review, and
   AIUE-58 (RHS RCA) to completion.
+- **13:45** Owner: AIUE-62 resolves AIUE-54's I1-M4 → AIUE-54 In Review. M3 split out of AIUE-8 into the new epic
+  **AIUE-66** ("OpenMP Jacobian on Linux: plate-boundary momentum rows"), AIUE-65 moved under it with the arm64 Linux run
+  added; AIUE-61 reports whether option F removes M3. A Claude Code restart lost the AIUE-61/60/58 agents before they
+  committed anything; relaunched (AIUE-64's plan had landed: `75108da`, plan review running).
