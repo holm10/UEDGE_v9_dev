@@ -77,6 +77,9 @@ def probe():
         "openmp_build": openmp,
         "extensions": hashes,
         "extensions_sha256": combined,
+        # when the extensions were written (install, or the wheel's build): compared with the source HEAD's
+        # commit time by serial_check, to notice a tree committed after it was built
+        "extensions_mtime": max(os.path.getmtime(p) for p in exts),
     }
 
 

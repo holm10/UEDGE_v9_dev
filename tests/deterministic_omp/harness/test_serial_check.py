@@ -58,8 +58,8 @@ def test_find_pytests_dir(tmp_path):
 
 # ---------------------------------------------------------------- build guard
 def test_check_pair_kind_and_same():
-    assert sc.check_pair("serial", build("a", False), build("b", False), False, False) == ([], [], False)
-    errs, _, same = sc.check_pair("serial", build("a", False), build("a", False), False, False)
+    assert sc.check_pair("serial", build("a", False), build("b", False), False, False) == ([], [], [], False)
+    errs, _, _, same = sc.check_pair("serial", build("a", False), build("a", False), False, False)
     assert same and len(errs) == 1 and "same build" in errs[0] and "same source tree" in errs[0]
     assert sc.check_pair("serial", build("a", False), build("a", False), False, True)[0] == []
     errs = sc.check_pair("omp0", build("a", True), build("b", False), True, False)[0]
@@ -70,20 +70,47 @@ def test_check_pair_kind_and_same():
 
 def test_check_pair_sources():
     # two trees at the same clean commit: the change is compared with itself
-    errs, _, same = sc.check_pair("serial", build("a", False, src="/t1", head="c" * 40),
-                                  build("b", False, src="/t2", head="c" * 40), False, False)
+    errs, _, _, same = sc.check_pair("serial", build("a", False, src="/t1", head="c" * 40),
+                                     build("b", False, src="/t2", head="c" * 40), False, False)
     assert same and "same clean commit" in errs[0]
-    # same commit, new tree dirty: allowed, with a warning
-    errs, warns, same = sc.check_pair("serial", build("a", False, src="/t1", head="c" * 40),
-                                      build("b", False, src="/t2", head="c" * 40, dirty=True), False, False)
+    # same commit, new tree dirty: not an error, but not the gate (dirty tree)
+    errs, warns, gate, same = sc.check_pair("serial", build("a", False, src="/t1", head="c" * 40),
+                                            build("b", False, src="/t2", head="c" * 40, dirty=True), False, False)
     assert not errs and not same and any("uncommitted" in w for w in warns)
-    # base not on origin/v9-develop: warning only
-    errs, warns, _ = sc.check_pair("serial", build("a", False, on_base=False), build("b", False), False, False)
-    assert not errs and any("not origin/v9-develop" in w for w in warns)
-    # unknown source: warning
+    assert any("uncommitted changes" in g for g in gate)
+    # base not on origin/v9-develop, or the check failed: not the gate
+    errs, _, gate, _ = sc.check_pair("serial", build("a", False, on_base=False), build("b", False), False, False)
+    assert not errs and any("is not origin/v9-develop" in g for g in gate)
+    gate = sc.check_pair("serial", build("a", False, on_base=None), build("b", False), False, False)[2]
+    assert any("check failed" in g for g in gate)
+    # unknown source: not the gate
     b = build("b", False)
-    b["source"] = {"url": None}
-    assert any("source unknown" in w for w in sc.check_pair("serial", build("a", False), b, False, False)[1])
+    b["source"] = {"url": "file:///x/uedge.whl", "dir": None, "head": None}
+    assert any("source unknown" in g for g in sc.check_pair("serial", build("a", False), b, False, False)[2])
+
+
+def test_stale_build():
+    b = build("b", False)
+    b["source"]["head_time"], b["extensions_mtime"] = 2000, 1000.0  # committed after it was built
+    assert sc.is_stale(b)
+    gate = sc.check_pair("serial", build("a", False), b, False, False)[2]
+    assert any("committed after the build" in g for g in gate)
+    b["extensions_mtime"] = 3000.0
+    assert not sc.is_stale(b) and sc.check_pair("serial", build("a", False), b, False, False)[2] == []
+
+
+def test_iteration_problems():
+    m = csr([[1.0, None], [None, 2.0]])
+    a = FakeRecord("a", m, [1.0, 2.0], iters=(("0", "1.0"), ("1", "0.5")))
+    b = FakeRecord("b", m, [1.0, 2.0], iters=(("0", "1.0"), ("1", "0.5")))
+    for rec in (a, b):
+        rec.meta["post_exmain_from"] = "psetnk"
+    assert sc.iteration_problems("repro-tebox-it5", a, b) == []
+    b.meta["iterations"] = b.meta["iterations"][:1]
+    assert len(sc.iteration_problems("repro-tebox-it5", a, b)) == 1
+    a.meta["post_exmain_from"] = "sfsetnk"
+    assert len(sc.iteration_problems("repro-tebox-it5", a, b)) == 2
+    assert sc.iteration_problems("repro-tebox", a, b) == []  # evaluation cases are not checked
 
 
 def test_source_info_reads_git(tmp_path):
@@ -180,6 +207,9 @@ def fake(monkeypatch):
         rec = FakeRecord(name, csr([[1.0, None], [None, val]]), [1.0, 2.0])
         rec.rundir = rundir
         rec.meta["elapsed_s"] = 0.1
+        if sc.CASES[name].get("itermx") and not state.get("no_iter"):
+            rec.meta["iterations"] = [{"iter": 0, "fnrm_printed": "1.0"}, {"iter": 1, "fnrm_printed": "0.5"}]
+            rec.meta["post_exmain_from"] = "psetnk"
         np.savez(os.path.join(rundir, "record.npz"), **rec.arrays)
         return rec
 
@@ -261,3 +291,42 @@ def test_main_wrong_build_kind(tmp_path, fake, capsys):
     bad = argv(tmp_path)
     bad[bad.index("/new-omp/python")] = "/new/python"  # a serial build in the OpenMP pair
     assert sc.main(bad) == 2 and "not an OpenMP build" in capsys.readouterr().err
+
+
+# the reviewer's round-2 probes (scratchpad/rev53r2/fakes/test_guards.py): none of these may be the gate
+@pytest.mark.parametrize("label,mutate,reason", [
+    ("both sources unknown (wheel installs)",
+     lambda r, b: b.update(source={"url": "file:///x/uedge.whl", "dir": None, "head": None}), "source unknown"),
+    ("base not on v9-develop", lambda r, b: b["source"].update(on_base_ref=False) if r == "base" else None,
+     "base not on origin/v9-develop"),
+    ("base on_base_ref unknown", lambda r, b: b["source"].update(on_base_ref=None) if r == "base" else None,
+     "base not on origin/v9-develop"),
+    ("same head, new dirty", lambda r, b: b["source"].update(head="c" * 40, dirty=(r == "new")), "dirty tree"),
+    ("same head, both dirty", lambda r, b: b["source"].update(head="c" * 40, dirty=True), "dirty tree"),
+    ("new built before its HEAD", lambda r, b: (b["source"].update(head_time=2000), b.update(extensions_mtime=1000.0))
+     if r == "new" else None, "build older than HEAD"),
+])
+def test_source_guard_states_are_not_the_gate(label, mutate, reason, monkeypatch, fake, tmp_path, capsys):
+    probe = sc.probe_build
+
+    def mutated(python, workdir):
+        b = probe(python, workdir)
+        mutate("base" if "base" in python else "new", b)
+        return b
+
+    monkeypatch.setattr(sc, "probe_build", mutated)
+    assert sc.main(argv(tmp_path)) == 2, label
+    res = json.load(open(tmp_path / "out" / "serial_check.json"))
+    assert not res["gate_complete"] and res["incomplete"]
+    line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("RESULT")][0]
+    assert line.startswith("RESULT: INCOMPLETE") and reason in line
+    assert sc.main(argv(tmp_path / "p", "--partial-ok")) == 0
+    line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("RESULT")][0]
+    assert "AGREE, PARTIAL" in line and reason in line
+
+
+def test_main_case_that_did_not_iterate_is_error(tmp_path, fake, capsys):
+    fake["no_iter"] = True
+    assert sc.main(argv(tmp_path)) == 2
+    text = open(tmp_path / "out" / "summary.txt").read()
+    assert "repro-tebox-it5" in text and "did not iterate" in text

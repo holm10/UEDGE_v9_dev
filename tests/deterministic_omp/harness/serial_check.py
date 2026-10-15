@@ -209,7 +209,7 @@ def source_info(probe):
     du = probe.get("direct_url") or {}
     url = du.get("url", "")
     info = {"url": url or None, "editable": bool(du.get("dir_info", {}).get("editable")), "dir": None,
-            "head": None, "dirty": None, "on_base_ref": None}
+            "head": None, "head_time": None, "dirty": None, "on_base_ref": None}
     parsed = urlparse(url)
     if parsed.scheme != "file":
         return info
@@ -221,6 +221,8 @@ def source_info(probe):
     if code != 0 or not head:
         return info
     info["head"] = head
+    code, ct = git(path, "log", "-1", "--format=%ct", head)
+    info["head_time"] = int(ct) if code == 0 and ct.isdigit() else None
     code, status = git(path, "status", "--porcelain", "--untracked-files=no")
     info["dirty"] = bool(status) if code == 0 else None
     code, _ = git(path, "merge-base", "--is-ancestor", head, BASE_REF)
@@ -228,10 +230,21 @@ def source_info(probe):
     return info
 
 
+def is_stale(build):
+    """True if the source HEAD was committed after the build's extensions were written: the HEAD
+    read now may then not be what was built."""
+    s = build.get("source") or {}
+    t, m = s.get("head_time"), build.get("extensions_mtime")
+    return t is not None and m is not None and t > m
+
+
 def check_pair(pair, base, new, want_openmp, allow_same):
-    """(errors, warnings, same) for a base/new build pair: wrong build kind, the same build, source
-    tree or clean commit twice (an error unless allow_same; same=True then), base not on BASE_REF."""
-    errors, warnings, same = [], [], []
+    """(errors, warnings, gate, same) for a base/new build pair.
+    errors: wrong build kind; the same build, source tree or clean commit twice (unless allow_same).
+    gate: reasons the run cannot be the gate (-> INCOMPLETE): an unknown source, a dirty tree, a base
+    that is not BASE_REF or an ancestor of it (or the check failed), a build older than its HEAD.
+    same: True if base and new are the same build/source (allowed with allow_same)."""
+    errors, warnings, gate, same = [], [], [], []
     for role, b in (("base", base), ("new", new)):
         if b["openmp_build"] != want_openmp:
             errors.append("{} {} build {} is {}an OpenMP build; the {} pair needs {}".format(
@@ -249,20 +262,24 @@ def check_pair(pair, base, new, want_openmp, allow_same):
         else:
             warnings.append("{}: base and new are the same commit {}, different only by uncommitted changes "
                             "(read now, not at build time)".format(pair, sb["head"][:12]))
-    for role, s in (("base", sb), ("new", sn)):
+    for role, b, s in (("base", base, sb), ("new", new, sn)):
         if not s.get("head"):
-            warnings.append("{} {}: source unknown (direct_url {}); the summary cannot show what was compared"
-                            .format(pair, role, s.get("url")))
-        elif s.get("dirty"):
-            warnings.append("{} {}: source tree {} has uncommitted changes (read now, not at build time)"
-                            .format(pair, role, s["dir"]))
+            gate.append("{} {}: source unknown (direct_url {}), so the same-source and base checks could not run"
+                        .format(pair, role, s.get("url")))
+            continue
+        if s.get("dirty") is not False:
+            gate.append("{} {}: source tree {} {} (provenance not reproducible; build from a clean commit)".format(
+                pair, role, s["dir"], "has uncommitted changes" if s.get("dirty") else "dirty state unknown"))
+        if is_stale(b):
+            gate.append("{} {}: HEAD {} of {} was committed after the build was installed; the recorded HEAD may "
+                        "not be what was built (reinstall)".format(pair, role, s["head"][:12], s["dir"]))
     if sb.get("head") and sb.get("on_base_ref") is not True:
-        warnings.append("{} base: HEAD {} is not {} or an ancestor of it{}".format(
-            pair, sb["head"][:12], BASE_REF, "" if sb.get("on_base_ref") is False else " (could not check)"))
+        gate.append("{} base: HEAD {} is not {} or an ancestor of it{}".format(
+            pair, sb["head"][:12], BASE_REF, "" if sb.get("on_base_ref") is False else " (the check failed)"))
     if same and not allow_same:
         errors.append("{} pair: base and new are {}. Pass --allow-same-build to compare on purpose."
                       .format(pair, "; ".join(same)))
-    return errors, warnings, bool(same)
+    return errors, warnings, gate, bool(same)
 
 
 # ------------------------------------------------------------------ runs
@@ -335,6 +352,21 @@ def compare_pair(name, base, new):
     report = compare_records(base, new, rhs_signed_zero_equal=False)
     report["captured_compared"] = int(base.meta.get("capture", {}).get("count", 0)) if not report["errors"] else 0
     return report, {0: "AGREE", 1: "MISMATCH", 2: "ERROR"}[exit_code([report])]
+
+
+def iteration_problems(name, base, new):
+    """For a case with itermx: both records must show >= 2 printed iterations and a post-exmain
+    Jacobian from psetnk, i.e. the solver path really ran. Returns the problems (empty = fine)."""
+    if not CASES[name].get("itermx"):
+        return []
+    problems = []
+    for role, rec in (("base", base), ("new", new)):
+        n = len(rec.meta.get("iterations", []))
+        frm = rec.meta.get("post_exmain_from")
+        if n < 2 or frm != "psetnk":
+            problems.append("{} ({}): an -itN case that did not iterate ({} printed iteration(s), post-exmain "
+                            "Jacobian from {}); the solver path was not exercised".format(role, name, n, frm))
+    return problems
 
 
 def first_mismatch(report):
@@ -412,7 +444,7 @@ def serial_check(args):
             json.dump(result, f, indent=1, sort_keys=True, default=str)
 
     # probe the builds and their sources
-    same_pairs = []
+    same_pairs, source_gate = [], []
     for p in pairs:
         b, n, want_openmp = PAIRS[p]
         probes = {}
@@ -426,15 +458,21 @@ def serial_check(args):
         if any(hooks) and not all(hooks):
             result["warnings"].append("{}: the AIUE-47 capture hook is in one build only, so no raw Jacobians are "
                                       "captured; the post-exmain Jacobian is compared".format(p))
-        errs, warns, same = check_pair(p, probes["base"], probes["new"], want_openmp, args.allow_same_build)
+        errs, warns, gate, same = check_pair(p, probes["base"], probes["new"], want_openmp, args.allow_same_build)
         result["errors"] += errs
         result["warnings"] += warns
+        source_gate += gate
         if same:
             same_pairs.append(p)
     if len(pairs) == 2:
         for role in ("base", "new"):
             hs = [result["builds"][p][role]["source"].get("head") for p in pairs]
-            if hs[0] and hs[1] and hs[0] != hs[1]:
+            stale = [p for p in pairs if is_stale(result["builds"][p][role])]
+            if hs[0] and hs[1] and hs[0] != hs[1] and stale:
+                result["warnings"].append("{}: the serial and OpenMP trees are at different commits ({}, {}), but "
+                                          "the {} build is older than its HEAD, so the builds may well contain the "
+                                          "same code".format(role, hs[0][:12], hs[1][:12], "/".join(stale)))
+            elif hs[0] and hs[1] and hs[0] != hs[1]:
                 result["warnings"].append("{}: the serial and OpenMP builds come from different commits ({}, {})"
                                           .format(role, hs[0][:12], hs[1][:12]))
     if result["errors"]:
@@ -482,6 +520,11 @@ def serial_check(args):
                                   "cause": "compare failed: {!r}".format(err)})
                     result["errors"].append("{}/{}: compare failed: {!r}".format(p, name, err))
                     status = None
+                if status in ("AGREE", "MISMATCH"):
+                    problems = iteration_problems(name, base, new)
+                    if problems:  # an -itN case that did not iterate covers less than it claims
+                        report["errors"] = report.get("errors", []) + problems
+                        status = "ERROR"
                 if status == "ERROR":  # compare.check_arm or the record checks found a problem
                     entry.update({"status": "ERROR", "report": report, "error": "\n".join(report["errors"]),
                                   "cause": "; ".join(report["errors"])})
@@ -500,6 +543,7 @@ def serial_check(args):
 
     incomplete = ["pair {} not checked".format(p) for p in result["skipped_pairs"]]
     incomplete += ["{}: base and new are the same build/source (--allow-same-build)".format(p) for p in same_pairs]
+    incomplete += source_gate
     if result["skipped_cases"]:
         incomplete.append("{} case(s) of 'all' not run: {}".format(
             len(result["skipped_cases"]), ", ".join(result["skipped_cases"])))
@@ -531,6 +575,14 @@ def _source_line(s):
                                        "" if s.get("on_base_ref") else " (not on {})".format(BASE_REF))
 
 
+# short names of the reasons a run is not the gate, for the RESULT line (full text in NOT THE GATE lines)
+INCOMPLETE_TAGS = [("not checked", "pair skipped"), ("same build/source", "same build"),
+                   ("of 'all' not run", "cases skipped"), ("source unknown", "source unknown"),
+                   ("uncommitted changes", "dirty tree"), ("dirty state unknown", "dirty tree"),
+                   ("committed after the build", "build older than HEAD"),
+                   ("is not origin/v9-develop", "base not on origin/v9-develop")]
+
+
 def result_line(result):
     scope = "pairs {}, cases {} ({})".format("+".join(result["pairs"]),
                                             "all" if not result["skipped_cases"] else "partial", len(result["cases"]))
@@ -540,8 +592,9 @@ def result_line(result):
     elif result["errors"]:
         verdict = "HARNESS ERROR"
     elif result["incomplete"]:
-        verdict = "INCOMPLETE (what ran agrees bitwise; not the gate)" if code == 2 else \
-            "AGREE, PARTIAL (--partial-ok; not the gate)"
+        tags = sorted({tag for item in result["incomplete"] for key, tag in INCOMPLETE_TAGS if key in item})
+        verdict = "{} (what ran agrees bitwise; not the gate: {})".format(
+            "INCOMPLETE" if code == 2 else "AGREE, PARTIAL (--partial-ok)", ", ".join(tags) or "see NOT THE GATE")
     else:
         verdict = "AGREE (bitwise identical; complete gate)"
     return "RESULT: {}  [{}]  ({} s)".format(verdict, scope, result.get("elapsed_s"))

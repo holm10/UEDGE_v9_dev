@@ -165,7 +165,7 @@ and `pip install .`; the tool does not build). Then:
 H=tests/deterministic_omp/harness/serial_check.py
 python $H --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \
           --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python \
-          --jobs 4 --out /tmp/serial_check          # --cases all is the default; ~5 min idle, ~18 min loaded
+          --jobs 4 --out /tmp/serial_check          # --cases all is the default; ~10 min (both pairs, --jobs 4)
 python $H ... --cases quick --partial-ok --out DIR  # a quick look while developing (~40 s), not the gate
 python $H --list                                    # the case set
 ```
@@ -187,7 +187,9 @@ python $H --list                                    # the case set
     20 `pytests-unit-*` variants, each turning on one boundary-condition, transport or drift switch.
 - **Solver cases** (`-itN`): N Newton iterations at the deck's `ftol`, so `psetnk` (row normalisation, `jac_reorder`),
   the ILU preconditioner, the Krylov solve and the line search run too. The whole `fnrm` sequence is compared,
-  together with the final state (`yldot`, `fnrm` at the final `yl`) and every Jacobian.
+  together with the final state (`yldot`, `fnrm` at the final `yl`) and every Jacobian. A solver case whose record
+  shows fewer than 2 printed iterations, or a post-`exmain` Jacobian not from `psetnk`, is an ERROR: it would
+  silently cover only the evaluation path.
   - Reproducer: `repro-tebox-it5`, `repro-te-it3`, `repro-full-it3`.
   - pytests: `pytests-{D_only,D+C,D_mols,full-d_c-16x8,slab}-it5`. These run the final `exmain` with `itermx=5` at
     the `ftol` that `input.py` left.
@@ -226,8 +228,18 @@ python $H --list                                    # the case set
     overrides this, for self-tests, but the run is then not the gate);
   - a record whose build differs from the probed one (for example, a reinstall during the check).
 
-  Warnings: a base HEAD that is not `origin/v9-develop` or an ancestor of it, an unknown source, a dirty tree, and
-  serial and OpenMP builds from different commits.
+  Not the gate (`RESULT: INCOMPLETE`, exit 2; with `--partial-ok` `AGREE, PARTIAL`; the RESULT line names the
+  reason):
+  - an unknown source on either side. A wheel or PyPI install has no source directory, so the same-source and base
+    checks cannot run, and two rebuilds of one commit always differ in their extension hashes;
+  - a dirty tree, or one whose dirty state could not be read: the provenance cannot be reproduced;
+  - a base HEAD that is not `origin/v9-develop` or an ancestor of it, or whose ancestry check failed. Stacked-branch
+    comparisons therefore need `--partial-ok`;
+  - a build whose extensions are older than its source tree's HEAD commit. The tree was committed after it was
+    built, so the recorded HEAD may not be what was built: reinstall.
+
+  Warnings: serial and OpenMP builds from different commits (a stale build gets its own wording), and the same
+  commit in base and new that differs only by uncommitted changes.
 - **Output:** `serial_check.json` (builds, sources, cases, every report, `gate_complete`, `incomplete`) and
   `summary.txt`. The summary has three build lines per build and one line per case, with the number of iterations
   and of Jacobians compared. For a mismatch it adds the first mismatching quantity with its first entry, located
@@ -235,7 +247,8 @@ python $H --list                                    # the case set
   UEDGE's last error line. The runs are in `<pair>/<base|new>/<case>/`. `record.npz` of agreeing cases is deleted
   unless `--keep-records`.
 - **Exit codes:**
-  - 0: the complete gate agrees (both pairs, two different builds, every case of `all`).
+  - 0: the complete gate agrees: both pairs, two different builds from clean committed trees with known sources,
+    base on `origin/v9-develop`, and every case of `all`.
   - 1: at least one mismatch.
   - 2: a harness error (bad build pair, missing case or pytests checkout, a failed run, a record that is not on the
     serial path, any unexpected exception), or an incomplete gate. An incomplete gate prints
