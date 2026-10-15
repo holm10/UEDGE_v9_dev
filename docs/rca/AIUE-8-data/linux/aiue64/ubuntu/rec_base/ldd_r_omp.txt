@@ -1,0 +1,11 @@
+aphpy: 
+apipy: undefined symbol: GOMP_barrier undefined symbol: GOMP_parallel undefined symbol: omp_get_thread_num undefined symbol: omp_get_thread_num_ 
+bbbpy: undefined symbol: GOMP_barrier undefined symbol: GOMP_parallel undefined symbol: omp_get_thread_num undefined symbol: omp_get_thread_num_ 
+compy: 
+flxpy: 
+grdpy: 
+nclpy: 
+ppppy: undefined symbol: GOMP_atomic_end undefined symbol: GOMP_atomic_start undefined symbol: GOMP_barrier undefined symbol: GOMP_loop_end_nowait undefined symbol: GOMP_loop_nonmonotonic_dynamic_next undefined symbol: GOMP_loop_nonmonotonic_dynamic_start undefined symbol: GOMP_parallel undefined symbol: omp_get_max_threads_ undefined symbol: omp_get_num_threads_ undefined symbol: omp_get_thread_num undefined symbol: omp_get_thread_num_ undefined symbol: omp_get_wtime_ undefined symbol: omp_set_num_threads_ 
+svrpy: 
+uedgeC: 
+wdfpy: 

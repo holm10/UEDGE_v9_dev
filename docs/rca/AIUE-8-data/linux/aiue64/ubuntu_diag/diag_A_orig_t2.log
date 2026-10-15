@@ -1,0 +1,46 @@
+STAGE start                            n=1 ticks={915: 23}
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+STAGE after import uedge               n=2 ticks={915: 52, 916: 9}
+ Reading grid data from gridue.hdf5
+ Grid data read successfully:
+     file name:   gridue.hdf5
+     run-ID:      EFITD    02/21/2024    #981836  2000ms                      
+
+Reading uedge.hdf5-style save-file 'save_input_mod4.h5'.
+>>> Save read successfully
+STAGE after the deck                   n=2 ticks={915: 778, 916: 19}
+*** For isimpon=7, set afracs, not afrac ***
+STAGE after exmain (tebox jac N=2)     n=2 ticks={915: 816, 916: 26}
+DELTA non-main thread ticks during exmain: {916: 7}
+OMPParallelJac 1 Nthreads 2
+ UEDGE 8.1.2-beta.0                                                                    
+ ***Impurity file using pre-2012 format is C_rates.adas
+ TARGET MATERIAL IS      GRAPHITE         
+ BOMBARDING IONS ARE     D    
+ iter=   0 fnrm=      271985200.1001666     nfe=      1
+
+
+ nksol ---  iterm = 1.
+            maxnorm(sf*f(u)) .le. ftol, where maxnorm() is
+            the maximum norm function.  u is probably an
+            approximate root of f.
+ Interpolants created; mype =                   -1
+ TARGET MATERIAL IS      GRAPHITE         
+ BOMBARDING IONS ARE     D    
+ Updating OMP Jacobian [   2|    25]: npe =         1
+ iter=   0 fnrm=     0.2207666537240789     nfe=      1
+
+
+ nksol ---  iterm = 1.
+            maxnorm(sf*f(u)) .le. ftol, where maxnorm() is
+            the maximum norm function.  u is probably an
+            approximate root of f.
+ Interpolants created; mype =                   -1

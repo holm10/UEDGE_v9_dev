@@ -1,0 +1,24 @@
+$ AIUE-64-omp
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+[b'8.1.2-beta.0                                                                    '] 0
+exit 0
+$ AIUE-64-serial
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+[b'8.1.2-beta.0                                                                    '] 0
+exit 0

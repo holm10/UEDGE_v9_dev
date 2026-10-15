@@ -1,0 +1,39 @@
+nproc 14; 7 GB RAM
+== OpenMP CI: set custom, gate none, cores 4, max jobs 1, itermx 3, python /work/venv-fix/bin/python
+== flows: tebox1|tebox|2,4|2|jac|none
+== harness unit tests
+........................................................................ [ 61%]
+.............................................                            [100%]
+117 passed in 1.65s
+== smoke test
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+uedge_ver [b'8.1.2-beta.0                                                                    '] OMPParallelJac 0
+== flow tebox1: /work/venv-fix/bin/python -I /work/harness/tests/deterministic_omp/harness/cli.py flow --repeats 2 --arms jac --gate none --cores 4 --max-jobs 1 --python /work/venv-fix/bin/python --out /out/ci/tebox1 --configs tebox --threads 2,4
+FLOW 1 configuration(s) x 1 arm(s) x threads [2, 4] x 2 repeat(s): 5 runs on 4 cores
+  tebox/serial                             6.0 s  ok
+  tebox/jac_t4/run0                        3.9 s  ok
+  tebox/jac_t4/run1                        3.6 s  ok
+  tebox/jac_t2/run0                        3.9 s  ok
+  tebox/jac_t2/run1                        4.0 s  ok
+comparing ...
+| configuration | arm | threads | verdict | agree with serial | deterministic | mismatch rows | failing sections | first mismatch |
+|---|---|---|---|---|---|---|---|---|
+| tebox | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+
+ARM jac: FAIL  (report only)
+runs 21.5 s wall, total 21.6 s; exit code 0 (gate none); /out/ci/tebox1/summary.md
+== flow tebox1: exit 0, 22 s
+REPORT-ONLY [tebox1] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=4,iy=18); 0/2 runs agree with serial; jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)]
+REPORT-ONLY [tebox1] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=4,iy=18); 0/2 runs agree with serial; jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)]
+OMP CI RESULT: PASS (exit 0)
+== OpenMP CI done: exit 0, wall 25 s (unit tests, smoke test and flows; build not included)
+CI step exit 0

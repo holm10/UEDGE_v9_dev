@@ -1,0 +1,23 @@
+BASE 4faed398662654e8cfbff26ee63f926749388172 FIX 1e8eb7811590194c008e985eb3c7dea2b10b07db
+14
+7 GB RAM
+8ee189d Fixes the AIUE-57 round-2 review minors (README only)
+built base (omp) at 4faed398662654e8cfbff26ee63f926749388172, dirty paths: 0, 193 s
+built fix (omp) at 1e8eb7811590194c008e985eb3c7dea2b10b07db, dirty paths: 0, 203 s
+link lines: 11
+dir /work/venv-base/lib/python3.12/site-packages/uedge
+link lines: 11
+dir /work/venv-fix/lib/python3.12/site-packages/uedge
+built wkld (omp) at 4faed398662654e8cfbff26ee63f926749388172, dirty paths: 0, 187 s
+link lines: 11
+dir /work/venv-wkld/lib/python3.12/site-packages/uedge
+built base-ser (serial) at 4faed398662654e8cfbff26ee63f926749388172, dirty paths: 0, 154 s
+built fix-ser (serial) at 1e8eb7811590194c008e985eb3c7dea2b10b07db, dirty paths: 0, 151 s
+link lines: 11
+dir /work/venv-base-ser/lib/python3.12/site-packages/uedge
+link lines: 11
+dir /work/venv-fix-ser/lib/python3.12/site-packages/uedge
+== L5 CI replay start 2026-10-15T21:21:39Z
+CI step exit 0
+grep: /out/thread_probe_full.log: binary file matches
+ALLDONE

@@ -1,0 +1,29 @@
+== N=2
+  jac:     resolution schedstat ns
+  jac:     threads after import uedge 2
+  jac:     arm jac Nthreads 2 OMPParallelJac 1 threads 2 libgomp_mappings 5
+  jac:     main_ns 319353914
+  jac:     WORKER_NS 53501586
+  control: resolution schedstat ns
+  control: threads after import uedge 2
+  control: arm serial Nthreads 2 OMPParallelJac 0 threads 2 libgomp_mappings 5
+  control: main_ns 264773917
+  control: WORKER_NS 5314835
+  threshold = max(5 x control max 5314835 ns, floor 1000000 ns) = 26574175 ns
+  jac worker increases (ns): [53501586]; min 53501586
+  RESULT N=2: PASS
+== N=4
+  jac:     resolution schedstat ns
+  jac:     threads after import uedge 4
+  jac:     arm jac Nthreads 4 OMPParallelJac 1 threads 4 libgomp_mappings 5
+  jac:     main_ns 371971344
+  jac:     WORKER_NS 100902318 82850354 95569908
+  control: resolution schedstat ns
+  control: threads after import uedge 4
+  control: arm serial Nthreads 4 OMPParallelJac 0 threads 4 libgomp_mappings 5
+  control: main_ns 274413207
+  control: WORKER_NS 10229793 5967082 10314332
+  threshold = max(5 x control max 10314332 ns, floor 1000000 ns) = 51571660 ns
+  jac worker increases (ns): [100902318, 82850354, 95569908]; min 82850354
+  RESULT N=4: PASS
+RESULT L5 amended probe: PASS

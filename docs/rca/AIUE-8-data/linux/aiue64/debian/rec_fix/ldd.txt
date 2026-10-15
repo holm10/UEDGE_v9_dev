@@ -1,0 +1,81 @@
+== aphpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== apipy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libgomp.so.1 => /lib/x86_64-linux-gnu/libgomp.so.1
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	/lib64/ld-linux-x86-64.so.2
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+== bbbpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libmvec.so.1 => /lib/x86_64-linux-gnu/libmvec.so.1
+	libgomp.so.1 => /lib/x86_64-linux-gnu/libgomp.so.1
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	/lib64/ld-linux-x86-64.so.2
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+== compy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libmvec.so.1 => /lib/x86_64-linux-gnu/libmvec.so.1
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== flxpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== grdpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libmvec.so.1 => /lib/x86_64-linux-gnu/libmvec.so.1
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== nclpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== ppppy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libgomp.so.1 => /lib/x86_64-linux-gnu/libgomp.so.1
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	/lib64/ld-linux-x86-64.so.2
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+== svrpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2
+== uedgeC
+	libreadline.so.8 => /lib/x86_64-linux-gnu/libreadline.so.8
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libtinfo.so.6 => /lib/x86_64-linux-gnu/libtinfo.so.6
+	/lib64/ld-linux-x86-64.so.2
+== wdfpy
+	libgfortran.so.5 => /lib/x86_64-linux-gnu/libgfortran.so.5
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+	libquadmath.so.0 => /lib/x86_64-linux-gnu/libquadmath.so.0
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1
+	/lib64/ld-linux-x86-64.so.2

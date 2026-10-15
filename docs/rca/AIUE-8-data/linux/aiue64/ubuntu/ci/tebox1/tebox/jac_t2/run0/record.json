@@ -1,0 +1,70 @@
+{
+ "capture": {
+  "count": 0,
+  "hook": false
+ },
+ "elapsed_s": 3.91,
+ "fnrm_final_hex": "0x1.b9cee046bc84ep-3",
+ "ijactot": 1,
+ "iterations": [
+  {
+   "fnrm_printed": "0.2157266160571134",
+   "iter": 0,
+   "nfe": 1,
+   "omp": false
+  }
+ ],
+ "label": "tebox_jac_t2_it0",
+ "neq": 25,
+ "nnz_post": 190,
+ "numvar": 1,
+ "post_exmain_from": "sfsetnk",
+ "post_exmain_permuted": false,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 2,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 0,
+  "OMP_NUM_THREADS": "2",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 0,
+  "build": {
+   "compiler": [
+    "GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+   ],
+   "extensions_sha256": "8bee99cd3f20c325b49e032a5afb6b71860749861f1ed30d67126d4c9d8bbb80",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/work/src-fix",
+   "source_dirty": false,
+   "source_head": "1e8eb7811590194c008e985eb3c7dea2b10b07db",
+   "uedge_file": "/work/venv-fix/lib/python3.12/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "8ee189d76b0232cedfe17088574935b10b857df5",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "Linux-6.12.76-linuxkit-x86_64-with-glibc2.39",
+  "premeth": "ilut",
+  "python": "3.12.3",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": false,
+ "spec": {
+  "arm": "jac",
+  "capture": 16,
+  "itermx": null,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "tebox",
+  "rhs_probe": true,
+  "threads": 2
+ }
+}

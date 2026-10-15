@@ -1,0 +1,2 @@
+omp exit 0
+serial exit 0
