@@ -1,7 +1,8 @@
 # AIUE-8: Non-deterministic OpenMP Jacobian (RCA working document)
 
 Status: shared-state scan (AIUE-50), characterisation (AIUE-54) and the Jacobian RCA (AIUE-55) done; the Phase 2
-exit decision is **open for the owner** (decision 9, §Jacobian RCA → Exit decision). RHS section (AIUE-58) to follow.
+exit decision is **open for the owner** (decision 9, §Jacobian RCA → Exit decision: bitwise is reachable without
+changing serial via an OpenMP-only replay, at ≈ +18 % Jacobian cost). RHS section (AIUE-58) to follow.
 
 Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
@@ -22,7 +23,7 @@ referenced, not committed).
 | C1-RHS | The same stale worker state is used by the parallel RHS | `OMPPandf1Rhs` (`ppp/omp_parallel.F90:900-997`) never copies; its workers run on whatever the last `OMPJacBuilder` copy left | Te box `jacrhs`: all 25 Te rows of `yldot` wrong, fnrm ≈ 8e30, an extra Newton step; the swap build matches serial on that arm (AIUE-50 review) | Fixed by the same swap for the Jacobian-then-RHS sequence nksol uses | None | AIUE-56 (validated there); remaining RHS issues → AIUE-58 |
 | F16 | `areapl` (`bbb/bbb.v:951`) is written in the plate BCs during `pandf` but is not `+threadprivate` | A data race on physics state (CLAUDE.md rule 1 for the `pandf` tree) | Static/dynamic scan (F16); not seen to change results so far | Mark `+threadprivate` | None (serial build unaffected; OpenMP build with switches 0 unaffected) | AIUE-60 |
 | (races) | Timers, `TimingPandfOn`, `com.nfsp` written in `pandf`, not threadprivate | Lost timer updates; every thread writes the same `nfsp` | TSan on the swap build | Optional cleanup | None | AIUE-60 |
-| **C2** (M2) | FMA contraction makes the same expression round differently in local vs full-row loops (`vsoree`, `bbb/pandf_plasma_energy.m:613-619`), so the serial column loop carries 1-ulp history that OpenMP workers (fresh state per chunk) don't share | ulp history → finite-difference noise entries | emulation, carrier search, `-ffp-contract=off` → bitwise equal (below) | owner's decision 9 | **changes serial at round-off** | AIUE-61, blocked on the decision |
+| **C2** (M2) | Column-to-column history in the serial loop: stale threadprivate values that a column reads outside its recomputed box (carrier `vsoree`, `bbb/pandf_plasma_energy.m:613-619`), triggered by local-vs-full-row rounding differences (FMA contraction — *inferred*, assembly not inspected). OpenMP workers start each chunk from the fresh full-RHS state, so they don't share serial's history | ulp history → finite-difference noise entries | emulation, carrier search; `-ffp-contract=off` → bitwise; **replay of the preceding `ubw` columns per chunk → bitwise, serial unchanged** (below) | **reproduce the history** (OpenMP-only replay; serial unchanged) or remove the trigger (changes serial) | replay: **none**; flag/history-free columns: round-off change | AIUE-61 |
 
 ### Residual after C1 (M2) and its mechanism C2
 
@@ -38,17 +39,18 @@ AIUE-56 gate script (`docs/reviews/AIUE-56-c1-gate.py` on the AIUE-56 branch) on
 `sfscal`, `suscal`, the iteration-0 `fnrm` and `get_fnrm` are bitwise equal to serial in all these runs (the row
 max-norm hides entries this small).
 
-**P3-m3 (is the serial Jacobian history-independent?)** Serial, same state, different history outside the Jacobian:
-40 random local `pandf` evaluations (yl restored) and a full `pandf` before `exmain` → the Jacobian is bitwise
-identical to `exmain` without them (Te box and full problem). So serial is insensitive to history *outside* the
-column loop; the loop itself carries state from column to column (each column's restore call recomputes only a local
-range). Note: a second `exmain` in a session gives a different Jacobian than the first (known UEDGE behaviour, a state
+**P3-m3 (is the serial Jacobian history-independent?)** Two experiments. (a) Same state, different history
+*outside* the loop: 40 random local `pandf` evaluations (yl restored), followed by a full `pandf`, before `exmain` →
+bitwise identical Jacobian. The trailing full `pandf` recomputes everything, so this only shows that history outside
+the loop is wiped by the full RHS at the start of `exmain`; it does not test column order. (b) Column order was not
+permuted directly; instead the emulation below starts columns from a different state (fresh per chunk) — that changes
+the Jacobian. So the serial Jacobian **does** depend on the history inside its column loop. Note: a second `exmain` in a session gives a different Jacobian than the first (known UEDGE behaviour, a state
 change, not noise), so "fresh vs second" is not a history test.
 
 **M2 mechanism: history inside the serial column loop, from FMA contraction (C2).** (AIUE-50 follow-up
 investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
 
-1. *Emulation.* A Python re-implementation of `jac_calc` (`bbb/oderhs.m:1100-1226`) around `bbb.pandf`, in serial
+1. *Emulation.* A Python re-implementation of `jac_calc` (`bbb/oderhs.m:1012-1241`, column loop `:1100-1226`) around `bbb.pandf`, in serial
    column order, reproduces the `exmain` Jacobian bitwise (169/169 entries, Te box). Inserting a fresh `pandf(-1,-1)`
    at the start of each of 2 or 4 chunks — what an OpenMP worker effectively does — reproduces exactly the OpenMP
    residual (2 entries in row te(4,20)), with no threads involved. The extra `isjacreset` call of `LocalJacBuilder`
@@ -64,14 +66,38 @@ investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
    history-free; the OpenMP Jacobian is **bitwise equal to serial in 3/3 Te-box and 3/3 full-problem runs at 4
    threads, and the OpenMP runs are bitwise equal to each other** (full problem nnz 3 177 289, `fnrm`
    `0x1.eb37d433e0603p+0`).
-4. *Effect on serial.* The flag changes serial results at round-off level: Te box `fnrm` 0.3221264477609989 →
-   0.32212644885863323; full problem `get_fnrm` `0x1.eb37d428ec4f0p+0` → `0x1.eb37d433e0603p+0`, nnz 3 190 290 →
-   3 177 289 (13 001 noise entries gone).
+4. *Effect on serial.* The flag changes serial results: Te box `fnrm` 0.3221264477609989 → 0.32212644885863323
+   (3.4e-9 relative); full problem `get_fnrm` `0x1.eb37d428ec4f0p+0` → `0x1.eb37d433e0603p+0`, nnz 3 190 290 →
+   3 177 289 (13 001 noise entries gone), and all 25 Te-box `yldot`/`sfscal` entries change. The effect on the pytests
+   suites (`rtol=1e-5`) was not measured.
+5. *OpenMP-only remedy: replay.* (Reviewer's emulation, then a threaded prototype; scratch, session scratchpad
+   `replay/`, tree `uedge-wt/AIUE-61-replay`.) Before its first column, each chunk replays the restoring local
+   `pandf(xc,yc)` of the R columns preceding it (yl unperturbed), so the worker reaches serial's state.
+   - Emulation, full problem: R = `numvar` 479 mismatches (4 chunks), one grid row (1036) 162, two rows (2072) 0 for 4
+     chunks but 84 for 8; **R = `ubw` (= `mu` = 3920) 0 for 4, 8 and 16 chunks**. Proposed rule: R = `ubw` (the columns
+     whose Jacobian band reaches the chunk's first column).
+   - Threaded prototype (`LocalJacBuilder` warm-up, scratch switch `OMPJacReplay`; the worker loop otherwise mirrors
+     serial `jac_calc`), reviewed harness, 4 threads, K=3, same build's serial reference: Te box with contiguous
+     chunks R=25 **AGREE 3/3, deterministic**; Te box with the default one-column chunks R=25 AGREE 3/3; full problem
+     with 16 contiguous chunks (`OMPAutoBalance=0`) R=3920 **AGREE 3/3** (Jacobian, `sfscal`, `fnrm`), deterministic.
+     Controls without replay fail. The build's serial equals `base-serial` bitwise (Te box, full problem): serial
+     unchanged by construction.
+   - Cost: R extra local evaluations per chunk start: one chunk per thread at 4 threads ≈ 4·3920 ≈ 16k against ~89k
+     in the Jacobian (≈ +18 %); 16 chunks measured +16–19 s per full-problem run (≈ +70 % Jacobian work); the default
+     one column per chunk (`OMPJacNchunks=0`) would be ≈ 2000× — unusable, so a production fix needs OpenMP-only
+     chunk construction with few contiguous chunks.
+   - **Pre-existing crash found on the way:** any `OMPJacNchunks≠0` segfaults at the start of the parallel loop
+     (master thread's `firstprivate(iJacColCopy, rJacElemCopy)` of size `nnzmxperchunk` overflow the 8 MB main-thread
+     stack, which `OMP_STACKSIZE` doesn't size; `ppp/omp_parallel.F90:321`); worked around for the prototype with
+     `ulimit -s 65520`, `OMPlenpfac=2`. A production fix moves these to the heap.
 
-So: **the serial Jacobian depends on column order (P3-m3: yes, inside the loop), and bitwise OpenMP = serial is not
-reachable without changing serial results.** Inferred from identical inputs plus the flag's effect; the assembly was
-not inspected. Tested on arm64/gfortran 15 only: on x86-64, `-O3` without `-march` does not emit FMA, so M2 may not
-appear on the Linux CI runner at all (to be measured there).
+So: **the serial Jacobian depends on the history inside its column loop, and bitwise OpenMP = serial is reachable
+without changing serial results** — by reproducing that history on the workers (replay), an OpenMP-only change
+(PRD §9: "chunking, resets and copy coverage … in scope without escalation"). The cost exceeds 10 % (≈ +18 % at best),
+which is a §9 *report to the owner*, not a §9(a) escalation. Removing the trigger instead (`-ffp-contract=off`,
+history-free columns) also reaches bitwise but changes serial. The FMA attribution is inferred (identical inputs plus
+the flag's effect); arm64/gfortran 15 only: on x86-64, `-O3` without `-march` does not emit FMA, so M2 may not appear
+on the Linux CI runner (AIUE-62).
 
 Ruled out as M2 carriers: `areapl` (bitwise equality reached while it is still shared — it stays a real race to
 fix), the `isjacreset` call, the `emissbs`/`B3VAL` work arrays and `emcoef`, non-local Te BCs, the clip index.
@@ -82,7 +108,7 @@ fix), the `isjacreset` call, the `emissbs`/`B3VAL` work arrays and `emcoef`, non
 |---|---|---|
 | H1 | History-dependent per-thread state | Part of the residual's character (varies with column→thread mapping); not the gross error |
 | H2 | Race on shared state written in `pandf` | No `.v` floating-point array; only `areapl` (F16) and timers/flags — not the gross error |
-| H3 | `save`d locals / post-DATA changes | `fmombal` SAVE arrays exist (hazard, not exercised by the Te error); C1 is a post-DATA threadprivate scalar problem, found via H6 |
+| H3 | `save`d locals / post-DATA changes | `fmombal` SAVE arrays exist, but `fmombal` is reached only through `mombal` (`isimpon=5`), not for this deck (6/7) — a hazard for `isimpon=5`, AIUE-60; C1 is a post-DATA threadprivate scalar problem, found via H6 |
 | H4 | Timing-dependent partitioning | Modulates which columns land on workers (hence run-to-run variation); not a cause |
 | **H6** | Uninitialised / incompletely copied worker state | **Confirmed: C1** |
 | L1 | `isimpon=7` radiation sink | **Confirmed as the carrier of C1** (emissbs on zero tables) |
@@ -93,30 +119,45 @@ fix), the `isjacreset` call, the `emissbs`/`B3VAL` work arrays and `emcoef`, non
 
 ### Exit decision (decision 9) — for the owner
 
-Question (PRD §9(b), decision 9): is bitwise equality with serial reachable for every tested configuration? **Not
-without changing serial results** (M2/C2 above). The PRD's escalation §9(a) applies to the only change found that
-reaches it. The owner chooses; the evidence for each option is above and in AIUE-56's validation.
+Question (PRD §9(b), decision 9): is bitwise equality with serial reachable for every tested configuration? **Yes for
+the configurations tested so far, without changing serial — by the OpenMP-only replay remedy (prototype), at a cost
+above the 10 % report threshold.** No §9(a) escalation is needed for that path. What the owner decides is which path
+to take and whether the cost is acceptable; the evidence per option:
+
+**Per configuration, thread count and arm (macOS):**
+
+| Configuration | Arm | Threads | C1 fix alone (AIUE-56) | + replay R=ubw (prototype) | `-ffp-contract=off` (+ C1) |
+|---|---|---|---|---|---|
+| `ti`, `ni`, `up`, `ng` | jac | 4 | **bitwise 5/5** (AIUE-56) | not run (no residual to remove) | not run |
+| `tebox` | jac | 2 / 4 / 8 | 1/5 / 1/30 / 0/5 bitwise; C1 gate PASS | 4 threads: **3/3** (contiguous and default chunks) | 4 threads: **3/3** |
+| `full` | jac | 2 / 4 / 8 | 2/5 / 0/30 / 0/5; C1 gate PASS | 4 threads, 16 chunks: **3/3** | 4 threads: **3/3** |
+| `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | not run | not run |
+| `tebox`, `full` | jacrhs | 4 | yldot/fnrm equal serial; Jacobian residual only | not run | not run |
+| any | any | 2 / 8 | — | not run | not run |
+| any | any | Linux | not run (AIUE-62) | not run | not run |
 
 | Option | What | OpenMP vs serial | Serial results | Cost / risk |
 |---|---|---|---|---|
-| **A. `-ffp-contract=off`** for the Fortran build (`setup.py` `FARGS`) | stops FMA contraction | bitwise equal and deterministic (Te box 3/3, full 3/3, macOS) | **change at round-off level** (fnrm in the 8th–9th digit) → CLAUDE.md "physics/numerics change": declared in the PR, references re-blessed (pytests `rtol=1e-5` unaffected) | possibly slower inner loops (not measured); must be measured on Linux too |
-| A′. the flag only on the `pandf` tree | same, narrower | expected same (not yet shown which files suffice) | change at round-off level in those files | needs per-file build rules in `Makefile.Forthon` |
-| B. **Fallback gate** (PRD §11): keep the build | none | not bitwise; residual ≤ 7e-9 × serial row max in every post-C1 run so far; `sfscal`/`fnrm` bitwise equal in the one-evaluation runs | unchanged | gate = AIUE-56's pre-registered bounds (max|J| ≤ 10× serial, every differing entry ≤ 1e-6 × serial row max), derived from finite-difference noise (eps/del ≈ 2e-8), not from the spread of bitwise configurations (P3-m4); no run-to-run determinism |
-| C. History-free columns: restore the perturbed box from a saved full-RHS state instead of recomputing it | removes the history at its root | bitwise equal expected | change at round-off level (serial loop changes) | larger code change in `jac_calc` and `LocalJacBuilder`, both must stay consistent |
-| D. Bitwise gate only where the platform has no FMA (e.g. x86-64 CI without `-march`) | none | to be measured on CI | unchanged | platform-dependent gate; macOS stays on B |
+| **E. Replay** (OpenMP-only): few contiguous chunks + replay of the preceding `ubw` columns per chunk; heap-allocated per-chunk arrays (fixes the `OMPJacNchunks≠0` crash) | reproduces serial's history on the workers | bitwise and deterministic where tested (Te box, full, 4 threads) | **unchanged** | ≈ +18 % Jacobian work at one chunk per thread (reported per §9); needs OpenMP-only chunk construction (the default switch values stay); remaining configurations/threads/arms and Linux to be shown |
+| A. `-ffp-contract=off` for the Fortran build | removes the trigger | bitwise and deterministic where tested | **changes** (fnrm 3.4e-9 relative; every Te-box yldot) → declared change of defaults, references re-blessed; pytests effect not measured | speed effect not measured |
+| A′. the flag only on the `pandf` tree | narrower A | expected same (not shown) | changes in those files | per-file build rules |
+| C. History-free columns (restore from a saved full-RHS state) | removes the history in both loops | bitwise expected | changes at round-off | larger change in `jac_calc` + `LocalJacBuilder` |
+| B. **Tolerance gate** (keep the C1 build) | none | not bitwise, **not deterministic** (Te box contiguous chunks without replay: 2 mismatches in 2/3 runs in the replay controls) — so it does **not** meet PRD §11's fallback (which keeps bitwise reproducibility across sessions); usable only as an interim CI gate | unchanged | gate: AIUE-56's bounds; measured serial-history spread ≤ 5.6e-10 × row max (Te box) and ≤ 4.6e-9 (full) — the 1e-6 bound is a margin over that, not derived from it |
+| D. Bitwise gate only where the platform has no FMA (x86-64 without `-march`) | none | to be measured (AIUE-62) | unchanged | platform-dependent |
 
-**Recommendation (for the owner to accept or reject):** B now, so the CI job (AIUE-57) can gate the Jacobian arm on
-C1-type regressions immediately; and A as its own numerics ticket if run-to-run bitwise reproducibility of OpenMP is
-wanted, with the declared round-off change of the defaults. D is a cheap check to run first on the CI runner.
+**Recommendation (owner to accept or reject):** E as the production fix (AIUE-61: OpenMP-only, serial untouched,
+≈ +18 % Jacobian cost reported here per §9), with B as the interim CI gate until E lands (AIUE-57's
+`OMP_CI_JAC_TOLERANCE` switch), and D/AIUE-62 measured on Linux first. A only if the owner prefers changing the build
+over the replay cost.
 
 ### Fix tickets
 
 | Root cause | Ticket | Status |
 |---|---|---|
-| C1 (copy order; also the RHS arm) | AIUE-56 | fix committed on `bugfix/v9-AIUE-56-omp-jacobian-fix`; validation: static hazards 12 → 0, defaults bitwise unchanged (serial check, 42 cases, both builds), C1 gate PASS in every Te configuration |
-| F16 `areapl` race, timer/flag races, clip-index inconsistency | **AIUE-60** (filed) | not started |
-| C2 / M2 (FMA history) | **AIUE-61** (filed), **blocked on decision 9** | options above |
-
+| C1 (copy order; also the RHS arm) | AIUE-56 | fix committed on `bugfix/v9-AIUE-56-omp-jacobian-fix`; validation: static hazards 12 → 0, defaults bitwise unchanged (serial check, 42 cases, both builds), C1 gate PASS in every Te configuration, no slowdown |
+| F16 `areapl` race, timer/flag races, clip-index inconsistency, `emcoef` `copyin` (benign), `fmombal` SAVE arrays (`isimpon=5`) | **AIUE-60** | not started |
+| C2 / M2 (history inside the column loop) + the `OMPJacNchunks≠0` stack crash | **AIUE-61** | prototype shows option E works; production fix pending the owner's choice of path |
+| Linux characterisation, FMA on x86-64 | **AIUE-62** | proposed; owner decides |
 
 ## Characterisation before any fix (AIUE-54)
 
