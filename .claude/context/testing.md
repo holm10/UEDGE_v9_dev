@@ -82,11 +82,17 @@ it with `MakeTests.py` on the `pytests` branch in a separate PR and explain the 
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
   (`pip install -v .`, Python 3.11, `numpy==1.26.4`) and runs `tests/deterministic_omp/ci/run_omp_ci.sh`, which runs
   the harness unit tests, a smoke test and the OpenMP test flow (`tests/deterministic_omp/README.md`, "CI").
-  Push/PR: `tebox` (2, 4 threads, K=5, both arms) and `full` (2, 4 threads, K=2, `jac` arm), `--itermx 3`; nightly
-  (`schedule`, default branch only): `--all`, K=3. Gate: the `jac` arm, bitwise (`OMP_CI_JAC_TOLERANCE` is the
-  switch for a future tolerance gate); `jacrhs` is report-only. Red on the pre-fix code by design: not to be merged
-  before the OpenMP Jacobian fix (AIUE-56). Same steps locally:
+  Triggers: `pull_request`, `push` to `v9-develop`/`main` only, and a nightly `schedule` (default branch only).
+  PR set: `tebox1` (2, 4 threads, K=3, `jac`, one evaluation: locates the defect cell), `tebox` (2, 4 threads, K=5,
+  both arms, `--itermx 3`) and `full` (2, 4 threads, K=2, `jac`, `--itermx 3`); nightly: `--all` one evaluation K=2
+  and `--itermx 3` K=3. Gate: the `jac` arm, bitwise (`OMP_CI_JAC_TOLERANCE` is the switch for a future tolerance
+  gate, which under `--itermx 3` must also cover `yldot`/`fnrm`); `jacrhs` is report-only.
+  **Merge condition:** only after AIUE-56 (the OpenMP Jacobian fix) **and** once the gate can be green on that code,
+  i.e. after decision 9 (a tolerance gate) or AIUE-61 (C2/M2 removed). The AIUE-56 build is still red under the
+  bitwise gate; merged earlier, the job turns every push and PR red. Same steps locally:
   `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`.
+- In `build-test-wheel.yml` the "Install pip dependencies" step runs `pip install forthon>=0.10.7 ...` unquoted: the
+  shell redirects to a file named `=0.10.7`, so Forthon is installed unpinned. (`build-test-omp.yml` quotes it.)
 - Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
 - `build-basis.yml` runs BASIS level-1/level-2 tests in Docker (`fusionbillm/basisuedge`); skip with `#@nobasis`.
