@@ -385,7 +385,9 @@ The workflow has `permissions: contents: read`.
 - **What a failure says.** First one `FIRST MISMATCH` line (and an `::error::` annotation) for the job: the
   configuration, arm, threads, equation and cell of the first mismatch, taken from a one-evaluation group when one
   failed, e.g. `FIRST MISMATCH: configuration tebox, arm jac, threads 2, equation te, cell (ix=4,iy=20) (flow
-  tebox1)`. Then one `GATED` line (and annotation) per failing group, in run order, with the same fields, how many
+  tebox1)`. The `FIRST MISMATCH` line is left out when no gated group has a cell location (e.g. a defect seen only in
+  the full problem, or an intermittent one that the one-evaluation group happened to miss); the job is still red. Then
+  one `GATED` line (and annotation) per failing group, in run order, with the same fields, how many
   runs agreed and the flow's raw first-mismatch text. A group whose runs all crashed says so (`no comparable
   mismatch, the OpenMP run(s) failed; ... exited with -11`); an ERROR group (cannot judge, e.g. the core's
   `check_arm` refusing a run of a serial build) gives its reasons and exit 2.
@@ -406,7 +408,8 @@ The workflow has `permissions: contents: read`.
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`, `record.json`,
   `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded; rerun locally.
-- **Budget.** The PR job is estimated at 14–20 min (central ~17) on `ubuntu-latest` (derivation in
+- **Budget.** The PR job is estimated at about 13–21 min (central ~17; the nightly set, with `all1`, about 90–110 min
+  within its 150-min timeout) on `ubuntu-latest` (derivation in
   `docs/reviews/AIUE-57-validation.txt`); the `Wall time` step writes the measured job and build time to the step
   summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` (first `tebox` K=5 → 3, then `full` to
   4 threads only); the nightly set keeps the full matrix.
