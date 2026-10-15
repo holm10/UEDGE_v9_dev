@@ -82,6 +82,46 @@ solver's last residual, not a parallel-RHS evaluation (the harness of AIUE-49 ha
 when stdout is redirected to a file, the Fortran runtime's buffered output can overwrite what Python printed.
 The Fortran output also contains NUL bytes, so use `grep -a` on captured logs.
 
+## Harness: does OpenMP equal serial, and where not?
+
+`harness/` (AIUE-49) runs a configuration in a fresh process per run and compares the results bitwise. It needs only
+the build's Python (numpy, h5py, uedge); it sets the environment itself (copied case, empty `HOME`, `python -I`,
+`OMP_NUM_THREADS`, `OMP_STACKSIZE=512M`, `UEDGE_OMP_RATES_DIR` defaulting to the in-repo rate files).
+
+```bash
+PY=/path/to/venv/bin/python           # the build under test
+H=tests/deterministic_omp/harness/cli.py
+$PY $H check --preset tebox --arm jac --threads 4 --repeats 2 --python $PY --out /tmp/chk   # ~5 s
+$PY $H check --preset full  --arm jac --threads 4 --repeats 2 --python $PY --out /tmp/chkf  # ~70 s
+$PY $H run   --preset tebox --arm serial --python $PY --out /tmp/r1                         # one run
+$PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                                    # two runs
+```
+
+- **Presets** (`harness/config.py`): `full`, `tebox` (the owner's 25-equation box), `te`, `ti`, `ni`, `up`, `ng`
+  (one group alone, other switches 0, `isphiofft=1`), `full_note` (all but Te; phi alone fails in serial).
+- **Arms:** `serial` (both OpenMP switches 0, 1 thread), `jac` (`OMPParallelJac=1`), `jacrhs`
+  (`OMPParallelPandf1=1`, which forces `OMPParallelJac=1`). `--ppp '{"OMPJacNchunks": -1}'` sets extra `ppp`
+  variables; `--itermx N` runs N Newton iterations instead of one evaluation (`ftol=1e20`).
+- **`check`** runs a serial reference of the same build and K OpenMP runs, and reports agreement with serial and
+  determinism (run 0 vs run k) separately. It writes `check.json` with every report and the provenance (commit,
+  platform, thread and chunking settings).
+- **What is compared, bitwise** (`harness/compare.py`): every Jacobian the run produced (the post-`exmain` `bbb.jac`
+  arrays; plus the raw captured Jacobians once AIUE-47's hook is available), as sets of (row, column) entries, so a
+  changed sparsity pattern shows up as entries "only in a/b"; `sfscal`, `suscal`, `yldot`; one more RHS evaluation
+  through the solver path (`ffun`, the parallel RHS on the `jacrhs` arm); the final `get_fnrm()` as `float.hex`; and
+  the `fnrm` sequence nksol printed. ±0 count as different and any NaN/Inf fails, except for the RHS probe of a
+  parallel RHS, where `REDUCTION(+)` turns a serial −0.0 into +0.0, so ±0 are equal there (`--rhs-signed-zero-equal`
+  overrides).
+- **Localisation:** every mismatch is mapped through `igyl` and the `idx*` tables to equation, species and cell, and
+  counted per (row equation, column equation) pair, e.g. `te/ni: 387007; first value row te(ix=1,iy=1) col
+  ni[0](ix=1,iy=1)`.
+- **Exit codes:** 0 everything agrees, 1 at least one mismatch, 2 harness error (missing file, failed run).
+- **Limits:** the per-iteration `fnrm` is available only as the 16 digits nksol prints; the float64 value is
+  recorded for the final state. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
+  by the harness.
+
+Unit tests (no UEDGE build needed): `python -m pytest tests/deterministic_omp/harness`.
+
 The owner's original check, from inside a copy of `case/` (with the environment above):
 
 ```bash
