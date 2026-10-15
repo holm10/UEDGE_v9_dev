@@ -4244,7 +4244,8 @@ jaccapcur       integer [ ] /0/ # Caller of the current jac_calc_interface call:
                                 # 1 = sfsetnk, 2 = psetnk, 0 = other (set by caller)
 jaccapnnzmx     integer [ ] /0/ # Leading dim. of jaccapv, jaccapj (largest nnz stored)
 jaccapneqp1     integer [ ] /0/ # Leading dim. of jaccapi (largest neq+1 stored)
-jaccapnslot     integer [ ] /0/ # No. of allocated slots (>= jaccapn, <= jaccapture)
+jaccapnslot     integer [ ] /0/ # No. of allocated slots (>= jaccapn; never shrinks,
+                                # so it can exceed a later, lower jaccapture)
 jaccapv(jaccapnnzmx,jaccapnslot) _real [varies] # Nonzeros of the matrix returned by
                                 # jac_calc/jac_calc_parallel: finite-difference
                                 # d(yldot)/d(yl) incl. the -1/dtuse, -1/dtphi and

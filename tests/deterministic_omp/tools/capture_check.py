@@ -173,6 +173,8 @@ def child(argv):
             "captured_at_least_one": nstored > 0,
             "caller_tags_present": all(s["from"] in ("sfsetnk", "psetnk") for s in slots),
             # lazy allocation: slot dimension doubles from what is used, capped at jaccapture
+            # valid for one capture sequence in a fresh process (as this tool runs it): the slot
+            # count never shrinks, so after a counter reset or a lower jaccapture it can exceed this
             "alloc_slots_bounded": nstored <= nslot <= min(int(bbb.jaccapture), max(1, 2 * nstored)),
         }
         if a.newton == 0:
