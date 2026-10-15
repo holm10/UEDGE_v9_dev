@@ -112,3 +112,5 @@ index 356b121..63d2082 100644
      # Specify OMP args
      'OMPargs': ['--omp'],
  }
+
+== Ubuntu 24.04 (round 1, I1-M1/I1-m6): see ubuntu/ (import_default_ldflags.txt, fma_fixld.txt, build_summary.txt, c1_gate*.txt, flows.log, freeze_fixld.txt)

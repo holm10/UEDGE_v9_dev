@@ -1,0 +1,11 @@
+ubuntu_fix_k5_tebox__tebox__jac_t4 run0: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_tebox__tebox__jac_t4 run1: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_tebox__tebox__jac_t4 run2: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_tebox__tebox__jac_t4 run3: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_tebox__tebox__jac_t4 run4: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_full__full__jac_t4 run0: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_full__full__jac_t4 run1: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_full__full__jac_t4 run2: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_full__full__jac_t4 run3: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+ubuntu_fix_k5_full__full__jac_t4 run4: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+GATE PASS

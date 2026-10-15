@@ -1,0 +1,6 @@
+build_fixld.log:GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+build_fixld.log:LDFLAGS=-fopenmp
+build_fixld.log:BUILD_S 178
+build_fixnold.log:GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+build_fixnold.log:LDFLAGS=<unset>
+build_fixnold.log:BUILD_S 178

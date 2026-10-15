@@ -28,6 +28,7 @@ the deck, the second is the caller's.
 | `case/testscript*.py`, `case/comp*.sh` | The owner's scripts, kept for reference (`testscript1.py`/`testscript2.py` need `uetools`) |
 | `tools/trim_case_data.py` | How the two HDF5 files were trimmed |
 | `tools/fingerprint.py` | SHA-256/`float.hex` fingerprint of one evaluation (yldot, jac, jacj, jaci, sfscal, suscal, fnrm) |
+| `linux/` | AIUE-62: Dockerfiles and scripts for the Linux (libgomp) runs; run order in `linux/README.md` |
 | `tools/scan_ompcopy.py` | AIUE-50: static coverage of the `OmpCopy*` copy of every `+threadprivate` variable, copy-order hazards, and a generated worker-vs-master checker for scratch builds |
 | `tools/scan_shared_state.py` | AIUE-50: non-threadprivate variables written during a local `pandf` (before/after diff and sentinel) |
 | `tools/scan_saved_locals.py` | AIUE-50: SAVE/DATA/COMMON locals in routines reachable from `pandf` |

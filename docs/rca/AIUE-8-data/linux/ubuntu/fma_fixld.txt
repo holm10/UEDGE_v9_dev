@@ -1,0 +1,42 @@
+== build fixld, package /work/venv-fixld/lib/python3.12/site-packages/uedge, arch x86_64
+== source commit 1553e756539bb4e66b2241b840fc697e23101a36, dirty: 0 paths
+GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+aphpy.cpython-312-x86_64-linux-gnu.so: insns 37560 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 460
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+apipy.cpython-312-x86_64-linux-gnu.so: insns 38878 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 583
+   needs: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+bbbpy.cpython-312-x86_64-linux-gnu.so: insns 842911 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 10629
+   needs: libgfortran.so.5 libmvec.so.1 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+compy.cpython-312-x86_64-linux-gnu.so: insns 41893 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 457
+   needs: libgfortran.so.5 libmvec.so.1 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+flxpy.cpython-312-x86_64-linux-gnu.so: insns 27599 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 178
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+grdpy.cpython-312-x86_64-linux-gnu.so: insns 86439 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 812
+   needs: libgfortran.so.5 libmvec.so.1 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+nclpy.cpython-312-x86_64-linux-gnu.so: insns 15541 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 510
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+ppppy.cpython-312-x86_64-linux-gnu.so: insns 60548 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 16
+   needs: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+svrpy.cpython-312-x86_64-linux-gnu.so: insns 51984 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 1348
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+uedgeC.cpython-312-x86_64-linux-gnu.so: insns 1661 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 0
+   needs: libreadline.so.8 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+wdfpy.cpython-312-x86_64-linux-gnu.so: insns 17742 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 19
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0;
+== Fortran compile lines in the build log (distinct flag sets)
+     64 gfortran -fPIC -ffixed-line-length-132 -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore -O3 -ftree-vectorize -ftree-vectorizer-verbose=0 -fopenmp -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+     10 gfortran -fPIC -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore  -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+      3 gfortran -fPIC -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore -O3 -ftree-vectorize -ftree-vectorizer-verbose=0 -fopenmp -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+== cpu flags (fma/avx)
+fma avx avx2 
