@@ -113,3 +113,18 @@ review approves (awaiting the owner's review / PR). Owner decisions are prepared
 - **Escalated to the owner:** the AIUE-56 plan (round cap reached; the code is confirmed correct), decision 9, Linux
   validation (no Docker daemon), and the AIUE-56 implementation review (not yet run).
 - **Not done:** restacking every branch onto merged parents, Jira updates for AIUE-47/50/52/53/54/55/56, PRs, push.
+
+## Resumed 04:50 (usage limit reset)
+
+- AIUE-47 **APPROVED** r2 (minors fixed `63370bd`, refs `e71fafc`) → Jira In Review.
+- AIUE-53 r2 REVISE (1 major: unknown or off-v9-develop build source must be INCOMPLETE) → implementer fixing and
+  rebasing onto the final core.
+- AIUE-57 delivered (`47ddc26`, `a3535a3`, `6dfcdeb`): workflow + `ci/run_omp_ci.sh`, PR set ~17 min est., nightly
+  `--all`. Pre-fix and seeded-race (`resee` un-threadprivate) both red locally. Under a bitwise gate the job stays red
+  after C1 because of M2 → depends on decision 9 / AIUE-61. Being rebased onto AIUE-52 `8d4c2c9`.
+- **AIUE-55 r1 REVISE with a BLOCKER that changes the conclusion:** the reviewer's emulation reaches bitwise equality
+  with serial using an **OpenMP-only** remedy: each chunk replays the restoring local `pandf` calls of the preceding
+  columns (full problem: 0 mismatches with ml+mu = 7840 replayed columns per chunk; Te box: 1 is enough). So bitwise
+  may be reachable **without changing serial**; the §9(a) escalation was premature. The M2 agent is prototyping the
+  replay in the real threaded code (minimal depth, cost, chunking). The RCA will be revised from that result.
+- Reviews launched: AIUE-50 r2, AIUE-52 r3, AIUE-56 implementation r1. AIUE-54 revision delegated.
