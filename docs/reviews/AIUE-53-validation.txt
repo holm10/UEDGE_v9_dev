@@ -725,3 +725,98 @@ Acceptance (round 2)
       the same venv (R2-2, all 84 agree; INCOMPLETE by design because base = new)
   [x] negative controls fail and name case and first entry, including the Newton-iteration cases (R2-3, R2-4)
   [x] the solver path is covered (10 iterating cases; the fnrm sequence has 4-6 elements; psetnk Jacobians compared)
+
+
+Round 3 (after review round 2; rebased onto feature/v9-AIUE-49-omp-harness-core de57d59)
+========================================================================================
+
+Changes: source-guard gaps (unknown source, dirty tree, base not on origin/v9-develop or unchecked, build older than
+its HEAD) now make the run INCOMPLETE (exit 2; AGREE, PARTIAL with --partial-ok), naming the reason in the RESULT line;
+-itN cases must show >= 2 iterations and a psetnk post-exmain Jacobian in both records, else ERROR.
+
+Unit tests: python -m pytest tests/deterministic_omp/harness  ->  57 passed (includes the reviewer's five fake source
+states from scratchpad/rev53r2/fakes/test_guards.py plus a stale-build state, each asserting INCOMPLETE/exit 2 with the
+named reason and AGREE, PARTIAL/exit 0 under --partial-ok, and a run whose -it records did not iterate -> exit 2).
+
+R3-1. base-{serial,omp} vs AIUE-47-{serial,omp}, --cases quick --partial-ok, --jobs 2 (16/16 AGREE)
+-----------------------------------------------------------------------------------------------------
+The AIUE-47 tree was committed (e71fafc) after venvs/AIUE-47-omp was installed: flagged as "build older than HEAD",
+and the different-commits warning says why.
+SERIAL BITWISE CHECK (AIUE-53)  harness 351ae5adcd19  pytests b5355080d99d
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  ext-sha256 141a53db4d12099e  openmp False
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-serial @ 0fac6550b888
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python  ext-sha256 cdf94c6175b2632c  openmp False
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-47-serial2 @ 460aa5fc0834 (not on origin/v9-develop)
+  build omp0   base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  ext-sha256 b71788af754cbe0a  openmp True
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-omp @ 0fac6550b888
+  build omp0   new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python  ext-sha256 f81b79ede928a881  openmp True
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-47 @ e71fafca87d7 (not on origin/v9-develop)
+  WARNING: serial: the AIUE-47 capture hook is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared
+  WARNING: omp0: the AIUE-47 capture hook is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared
+  WARNING: new: the serial and OpenMP trees are at different commits (460aa5fc0834, e71fafca87d7), but the omp0 build is older than its HEAD, so the builds may well contain the same code
+  NOT THE GATE: omp0 new: HEAD e71fafca87d7 of /Users/holma/Documents/uedge/src/uedge-wt/AIUE-47 was committed after the build was installed; the recorded HEAD may not be what was built (reinstall)
+  NOT THE GATE: 34 case(s) of 'all' not run: repro-full-it3, repro-full, repro-ni, repro-up, repro-te_phi, repro-te-it3, repro-ti, repro-te, repro-ng, pytests-full-d_c-16x8-it5, pytests-slab-it5, pytests-D_mols-it5, pytests-slab, pytests-D_mols-drift, pytests-unit-convis, pytests-unit-core_nogradient, pytests-unit-curcore, pytests-unit-isfdiax, pytests-unit-ishosor, pytests-unit-isnewpot, pytests-unit-isnwconi2, pytests-unit-isnwcono3, pytests-unit-istepfc2, pytests-unit-istewc3, pytests-unit-istiwc4, pytests-unit-isupwi3, pytests-unit-isupwo3, pytests-unit-isvylog, pytests-unit-newbcl_iskaplex, pytests-unit-recycmlb_therm_momflux, pytests-unit-recycmrb, pytests-unit-tg_atom_drifts, pytests-unit-tg_atom_istgwc2, pytests-unit-tg_mol_istgpfc4
+RESULT: AGREE, PARTIAL (--partial-ok) (what ran agrees bitwise; not the gate: build older than HEAD, cases skipped)  [pairs serial+omp0, cases partial (8)]  (25.0 s)
+exit 0
+  per case:
+[serial] repro-tebox                    AGREE    neq     25  iters 1  jacobians 0+post(sfsetnk)  1.6 s / 1.69 s
+[serial] repro-tebox-it5                AGREE    neq     25  iters 4  jacobians 0+post(psetnk)  1.86 s / 1.7 s
+[serial] pytests-D_only                 AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  0.56 s / 0.54 s
+[serial] pytests-D+C                    AGREE    neq    780  iters 1  jacobians 0+post(sfsetnk)  0.86 s / 0.84 s
+[serial] pytests-D_mols                 AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  0.56 s / 0.6 s
+[serial] pytests-full-d_c-16x8          AGREE    neq   2340  iters 1  jacobians 0+post(sfsetnk)  2.26 s / 2.26 s
+[serial] pytests-D_only-it5             AGREE    neq    420  iters 6  jacobians 0+post(psetnk)  1.2 s / 1.15 s
+[serial] pytests-D+C-it5                AGREE    neq    780  iters 6  jacobians 0+post(psetnk)  1.37 s / 1.32 s
+[omp0] repro-tebox                    AGREE    neq     25  iters 1  jacobians 0+post(sfsetnk)  1.61 s / 1.66 s
+[omp0] repro-tebox-it5                AGREE    neq     25  iters 4  jacobians 0+post(psetnk)  1.69 s / 2.58 s
+[omp0] pytests-D_only                 AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  0.62 s / 0.62 s
+[omp0] pytests-D+C                    AGREE    neq    780  iters 1  jacobians 0+post(sfsetnk)  0.92 s / 0.91 s
+[omp0] pytests-D_mols                 AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  0.61 s / 0.61 s
+[omp0] pytests-full-d_c-16x8          AGREE    neq   2340  iters 1  jacobians 0+post(sfsetnk)  2.7 s / 2.69 s
+[omp0] pytests-D_only-it5             AGREE    neq    420  iters 6  jacobians 0+post(psetnk)  0.9 s / 0.83 s
+[omp0] pytests-D+C-it5                AGREE    neq    780  iters 6  jacobians 0+post(psetnk)  1.64 s / 1.62 s
+
+R3-2. base-serial vs AIUE-53-ulp (one reassociated sum), --cases quick, --jobs 2 (8/8 MISMATCH)
+----------------------------------------------------------------------------------------------
+[serial] repro-tebox                    MISMATCH neq     25  iters 1  jacobians 0+post(sfsetnk)  1.39 s / 2.69 s
+    first mismatch: jacobian:post_exmain (4 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+      fnrm_printed: 1 mismatch(es): [(0, '0.3221264477609989')] vs [(0, '0.3221264477406401')]
+[serial] repro-tebox-it5                MISMATCH neq     25  iters 4  jacobians 0+post(psetnk)  1.91 s / 1.89 s
+    first mismatch: jacobian:post_exmain (permuted indices) (3 entries): first value at row position 25 col position 22 (iv 25,22): base -0.003367550818522483 new -0.003367551299688318
+      fnrm_printed: 1 mismatch(es): [(0, '0.3221264477609989'), (1, '0.1295818223118249E-01'), (2, '0.3022148351236412E-04'), (3, '0.3833757148333837E-09')] vs [(0, '0.3221264477406401'), (1, '0.1295818217083933E-01'), (2, '0.3022146499875669E-04'), (3, '0.3833921241883776E-09')]
+[serial] pytests-D_only                 MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  0.69 s / 0.6 s
+    first mismatch: jacobian:post_exmain (27 entries): first value at row te(ix=4,iy=2) col te(ix=4,iy=3) (iv 173,243): base 818.8821539079071 new 818.8822448573773
+[serial] pytests-D+C                    MISMATCH neq    780  iters 1  jacobians 0+post(sfsetnk)  1.02 s / 1.04 s
+    first mismatch: jacobian:post_exmain (112 entries): first value at row te(ix=1,iy=1) col ni[7](ix=0,iy=0) (iv 154,8): base -3.512745649913995e-05 new -3.508304757815495e-05
+      fnrm_printed: 1 mismatch(es): [(0, '0.2021509332539769')] vs [(0, '0.2021509332541546')]
+[serial] pytests-D_mols                 MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  0.68 s / 0.75 s
+    first mismatch: jacobian:post_exmain (2 entries): first value at row te(ix=1,iy=4) col ni[0](ix=1,iy=4) (iv 333,329): base -26376.472271749662 new -26376.472203537556
+[serial] pytests-full-d_c-16x8          MISMATCH neq   2340  iters 1  jacobians 0+post(sfsetnk)  2.41 s / 2.38 s
+    first mismatch: jacobian:post_exmain (279 entries): first value at row te(ix=8,iy=1) col te(ix=9,iy=2) (iv 349,596): base -7.114431355148554 new -7.117341738194227
+      fnrm_printed: 1 mismatch(es): [(0, '0.3215437112114005')] vs [(0, '0.3215437112131492')]
+[serial] pytests-D_only-it5             MISMATCH neq    420  iters 6  jacobians 0+post(psetnk)  0.7 s / 0.64 s
+    first mismatch: jacobian:post_exmain (permuted indices) (45 entries): first value at row position 135 col position 89 (iv 135,89): base 0.17314337906291208 new 0.17314337900723345
+      fnrm_printed: 1 mismatch(es): [(0, '0.1273479397175568'), (1, '0.9719416114299252E-01'), (2, '0.8379622806945732E-01'), (3, '0.6064442431249791E-01'), (4, '0.5705965308126480E-01'), (5, '0.5599745699034277E-01')] vs [(0, '0.1273479397175568'), (1, '0.9719416171284716E-01'), (2, '0.8377279232326856E-01'), (3, '0.6064364145111419E-01'), (4, '0.5706009931643322E-01'), (5, '0.5600033803105605E-01')]
+[serial] pytests-D+C-it5                MISMATCH neq    780  iters 6  jacobians 0+post(psetnk)  1.13 s / 1.04 s
+    first mismatch: jacobian:post_exmain (permuted indices) (32628 entries): first value at row position 16 col position 17 (iv 16,17): base 0.9958351693587122 new -1.4786765108662014e-08
+      fnrm_printed: 1 mismatch(es): [(0, '0.2021509332539769'), (1, '0.1597215415317075E-01'), (2, '0.3407946387422577E-02'), (3, '0.9679490895458694E-04'), (4, '0.8231520848568673E-07'), (5, '0.3333526226035951E-10')] vs [(0, '0.2021509332541546'), (1, '0.1597215405272050E-01'), (2, '0.3407946854019142E-02'), (3, '0.9679501930279233E-04'), (4, '0.8231951268909201E-07'), (5, '0.3279260637809771E-10')]
+  NOT THE GATE: serial new: source tree /Users/holma/Documents/uedge/src/uedge-wt/AIUE-53-ulp has uncommitted changes (provenance not reproducible; build from a clean commit)
+RESULT: MISMATCH  [pairs serial, cases partial (8)]  (11.8 s)
+exit 1
+
+R3-3. Unknown source (wheel-like): real builds base-serial vs AIUE-47-serial, the new build's direct_url.json replaced
+by a .whl URL through a wrapper (r3/unknown_src.py), --cases all, serial pair, --jobs 4 (42/42 AGREE)
+--------------------------------------------------------------------------------------------------------------------
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  ext-sha256 141a53db4d12099e  openmp False
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-serial @ 0fac6550b888
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python  ext-sha256 cdf94c6175b2632c  openmp False
+               source unknown (file:///wheelhouse/uedge-8.1.2b0-cp313-cp313-macosx_arm64.whl)
+  WARNING: serial: the AIUE-47 capture hook is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared
+  NOT THE GATE: pair omp0 not checked
+  NOT THE GATE: serial new: source unknown (direct_url file:///wheelhouse/uedge-8.1.2b0-cp313-cp313-macosx_arm64.whl), so the same-source and base checks could not run
+RESULT: INCOMPLETE (what ran agrees bitwise; not the gate: pair skipped, source unknown)  [pairs serial, cases all (42)]  (287.2 s)
+exit 2
+  cases agreeing: 42 of 42
+
+Timings (lightly loaded at the start, load rising to ~70 by the end): quick both pairs 25 s and quick serial pair
+12 s with --jobs 2; all, serial pair, --jobs 4: 287 s.
