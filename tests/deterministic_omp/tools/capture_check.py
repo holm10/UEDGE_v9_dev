@@ -34,6 +34,9 @@ Arguments after "--" are passed to the child:
   --capture K        bbb.jaccapture=K (keep up to K raw Jacobians); --skip S sets jaccapskip
   --iprint N         com.iprint (default 1, so nksol prints the fnrm sequence)
 
+--add-file PATH copies an extra file into the run directory (e.g. crumpet_nrates.dat,
+which the installed package does not ship; the D_mols decks need it).
+
 Environment of the child: HOME is an empty temporary directory; OMP_NUM_THREADS
 (--threads, default 1), OMP_STACKSIZE (default 512M) and any --env K=V are set.
 """
@@ -166,10 +169,12 @@ def child(argv):
 
 
 # --------------------------------------------------------------------------- parent
-def run_one(python, case, deck, child_args, threads, envs, keep):
+def run_one(python, case, deck, child_args, threads, envs, keep, add_files=()):
     work = tempfile.mkdtemp(prefix="capchk_")
     rundir = os.path.join(work, "case")
     shutil.copytree(case, rundir, ignore=shutil.ignore_patterns("__pycache__"))
+    for f in add_files:  # e.g. rate files the installed package does not ship
+        shutil.copy(f, rundir)
     home = os.path.join(work, "home")
     os.mkdir(home)
     env = dict(os.environ)
@@ -225,6 +230,8 @@ def parent(argv):
     p.add_argument("--threads", type=int, default=1)
     p.add_argument("--env", action="append", default=[], dest="setenv", metavar="K=V")
     p.add_argument("--keep", action="store_true", help="keep the temporary run directories")
+    p.add_argument("--add-file", action="append", default=[], dest="add_files", metavar="PATH",
+                   help="extra file copied into the run directory (repeatable)")
     p.add_argument("--new-extra", default="",
                    help="extra child arguments for the --new run only (e.g. '--capture 4', to show "
                         "that turning the hook on does not change results)")
@@ -238,15 +245,15 @@ def parent(argv):
     print("[%s] case=%s deck=%s child_args=%s OMP_NUM_THREADS=%d env=%s"
           % (a.label, case, a.deck, " ".join(child_args), a.threads, a.setenv))
     if a.mode == "run":
-        fp = run_one(a.python, case, a.deck, child_args, a.threads, a.setenv, a.keep)
+        fp = run_one(a.python, case, a.deck, child_args, a.threads, a.setenv, a.keep, a.add_files)
         print("[%s] python=%s" % (a.label, a.python))
         print("[%s] FINGERPRINT %s" % (a.label, json.dumps(fp, sort_keys=True)))
         ok = capture_checks(a.label, fp)
         print("RESULT %s: %s" % (a.label, "PASS" if ok else "FAIL"))
         return 0 if ok else 1
-    base = run_one(a.base, case, a.deck, child_args, a.threads, a.setenv, a.keep)
+    base = run_one(a.base, case, a.deck, child_args, a.threads, a.setenv, a.keep, a.add_files)
     new = run_one(a.new, case, a.deck, child_args + shlex.split(a.new_extra), a.threads,
-                  a.setenv, a.keep)
+                  a.setenv, a.keep, a.add_files)
     print("[%s] base=%s" % (a.label, a.base))
     print("[%s] new =%s %s" % (a.label, a.new, a.new_extra))
     ok = True

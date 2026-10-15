@@ -20,8 +20,9 @@ The AIUE-49 harness needs the raw finite-difference Jacobian of every evaluation
   `OMPPandf1Rhs`) and they close before `jac_calc_parallel` returns. The PETSc driver
   (`svr/petsc-uedge.F90`) does not call `jac_calc_interface`. So the capture state is written by the master
   thread only and is **not** `+threadprivate`.
-- Other solvers (`vodpk`, `daspk`, `jacvnk`, `jacd1`...) call `jac_calc` directly and are not captured.
-  The hook is for `svrpkg='nksol'` (the solver the epic investigates).
+- The Jacobian routines of the other solvers (`jacd1`, `jacd2`, `jacnw`, `jacvd`, `FPRECO` in
+  `bbb/oderhs.m`) call `jac_calc` directly and are not captured. The hook covers the `nksol` path (the solver
+  the epic investigates), plus the `sfsetnk` call that `odesolve.m` makes for `daspk` when `issfon=1`.
 - With `ftol=1e20`, `nksol` stops in `nkstp0` (`fmax <= 0.01*ftol`) before the first `pset`, so the only
   Jacobian of the run is the `sfsetnk` one, and post-`exmain` `bbb.jac(k) = raw(k) * (1/suscal(ja(k)))`
   (`amudia` column scaling with `sf(i) = 1./su(i)`; `rnrms` does not modify `jac`). The check therefore
