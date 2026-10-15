@@ -25,8 +25,8 @@ tolerance, A `-ffp-contract=off` (changes serial), B tolerance gate (interim CI 
 | AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` | 3c03d1c | **APPROVED** r3 | In Review |
 | AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` | 15ae327 | **APPROVED** r3 | In Review |
 | AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` | c4cc9ff | r2 REVISE on **one owner decision** (Linux deferral to AIUE-62) | In Progress |
-| AIUE-55 RCA + decision 9 | `feature/v9-AIUE-55-omp-jacobian-rca` | 9599d77 | **ESCALATED** (round cap; r3 findings applied: wording) | In Review |
-| AIUE-56 C1 fix | `bugfix/v9-AIUE-56-omp-jacobian-fix` | 35974c9 | implementation **APPROVED** r3; plan **ESCALATED** (round cap) | In Review |
+| AIUE-55 RCA + decision 9 | `feature/v9-AIUE-55-omp-jacobian-rca` | 01e2d8e | **APPROVED** r4 (owner-authorised); addendum: Newton steps, phi | In Review |
+| AIUE-56 C1 fix | `bugfix/v9-AIUE-56-omp-jacobian-fix` | 1553e75 | implementation **APPROVED** r3; plan **APPROVED** r4 (owner-authorised) | In Review |
 | AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | 8ee189d | **APPROVED** r2. **Don't merge** before AIUE-56 and a gate that can be green | In Review |
 | AIUE-60 races | — | — | filed, not started | To Do |
 | AIUE-61 C2 replay + stack crash | scratch `uedge-wt/AIUE-61-replay` | — | prototype; production awaits decision 9 | To Do |
@@ -156,3 +156,8 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   is reproducible run to run → option F; cost labelled as estimate), r3 REVISE (F's reproducibility is empirical under
   dynamic scheduling; wording) → applied, escalated at the round cap. Restacked 49/52/53/57 and 50/54/55 onto the
   reviewed parents (clean rebases). Jira: AIUE-55, AIUE-56 → In Review; AIUE-61 rewritten around the replay.
+- **Owner follow-up (09:00–10:00)** Owner authorised round 4: AIUE-56 plan APPROVE, AIUE-55 APPROVE. Experiments: at
+  dtreal=1e-9 over 5 steps serial and replay are bitwise identical; the C1-only OpenMP build converges in 3/5 runs
+  (state within 1e-11 to 1e-8 relative), 2/5 fail the hard first step, like an -ffp-contract=off serial build. te_phi is
+  bitwise equal without C2, so phi adds nothing. Docker Desktop started (linux/arm64 native, linux/amd64 emulated), so
+  AIUE-62 can run locally. AIUE-54 set to In Progress in Jira (it showed To Do).
