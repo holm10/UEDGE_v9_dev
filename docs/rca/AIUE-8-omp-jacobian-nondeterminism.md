@@ -142,7 +142,7 @@ to take and whether the cost is acceptable; the evidence per option:
 | `ti`, `ni`, `up`, `ng` | jac | 4 | **bitwise 5/5** (AIUE-56) | not run (no residual to remove) | not run | not run |
 | `tebox` | jac | 2 / 4 / 8 | 1/5 / 1/30 / 0/5 bitwise; C1 gate PASS | 4 threads: **3/3** (contiguous and default chunks) | 4 threads: **3/3** | 4 threads: 0/3 bitwise vs serial, runs identical to each other 3/3 |
 | `full` | jac | 2 / 4 / 8 | 2/5 / 0/30 / 0/5; C1 gate PASS | 4 threads, 16 chunks: **3/3** | 4 threads: **3/3** | 4 threads, 16 chunks: 0/2 vs serial, 2 runs identical |
-| `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | not run | not run | not run |
+| `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | `te_phi` **3/3** (addendum); `te` not run | `te_phi` **3/3**, also 5 Newton its; `te` not run | not run |
 | `tebox`, `full` | jacrhs | 4 | yldot/fnrm equal serial; Jacobian residual only | not run | not run | not run |
 | any | any | 2 / 8 | — | not run | not run | not run |
 | any | any | Linux | not run (AIUE-62) | not run | not run | not run |
@@ -163,6 +163,36 @@ serial untouched; cost estimated at ≈ +18 % on 4 threads and ≈ +35 % on 8, t
 fix, and needs a fixed chunk-to-thread mapping (`schedule(static)`, one chunk per thread) or a worker-state reset at
 each chunk start to make the reproducibility guaranteed rather than empirical. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D/AIUE-62 measured on
 Linux first. A only if the owner prefers changing the build over the replay cost.
+
+### Addendum (owner questions, after review round 4): effect on Newton solves, and phi
+
+Scratch runs, macOS, 4 threads (session scratchpad `q1/`, `q4/`); not reviewed.
+
+**Does the residual show up in fnrm?** The full problem as the deck leaves it (`dtreal=1e20`) never converges even
+in serial (30 Newton iterations, fnrm 1.65–1.83, `iterm=4`), so its trajectory is no test. With `dtreal=1e-9`
+(`rundt`'s default step), 5 fixed time steps, the Jacobian recomputed every step:
+
+| Build / arm | Runs | Step 1 converged | Newton iterations per step | Final state vs serial | Final fnrm |
+|---|---|---|---|---|---|
+| serial (C1 build) | 2 | 2/2 | 21, 4, 3, 4, 3 | bitwise between the two runs | 7.645e-10 |
+| replay prototype, 16 chunks, R=3920 | 2 | 2/2 | 21, 4, 3, 4, 3 | **bitwise equal to serial**, all 5 steps | 7.645e-10 |
+| replay build, serial arm | 1 | 1/1 | same | bitwise equal to serial | 7.645e-10 |
+| OpenMP, C1 fix only | 5 | **3/5** | 21/20/21, 3, 3, 4, 3 | max rel. diff 1e-11 (te, ti, ng), up to 2e-9 (ni) and 1e-8 (phi) | 1.1e-9 to 5.2e-9 |
+| serial with `-ffp-contract=off` (+ C1) | 1 | **0/1** | 30, failed | — | 0.42 |
+
+So: in a well-converging step the difference stays at round-off (1e-11 relative, 1e-8 for phi). But the first,
+hard step (fnrm wanders for ~17 iterations before converging) is sensitive to round-off: 2 of 5 OpenMP runs did not
+converge in 30 iterations where serial did. An equally valid serial build (`-ffp-contract=off`) didn't converge
+either, so this is the solve's sensitivity to round-off, which the residual exposes. In a `rundt` run it would show up
+as a different time-step history from run to run. The printed fnrm agrees with serial to 6–9 digits in the first
+iterations and then drifts. Only the replay remedy reproduced serial's trajectory exactly.
+
+**Does phi add a problem of its own?** No, on this evidence (`te_phi` preset, isteon+isphion, neq 6336):
+- C1 build: all Jacobian mismatches are in Te rows (5/5 runs; none in phi rows); `yldot`, the parallel-RHS probe,
+  `sfscal` and fnrm equal serial (jac and jacrhs arms).
+- `-ffp-contract=off` build: **bitwise equal to serial**, jac arm 3/3, jacrhs arm 3/3, and over 5 Newton iterations
+  3/3. The replay build (4 contiguous chunks, R=1000 ≥ `ubw`): Jacobian bitwise 3/3.
+- C1 build over 5 Newton iterations: the fnrm sequence drifts (1.5671 vs 1.5711 at iteration 1), as for Te alone.
 
 ### Fix tickets
 
