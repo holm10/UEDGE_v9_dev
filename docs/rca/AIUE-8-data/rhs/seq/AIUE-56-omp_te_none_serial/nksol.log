@@ -1,0 +1,15 @@
+ iter=   0 fnrm=      271985200.1005400     nfe=      1
+  Updating Jacobian, npe =                      1
+ iter=   0 fnrm=      3.635746186925376     nfe=      1
+  Updating Jacobian, npe =                      2
+ iter=   1 fnrm=      2.934562963246298     nfe=      4
+ iter=   2 fnrm=      1.940573362091224     nfe=      9
+ iter=   3 fnrm=     0.5420205117279623     nfe=     15
+ iter=   4 fnrm=     0.1670848882698157E-02 nfe=     22
+ iter=   5 fnrm=     0.7868632365357604E-06 nfe=     31
+  Updating Jacobian, npe =                      3
+ iter=   6 fnrm=     0.1165592846125000E-10 nfe=     35
+ iter=   0 fnrm=      1.327580678916788     nfe=      1
+ iter=   1 fnrm=     0.1582543276909706E-02 nfe=      4
+ iter=   2 fnrm=     0.1040540445089739E-04 nfe=     11
+ iter=   3 fnrm=     0.1836145471853724E-08 nfe=     20

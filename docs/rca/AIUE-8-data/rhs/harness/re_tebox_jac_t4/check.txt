@@ -1,0 +1,153 @@
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 2 mismatch(es) (value 2, only-a 0, only-b 0); pairs te/te: 2; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run1)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run2)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 2 mismatch(es) (value 2, only-a 0, only-b 0); pairs te/te: 2; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run3)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run4)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 2 mismatch(es) (value 2, only-a 0, only-b 0); pairs te/te: 2; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run5)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=3,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run6)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run7)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run8)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run9)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+CHECK tebox_jac_t4_it0: MISMATCH

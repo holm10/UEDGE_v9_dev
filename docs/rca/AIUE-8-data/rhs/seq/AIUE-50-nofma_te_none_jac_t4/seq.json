@@ -1,0 +1,41 @@
+{
+ "spec": {
+  "preset": "te",
+  "arm": "jac",
+  "harness": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp",
+  "threads": 4
+ },
+ "exmain": [
+  {
+   "k": 1,
+   "icntnunk": 0,
+   "iterm": 1,
+   "ijactot": 3,
+   "ParallelPandf1": 0,
+   "ParallelJac": 1,
+   "get_fnrm_hex": "0x1.7ba099280ca99p-37"
+  },
+  {
+   "k": 2,
+   "icntnunk": 1,
+   "iterm": 1,
+   "ijactot": 3,
+   "ParallelPandf1": 0,
+   "ParallelJac": 1,
+   "get_fnrm_hex": "0x1.f8acb0d0bdafdp-30"
+  }
+ ],
+ "provenance": {
+  "build": {
+   "uedge_file": "/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-50-nofma/lib/python3.13/site-packages/uedge/__init__.py",
+   "source_dir": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-50-scratch",
+   "source_head": "14abb0db671fb8f1345b89eb357a9353b8c7246c",
+   "source_dirty": false,
+   "extensions_sha256": "a9b705ef9d5f33ac3641e5f11b504daba09968378d81d3c4aaa0d5d06a250fb3",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "compiler": []
+  },
+  "OMP_NUM_THREADS": "4"
+ }
+}

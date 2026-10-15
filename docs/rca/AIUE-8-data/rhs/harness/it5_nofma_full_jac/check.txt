@@ -1,0 +1,9 @@
+[agreement with serial] full_serial_t1_it5 vs full_jac_t4_it5: AGREE
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+CHECK full_jac_t4_it5: AGREE

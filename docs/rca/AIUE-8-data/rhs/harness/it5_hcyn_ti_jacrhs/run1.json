@@ -1,0 +1,98 @@
+{
+ "capture": {
+  "count": 0,
+  "hook": false
+ },
+ "elapsed_s": 6.01,
+ "fnrm_final_hex": "0x1.3219b294c794dp-1",
+ "ijactot": 2,
+ "iterations": [
+  {
+   "fnrm_printed": "0.8709601232606413",
+   "iter": 0,
+   "nfe": 1,
+   "omp": true
+  },
+  {
+   "fnrm_printed": "1.117698526517359",
+   "iter": 1,
+   "nfe": 19,
+   "omp": true
+  },
+  {
+   "fnrm_printed": "0.9592920431903644",
+   "iter": 2,
+   "nfe": 76,
+   "omp": true
+  },
+  {
+   "fnrm_printed": "0.9357344638448323",
+   "iter": 3,
+   "nfe": 133,
+   "omp": true
+  },
+  {
+   "fnrm_printed": "0.8774334698678893",
+   "iter": 4,
+   "nfe": 190,
+   "omp": true
+  },
+  {
+   "fnrm_printed": "0.5978523069968930",
+   "iter": 5,
+   "nfe": 247,
+   "omp": true
+  }
+ ],
+ "label": "ti_jacrhs_t4_it5",
+ "neq": 3168,
+ "nnz_post": 34400,
+ "numvar": 1,
+ "post_exmain_from": "psetnk",
+ "post_exmain_permuted": true,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 4,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 1,
+  "OMP_NUM_THREADS": "4",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 1,
+  "build": {
+   "compiler": [],
+   "extensions_sha256": "0ce66930b3aa43c87bf4a83214cdec04d1e08ed5745c59496ee9c37f67709472",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-58-hcyn",
+   "source_dirty": true,
+   "source_head": "1553e756539bb4e66b2241b840fc697e23101a36",
+   "uedge_file": "/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-58-hcyn/lib/python3.13/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "8ee189d76b0232cedfe17088574935b10b857df5",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "premeth": "ilut",
+  "python": "3.13.12",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": true,
+ "spec": {
+  "arm": "jacrhs",
+  "capture": 16,
+  "itermx": 5,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "ti",
+  "rhs_probe": true,
+  "threads": 4
+ }
+}

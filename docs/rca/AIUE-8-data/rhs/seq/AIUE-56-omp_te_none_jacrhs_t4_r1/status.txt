@@ -1,0 +1,1 @@
+exit 139 elapsed 6 s load 19.12 14.01 9.78

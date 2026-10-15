@@ -1,0 +1,25 @@
+[agreement with serial] full_serial_t1_it5 vs full_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 43556 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3129, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  yldot_probe: 43556 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3129, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.c1bf43b015301p+0 vs 0x1.dd2760928d340p+0
+  fnrm_printed: 1 mismatch(es): [(0, '1.918820631661561'), (1, '1.843487385519598'), (2, '1.780962676277060'), (3, '1.771555515444796'), (4, '1.760251972910184'), (5, '1.756824713219601')] vs [(0, '1.918820631661561'), (1, '1.841456235108531'), (2, '1.851672920562469'), (3, '1.843492852279230'), (4, '1.840205162170350'), (5, '1.863881598339952')]
+[agreement with serial] full_serial_t1_it5 vs full_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 43555 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3128, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  yldot_probe: 43555 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3128, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.c1bf43b015301p+0 vs 0x1.f71d648dde64fp+0
+  fnrm_printed: 1 mismatch(es): [(0, '1.918820631661561'), (1, '1.843487385519598'), (2, '1.780962676277060'), (3, '1.771555515444796'), (4, '1.760251972910184'), (5, '1.756824713219601')] vs [(0, '1.918820631661561'), (1, '1.852867557843529'), (2, '1.857684469118626'), (3, '1.892947690952737'), (4, '1.910633706675031'), (5, '1.965282695817872')]
+[determinism (run0 vs run1)] full_jacrhs_t4_it5 vs full_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 43556 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3129, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  yldot_probe: 43556 mismatch(es); by equation {'ni': 24849, 'up': 6190, 'te': 3132, 'ti': 3132, 'phi': 3129, 'ng': 3124}; first at ni[0](ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.dd2760928d340p+0 vs 0x1.f71d648dde64fp+0
+  fnrm_printed: 1 mismatch(es): [(0, '1.918820631661561'), (1, '1.841456235108531'), (2, '1.851672920562469'), (3, '1.843492852279230'), (4, '1.840205162170350'), (5, '1.863881598339952')] vs [(0, '1.918820631661561'), (1, '1.852867557843529'), (2, '1.857684469118626'), (3, '1.892947690952737'), (4, '1.910633706675031'), (5, '1.965282695817872')]
+CHECK full_jacrhs_t4_it5: MISMATCH
