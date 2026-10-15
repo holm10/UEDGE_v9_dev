@@ -1,8 +1,11 @@
 # Testing — what actually exists
 
-**There are no tests in this repository.** The regression suite lives on the `pytests` branch of
+**The regression suite is not in this repository.** It lives on the `pytests` branch of
 `LLNL/UEDGE` (`upstream/pytests`), and CI checks it out after building (`.github/workflows/build-test-wheel.yml:55-95`).
 There are no unit tests of individual Fortran routines and no coverage measurement.
+
+The repository holds one test case: `tests/deterministic_omp/`, the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
+data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`). No CI job runs it yet.
 
 ## Suite structure (`upstream/pytests`)
 
