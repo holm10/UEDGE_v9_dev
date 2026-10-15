@@ -30,7 +30,7 @@ tolerance, A `-ffp-contract=off` (changes serial), B tolerance gate (interim CI 
 | AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | 8ee189d | **APPROVED** r2. **Don't merge** before AIUE-56 and a gate that can be green | In Review |
 | AIUE-60 races | — | — | filed, not started | To Do |
 | AIUE-61 C2 replay + stack crash | scratch `uedge-wt/AIUE-61-replay` | — | prototype; production awaits decision 9 | To Do |
-| AIUE-62 Linux | — | — | proposed; awaiting your decision | To Do |
+| AIUE-62 Linux | `feature/v9-AIUE-62-linux-characterisation` (on AIUE-55) | in progress | owner approved; running locally in Docker (linux/amd64 + arm64) | In Progress |
 | AIUE-51 / 58 / 59 / 48 | — | — | not started (optional / bonus / owner task) | To Do |
 
 Stack, restacked after the review fixes (each child contains its parent's tip): v9-develop ← 46 ← {49 ← {52 ← 57,
@@ -161,3 +161,8 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   (state within 1e-11 to 1e-8 relative), 2/5 fail the hard first step, like an -ffp-contract=off serial build. te_phi is
   bitwise equal without C2, so phi adds nothing. Docker Desktop started (linux/arm64 native, linux/amd64 emulated), so
   AIUE-62 can run locally. AIUE-54 set to In Progress in Jira (it showed To Do).
+- **Owner follow-up 2** Owner approved AIUE-62 (Linux, local Docker) and asked for an F-vs-E cost study (scratch,
+  subagent) and a close-epic skill (`feature/v9-ai-close-epic`). Post-fix RHS-arm probe: `te` no longer crashes and
+  `full` no longer overflows (2 and 4 threads); `yldot` and the parallel RHS equal serial. Full/jacrhs also gave a
+  bitwise Jacobian 3/3 on a heavily loaded machine, against the earlier residual: to re-check quietly (AIUE-58).
+  Tips after restacking come from git; some Jira comments quote pre-restack tips (49, 54, 56).
