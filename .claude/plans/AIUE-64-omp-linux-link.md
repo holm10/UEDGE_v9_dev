@@ -7,7 +7,10 @@ Validate the patterns and file references below before implementing.
 **Complexity**: Low (one guarded block in `uedgeBuild.run`); the validation is the larger part
 **Default results**: Unchanged. No Fortran, `.v` or compile flag changes. Only the link of the Forthon extensions in
 the **Linux OpenMP** build changes. The serial build (every platform) and the macOS OpenMP build are not touched.
-**Packages / files**: `setup.py` (product), `.claude/context/architecture.md` (code-facts, one sentence)
+**Packages / files**: `setup.py` (product); `.claude/context/architecture.md` + `refs.lock.json` (code-facts);
+`docs/rca/AIUE-8-data/linux/aiue64/` (Linux evidence)
+**Revision**: round 2, after plan review round 1 (`docs/reviews/AIUE-64-plan-round1.md`, REVISE 0/1/8; response in
+`docs/reviews/AIUE-64-plan-round1-response.md`)
 **Branch / worktree**: `bugfix/v9-AIUE-64-omp-linux-link` @ `/Users/holma/Documents/uedge/src/uedge-wt/AIUE-64`
 (base: local `v9-develop` `4faed39`; product tree identical to `0fac655`, which built the `base-*` venvs:
 `git diff 0fac655 4faed39 -- . ':!.claude' ':!CLAUDE.md' ':!docs'` is empty)
@@ -44,11 +47,15 @@ With `LDFLAGS=-fopenmp` the build imports, and `apipy`, `bbbpy` and `ppppy` then
      -Wl,-z,lazy` — no `-fopenmp`, no `-lgomp`. The gfortran objects reference `GOMP_parallel`, `GOMP_barrier`,
      `omp_get_thread_num` (macOS `nm -u`: 4 in `apipy`, 4 in `bbbpy`, 13 in `ppppy`, 0 elsewhere), so these three
      extensions are left with undefined OpenMP symbols.
-2. *`uedgeC`* is the only extension `setup.py` links itself (`setup.py:781-803`). Its
-   `extra_link_args=FLAGS['CARGS']+[...]` (`setup.py:799`) carries `-fopenmp`. Its C sources contain no OpenMP
-   code, so on Debian/Ubuntu, whose gcc links with `--as-needed` by default (`gcc -dumpspecs`: 3 occurrences,
-   `ubuntu/build_summary.txt`), the linker drops `libgomp` from `uedgeC` too (AIUE-62 `fma_fixld.txt`:
-   `uedgeC` NEEDS only `libreadline.so.8 libc.so.6`).
+2. *`uedgeC`* is the only extension `setup.py` builds itself (`build.run`, `setup.py:772,781-803`). It is
+   *linked* with `-fopenmp` (`extra_link_args=FLAGS['CARGS']+[...]`, `setup.py:799`) but not compiled with it
+   (`extra_compile_args=fcompiler.extra_compile_args`, `setup.py:801`; the `uedgeC` compile lines in
+   `uedge-wt/logs/build-base-omp.log` carry no `-fopenmp`). Its C sources contain no OpenMP code. Ubuntu 24.04's
+   gcc links with `--as-needed` by default (`gcc -dumpspecs`: 3 occurrences, AIUE-62
+   `ubuntu/import_default_ldflags.txt`), so the linker drops `libgomp` from `uedgeC` too (AIUE-62
+   `ubuntu/fma_fixld.txt`: `uedgeC` NEEDS only `libreadline.so.8 libc.so.6`). On Debian 12 the same import
+   failure is observed (AIUE-62 `build_info.txt`); that Debian's gcc also defaults to `--as-needed` is not on
+   record and is checked in L6 (`gcc -dumpspecs`, record only).
 
 **Why it works on macOS today (and must keep working the same way).** `src/uedge/__init__.py:21-22` sets
 `RTLD_LAZY | RTLD_GLOBAL` and imports `uedgeC` first. On macOS `uedgeC` is linked by LLVM clang with `-fopenmp`
@@ -64,7 +71,12 @@ through `uedgeC` + `RTLD_GLOBAL`. Not tested here.)
 **Side finding (out of scope, not changed).** `setup.py:799` is evaluated when `setup.py` is imported, before
 `uedgeBuild.run` removes `-fopenmp` from `CARGS` for `--serial` (`setup.py:735`). So the *serial* build still links
 `uedgeC` with `-fopenmp`: `otool -L venvs/base-serial/.../uedgeC*.so` lists `libomp.dylib`. Changing that would
-change the serial build, which this ticket must not do. It is recorded as an open question.
+change the serial build, which this ticket must not do. The quirk is also load-bearing: the serial `ppppy` still
+calls `omp_get_thread_num_`/`omp_get_wtime_` (`ppp/parallel.F90:213,286,340`; `nm -u` on `venvs/base-serial`),
+which on macOS resolve only through the serial `uedgeC`'s libomp, and which on Linux `--as-needed` toolchains are
+already unresolved in the serial build (a latent lazy-binding failure if those calls are reached). **Owner decision:
+a separate follow-up ticket** (filed by the main session, carrying review finding L1-m2, so that the follow-up does
+not simply drop `-fopenmp` from the serial `uedgeC` link). Not changed here.
 
 **Fix.** In the OpenMP build on Linux only, run `make -f Makefile.Forthon` with `-fopenmp` appended to `LDFLAGS` in
 the environment of that one subprocess. setuptools appends `LDFLAGS` from the environment to `LDSHARED` for every
@@ -81,15 +93,16 @@ scoped:
   at link time would make every Fortran extension depend on `libomp.dylib` itself. That is still one runtime, but it
   changes the macOS link, which the ticket rules out. With Apple clang it would not link at all.
 - *OpenMP build only*: not under `--serial`.
-- *User `LDFLAGS` kept*: `-fopenmp` is appended to any `LDFLAGS` already set (CI's wheel job sets
-  `LDFLAGS: "-L${LIBOMPPATH}/lib"`, `build-test-wheel.yml`). It is not added twice if the user already passes it,
-  so a build that uses the AIUE-62 workaround gets an identical link.
+- *User `LDFLAGS` kept*: ` -fopenmp` is appended to the user's `LDFLAGS` string as is (CI's wheel job sets
+  `LDFLAGS: "-L${LIBOMPPATH}/lib"`, `build-test-wheel.yml`), so quoting and whitespace in it are not touched
+  (setuptools splits `LDSHARED` shell-style). It is not added if `-fopenmp` is already one of its tokens, so a build
+  that uses the AIUE-62 workaround gets an identical link.
 
 **Alternatives considered (rejected).**
 - *`--libs gomp` in `OMPargs` (Forthon `-l`)*: hard-codes the GNU runtime name into the link even when `CC` is
   clang (`clang -fopenmp` would pull libomp into `uedgeC`, giving two runtimes on non-`--as-needed` systems), and it
-  bypasses the driver's own OpenMP link logic. `-fopenmp` lets the C driver that already compiled `uedgeC`
-  with `-fopenmp` pick its own runtime. That is the same rule `setup.py` already uses for `uedgeC`.
+  bypasses the driver's own OpenMP link logic. `-fopenmp` lets the C driver that already links `uedgeC`
+  with `-fopenmp` pick its own runtime. That is the same rule `setup.py` already uses for the `uedgeC` link.
 - *Force `libgomp` into `uedgeC` (`-Wl,--no-as-needed`)*: it keeps leaning on `RTLD_GLOBAL` cross-library binding
   instead of each extension declaring the library it needs, and it would change the `uedgeC` link.
 - *Fix in Forthon* (add `-fopenmp` to `extra_link_args` when `--omp`): the right upstream fix, but outside this
@@ -130,8 +143,11 @@ scoped:
   verbose logs:
   `build_uedge.sh $WT $V/AIUE-64-omp omp > $SCR/mac_before_omp.log 2>&1` and the same for serial
   (`$V/AIUE-64-serial`, `serial`), where `WT=uedge-wt/AIUE-64`, `V=uedge-wt/venvs`, `SCR=<session scratchpad>/AIUE-64`.
-  Record for every `*.so`: `otool -L`, `otool -hv`, `nm -u | grep -E 'GOMP_|omp_'`, and the link command lines
-  (`grep -E ' -bundle ' log`) with the venv and build-temp paths normalised (`sed` the tree and venv prefixes).
+  Record for every `*.so`: `otool -L`, `otool -hv`, `nm -u | grep -E '^_(GOMP_|omp_)'` (anchored, so UEDGE's own
+  `_jac_calc_omp_` is not counted; review L1-m1), and the link command lines (`grep -E ' -bundle ' log`) with the
+  venv and build-temp paths normalised (`sed` the tree and venv prefixes).
+- **GOTCHA**: the task-3 "after" builds reuse the venv names `AIUE-64-omp`/`AIUE-64-serial` and overwrite them.
+  Write all "before" records (and copy the two build logs) to `$SCR/mac_before/` before task 3 starts.
 - **VALIDATE**: both import (the build script's own smoke line prints `uedge_ver`).
 
 ### 1. UPDATE `setup.py` — `uedgeBuild.run`, replace the make call at `setup.py:769-771`
@@ -139,17 +155,18 @@ scoped:
   ```python
         # Linux OpenMP build: link every Forthon extension with -fopenmp (AIUE-64). Forthon's --omp,
         # --fargs and --cargs reach only the compile lines, so bbbpy, ppppy and apipy were linked without
-        # the OpenMP runtime; with the --as-needed default of Debian/Ubuntu gcc, uedgeC drops it as well,
-        # and import failed with "undefined symbol: GOMP_parallel". setuptools appends LDFLAGS to every
-        # extension link. Set it for the Forthon make only, so the uedgeC link below is unchanged.
+        # the OpenMP runtime; where gcc links with --as-needed (Ubuntu 24.04; also seen on Debian 12), uedgeC
+        # drops it as well, and import failed with "undefined symbol: GOMP_parallel". setuptools appends
+        # LDFLAGS to every extension link. Set it for the Forthon make only, so the uedgeC link below is
+        # unchanged.
         # macOS is left alone: there, uedgeC loads libomp and the flat-namespace extensions bind to it.
         makeenv = None
         if not arglist['serial'] and platform.startswith('linux'):
             makeenv = dict(os.environ)
-            ldflags = makeenv.get('LDFLAGS', '').split()
-            if '-fopenmp' not in ldflags:
-                ldflags.append('-fopenmp')
-            makeenv['LDFLAGS'] = ' '.join(ldflags)
+            ldflags = makeenv.get('LDFLAGS', '')
+            if '-fopenmp' not in ldflags.split():
+                ldflags = (ldflags + ' -fopenmp').strip()
+            makeenv['LDFLAGS'] = ldflags
             print("Linux OpenMP build: linking the Forthon extensions with LDFLAGS='{}'".format(makeenv['LDFLAGS']))
         # Call compiler
         if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
@@ -160,7 +177,10 @@ scoped:
   so that `OMP=TRUE` (set at `:740`) and `NOCLEAN` are carried over. Do not change `os.environ`, or the `uedgeC`
   link would change. `platform` is the `sys.platform` string (`setup.py:14`), not the `platform` module. All edits
   stay below `setup.py:697`, so the line references locked in `.claude/context/refs.lock.json` (all ≤ 697) do not
-  move.
+  move. The user's `LDFLAGS` string is appended to, not split and re-joined, so a quoted argument with whitespace
+  survives unchanged (review L1-m6). `.strip()` only matters when `LDFLAGS` is unset or empty.
+  `--noclean` does not relink: a Linux build tree left over from before the fix keeps its old extensions (the
+  `Makefile.Forthon` `*pydep` stamps). The default clean build covers this, and every build in this plan is clean.
 - **VALIDATE**: `python -c "import ast,sys; ast.parse(open('setup.py').read())"`; on macOS rebuild both venvs
   (task 3) and run the `--debug`-free macOS checks.
 
@@ -170,24 +190,41 @@ scoped:
   validation clones this commit from the read-only repo mount.
 
 ### 3. VALIDATE on macOS (after the change)
-See "Testing strategy" M1-M4.
+- Build `AIUE-64-omp` and `AIUE-64-serial` from the committed FIX (task 2) with a clean tree: `git -C $WT status
+  --porcelain` must be empty before building (commit or move out any pending review files first). Then run M1-M4.
+- **ORDERING (review L1-m4)**: run M3 (the AIUE-53 serial check) right after these builds and **before any later
+  commit** (task 5 evidence and code-facts commits). `serial_check.py` marks a run `INCOMPLETE` (not a gate) when
+  the source tree is dirty or when HEAD was committed after the build was installed (`is_stale`,
+  `serial_check.py:233-237,272-275`). If M3 has to be re-run after a later commit (for example after review fixes),
+  rebuild both venvs from the then-current HEAD with a clean tree first.
 
 ### 4. VALIDATE on Linux (Docker, linux/amd64 emulated, `--cpus 5`, one container at a time)
-See "Testing strategy" L1-L6. Scripts go in `tests/deterministic_omp/linux/aiue64/` on this branch only if they are
-committed as the record (see Notes on records). Otherwise they go in the session scratchpad, and the plan's results
-section quotes them.
+See "Testing strategy" L1-L6. The scripts and outputs are kept in the session scratchpad during the runs; the
+selected records are committed in task 5 (owner decision, see Notes on records).
 
-### 5. UPDATE `.claude/context/architecture.md` §Build pipeline (code-facts commit)
-- **IMPLEMENT**: add to step 3: "In the OpenMP build on Linux, `setup.py` runs that make with `-fopenmp` appended
-  to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link (`setup.py:<new line>`). macOS relies on
-  `uedgeC` loading libomp (step 4)." Then run `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`
-  (and, if `origin/v9-develop` lags the local base, `--changed v9-develop` too) and update `refs.lock.json` only if
-  the tool says so.
-- **GOTCHA**: separate commit, trailer `AI-layer: code-facts`. The hook (`change_kind.py`) checks it.
-- **VALIDATE**: the drift check is clean.
+### 5. COMMIT the Linux evidence, then UPDATE `.claude/context/architecture.md` (two commits)
+- **Evidence commit** (artifact class `docs/rca/**`, `branching.md:13`): copy the record set listed in Notes on
+  records to `docs/rca/AIUE-8-data/linux/aiue64/` and commit it on its own. Only after M3 has run (task 3 ordering).
+- **Code-facts commit**: in §Build pipeline,
+  - correct step 3: `make -f Makefile.Forthon` produces the `uedge/<pkg>py` extensions only, not `uedgeC`
+    (`Makefile.Forthon` only removes `uedgeC.so`; review L1-m5). Add: "In the OpenMP build on Linux, `setup.py` runs
+    that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link
+    (`setup.py:<new line>`). macOS relies on `uedgeC` loading libomp."
+  - add (as a new step between the current 3 and 4, renumbering 4 → 5): "`build.run` then builds the C extension
+    `uedgeC` (`setup.py:772,781-803`), linked with `-fopenmp`." Keep the existing import step's text; it is still
+    true.
+- **Drift check (review L1-m5)**: the new `setup.py:<line>` citations will be reported as **NEW** (exit 1) by
+  `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`, so `--update` is certain to be needed.
+  Check that NEW (for the citations just added and verified by hand) is the only problem reported; only then run
+  `--update` (it re-locks every reference), and commit `refs.lock.json` with `architecture.md`. If
+  `origin/v9-develop` lags the local base, run `--changed v9-develop` too.
+- **GOTCHA**: the code-facts commit is separate, with trailer `AI-layer: code-facts`. The hook (`change_kind.py`)
+  checks it. Both commits make the task-3 venvs stale for `serial_check.py` (see task 3 ordering).
+- **VALIDATE**: the drift check is clean after `--update`.
 
 ### 6. Validate gate and review
-- `validate` skill: serial build + smoke + `D_only` (setup.py change) and `--omp` (build change to the OpenMP
+- `validate` skill, run **after the last commit** (it rebuilds into the active worktree venv, so its builds come
+  from the final HEAD): serial build + smoke + `D_only` (setup.py change) and `--omp` (build change to the OpenMP
   path). The macOS `--omp` CheckPandf1/CheckJac output must match the same check on `venvs/base-omp`. The base code
   is pre-AIUE-56, so a known Jacobian difference may show up in both; this change must not make anything new show
   up.
@@ -199,8 +236,11 @@ section quotes them.
 - **M1 link unchanged**: for both the OpenMP and the serial build, before (task 0) vs after: (a) the normalised
   `-bundle` link command lines of all 11 extensions are identical (`diff` empty); (b) `otool -L` identical per
   extension; libomp appears **only** in `uedgeC` (as in `venvs/base-omp`, `venvs/base-serial`); no `libgomp`
-  anywhere; (c) `nm -u` OpenMP symbol sets identical (apipy 4, bbbpy 4, ppppy 13, others 0, OpenMP build;
-  0 everywhere in serial); (d) the build log does **not** contain the new `Linux OpenMP build:` line.
+  anywhere; (c) `nm -u | grep -E '^_(GOMP_|omp_)'` symbol sets identical before and after. Expected values,
+  checked on `venvs/base-omp`/`base-serial` while revising this plan: OpenMP build apipy 4, bbbpy 4, ppppy 13,
+  others 0; serial build ppppy 2 (`_omp_get_thread_num_`, `_omp_get_wtime_`, from `ppp/parallel.F90:213,286,340`),
+  others 0 (review L1-m1; the unanchored pattern also matched UEDGE's own `_jac_calc_omp_` in serial `ppppy`);
+  (d) the build log does **not** contain the new `Linux OpenMP build:` line.
 - **M2 import**: `cd /tmp && HOME=$(mktemp -d) OMP_NUM_THREADS=1 $V/AIUE-64-omp/bin/python -I -c "import uedge;
   from uedge import bbb, ppp; print(bbb.uedge_ver, ppp.OMPParallelJac)"` succeeds; same for serial (without
   `ppp` attribute checks beyond import).
@@ -209,7 +249,9 @@ section quotes them.
   --base-omp-python $V/base-omp/bin/python --new-omp-python $V/AIUE-64-omp/bin/python --jobs 4 --cases all
   --pytests-dir /Users/holma/Documents/uedge/src/uedge-pytests --out $SCR/serial_check`. Expected: `RESULT: AGREE (bitwise identical; complete
   gate)` for both pairs (`serial`, `omp0`). Quote the build lines and RESULT line verbatim. (On macOS the change
-  is inactive by construction, so this checks that nothing changed by accident.)
+  is inactive by construction, so this checks that nothing changed by accident.) Runs on builds installed from the
+  committed FIX with a clean tree, before any later commit (task 3 ordering); an `INCOMPLETE` caused by staleness
+  means "rebuild and re-run", not a pass.
 - **M4 validate**: serial build, smoke, `D_only` passes; `--omp` check result is the same as on `base-omp`.
 
 **Linux (Docker Desktop, `--platform linux/amd64` under Rosetta, `--cpus 5 --memory 7g`, one container at a time,
@@ -220,12 +262,20 @@ log in `/out/build_NAME.log`), always under `env -u LDFLAGS` unless stated. A se
 Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
 - **L1 Ubuntu 24.04 red → green** (`aiue62-ubuntu:amd64`, gcc 13.3, Python 3.12): build `base` (BASE, no LDFLAGS)
   and `fix` (FIX, no LDFLAGS). Expected: `base` import → exit 127 with `undefined symbol: GOMP_parallel` (the bug
-  reproduces in the same container); `fix` import exits 0. The import is also run with `LD_BIND_NOW=1`, so that
-  every lazily bound symbol of all extensions must resolve at load; expected exit 0. Saved verbatim to
-  `/out/import.txt`.
+  reproduces in the same container); `fix` import exits 0. Saved verbatim to `/out/import.txt`.
+  **Unresolved OpenMP symbols (replaces the round-1 `LD_BIND_NOW=1` import, review L1-M1):** for every extension of
+  both builds, `ldd -r <ext>.so 2>&1 | grep -E 'undefined symbol: (GOMP_|omp_)'`. Expected on `base`: non-empty
+  for `apipy`, `bbbpy` and `ppppy`, empty for the other 8. Expected on `fix`: empty for all 11. Saved to
+  `/out/ldd_r_omp.txt`. The filter is needed because `ldd -r` also lists the Python C-API symbols and the
+  cross-package Forthon symbols as undefined; those are resolved at import through `RTLD_GLOBAL` and lazy binding
+  and are not part of this check. (`LD_BIND_NOW=1` is not used anywhere in this plan: the extensions have forward
+  references across packages, e.g. `uedgeC` → `exmain_f_` in `bbbpy`, `bbbpy` → `svrpy`/`apipy`/`aphpy`/`ppppy`,
+  which only lazy binding, Forthon's `-Wl,-z,lazy`, resolves. Under `LD_BIND_NOW=1` the import fails on base and
+  fix alike.)
 - **L2 Ubuntu NEEDED / ldd**: for every extension of `fix`, `readelf -d` NEEDED and `ldd`. Expected: `apipy`, `bbbpy`,
-  `ppppy` NEED `libgomp.so.1`. Invariant check: every extension with undefined `GOMP_*`/`omp_*` symbols
-  (`nm -D --undefined-only`) has `libgomp.so.1` in NEEDED. `ldd` shows no `not found`. Exactly one OpenMP runtime:
+  `ppppy` NEED `libgomp.so.1`. Invariant check: every extension with undefined OpenMP runtime symbols
+  (`nm -D --undefined-only <ext>.so | awk '{print $NF}' | grep -E '^(GOMP_|omp_)'`, anchored as in M1(c)) has
+  `libgomp.so.1` in NEEDED. `ldd` shows no `not found`. Exactly one OpenMP runtime:
   no `libomp`/`libiomp5` anywhere. `uedgeC` NEEDED unchanged from `base` (`libreadline.so.8 libc.so.6`). The build
   log contains `Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'` and each Forthon
   extension's `-shared` link line contains `-fopenmp`; the `uedgeC` link line is identical to `base`'s.
@@ -235,7 +285,10 @@ Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
   link also carries a second `-fopenmp`.
 - **L4 serial unchanged on Linux**: build `base-ser` (BASE) and `fix-ser` (FIX) with `--serial`. Expected: all 11
   normalised link lines identical, NEEDED identical, no `libgomp` in any extension, and the new line absent from the
-  log. Both import.
+  log. Both import. The anchored `nm -D --undefined-only` OpenMP set and the L1 `ldd -r` filter give the same
+  output for both: `ppppy` lists `omp_get_thread_num_` and `omp_get_wtime_` (the serial `ppppy` calls them, see
+  the side finding; unresolved on this `--as-needed` toolchain), every other extension is empty. That is the
+  pre-existing quirk for the follow-up ticket, recorded, not fixed here.
 - **L5 AIUE-57 replay + short Te-box flow** (Ubuntu, on the `fix` build): clone the AIUE-57 harness
   (`clone_harness.sh 8ee189d76b0232cedfe17088574935b10b857df5`). The `fix` build already replayed the workflow's
   "Install pip dependencies" and "Build UEDGE (default OpenMP build)" steps (L1: same pip commands,
@@ -247,73 +300,91 @@ Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
   failed with exit 2 before the fix), and the Te-box flow (serial reference + Jacobian arm at 2 and 4 threads, K=2,
   one evaluation) completes. Exit 0 under `--gate none`, meaning no harness error. Also record whether the Jacobian
   arm agrees with serial. It is **report-only**: BASE is pre-AIUE-56, so a mismatch is expected and is not this
-  ticket's to fix. A run that shows `/proc/<pid>/maps` without `libgomp.so.1` during the threaded run counts as
-  failed; the check runs once in a separate probe: import, `ppp.OMPParallelJac=1; ppp.Nthreads=2`, Te-box
-  evaluation via the harness worker or a single `bbb.exmain()` on the tebox preset, then `grep -c libgomp
-  /proc/self/maps` ≥ 1.
+  ticket's to fix. A separate probe (a script file, run once, `OPENBLAS_NUM_THREADS=1` so numpy starts no pool of
+  its own) shows that OpenMP threads actually ran (review L1-m7; the `libgomp` mapping alone proves only what L2
+  proves, since `bbbpy` NEEDs it): import, record `n0 = len(os.listdir('/proc/self/task'))`, set
+  `ppp.OMPParallelJac=1; ppp.Nthreads=2`, run one Te-box Jacobian evaluation (the harness worker or a single
+  `bbb.exmain()` on the tebox preset), then record `n1` the same way and `grep -c libgomp /proc/self/maps`.
+  Expected: `n1 - n0 ≥ 1` (libgomp keeps its worker thread in the pool after the parallel region) and the
+  `libgomp` count ≥ 1. Saved to `/out/thread_probe.txt`.
   Deviations from CI, stated up front: Python 3.12 (Ubuntu system) instead of setup-python 3.11; emulated amd64;
   `OMP_CI_FLOWS`/`OMP_CI_GATE` override the `pr` set (the full `pr` set under emulation is too slow, and its gate
   is red on pre-AIUE-56 code by design, see the workflow's DO-NOT-MERGE note).
 - **L6 Debian 12** (`aiue62:amd64`, gcc 12.2, Python 3.11 = CI's Python): build `fix` (no LDFLAGS). Expected: import
-  exit 0, also with `LD_BIND_NOW=1`. NEEDED as in L2 (matches AIUE-62 `fma_fixld.txt`: `apipy`, `bbbpy`, `ppppy`
-  NEED `libgomp.so.1`; `uedgeC` NEEDS only `libreadline.so.8 libc.so.6`). The base failure on Debian is already on
-  record (AIUE-62 `build_info.txt`) and is not rebuilt.
+  exit 0; the L1 `ldd -r` OpenMP filter empty for all 11 extensions. NEEDED as in L2 (matches AIUE-62
+  `build_info.txt` "fixld" build with the `LDFLAGS=-fopenmp` workaround: `apipy`, `bbbpy`, `ppppy` NEED
+  `libgomp.so.1`; `uedgeC` NEEDS only `libreadline.so.8 libc.so.6`). Record only (no expected value, not a gate): `gcc -dumpspecs | grep -c as-needed`, to put the
+  Debian mechanism on record (review L1-m3). The base failure on Debian is already on record (AIUE-62
+  `build_info.txt`) and is not rebuilt.
 - **Not claimed**: arm64 Linux, non-`--as-needed` distributions (RHEL/Fedora/manylinux), `CC=clang` on Linux,
-  cibuildwheel Linux wheels (auditwheel would now vendor libgomp into the wheel). These are untested and listed as
-  open questions.
+  cibuildwheel Linux wheels. These are untested. The wheel check is deferred (owner decision): auditwheel already
+  vendors `libgomp.so.1` today, because manylinux gcc does not default to `--as-needed` and `uedgeC` NEEDs it there;
+  after the fix `apipy`/`bbbpy`/`ppppy` NEED the same soname, and auditwheel grafts one copy per soname, so the
+  wheel still carries one runtime (review open question 3, reasoned, not run).
 
 **Pass/fail.** The ticket's acceptance (Jira AIUE-64) maps to: L1 + L6 (imports without LDFLAGS on Ubuntu 24.04 and
-Debian 12), M1 + M2 (macOS OpenMP unchanged), M3 (AIUE-53 AGREE, both pairs), L5 (AIUE-57 smoke passes on the CI
+Debian 12, no unresolved OpenMP symbol under `ldd -r`), M1 + M2 (macOS OpenMP unchanged), M3 (AIUE-53 AGREE, both pairs), L5 (AIUE-57 smoke passes on the CI
 distribution). L2-L4 are the supporting link evidence. Any deviation from an expected value above is reported
 verbatim and stops the ticket. It is not explained away.
 
 ## AI-layer facts affected
 Checked `CLAUDE.md` and `.claude/context/*.md` for `setup.py`, link, `LDFLAGS`, `-fopenmp`, `uedgeC`, `OMPargs`:
 - `.claude/context/architecture.md` §Build pipeline step 3: incomplete after the change (it does not say how the
-  extensions get the OpenMP runtime). Add one sentence (task 5).
+  extensions get the OpenMP runtime), and already wrong in saying the make produces `uedgeC` (`build.run` does,
+  review L1-m5). Correct it, add the sentence and a `uedgeC` step (task 5).
 - `CLAUDE.md:29` ("OpenMP by default; needs gfortran with -fopenmp; on macOS set CC to a libomp-capable clang"):
   still true, no edit.
 - `.claude/context/openmp-jacobian.md:23` (`OMPargs`): still true.
 - `.claude/context/testing.md:48` ("OpenMP paths are not tested in CI"): still true on `v9-develop` (AIUE-57 is not
   merged).
-- `refs.lock.json` `setup.py:*` entries are all ≤ 697; the edit is at ~769. Expect no drift (verified by the tool).
+- `refs.lock.json` `setup.py:*` entries are all ≤ 697; the edit is at ~769, so existing references do not drift.
+  The new `setup.py` citations in `architecture.md` are reported as NEW and need `--update` (task 5).
 
 ## Validation commands
 - `validate` skill with suites `D_only`, `--omp` (macOS).
 - AIUE-53: `python uedge-wt/AIUE-53/tests/deterministic_omp/harness/serial_check.py ...` (M3).
 - Docker L1-L6 as above. Driver logs and outputs go to `<scratchpad>/AIUE-64/linux/{ubuntu,debian}/`.
-- `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`.
+- `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop` (NEW expected for the new citations,
+  then `--update`, then clean).
 
 ## Acceptance criteria
-- [ ] `import uedge` (OpenMP build, no `LDFLAGS`) succeeds on Ubuntu 24.04 and Debian 12, also with `LD_BIND_NOW=1`
+- [ ] `import uedge` (OpenMP build, no `LDFLAGS`) succeeds on Ubuntu 24.04 and Debian 12, and `ldd -r` reports no
+      undefined `GOMP_*`/`omp_*` symbol in any of the 11 extensions (on Ubuntu `base` it reports them for `apipy`,
+      `bbbpy`, `ppppy`). (The Jira AIUE-64 acceptance text does not mention `LD_BIND_NOW`; checked, no change needed.)
 - [ ] `apipy`/`bbbpy`/`ppppy` NEED `libgomp.so.1` on Linux; one OpenMP runtime; `uedgeC` link unchanged
 - [ ] macOS OpenMP and serial links unchanged (link lines, `otool -L`, `nm -u`), both import
 - [ ] Linux serial build link unchanged
-- [ ] AIUE-53 serial check `RESULT: AGREE (bitwise identical; complete gate)`, both pairs
-- [ ] AIUE-57 workflow's build + smoke replayed green on Ubuntu 24.04; short Te-box flow completes
-- [ ] `architecture.md` updated (code-facts commit); drift check clean
+- [ ] AIUE-53 serial check `RESULT: AGREE (bitwise identical; complete gate)`, both pairs, on builds that are not
+      stale against HEAD
+- [ ] AIUE-57 workflow's build + smoke replayed green on Ubuntu 24.04; short Te-box flow completes; the thread probe
+      shows a second thread
+- [ ] Linux evidence committed under `docs/rca/AIUE-8-data/linux/aiue64/`
+- [ ] `architecture.md` updated (step 3 corrected, `uedgeC` step added; code-facts commit); drift check clean after
+      `--update`
 - [ ] Adversarial implementation review APPROVE
 
 ## Notes
-- **Records.** The Linux scripts and outputs are evidence for the PR. Commit a small set on this branch (artifact
-  class, e.g. `docs/rca/AIUE-8-data/linux/aiue64/` with `import.txt`, `needed.txt`, link-line diffs, and the CI
-  replay `ci.log`/`summary.md`), not the build trees. The alternative is to keep them in the scratchpad and quote
-  them in the PR. Main session to decide (open question 1).
+- **Records (owner decision: commit on the branch).** Commit a small set under
+  `docs/rca/AIUE-8-data/linux/aiue64/` (artifact class): the driver scripts, `import.txt`, `ldd_r_omp.txt`,
+  `needed.txt`, the link-line diffs (L2-L4), `thread_probe.txt`, the Debian `gcc -dumpspecs` count, and the CI
+  replay `ci.log`/`summary.md`. Not the build trees or full build logs. The commit comes in task 5, after M3 (task 3
+  ordering, review L1-m4).
+- **PR precondition (review L1-m8).** The branch starts from local `v9-develop` `4faed39`, which is 7 AI-layer-only
+  commits (`.claude/`, `CLAUDE.md`, `docs/`) ahead of `origin/v9-develop` `3865c79`. Open the PR only once those
+  commits are on the remote base (or after rebasing onto it), so the PR diff does not carry AI-layer process
+  changes. No push in this ticket's steps.
 - **Upstream.** Forthon should add the compiler's OpenMP link flag when `--omp` is given (`Forthon_builder.py`
   `extra_link_args`). Worth a Forthon issue; this setup.py change can stay as a belt-and-braces fix after that,
   since the `-fopenmp` dedupe keeps it harmless.
 - **Risk.** If `CC` is set on Linux to a driver that rejects `-fopenmp` at link time, the build now fails at the
-  extension link instead of at import. `uedgeC` is already compiled and linked with `-fopenmp` by the same `CC`
-  (`setup.py:799`), so the build would fail there anyway. No new requirement.
+  extension link instead of at import. `uedgeC` is already linked with `-fopenmp` by the same `CC` (`setup.py:799`;
+  it is not compiled with it), so the build would fail there anyway. No new requirement.
 - **Confidence** for one-pass execution: 8/10 (the mechanism is the validated workaround; the remaining risk is
   emulation time and harness wiring in L5).
 
-## Open questions
-1. Commit the Linux evidence on this branch (under `docs/rca/AIUE-8-data/linux/aiue64/`) or only quote it in the PR?
-2. The serial build links `uedgeC` with `-fopenmp` (`setup.py:799` is evaluated before `--serial` strips `CARGS`),
-   so serial macOS `uedgeC` loads libomp. Leave as is (this ticket keeps serial unchanged), or file a separate
-   ticket?
-3. The Linux wheel job (`build-test-wheel.yml` `build_wheels`, cibuildwheel/manylinux) is affected by the same code
-   path; it will now link libgomp and auditwheel will vendor it. Is a cibuildwheel check in scope, or a follow-up?
-4. Should L5 also run with `OMP_CI_SET=pr` unmodified once AIUE-56 is merged (on the AIUE-57 branch), or is that
-   AIUE-57's own validation?
+## Open questions — resolved by the owner (round 1)
+1. *Linux evidence*: committed on this branch under `docs/rca/AIUE-8-data/linux/aiue64/` (task 5), after M3.
+2. *Serial `uedgeC` linked with `-fopenmp`*: left as is here; a separate follow-up ticket, filed by the main session,
+   carries review finding L1-m2 (the serial `ppppy` depends on it).
+3. *Wheel/auditwheel check*: deferred. The wheel already vendors `libgomp` today; see "Not claimed".
+4. *L5 flow set*: the reduced set is enough. The unmodified `pr` set is AIUE-57's own validation.
