@@ -179,7 +179,8 @@ If no epic key is known, skip this step and tell the user which epic key to pass
 2. A Confluence child page under the PRD (when the PRD came from Confluence, either by page id or by epic key).
 3. Real Jira issues under the epic, when an epic key was known (Step 6). Existing children are never duplicated.
 
-Each ticket then enters its own PIV loop starting at `/prime` → `/plan-feature`.
+Each ticket then enters its own PIV loop starting at `/prime` → `/plan-feature`. When the tickets are done,
+`/close-epic <EPIC-KEY>` writes the close-out record and closes the epic (`--dry-run` for a read-only draft first).
 
 ## Notes
 

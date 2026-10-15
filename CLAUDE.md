@@ -66,7 +66,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | New physics | agents `uedge-physics` (spec in `docs/physics_specs/`) → `uedge-reviewer` → `uedge-implementer` → `uedge-reviewer` |
 | Refactor, numerics, OpenMP, Python, build | `plan-feature` → (`uedge-reviewer` on the plan if it touches the `pandf` tree, `ppp/`, Jacobian code, `.v` or the build) → `execute` → `validate` → `code-review` → `uedge-reviewer` on the implementation → `commit` (or `end-to-end-feature`, which runs both review gates; loop in its SKILL.md) |
 | Bug from a GitHub issue | `rca` → `implement-fix` (with its `uedge-reviewer` gate) → `commit` |
-| Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) |
+| Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) → tickets → `close-epic` (close-out record, `uedge-reviewer` gate, Confluence page under the PRD; Done only on the owner's yes; `--dry-run` is read-only) |
 | Process retrospective | `execution-report` → `system-review` (files `ai-layer` Jira issues; runs at the end of `end-to-end-feature` and `implement-fix`) |
 | Fresh machine | `init-project` |
 | Improve the AI layer itself | `feature/v9-ai-<slug>` branch, never on a ticket branch (`branching.md`) |
