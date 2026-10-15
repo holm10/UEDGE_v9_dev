@@ -36,8 +36,8 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
   depends on `sfscal`.
 - Python: `bbb.jaccapv[:nnz,k]`, `bbb.jaccapj[:nnz,k]`, `bbb.jaccapi[:neq+1,k]` with `nnz = bbb.jaccapnnz[k]`
   and `neq = bbb.jaccapneq[k]`. These use the same 1-based CSR convention as `jac/jacj/jaci`.
-- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4260`). With `ppp.ForceSerialCheck>0`,
-  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4263`).
+- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4261`). With `ppp.ForceSerialCheck>0`,
+  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4264`).
   `jaccapseq[k]` is the Jacobian's sequence number.
 - Stores the Jacobians numbered `jaccapskip+1 .. jaccapskip+jaccapture`. `jaccapture=1, jaccapskip=k-1` keeps
   only the k-th. `exmain` does not reset the counters; set `jaccapcount = jaccapn = 0` to restart, and also after
