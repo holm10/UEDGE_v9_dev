@@ -700,3 +700,558 @@ compiler diagnostics mentioning the new code (both build logs):
 
 TOTAL FAILURES: 0
 driver exit 0
+
+
+######################################################################################################
+ROUND 2 (after implementation review round 1: docs/reviews/AIUE-47-implementation-round1.md)
+######################################################################################################
+Fortran under test: 3625b48 (lazy slot allocation; .v text). Serial venv AIUE-47-serial rebuilt from
+worktree AIUE-47-serial2 at 460aa5f, OpenMP venv AIUE-47-omp rebuilt from AIUE-47 (same .m/.v).
+Tool: capture_check.py with run-level capture checks (I-m1). The two serial capture compares in the
+driver output below report FAIL only because that tool version compared the new capture-only fields
+(capture_alloc, capture_run_checks) against the base build, where they are absent (all their checks are
+True, all base/new fields EQUAL). Fixed in 531de6f; both compares rerun at the end of this section: PASS.
+The OpenMP capture compares already ran with the fixed tool.
+
+Round-2 driver:
+----------------------------------------------------------------
+#!/bin/zsh
+# AIUE-47 round-2 validation driver (after review round 1: lazy slot allocation, stricter tool checks).
+W=/Users/holma/Documents/uedge/src/uedge-wt
+T=$W/AIUE-47/tests/deterministic_omp/tools/capture_check.py
+PYT=/usr/bin/python3
+REPRO=$W/AIUE-46/tests/deterministic_omp/case
+RATES=UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5
+DONLY=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default
+fails=0
+run() { "$@"; rc=$?; [ $rc -ne 0 ] && fails=$((fails+1)); echo "(exit $rc)"; echo; }
+# expected-failure wrapper: counts a failure if the command does NOT exit 1
+runfail() { "$@"; rc=$?; [ $rc -ne 1 ] && fails=$((fails+1)); echo "(exit $rc, expected 1)"; echo; }
+
+echo "=== provenance (round 2)"
+echo "new commit: $(git -C $W/AIUE-47 rev-parse HEAD) (omp tree AIUE-47), $(git -C $W/AIUE-47-serial2 rev-parse HEAD) (serial tree AIUE-47-serial2)"
+echo "base commit: $(git -C $W/base-serial rev-parse HEAD) (base-serial), $(git -C $W/base-omp rev-parse HEAD) (base-omp)"
+echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo
+
+for BUILD in serial omp; do
+  B=$W/venvs/base-$BUILD/bin/python
+  N=$W/venvs/AIUE-47-$BUILD/bin/python
+  if [ $BUILD = omp ]; then TH=4; OFF=(--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0); else TH=1; OFF=(); fi
+  echo "=== R2 AC1 switch off (default), $BUILD build"
+  for MODE in ftol newton; do
+    if [ $MODE = newton ]; then M=(--newton 3); else M=(); fi
+    run $PYT $T compare --case $REPRO --deck input_mod4.py --base $B --new $N --threads $TH --env $RATES \
+        --label "R2/AC1/$BUILD/repro-full/$MODE" -- $OFF $M
+    run $PYT $T compare --case $DONLY --deck input.py --base $B --new $N --threads $TH \
+        --label "R2/AC1/$BUILD/DONLY/$MODE" -- --set bbb.issfon=1 $OFF $M
+  done
+  echo "=== R2 AC2 serial jac_calc path, $BUILD build: hook ON in AIUE-47 only, identity + results equal base"
+  run $PYT $T compare --case $REPRO --deck input_mod4.py --base $B --new $N --threads $TH --env $RATES \
+      --new-extra "--capture 4" --label "R2/AC2/$BUILD/repro-full/ftol/capture4" -- $OFF
+  echo "=== R2 L-M1 lazy allocation, $BUILD build: jaccapture=1000 with one Jacobian must allocate 1 slot"
+  run $PYT $T compare --case $DONLY --deck input.py --base $B --new $N --threads $TH \
+      --new-extra "--capture 1000" --label "R2/LM1/$BUILD/DONLY/ftol/capture1000" -- --set bbb.issfon=1 $OFF
+done
+
+echo "=== R2 AC2 parallel path, OpenMP build, ppp.OMPParallelJac=1"
+N=$W/venvs/AIUE-47-omp/bin/python
+run $PYT $T run --case $REPRO --deck input_mod4.py --python $N --threads 4 --env $RATES \
+    --label "R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4" -- \
+    --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4
+run $PYT $T run --case $REPRO --deck input_mod4.py --python $N --threads 4 --env $RATES \
+    --label "R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000" -- \
+    --tebox --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --set bbb.incpset=1 --newton 3 --capture 1000
+
+echo "=== R2 bookkeeping + lazy growth (serial build, Te box, 4 Jacobians): slots 1,2,4 allocated as 1->2->4"
+N=$W/venvs/AIUE-47-serial/bin/python
+for A in "--capture 1000" "--capture 3" "--capture 1 --skip 0" "--capture 1 --skip 1" "--capture 1 --skip 2" "--capture 1 --skip 3" "--capture 2 --skip 1"; do
+  run $PYT $T run --case $REPRO --deck input_mod4.py --python $N --env $RATES \
+      --label "R2/bookkeeping/tebox/newton3-incpset1 $A" -- --tebox --set bbb.incpset=1 --newton 3 ${=A}
+done
+
+echo "=== R2 I-m1 negative test: --capture 4 but no Jacobian is computed (issfon=0, ftol=1e20) must FAIL (exit 1)"
+runfail $PYT $T run --case $DONLY --deck input.py --python $N \
+    --label "R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)" -- --set bbb.issfon=0 --capture 4
+
+echo "=== R2 AC3 MPPL hazards in lines added to .m/.v since origin/v9-develop"
+git -C $W/AIUE-47 diff -U0 origin/v9-develop -- '*.m' '*.v' | grep '^+[^+]' > $W/logs/aiue47_added_r2.txt
+echo "added lines: $(wc -l < $W/logs/aiue47_added_r2.txt)"
+echo "string literals in added lines:"; grep '"' $W/logs/aiue47_added_r2.txt
+echo "hazard hits (float|break|while (|do i1=|Size4|elseif|# in string):"; grep -n -i -E 'float|break|while \(|do i1=|Size4|elseif|"[^"]*#[^"]*"' $W/logs/aiue47_added_r2.txt || echo "  none"
+echo "added .m lines longer than 72 columns:"; git -C $W/AIUE-47 diff -U0 origin/v9-develop -- '*.m' | grep '^+[^+]' | awk '{ if (length($0)-1 > 72) print }'
+echo "generated .F, slot growth (omp tree):"; grep -n -A2 "if (islot .gt. jaccapnslot)" $W/AIUE-47/bbb/oderhs.F
+echo "compiler diagnostics mentioning the new code (round-2 build logs):"
+grep -n -i -E "jaccap|jac_capture|jcsrc|Jacobian_capture" $W/logs/AIUE-47-serial-build-r2.log $W/logs/AIUE-47-omp-build-r2.log | grep -v -E "Forthon3|gfortran " || echo "  none"
+echo
+echo "TOTAL FAILURES (round 2): $fails"
+----------------------------------------------------------------
+
+=== provenance (round 2)
+new commit: d137d53244414b6e813617f38bf0aaa8bb69f63b (omp tree AIUE-47), 460aa5fc08345359c8be2585457b533300324be2 (serial tree AIUE-47-serial2)
+base commit: 0fac6550b888c42a4b2033167b3446d952e3d71d (base-serial), 0fac6550b888c42a4b2033167b3446d952e3d71d (base-omp)
+date: 2026-10-15T08:31:50Z
+
+=== R2 AC1 switch off (default), serial build
+[R2/AC1/serial/repro-full/ftol] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args= OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC1/serial/repro-full/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/AC1/serial/repro-full/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[R2/AC1/serial/repro-full/ftol] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[R2/AC1/serial/repro-full/ftol] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[R2/AC1/serial/repro-full/ftol] ijactot           EQUAL  1
+[R2/AC1/serial/repro-full/ftol] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[R2/AC1/serial/repro-full/ftol] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[R2/AC1/serial/repro-full/ftol] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[R2/AC1/serial/repro-full/ftol] neq               EQUAL  44352
+[R2/AC1/serial/repro-full/ftol] nnz               EQUAL  3190290
+[R2/AC1/serial/repro-full/ftol] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC1/serial/repro-full/ftol] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC1/serial/repro-full/ftol] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[R2/AC1/serial/repro-full/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/serial/repro-full/ftol: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/serial/DONLY/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[R2/AC1/serial/DONLY/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/AC1/serial/DONLY/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[R2/AC1/serial/DONLY/ftol] fnrm              EQUAL  0x1.04ceff2339405p-3
+[R2/AC1/serial/DONLY/ftol] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[R2/AC1/serial/DONLY/ftol] ijactot           EQUAL  1
+[R2/AC1/serial/DONLY/ftol] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[R2/AC1/serial/DONLY/ftol] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[R2/AC1/serial/DONLY/ftol] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[R2/AC1/serial/DONLY/ftol] neq               EQUAL  420
+[R2/AC1/serial/DONLY/ftol] nnz               EQUAL  8194
+[R2/AC1/serial/DONLY/ftol] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/AC1/serial/DONLY/ftol] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/AC1/serial/DONLY/ftol] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[R2/AC1/serial/DONLY/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/serial/DONLY/ftol: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/serial/repro-full/newton] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--newton 3 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC1/serial/repro-full/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/AC1/serial/repro-full/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[R2/AC1/serial/repro-full/newton] fnrm              EQUAL  0x1.c32f8166a1af7p+0
+[R2/AC1/serial/repro-full/newton] fnrm_printed_seq  EQUAL  n=5 271985200.1005400 1.918820629111277 1.836097068513709 1.782757715864211 1.762443625980891
+[R2/AC1/serial/repro-full/newton] ijactot           EQUAL  2
+[R2/AC1/serial/repro-full/newton] jac               EQUAL  1f6d700b12965b14e2207e689600db96a6c0c6067dd8e83bb2da068488dd85e3
+[R2/AC1/serial/repro-full/newton] jaci              EQUAL  89d1d14f7b135607058550a5a1e26bc03db106508f3a55623e339452ad2531ec
+[R2/AC1/serial/repro-full/newton] jacj              EQUAL  87837d99b57d117aa994b08da5e2a597e05dcaa66a7dd9a85e7a572cdb93d66a
+[R2/AC1/serial/repro-full/newton] neq               EQUAL  44352
+[R2/AC1/serial/repro-full/newton] nnz               EQUAL  3190290
+[R2/AC1/serial/repro-full/newton] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC1/serial/repro-full/newton] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC1/serial/repro-full/newton] yldot             EQUAL  f5c858b4fef3ca3ad2dc2ce4249f0722387fa58890d597344a8dbe56df068a3a
+[R2/AC1/serial/repro-full/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/serial/repro-full/newton: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/serial/DONLY/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --newton 3 OMP_NUM_THREADS=1 env=[]
+[R2/AC1/serial/DONLY/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/AC1/serial/DONLY/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[R2/AC1/serial/DONLY/newton] fnrm              EQUAL  0x1.f0c7a5964c17fp-5
+[R2/AC1/serial/DONLY/newton] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8379428362662000E-01 0.6064207402448839E-01
+[R2/AC1/serial/DONLY/newton] ijactot           EQUAL  2
+[R2/AC1/serial/DONLY/newton] jac               EQUAL  cbc3a9a48740c490a387f4e3d189bd6d87aa0f5711632022316c4274033474c4
+[R2/AC1/serial/DONLY/newton] jaci              EQUAL  b8da69465fcd511978da8fc23328af4eecaa2d37216ff30ade72d98efd98ace2
+[R2/AC1/serial/DONLY/newton] jacj              EQUAL  e45147f3785bfabc26a188b166d3fdb7706fd5dfa9432f857e323c7eb0e905dd
+[R2/AC1/serial/DONLY/newton] neq               EQUAL  420
+[R2/AC1/serial/DONLY/newton] nnz               EQUAL  8194
+[R2/AC1/serial/DONLY/newton] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/AC1/serial/DONLY/newton] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/AC1/serial/DONLY/newton] yldot             EQUAL  5416b8fa4e2d1c64e5a58a41e232910f040c7a4416a91c238d6178dbc286f1e2
+[R2/AC1/serial/DONLY/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/serial/DONLY/newton: PASS (bitwise equal)
+(exit 0)
+
+=== R2 AC2 serial jac_calc path, serial build: hook ON in AIUE-47 only, identity + results equal base
+[R2/AC2/serial/repro-full/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args= OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC2/serial/repro-full/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/AC2/serial/repro-full/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[R2/AC2/serial/repro-full/ftol/capture4] capture_alloc     DIFF   base=None new={'bytes': 51399464, 'jaccapneqp1': 44353, 'jaccapnnzmx': 3190290, 'jaccapnslot': 1, 'jaccapv_shape': [3190290, 1]}
+[R2/AC2/serial/repro-full/ftol/capture4] capture_run_checks DIFF   base=None new={'alloc_slots_bounded': True, 'caller_tags_present': True, 'captured_at_least_one': True, 'identity_evaluated': True}
+[R2/AC2/serial/repro-full/ftol/capture4] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[R2/AC2/serial/repro-full/ftol/capture4] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[R2/AC2/serial/repro-full/ftol/capture4] ijactot           EQUAL  1
+[R2/AC2/serial/repro-full/ftol/capture4] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[R2/AC2/serial/repro-full/ftol/capture4] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[R2/AC2/serial/repro-full/ftol/capture4] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[R2/AC2/serial/repro-full/ftol/capture4] neq               EQUAL  44352
+[R2/AC2/serial/repro-full/ftol/capture4] nnz               EQUAL  3190290
+[R2/AC2/serial/repro-full/ftol/capture4] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC2/serial/repro-full/ftol/capture4] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC2/serial/repro-full/ftol/capture4] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[R2/AC2/serial/repro-full/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[R2/AC2/serial/repro-full/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=44352 nnz=3190290 ia_last_ok=True sha256(v,j,i)=711d3536cf1dfd76 2eae17debdcbe582 1a8dfbb156e44570
+[R2/AC2/serial/repro-full/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[R2/AC2/serial/repro-full/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] run: alloc_slots_bounded = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] run: caller_tags_present = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] run: captured_at_least_one = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] run: identity_evaluated = True
+[R2/AC2/serial/repro-full/ftol/capture4:new] run: allocation {"bytes": 51399464, "jaccapneqp1": 44353, "jaccapnnzmx": 3190290, "jaccapnslot": 1, "jaccapv_shape": [3190290, 1]}
+RESULT R2/AC2/serial/repro-full/ftol/capture4: FAIL
+(exit 1)
+
+=== R2 L-M1 lazy allocation, serial build: jaccapture=1000 with one Jacobian must allocate 1 slot
+[R2/LM1/serial/DONLY/ftol/capture1000] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[R2/LM1/serial/DONLY/ftol/capture1000] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2/LM1/serial/DONLY/ftol/capture1000] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 1000
+[R2/LM1/serial/DONLY/ftol/capture1000] capture_alloc     DIFF   base=None new={'bytes': 134472, 'jaccapneqp1': 421, 'jaccapnnzmx': 8194, 'jaccapnslot': 1, 'jaccapv_shape': [8194, 1]}
+[R2/LM1/serial/DONLY/ftol/capture1000] capture_run_checks DIFF   base=None new={'alloc_slots_bounded': True, 'caller_tags_present': True, 'captured_at_least_one': True, 'identity_evaluated': True}
+[R2/LM1/serial/DONLY/ftol/capture1000] fnrm              EQUAL  0x1.04ceff2339405p-3
+[R2/LM1/serial/DONLY/ftol/capture1000] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[R2/LM1/serial/DONLY/ftol/capture1000] ijactot           EQUAL  1
+[R2/LM1/serial/DONLY/ftol/capture1000] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[R2/LM1/serial/DONLY/ftol/capture1000] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[R2/LM1/serial/DONLY/ftol/capture1000] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[R2/LM1/serial/DONLY/ftol/capture1000] neq               EQUAL  420
+[R2/LM1/serial/DONLY/ftol/capture1000] nnz               EQUAL  8194
+[R2/LM1/serial/DONLY/ftol/capture1000] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/LM1/serial/DONLY/ftol/capture1000] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/LM1/serial/DONLY/ftol/capture1000] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[R2/LM1/serial/DONLY/ftol/capture1000] new build capture state: jaccapture=1000 jaccapcount=1 jaccapn=1
+[R2/LM1/serial/DONLY/ftol/capture1000:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[R2/LM1/serial/DONLY/ftol/capture1000:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[R2/LM1/serial/DONLY/ftol/capture1000:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] run: alloc_slots_bounded = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] run: caller_tags_present = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] run: captured_at_least_one = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] run: identity_evaluated = True
+[R2/LM1/serial/DONLY/ftol/capture1000:new] run: allocation {"bytes": 134472, "jaccapneqp1": 421, "jaccapnnzmx": 8194, "jaccapnslot": 1, "jaccapv_shape": [8194, 1]}
+RESULT R2/LM1/serial/DONLY/ftol/capture1000: FAIL
+(exit 1)
+
+=== R2 AC1 switch off (default), omp build
+[R2/AC1/omp/repro-full/ftol] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC1/omp/repro-full/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/AC1/omp/repro-full/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[R2/AC1/omp/repro-full/ftol] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[R2/AC1/omp/repro-full/ftol] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[R2/AC1/omp/repro-full/ftol] ijactot           EQUAL  1
+[R2/AC1/omp/repro-full/ftol] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[R2/AC1/omp/repro-full/ftol] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[R2/AC1/omp/repro-full/ftol] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[R2/AC1/omp/repro-full/ftol] neq               EQUAL  44352
+[R2/AC1/omp/repro-full/ftol] nnz               EQUAL  3190290
+[R2/AC1/omp/repro-full/ftol] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC1/omp/repro-full/ftol] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC1/omp/repro-full/ftol] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[R2/AC1/omp/repro-full/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/omp/repro-full/ftol: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/omp/DONLY/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[R2/AC1/omp/DONLY/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/AC1/omp/DONLY/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[R2/AC1/omp/DONLY/ftol] fnrm              EQUAL  0x1.04ceff2339405p-3
+[R2/AC1/omp/DONLY/ftol] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[R2/AC1/omp/DONLY/ftol] ijactot           EQUAL  1
+[R2/AC1/omp/DONLY/ftol] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[R2/AC1/omp/DONLY/ftol] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[R2/AC1/omp/DONLY/ftol] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[R2/AC1/omp/DONLY/ftol] neq               EQUAL  420
+[R2/AC1/omp/DONLY/ftol] nnz               EQUAL  8194
+[R2/AC1/omp/DONLY/ftol] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/AC1/omp/DONLY/ftol] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/AC1/omp/DONLY/ftol] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[R2/AC1/omp/DONLY/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/omp/DONLY/ftol: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/omp/repro-full/newton] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC1/omp/repro-full/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/AC1/omp/repro-full/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[R2/AC1/omp/repro-full/newton] fnrm              EQUAL  0x1.c32f8166a1af7p+0
+[R2/AC1/omp/repro-full/newton] fnrm_printed_seq  EQUAL  n=5 271985200.1005400 1.918820629111277 1.836097068513709 1.782757715864211 1.762443625980891
+[R2/AC1/omp/repro-full/newton] ijactot           EQUAL  2
+[R2/AC1/omp/repro-full/newton] jac               EQUAL  1f6d700b12965b14e2207e689600db96a6c0c6067dd8e83bb2da068488dd85e3
+[R2/AC1/omp/repro-full/newton] jaci              EQUAL  89d1d14f7b135607058550a5a1e26bc03db106508f3a55623e339452ad2531ec
+[R2/AC1/omp/repro-full/newton] jacj              EQUAL  87837d99b57d117aa994b08da5e2a597e05dcaa66a7dd9a85e7a572cdb93d66a
+[R2/AC1/omp/repro-full/newton] neq               EQUAL  44352
+[R2/AC1/omp/repro-full/newton] nnz               EQUAL  3190290
+[R2/AC1/omp/repro-full/newton] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC1/omp/repro-full/newton] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC1/omp/repro-full/newton] yldot             EQUAL  f5c858b4fef3ca3ad2dc2ce4249f0722387fa58890d597344a8dbe56df068a3a
+[R2/AC1/omp/repro-full/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/omp/repro-full/newton: PASS (bitwise equal)
+(exit 0)
+
+[R2/AC1/omp/DONLY/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=[]
+[R2/AC1/omp/DONLY/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/AC1/omp/DONLY/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[R2/AC1/omp/DONLY/newton] fnrm              EQUAL  0x1.f0c7a5964c17fp-5
+[R2/AC1/omp/DONLY/newton] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8379428362662000E-01 0.6064207402448839E-01
+[R2/AC1/omp/DONLY/newton] ijactot           EQUAL  2
+[R2/AC1/omp/DONLY/newton] jac               EQUAL  cbc3a9a48740c490a387f4e3d189bd6d87aa0f5711632022316c4274033474c4
+[R2/AC1/omp/DONLY/newton] jaci              EQUAL  b8da69465fcd511978da8fc23328af4eecaa2d37216ff30ade72d98efd98ace2
+[R2/AC1/omp/DONLY/newton] jacj              EQUAL  e45147f3785bfabc26a188b166d3fdb7706fd5dfa9432f857e323c7eb0e905dd
+[R2/AC1/omp/DONLY/newton] neq               EQUAL  420
+[R2/AC1/omp/DONLY/newton] nnz               EQUAL  8194
+[R2/AC1/omp/DONLY/newton] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/AC1/omp/DONLY/newton] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/AC1/omp/DONLY/newton] yldot             EQUAL  5416b8fa4e2d1c64e5a58a41e232910f040c7a4416a91c238d6178dbc286f1e2
+[R2/AC1/omp/DONLY/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT R2/AC1/omp/DONLY/newton: PASS (bitwise equal)
+(exit 0)
+
+=== R2 AC2 serial jac_calc path, omp build: hook ON in AIUE-47 only, identity + results equal base
+[R2/AC2/omp/repro-full/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC2/omp/repro-full/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/AC2/omp/repro-full/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 4
+[R2/AC2/omp/repro-full/ftol/capture4] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[R2/AC2/omp/repro-full/ftol/capture4] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[R2/AC2/omp/repro-full/ftol/capture4] ijactot           EQUAL  1
+[R2/AC2/omp/repro-full/ftol/capture4] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[R2/AC2/omp/repro-full/ftol/capture4] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[R2/AC2/omp/repro-full/ftol/capture4] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[R2/AC2/omp/repro-full/ftol/capture4] neq               EQUAL  44352
+[R2/AC2/omp/repro-full/ftol/capture4] nnz               EQUAL  3190290
+[R2/AC2/omp/repro-full/ftol/capture4] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2/AC2/omp/repro-full/ftol/capture4] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2/AC2/omp/repro-full/ftol/capture4] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[R2/AC2/omp/repro-full/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[R2/AC2/omp/repro-full/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=44352 nnz=3190290 ia_last_ok=True sha256(v,j,i)=711d3536cf1dfd76 2eae17debdcbe582 1a8dfbb156e44570
+[R2/AC2/omp/repro-full/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[R2/AC2/omp/repro-full/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] run: alloc_slots_bounded = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] run: caller_tags_present = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] run: captured_at_least_one = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] run: identity_evaluated = True
+[R2/AC2/omp/repro-full/ftol/capture4:new] run: allocation {"bytes": 51399464, "jaccapneqp1": 44353, "jaccapnnzmx": 3190290, "jaccapnslot": 1, "jaccapv_shape": [3190290, 1]}
+RESULT R2/AC2/omp/repro-full/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+=== R2 L-M1 lazy allocation, omp build: jaccapture=1000 with one Jacobian must allocate 1 slot
+[R2/LM1/omp/DONLY/ftol/capture1000] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[R2/LM1/omp/DONLY/ftol/capture1000] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[R2/LM1/omp/DONLY/ftol/capture1000] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 1000
+[R2/LM1/omp/DONLY/ftol/capture1000] fnrm              EQUAL  0x1.04ceff2339405p-3
+[R2/LM1/omp/DONLY/ftol/capture1000] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[R2/LM1/omp/DONLY/ftol/capture1000] ijactot           EQUAL  1
+[R2/LM1/omp/DONLY/ftol/capture1000] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[R2/LM1/omp/DONLY/ftol/capture1000] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[R2/LM1/omp/DONLY/ftol/capture1000] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[R2/LM1/omp/DONLY/ftol/capture1000] neq               EQUAL  420
+[R2/LM1/omp/DONLY/ftol/capture1000] nnz               EQUAL  8194
+[R2/LM1/omp/DONLY/ftol/capture1000] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2/LM1/omp/DONLY/ftol/capture1000] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2/LM1/omp/DONLY/ftol/capture1000] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[R2/LM1/omp/DONLY/ftol/capture1000] new build capture state: jaccapture=1000 jaccapcount=1 jaccapn=1
+[R2/LM1/omp/DONLY/ftol/capture1000:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[R2/LM1/omp/DONLY/ftol/capture1000:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[R2/LM1/omp/DONLY/ftol/capture1000:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] run: alloc_slots_bounded = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] run: caller_tags_present = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] run: captured_at_least_one = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] run: identity_evaluated = True
+[R2/LM1/omp/DONLY/ftol/capture1000:new] run: allocation {"bytes": 134472, "jaccapneqp1": 421, "jaccapnnzmx": 8194, "jaccapnslot": 1, "jaccapv_shape": [8194, 1]}
+RESULT R2/LM1/omp/DONLY/ftol/capture1000: PASS (bitwise equal)
+(exit 0)
+
+=== R2 AC2 parallel path, OpenMP build, ppp.OMPParallelJac=1
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] FINGERPRINT {"capture_alloc": {"bytes": 59111720, "jaccapneqp1": 44353, "jaccapnnzmx": 3672306, "jaccapnslot": 1, "jaccapv_shape": [3672306, 1]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true, "identity_evaluated": true}, "fnrm": "0x1.89113a162ee05p+0", "fnrm_printed_seq": ["271985200.1005400", "1.535419111648367"], "ijactot": 1, "jac": "ff90dabb152554ec4b1729474cc26344e4f32c6b3fd2d9fec084dc414d60cc9b", "jaccapcount": 1, "jaccapn": 1, "jaccapture": 4, "jaci": "2488f086e04e38dad47fce913ab78ea8767ef078f795e90e861a48c373e81c03", "jacj": "bd99277aed8986f6d28386cc3b1b00687014197ce74b10a9f55660f03d130d11", "neq": 44352, "nnz": 3672306, "sfscal": "27835543251675a09d063612e5ff4da972c4c0a8416d7ca7c065f1340965dde8", "slots": [{"check_bbb_jac_times_suscal_max_reldiff": 2.220442402426965e-16, "check_pattern_equal_bbb_jacj_jaci": true, "check_raw_times_inv_suscal_bitwise_eq_bbb_jac": true, "from": "sfsetnk", "i": "2488f086e04e38dad47fce913ab78ea8767ef078f795e90e861a48c373e81c03", "ia_last_ok": true, "j": "bd99277aed8986f6d28386cc3b1b00687014197ce74b10a9f55660f03d130d11", "neq": 44352, "nnz": 3672306, "seq": 1, "slot": 1, "src": "jac_calc_parallel", "v": "f23d68ba9f5d1b0627a20d16d911ff34e40bf5a3cfe7e6e63026b0ce8a581375"}], "suscal": "9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79", "yldot": "64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba"}
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: seq=1 src=jac_calc_parallel from=sfsetnk neq=44352 nnz=3672306 ia_last_ok=True sha256(v,j,i)=f23d68ba9f5d1b06 bd99277aed8986f6 2488f086e04e38da
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] run: alloc_slots_bounded = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] run: caller_tags_present = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] run: captured_at_least_one = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] run: identity_evaluated = True
+[R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] run: allocation {"bytes": 59111720, "jaccapneqp1": 44353, "jaccapnnzmx": 3672306, "jaccapnslot": 1, "jaccapv_shape": [3672306, 1]}
+RESULT R2/AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4: PASS
+(exit 0)
+
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --set bbb.incpset=1 --newton 3 --capture 1000 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] FINGERPRINT {"capture_alloc": {"bytes": 12352, "jaccapneqp1": 26, "jaccapnnzmx": 180, "jaccapnslot": 4, "jaccapv_shape": [180, 4]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.843a010fa38d2p-35", "fnrm_printed_seq": ["271985200.1005400", "0.1463992313983451", "0.4301733577996664E-02", "0.8398951984724968E-05", "0.4413625205085492E-10"], "ijactot": 4, "jac": "3f56a875eba54186778be50a8676210bf68f1e3d25e6d59506f0e20f6613a63d", "jaccapcount": 4, "jaccapn": 4, "jaccapture": 1000, "jaci": "06e57fc52c02a30676167c3a08c78d134f47aaea125ab52093bd9b68497439c4", "jacj": "96138c59d196b469fc104f13ba89a4b26ec9e31fcbd7dc98589556db0f15c67d", "neq": 25, "nnz": 169, "sfscal": "aace1367aafe2d137ef942049418e4268094a1d9867539cc0882db193a45ab61", "slots": [{"from": "sfsetnk", "i": "158f365c431458dd7e82e541406b1976ca367f3c1db6ab0f8ef4436803f81226", "ia_last_ok": true, "j": "c46e324835abe9876fb378b20c2384265e9f1d879b5960ebd7dfb57dfd8d9a50", "neq": 25, "nnz": 180, "seq": 1, "slot": 1, "src": "jac_calc_parallel", "v": "43dc30f2e42569b675a4822df63efda319b5059262d3da006674d68000df20b8"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 2, "src": "jac_calc_parallel", "v": "8fc31a518775eec6fe99fa28e6f01c156183284833b6d6ec360568cfa875b0f8"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 3, "slot": 3, "src": "jac_calc_parallel", "v": "6f526c4e55ac54737310af68321b63070901dfc0a2996d61d796ccdfae5f8407"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 4, "slot": 4, "src": "jac_calc_parallel", "v": "098c9274026d133d31b8ec77b5b5fe282decb0cdd6f6a8989b23ebd97c5a5a42"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "71d0f916127dcc69b7f0b000c90414c999e307f28b74e10839359bdb38b3b4de"}
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] slot 1: seq=1 src=jac_calc_parallel from=sfsetnk neq=25 nnz=180 ia_last_ok=True sha256(v,j,i)=43dc30f2e42569b6 c46e324835abe987 158f365c431458dd
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] slot 2: seq=2 src=jac_calc_parallel from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=8fc31a518775eec6 47a3c6d78fa85b06 995b8308b7504948
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] slot 3: seq=3 src=jac_calc_parallel from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=6f526c4e55ac5473 47a3c6d78fa85b06 995b8308b7504948
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] slot 4: seq=4 src=jac_calc_parallel from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=098c9274026d133d 47a3c6d78fa85b06 995b8308b7504948
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] run: alloc_slots_bounded = True
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] run: caller_tags_present = True
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] run: captured_at_least_one = True
+[R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000] run: allocation {"bytes": 12352, "jaccapneqp1": 26, "jaccapnnzmx": 180, "jaccapnslot": 4, "jaccapv_shape": [180, 4]}
+RESULT R2/AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture1000: PASS
+(exit 0)
+
+=== R2 bookkeeping + lazy growth (serial build, Te box, 4 Jacobians): slots 1,2,4 allocated as 1->2->4
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1000 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] FINGERPRINT {"capture_alloc": {"bytes": 11840, "jaccapneqp1": 26, "jaccapnnzmx": 172, "jaccapnslot": 4, "jaccapv_shape": [172, 4]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 4, "jaccapture": 1000, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "sfsetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 1, "slot": 1, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 2, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}, {"from": "psetnk", "i": "081d33fb23bc7053a46144bd60cad17271907c93301a573870214e455a85bb45", "ia_last_ok": true, "j": "2ebe426a204ddec45592cff3830cd4f4e59690cd634c5f3894c5bac754fae2eb", "neq": 25, "nnz": 170, "seq": 3, "slot": 3, "src": "jac_calc", "v": "2eba77424dff3f11f6e9e249f84bf16c623649efcede4f03dd8e06aada59b79b"}, {"from": "psetnk", "i": "21860e3b06f6f7a01b02b25ee431eb4095e3be1ccf686b3323fee9d39dbe851f", "ia_last_ok": true, "j": "dc2cde82fa1343d488ecf4dec8cf6c42a1b7cb825e20889048f92e33091eacf4", "neq": 25, "nnz": 172, "seq": 4, "slot": 4, "src": "jac_calc", "v": "eaa13ff6a3e95fd60e920c2bbbf106d29a487eb78de17265ee4aa58033d7febb"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] slot 1: seq=1 src=jac_calc from=sfsetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] slot 2: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] slot 3: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] slot 4: seq=4 src=jac_calc from=psetnk neq=25 nnz=172 ia_last_ok=True sha256(v,j,i)=eaa13ff6a3e95fd6 dc2cde82fa1343d4 21860e3b06f6f7a0
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1000] run: allocation {"bytes": 11840, "jaccapneqp1": 26, "jaccapnnzmx": 172, "jaccapnslot": 4, "jaccapv_shape": [172, 4]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 1000: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 3 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] FINGERPRINT {"capture_alloc": {"bytes": 8784, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 3, "jaccapv_shape": [170, 3]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 3, "jaccapture": 3, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "sfsetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 1, "slot": 1, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 2, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}, {"from": "psetnk", "i": "081d33fb23bc7053a46144bd60cad17271907c93301a573870214e455a85bb45", "ia_last_ok": true, "j": "2ebe426a204ddec45592cff3830cd4f4e59690cd634c5f3894c5bac754fae2eb", "neq": 25, "nnz": 170, "seq": 3, "slot": 3, "src": "jac_calc", "v": "2eba77424dff3f11f6e9e249f84bf16c623649efcede4f03dd8e06aada59b79b"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] slot 1: seq=1 src=jac_calc from=sfsetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] slot 2: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] slot 3: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 3] run: allocation {"bytes": 8784, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 3, "jaccapv_shape": [170, 3]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 3: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 0 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] FINGERPRINT {"capture_alloc": {"bytes": 2912, "jaccapneqp1": 26, "jaccapnnzmx": 169, "jaccapnslot": 1, "jaccapv_shape": [169, 1]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 1, "jaccapture": 1, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "sfsetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 1, "slot": 1, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] slot 1: seq=1 src=jac_calc from=sfsetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] run: allocation {"bytes": 2912, "jaccapneqp1": 26, "jaccapnnzmx": 169, "jaccapnslot": 1, "jaccapv_shape": [169, 1]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 1 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] FINGERPRINT {"capture_alloc": {"bytes": 2912, "jaccapneqp1": 26, "jaccapnnzmx": 169, "jaccapnslot": 1, "jaccapv_shape": [169, 1]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 1, "jaccapture": 1, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 1, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] slot 1: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] run: allocation {"bytes": 2912, "jaccapneqp1": 26, "jaccapnnzmx": 169, "jaccapnslot": 1, "jaccapv_shape": [169, 1]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 2 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] FINGERPRINT {"capture_alloc": {"bytes": 2928, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 1, "jaccapv_shape": [170, 1]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 1, "jaccapture": 1, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "psetnk", "i": "081d33fb23bc7053a46144bd60cad17271907c93301a573870214e455a85bb45", "ia_last_ok": true, "j": "2ebe426a204ddec45592cff3830cd4f4e59690cd634c5f3894c5bac754fae2eb", "neq": 25, "nnz": 170, "seq": 3, "slot": 1, "src": "jac_calc", "v": "2eba77424dff3f11f6e9e249f84bf16c623649efcede4f03dd8e06aada59b79b"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] slot 1: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] run: allocation {"bytes": 2928, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 1, "jaccapv_shape": [170, 1]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 3 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] FINGERPRINT {"capture_alloc": {"bytes": 2960, "jaccapneqp1": 26, "jaccapnnzmx": 172, "jaccapnslot": 1, "jaccapv_shape": [172, 1]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 1, "jaccapture": 1, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "psetnk", "i": "21860e3b06f6f7a01b02b25ee431eb4095e3be1ccf686b3323fee9d39dbe851f", "ia_last_ok": true, "j": "dc2cde82fa1343d488ecf4dec8cf6c42a1b7cb825e20889048f92e33091eacf4", "neq": 25, "nnz": 172, "seq": 4, "slot": 1, "src": "jac_calc", "v": "eaa13ff6a3e95fd60e920c2bbbf106d29a487eb78de17265ee4aa58033d7febb"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] slot 1: seq=4 src=jac_calc from=psetnk neq=25 nnz=172 ia_last_ok=True sha256(v,j,i)=eaa13ff6a3e95fd6 dc2cde82fa1343d4 21860e3b06f6f7a0
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] run: allocation {"bytes": 2960, "jaccapneqp1": 26, "jaccapnnzmx": 172, "jaccapnslot": 1, "jaccapv_shape": [172, 1]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3: PASS
+(exit 0)
+
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 2 --skip 1 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] FINGERPRINT {"capture_alloc": {"bytes": 5856, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 2, "jaccapv_shape": [170, 2]}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": true}, "fnrm": "0x1.66b78e97bb4ccp-32", "fnrm_printed_seq": ["271985200.1005400", "0.3221264477609989", "0.1295818223118249E-01", "0.2912237714419510E-04", "0.3262512287091862E-09"], "ijactot": 4, "jac": "9dd2f0cbddd1f27042990915f41b81492e7c802e912ae69be66362496f0bab26", "jaccapcount": 4, "jaccapn": 2, "jaccapture": 2, "jaci": "75f6d6f950d2d289bb82ce83666c9b23110a13d949f8262e101155dbcb9b069d", "jacj": "e3efc438bcfd96bdff6cd428ce5e8e75bd3b089b66b8d309583c84ec005f8a08", "neq": 25, "nnz": 172, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "slots": [{"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 1, "src": "jac_calc", "v": "7fa63967f099cff282482d01fc225f2c36d3ae5d2676c17620f95a5c9b722823"}, {"from": "psetnk", "i": "081d33fb23bc7053a46144bd60cad17271907c93301a573870214e455a85bb45", "ia_last_ok": true, "j": "2ebe426a204ddec45592cff3830cd4f4e59690cd634c5f3894c5bac754fae2eb", "neq": 25, "nnz": 170, "seq": 3, "slot": 2, "src": "jac_calc", "v": "2eba77424dff3f11f6e9e249f84bf16c623649efcede4f03dd8e06aada59b79b"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "f02eee4e35fbc9a3faebe56de282e38fd327e89305fc3d1ec789af8f3d76dae6"}
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] slot 1: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] slot 2: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] run: alloc_slots_bounded = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] run: caller_tags_present = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] run: captured_at_least_one = True
+[R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] run: allocation {"bytes": 5856, "jaccapneqp1": 26, "jaccapnnzmx": 170, "jaccapnslot": 2, "jaccapv_shape": [170, 2]}
+RESULT R2/bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1: PASS
+(exit 0)
+
+=== R2 I-m1 negative test: --capture 4 but no Jacobian is computed (issfon=0, ftol=1e20) must FAIL (exit 1)
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=0 --capture 4 OMP_NUM_THREADS=1 env=[]
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] FINGERPRINT {"capture_alloc": {"jaccapneqp1": 0, "jaccapnnzmx": 0, "jaccapnslot": 0}, "capture_run_checks": {"alloc_slots_bounded": true, "caller_tags_present": true, "captured_at_least_one": false, "identity_evaluated": false}, "fnrm": "0x1.eae067a0b83d0p+25", "fnrm_printed_seq": ["64340175.25562251"], "ijactot": 0, "jac": "b4729ba4f495c4b37efd60ff4609f996c0f88a99776fffe3a9eaf4cba9ed9f2c", "jaccapcount": 0, "jaccapn": 0, "jaccapture": 4, "jaci": "dd5663e191f7a259e2af1f6576cbd91f73ece3769d48b72a0dcfdf767931d0ff", "jacj": "b4729ba4f495c4b37efd60ff4609f996c0f88a99776fffe3a9eaf4cba9ed9f2c", "neq": 420, "nnz": -1, "sfscal": "9241b6b24a7b1989dc2b0722965f992ae6ca0335aadce2f4af2942378eaf7685", "slots": [], "suscal": "739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80", "yldot": "818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a"}
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] run: alloc_slots_bounded = True
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] run: caller_tags_present = True
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] run: captured_at_least_one = False
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] run: identity_evaluated = False
+[R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL)] run: allocation {"jaccapneqp1": 0, "jaccapnnzmx": 0, "jaccapnslot": 0}
+RESULT R2/Im1/serial/DONLY/ftol/issfon0/capture4 (expected FAIL): FAIL
+(exit 1, expected 1)
+
+=== R2 AC3 MPPL hazards in lines added to .m/.v since origin/v9-develop
+added lines:      118
+string literals in added lines:
++# new arrays. After gfree("Jacobian_capture") the stored slots are gone: set
++      call gchange("Jacobian_capture",0)
+hazard hits (float|break|while (|do i1=|Size4|elseif|# in string):
+  none
+added .m lines longer than 72 columns:
+generated .F, slot growth (omp tree):
+4776:      if (islot .gt. jaccapnslot) then
+4777-         jaccapnslot = min(jaccapture, max(islot, 2*jaccapnslot))
+4778-      endif
+compiler diagnostics mentioning the new code (round-2 build logs):
+  none
+
+TOTAL FAILURES (round 2): 2
+driver exit 0
+
+=== R2 rerun after tool fix 531de6f (compare no longer treats the capture-only fields capture_alloc/capture_run_checks as base/new differences; the two serial FAILs above were only that)
+tool commit: 531de6f14472b520a34ea05758f46b21f18681f0
+[R2rerun/AC2/serial/repro-full/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args= OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[R2rerun/AC2/serial/repro-full/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2rerun/AC2/serial/repro-full/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[R2rerun/AC2/serial/repro-full/ftol/capture4] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[R2rerun/AC2/serial/repro-full/ftol/capture4] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[R2rerun/AC2/serial/repro-full/ftol/capture4] ijactot           EQUAL  1
+[R2rerun/AC2/serial/repro-full/ftol/capture4] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[R2rerun/AC2/serial/repro-full/ftol/capture4] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[R2rerun/AC2/serial/repro-full/ftol/capture4] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[R2rerun/AC2/serial/repro-full/ftol/capture4] neq               EQUAL  44352
+[R2rerun/AC2/serial/repro-full/ftol/capture4] nnz               EQUAL  3190290
+[R2rerun/AC2/serial/repro-full/ftol/capture4] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[R2rerun/AC2/serial/repro-full/ftol/capture4] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[R2rerun/AC2/serial/repro-full/ftol/capture4] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[R2rerun/AC2/serial/repro-full/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=44352 nnz=3190290 ia_last_ok=True sha256(v,j,i)=711d3536cf1dfd76 2eae17debdcbe582 1a8dfbb156e44570
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] run: alloc_slots_bounded = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] run: caller_tags_present = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] run: captured_at_least_one = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] run: identity_evaluated = True
+[R2rerun/AC2/serial/repro-full/ftol/capture4:new] run: allocation {"bytes": 51399464, "jaccapneqp1": 44353, "jaccapnnzmx": 3190290, "jaccapnslot": 1, "jaccapv_shape": [3190290, 1]}
+RESULT R2rerun/AC2/serial/repro-full/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 1000
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] fnrm              EQUAL  0x1.04ceff2339405p-3
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] ijactot           EQUAL  1
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] neq               EQUAL  420
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] nnz               EQUAL  8194
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[R2rerun/LM1/serial/DONLY/ftol/capture1000] new build capture state: jaccapture=1000 jaccapcount=1 jaccapn=1
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] run: alloc_slots_bounded = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] run: caller_tags_present = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] run: captured_at_least_one = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] run: identity_evaluated = True
+[R2rerun/LM1/serial/DONLY/ftol/capture1000:new] run: allocation {"bytes": 134472, "jaccapneqp1": 421, "jaccapnnzmx": 8194, "jaccapnslot": 1, "jaccapv_shape": [8194, 1]}
+RESULT R2rerun/LM1/serial/DONLY/ftol/capture1000: PASS (bitwise equal)
+(exit 0)
+
+ROUND 2 FINAL: all checks PASS (driver's 2 failures superseded by the rerun above; expected-FAIL negative test exits 1).
