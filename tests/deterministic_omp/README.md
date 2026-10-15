@@ -165,8 +165,8 @@ and `pip install .`; the tool does not build). Then:
 H=tests/deterministic_omp/harness/serial_check.py
 python $H --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \
           --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python \
-          --jobs 4 --out /tmp/serial_check          # --cases all is the default; TIMING_ALL
-python $H ... --cases quick --partial-ok --out DIR  # a quick look while developing (TIMING_QUICK), not the gate
+          --jobs 4 --out /tmp/serial_check          # --cases all is the default; ~5 min idle, ~18 min loaded
+python $H ... --cases quick --partial-ok --out DIR  # a quick look while developing (~40 s), not the gate
 python $H --list                                    # the case set
 ```
 

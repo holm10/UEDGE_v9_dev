@@ -285,3 +285,443 @@ Acceptance
       te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106")
   [x] documented as required for every PR touching Fortran, .v or ppp/ (README, testing.md, openmp-jacobian.md)
   [x] documented in .claude/context/openmp-jacobian.md and testing.md (AI-layer: code-facts commit)
+
+
+Round 2 (after review round 1; branch rebased onto feature/v9-AIUE-49-omp-harness-core 71b0e3b)
+===============================================================================================
+
+The tool ran from feature/v9-AIUE-53-serial-bitwise-check (the "harness" commit in the summaries is the WIP HEAD at
+the time; the code is the one committed in "Addresses the AIUE-53 review round 1 findings"). pytests b535508.
+Machine heavily loaded by other sessions during these runs (load average 70-90 on 14 cores), --jobs 4 (at most 4
+UEDGE processes at a time), so the wall-clock times are about 3-4x the unloaded ones (repro-full 195 s here vs 53 s
+in round 1).
+
+Unit tests: python -m pytest tests/deterministic_omp/harness  ->  45 passed
+
+Case set --cases all (the default and the gate): 42 cases, of which 10 iterate (-itN: psetnk, ILU, Krylov, line
+search; fnrm sequences of 4-6 elements) and 20 are pytests one-switch unit variants. `serial_check.py --list` prints it.
+
+Extra builds:
+  AIUE-47-serial  venvs/AIUE-47-serial  AIUE-47-serial2 @ 460aa5f  v9-develop Fortran + the AIUE-47 capture hook
+                                        (off by default), --serial            ext-sha256 cdf94c6175b2632c
+  AIUE-47-omp     venvs/AIUE-47-omp     AIUE-47 @ d137d53, default (OpenMP)    ext-sha256 f81b79ede928a881
+  ulp control     venvs/AIUE-53-ulp     detached ../uedge-wt/AIUE-53-ulp at 3865c79 + one reassociated sum
+                  (never committed), bbb/pandf_plasma_energy.m:436-437, Te non-orthogonal flux, first bracket:
+     -     .                        fymx(ix,iy,1)*logte(ix ,iy1 ) +
+     -     .                        fypx(ix,iy,1)*logte(ix ,iy+1) )
+     +     .                       (fymx(ix,iy,1)*logte(ix ,iy1 ) +
+     +     .                        fypx(ix,iy,1)*logte(ix ,iy+1)) )
+                  i.e. (a+b+c+d+e) -> (a+b+c+(d+e)): a round-off-level change, as a reduction-order fix would make.
+                  Built with build_uedge.sh ... serial (logs/AIUE-53-ulp-serial-build.log, exit 0). ext d1348c03d1d43eb4.
+
+R2-1. Independent-build gate: base-{serial,omp} (v9-develop 0fac655) vs AIUE-47-{serial,omp}, --cases all
+--------------------------------------------------------------------------------------------------------
+SERIAL BITWISE CHECK (AIUE-53)  harness 9f51eeca3cc9  pytests b5355080d99d
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  ext-sha256 141a53db4d12099e  openmp False
+               uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-serial @ 0fac6550b888
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python  ext-sha256 cdf94c6175b2632c  openmp False
+               uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/lib/python3.13/site-packages/uedge/__init__.py
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-47-serial2 @ 460aa5fc0834 (not on origin/v9-develop)
+  build omp0   base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  ext-sha256 b71788af754cbe0a  openmp True
+               uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/lib/python3.13/site-packages/uedge/__init__.py
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-omp @ 0fac6550b888
+  build omp0   new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python  ext-sha256 f81b79ede928a881  openmp True
+               uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/lib/python3.13/site-packages/uedge/__init__.py
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-47 @ d137d5324441 (not on origin/v9-develop)
+  WARNING: serial: the AIUE-47 capture hook is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared
+  WARNING: omp0: the AIUE-47 capture hook is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared
+  WARNING: new: the serial and OpenMP builds come from different commits (460aa5fc0834, d137d5324441)
+[serial] repro-full-it3                 AGREE    neq  44352  iters 4  jacobians 0+post(psetnk)  409.5 s / 416.91 s
+[serial] repro-full                     AGREE    neq  44352  iters 1  jacobians 0+post(sfsetnk)  194.58 s / 195.11 s
+[serial] repro-ni                       AGREE    neq  25344  iters 1  jacobians 0+post(sfsetnk)  108.07 s / 109.74 s
+[serial] repro-up                       AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  41.7 s / 40.96 s
+[serial] repro-te_phi                   AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  36.89 s / 36.01 s
+[serial] repro-te-it3                   AGREE    neq   3168  iters 4  jacobians 0+post(psetnk)  33.01 s / 30.39 s
+[serial] repro-ti                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  15.21 s / 15.14 s
+[serial] repro-te                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  17.67 s / 17.02 s
+[serial] repro-ng                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  16.54 s / 16.8 s
+[serial] pytests-full-d_c-16x8-it5      AGREE    neq   2340  iters 6  jacobians 0+post(psetnk)  16.04 s / 15.57 s
+[serial] pytests-slab-it5               AGREE    neq   4522  iters 6  jacobians 0+post(psetnk)  11.43 s / 10.82 s
+[serial] repro-tebox-it5                AGREE    neq     25  iters 4  jacobians 0+post(psetnk)  5.98 s / 6.9 s
+[serial] repro-tebox                    AGREE    neq     25  iters 1  jacobians 0+post(sfsetnk)  5.4 s / 5.72 s
+[serial] pytests-full-d_c-16x8          AGREE    neq   2340  iters 1  jacobians 0+post(sfsetnk)  8.04 s / 8.16 s
+[serial] pytests-D+C-it5                AGREE    neq    780  iters 6  jacobians 0+post(psetnk)  3.86 s / 3.84 s
+[serial] pytests-D_mols-it5             AGREE    neq    480  iters 6  jacobians 0+post(psetnk)  2.32 s / 2.31 s
+[serial] pytests-D_only-it5             AGREE    neq    420  iters 6  jacobians 0+post(psetnk)  1.9 s / 1.78 s
+[serial] pytests-slab                   AGREE    neq   4522  iters 1  jacobians 0+post(sfsetnk)  6.3 s / 6.28 s
+[serial] pytests-D+C                    AGREE    neq    780  iters 1  jacobians 0+post(sfsetnk)  3.09 s / 3.04 s
+[serial] pytests-D_only                 AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.88 s / 1.76 s
+[serial] pytests-D_mols                 AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  1.99 s / 2.11 s
+[serial] pytests-D_mols-drift           AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.13 s / 2.37 s
+[serial] pytests-unit-convis            AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.88 s / 1.81 s
+[serial] pytests-unit-core_nogradient   AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.9 s / 1.95 s
+[serial] pytests-unit-curcore           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.8 s / 1.86 s
+[serial] pytests-unit-isfdiax           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.01 s / 2.26 s
+[serial] pytests-unit-ishosor           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.31 s / 2.43 s
+[serial] pytests-unit-isnewpot          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.04 s / 2.41 s
+[serial] pytests-unit-isnwconi2         AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.46 s / 2.33 s
+[serial] pytests-unit-isnwcono3         AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.18 s / 2.06 s
+[serial] pytests-unit-istepfc2          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.97 s / 2.23 s
+[serial] pytests-unit-istewc3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.09 s / 2.09 s
+[serial] pytests-unit-istiwc4           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.98 s / 1.97 s
+[serial] pytests-unit-isupwi3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.99 s / 2.31 s
+[serial] pytests-unit-isupwo3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.27 s / 2.02 s
+[serial] pytests-unit-isvylog           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.7 s / 1.8 s
+[serial] pytests-unit-newbcl_iskaplex   AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.7 s / 1.58 s
+[serial] pytests-unit-recycmlb_therm_momflux AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.6 s / 1.68 s
+[serial] pytests-unit-recycmrb          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.69 s / 1.86 s
+[serial] pytests-unit-tg_atom_drifts    AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  3.25 s / 2.25 s
+[serial] pytests-unit-tg_atom_istgwc2   AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  1.94 s / 1.87 s
+[serial] pytests-unit-tg_mol_istgpfc4   AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.04 s / 1.94 s
+[omp0] repro-full-it3                 AGREE    neq  44352  iters 4  jacobians 0+post(psetnk)  464.84 s / 461.67 s
+[omp0] repro-full                     AGREE    neq  44352  iters 1  jacobians 0+post(sfsetnk)  222.4 s / 226.74 s
+[omp0] repro-ni                       AGREE    neq  25344  iters 1  jacobians 0+post(sfsetnk)  130.45 s / 130.18 s
+[omp0] repro-up                       AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  35.54 s / 34.67 s
+[omp0] repro-te_phi                   AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  35.36 s / 32.59 s
+[omp0] repro-te-it3                   AGREE    neq   3168  iters 4  jacobians 0+post(psetnk)  29.93 s / 30.6 s
+[omp0] repro-ti                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  17.23 s / 19.3 s
+[omp0] repro-te                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  17.56 s / 18.28 s
+[omp0] repro-ng                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  17.34 s / 16.58 s
+[omp0] pytests-full-d_c-16x8-it5      AGREE    neq   2340  iters 6  jacobians 0+post(psetnk)  15.89 s / 15.91 s
+[omp0] pytests-slab-it5               AGREE    neq   4522  iters 6  jacobians 0+post(psetnk)  12.12 s / 12.01 s
+[omp0] repro-tebox-it5                AGREE    neq     25  iters 4  jacobians 0+post(psetnk)  6.69 s / 6.84 s
+[omp0] repro-tebox                    AGREE    neq     25  iters 1  jacobians 0+post(sfsetnk)  4.85 s / 3.93 s
+[omp0] pytests-full-d_c-16x8          AGREE    neq   2340  iters 1  jacobians 0+post(sfsetnk)  9.44 s / 9.68 s
+[omp0] pytests-D+C-it5                AGREE    neq    780  iters 6  jacobians 0+post(psetnk)  4.14 s / 3.99 s
+[omp0] pytests-D_mols-it5             AGREE    neq    480  iters 6  jacobians 0+post(psetnk)  2.32 s / 2.27 s
+[omp0] pytests-D_only-it5             AGREE    neq    420  iters 6  jacobians 0+post(psetnk)  2.0 s / 2.11 s
+[omp0] pytests-slab                   AGREE    neq   4522  iters 1  jacobians 0+post(sfsetnk)  7.1 s / 7.03 s
+[omp0] pytests-D+C                    AGREE    neq    780  iters 1  jacobians 0+post(sfsetnk)  3.09 s / 3.26 s
+[omp0] pytests-D_only                 AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.0 s / 2.05 s
+[omp0] pytests-D_mols                 AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.22 s / 2.18 s
+[omp0] pytests-D_mols-drift           AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.06 s / 2.18 s
+[omp0] pytests-unit-convis            AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.88 s / 1.95 s
+[omp0] pytests-unit-core_nogradient   AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.76 s / 1.73 s
+[omp0] pytests-unit-curcore           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.96 s / 2.01 s
+[omp0] pytests-unit-isfdiax           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.35 s / 2.31 s
+[omp0] pytests-unit-ishosor           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.39 s / 2.34 s
+[omp0] pytests-unit-isnewpot          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  3.02 s / 2.77 s
+[omp0] pytests-unit-isnwconi2         AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.28 s / 2.22 s
+[omp0] pytests-unit-isnwcono3         AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.17 s / 2.14 s
+[omp0] pytests-unit-istepfc2          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.17 s / 2.13 s
+[omp0] pytests-unit-istewc3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.09 s / 2.06 s
+[omp0] pytests-unit-istiwc4           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.2 s / 2.27 s
+[omp0] pytests-unit-isupwi3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  2.4 s / 2.34 s
+[omp0] pytests-unit-isupwo3           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.84 s / 1.83 s
+[omp0] pytests-unit-isvylog           AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.8 s / 1.73 s
+[omp0] pytests-unit-newbcl_iskaplex   AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.76 s / 1.71 s
+[omp0] pytests-unit-recycmlb_therm_momflux AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.78 s / 1.79 s
+[omp0] pytests-unit-recycmrb          AGREE    neq    420  iters 1  jacobians 0+post(sfsetnk)  1.78 s / 1.83 s
+[omp0] pytests-unit-tg_atom_drifts    AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.28 s / 2.5 s
+[omp0] pytests-unit-tg_atom_istgwc2   AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  1.93 s / 1.92 s
+[omp0] pytests-unit-tg_mol_istgpfc4   AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  2.08 s / 1.94 s
+RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (1082.8 s)
+real 1083.26
+user 2329.08
+sys 114.14
+exit 0
+
+R2-2. Same venv as base and new (--allow-same-build), --cases all: everything agrees, but it is not the gate
+-------------------------------------------------------------------------------------------------------------
+  cases agreeing: 84 of 84 (42 cases x 2 pairs)
+  NOT THE GATE: serial: base and new are the same build/source (--allow-same-build)
+  NOT THE GATE: omp0: base and new are the same build/source (--allow-same-build)
+RESULT: INCOMPLETE (what ran agrees bitwise; not the gate)  [pairs serial+omp0, cases all (42)]  (979.9 s)
+real 980.24
+exit 2
+
+R2-3. Negative control (1.0000001*feexy), both pairs, --cases all
+-----------------------------------------------------------------
+Expected: every case with Te on and a non-orthogonal grid fails, including all iterating ones; the Te-off presets
+(ni, up, ti, ng) and the orthogonal slab cases agree.
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  ext-sha256 141a53db4d12099e  openmp False
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-serial @ 0fac6550b888
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg/bin/python  ext-sha256 d2d7ea2255c53ca9  openmp False
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-53-neg @ 3865c79c959b DIRTY
+  build omp0   base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  ext-sha256 b71788af754cbe0a  openmp True
+               source /Users/holma/Documents/uedge/src/uedge-wt/base-omp @ 0fac6550b888
+  build omp0   new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg-omp/bin/python  ext-sha256 497df5c286c05f79  openmp True
+               source /Users/holma/Documents/uedge/src/uedge-wt/AIUE-53-neg-omp @ 3865c79c959b DIRTY
+  WARNING: serial new: source tree /Users/holma/Documents/uedge/src/uedge-wt/AIUE-53-neg has uncommitted changes (read now, not at build time)
+  WARNING: omp0 new: source tree /Users/holma/Documents/uedge/src/uedge-wt/AIUE-53-neg-omp has uncommitted changes (read now, not at build time)
+[serial] repro-full-it3                 MISMATCH neq  44352  iters 4  jacobians 0+post(psetnk)  505.07 s / 511.73 s
+    first mismatch: jacobian:post_exmain (permuted indices) (5891546 entries): first value at row ?(ix=16,iy=16) col ?(ix=16,iy=16) (iv 17,17): base -0.9999999999999992 new -1.0
+[serial] repro-full                     MISMATCH neq  44352  iters 1  jacobians 0+post(sfsetnk)  148.48 s / 146.1 s
+    first mismatch: jacobian:post_exmain (285402 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 1019,14): base -29250.330752575745 new -29250.330707348414
+[serial] repro-ni                       AGREE    neq  25344  iters 1  jacobians 0+post(sfsetnk)  72.13 s / 72.59 s
+[serial] repro-up                       AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  20.87 s / 21.34 s
+[serial] repro-te_phi                   MISMATCH neq   6336  iters 1  jacobians 0+post(sfsetnk)  22.07 s / 20.7 s
+    first mismatch: jacobian:post_exmain (49093 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 145,2): base -29250.330752575745 new -29250.330707348414
+[serial] repro-te-it3                   MISMATCH neq   3168  iters 4  jacobians 0+post(psetnk)  25.68 s / 30.3 s
+    first mismatch: jacobian:post_exmain (permuted indices) (43709 entries): first value at row ?(ix=6,iy=6) col ?(ix=0,iy=0) (iv 7,1): base -4.5564885289595487e-07 new -4.5564974949013887e-07
+[serial] repro-ti                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  30.91 s / 30.54 s
+[serial] repro-te                       MISMATCH neq   3168  iters 1  jacobians 0+post(sfsetnk)  28.46 s / 34.15 s
+    first mismatch: jacobian:post_exmain (21844 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=0) (iv 73,2): base -559.7526751444093 new -559.7526524070418
+[serial] repro-ng                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  30.4 s / 22.34 s
+[serial] pytests-full-d_c-16x8-it5      MISMATCH neq   2340  iters 6  jacobians 0+post(psetnk)  21.75 s / 21.89 s
+    first mismatch: jacobian:post_exmain (permuted indices) (11426 entries): first value at row ?(ix=149,iy=149) col ?(ix=38,iy=38) (iv 150,39): base 0.000978159371550727 new 0.0009781594719628925
+[serial] pytests-slab-it5               AGREE    neq   4522  iters 6  jacobians 0+post(psetnk)  17.85 s / 15.05 s
+[serial] repro-tebox-it5                MISMATCH neq     25  iters 4  jacobians 0+post(psetnk)  8.01 s / 8.31 s
+    first mismatch: jacobian:post_exmain (permuted indices) (174 entries): first value at row ?(ix=0,iy=0) col ?(ix=1,iy=1) (iv 1,2): base 0.18872368263618683 new 0.03296377162881779
+[serial] repro-tebox                    MISMATCH neq     25  iters 1  jacobians 0+post(sfsetnk)  7.95 s / 7.51 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+[serial] pytests-full-d_c-16x8          MISMATCH neq   2340  iters 1  jacobians 0+post(sfsetnk)  14.84 s / 14.31 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+[serial] pytests-D+C-it5                MISMATCH neq    780  iters 6  jacobians 0+post(psetnk)  6.53 s / 6.91 s
+    first mismatch: jacobian:post_exmain (permuted indices) (33099 entries): first value at row ?(ix=15,iy=15) col ?(ix=16,iy=16) (iv 16,17): base 0.9958351693587122 new -1.4786765108662014e-08
+[serial] pytests-D_mols-it5             MISMATCH neq    480  iters 6  jacobians 0+post(psetnk)  3.44 s / 3.7 s
+    first mismatch: jacobian:post_exmain (permuted indices) (8238 entries): first value at row ?(ix=13,iy=13) col ?(ix=13,iy=13) (iv 14,14): base -1.0 new -0.9999999968317442
+[serial] pytests-D_only-it5             MISMATCH neq    420  iters 6  jacobians 0+post(psetnk)  3.87 s / 3.51 s
+    first mismatch: jacobian:post_exmain (permuted indices) (898 entries): first value at row ?(ix=63,iy=63) col ?(ix=26,iy=26) (iv 64,27): base 7.440874053892518e-05 new 7.440865082776028e-05
+[serial] pytests-slab                   AGREE    neq   4522  iters 1  jacobians 0+post(sfsetnk)  8.23 s / 8.72 s
+[serial] pytests-D+C                    MISMATCH neq    780  iters 1  jacobians 0+post(sfsetnk)  5.93 s / 5.9 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+[serial] pytests-D_only                 MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.61 s / 2.21 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+[serial] pytests-D_mols                 MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  2.6 s / 2.93 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+[serial] pytests-D_mols-drift           MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  3.24 s / 3.15 s
+    first mismatch: jacobian:post_exmain (1293 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.44055923353880644 new -0.44058197090635076
+[serial] pytests-unit-convis            MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.09 s / 3.28 s
+    first mismatch: jacobian:post_exmain (720 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12041.047730804165 new -12041.047733646337
+[serial] pytests-unit-core_nogradient   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.89 s / 2.54 s
+    first mismatch: jacobian:post_exmain (725 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1696.845515564149 new -1696.8455154753315
+[serial] pytests-unit-curcore           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.7 s / 2.41 s
+    first mismatch: jacobian:post_exmain (768 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1728.4917802840025 new -1728.49177957346
+[serial] pytests-unit-isfdiax           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.99 s / 3.21 s
+    first mismatch: jacobian:post_exmain (719 entries): first value at row te(ix=0,iy=1) col up[0](ix=0,iy=1) (iv 75,73): base -11050.542810228257 new -11050.542814842078
+[serial] pytests-unit-ishosor           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.66 s / 2.73 s
+    first mismatch: jacobian:post_exmain (721 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12054.284914597702 new -12054.284883333821
+[serial] pytests-unit-isnewpot          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.22 s / 2.27 s
+    first mismatch: jacobian:post_exmain (730 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12214.12859706561 new -12214.128597776153
+[serial] pytests-unit-isnwconi2         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.63 s / 2.37 s
+    first mismatch: jacobian:post_exmain (764 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1708.9816850557324 new -1708.981716319613
+[serial] pytests-unit-isnwcono3         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.58 s / 2.47 s
+    first mismatch: jacobian:post_exmain (749 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1720.019686501928 new -1720.0196850808427
+[serial] pytests-unit-istepfc2          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.68 s / 3.62 s
+    first mismatch: jacobian:post_exmain (754 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12131.195325082444 new -12131.195327924619
+[serial] pytests-unit-istewc3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.76 s / 3.83 s
+    first mismatch: jacobian:post_exmain (781 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -11925.364900378101 new -11925.364901799187
+[serial] pytests-unit-istiwc4           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.61 s / 4.39 s
+    first mismatch: jacobian:post_exmain (756 entries): first value at row te(ix=0,iy=1) col up[0](ix=0,iy=1) (iv 75,73): base -11149.322861670671 new -11149.322863979543
+[serial] pytests-unit-isupwi3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.23 s / 4.52 s
+    first mismatch: jacobian:post_exmain (722 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1682.7544765618538 new -1682.7544763842186
+[serial] pytests-unit-isupwo3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.27 s / 3.52 s
+    first mismatch: jacobian:post_exmain (695 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -11778.014206242915 new -11778.014203400742
+[serial] pytests-unit-isvylog           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.35 s / 4.25 s
+    first mismatch: jacobian:post_exmain (707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1700.1396997784468 new -1700.1396983573613
+[serial] pytests-unit-newbcl_iskaplex   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.8 s / 4.1 s
+    first mismatch: jacobian:post_exmain (669 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base 1284.2129535783897 new 1284.2129763157573
+[serial] pytests-unit-recycmlb_therm_momflux MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.11 s / 4.43 s
+    first mismatch: jacobian:post_exmain (720 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1668.7623144662211 new -1668.7623116240502
+[serial] pytests-unit-recycmrb          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.9 s / 4.19 s
+    first mismatch: jacobian:post_exmain (742 entries): first value at row te(ix=0,iy=1) col ni[0](ix=1,iy=1) (iv 75,78): base -118.13782592184909 new -118.13782521130635
+[serial] pytests-unit-tg_atom_drifts    MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.25 s / 4.3 s
+    first mismatch: jacobian:post_exmain (1291 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.23575239538331516 new -0.2357552375542582
+[serial] pytests-unit-tg_atom_istgwc2   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  3.75 s / 4.53 s
+    first mismatch: jacobian:post_exmain (712 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 85,85): base -12172.199807203298 new -12172.199807380935
+[serial] pytests-unit-tg_mol_istgpfc4   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.65 s / 4.57 s
+    first mismatch: jacobian:post_exmain (652 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -2047.9874365264548 new -2047.9873455769846
+[omp0] repro-full-it3                 MISMATCH neq  44352  iters 4  jacobians 0+post(psetnk)  558.04 s / 563.03 s
+    first mismatch: jacobian:post_exmain (permuted indices) (5891546 entries): first value at row ?(ix=16,iy=16) col ?(ix=16,iy=16) (iv 17,17): base -0.9999999999999992 new -1.0
+[omp0] repro-full                     MISMATCH neq  44352  iters 1  jacobians 0+post(sfsetnk)  151.9 s / 149.98 s
+    first mismatch: jacobian:post_exmain (285402 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 1019,14): base -29250.330752575745 new -29250.330707348414
+[omp0] repro-ni                       AGREE    neq  25344  iters 1  jacobians 0+post(sfsetnk)  75.9 s / 76.24 s
+[omp0] repro-up                       AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  21.89 s / 22.33 s
+[omp0] repro-te_phi                   MISMATCH neq   6336  iters 1  jacobians 0+post(sfsetnk)  22.03 s / 26.05 s
+    first mismatch: jacobian:post_exmain (49093 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 145,2): base -29250.330752575745 new -29250.330707348414
+[omp0] repro-te-it3                   MISMATCH neq   3168  iters 4  jacobians 0+post(psetnk)  55.53 s / 62.01 s
+    first mismatch: jacobian:post_exmain (permuted indices) (43709 entries): first value at row ?(ix=6,iy=6) col ?(ix=0,iy=0) (iv 7,1): base -4.5564885289595487e-07 new -4.5564974949013887e-07
+[omp0] repro-ti                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  32.31 s / 32.92 s
+[omp0] repro-te                       MISMATCH neq   3168  iters 1  jacobians 0+post(sfsetnk)  35.7 s / 33.31 s
+    first mismatch: jacobian:post_exmain (21844 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=0) (iv 73,2): base -559.7526751444093 new -559.7526524070418
+[omp0] repro-ng                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  23.15 s / 22.26 s
+[omp0] pytests-full-d_c-16x8-it5      MISMATCH neq   2340  iters 6  jacobians 0+post(psetnk)  24.28 s / 24.14 s
+    first mismatch: jacobian:post_exmain (permuted indices) (11426 entries): first value at row ?(ix=149,iy=149) col ?(ix=38,iy=38) (iv 150,39): base 0.000978159371550727 new 0.0009781594719628925
+[omp0] pytests-slab-it5               AGREE    neq   4522  iters 6  jacobians 0+post(psetnk)  18.58 s / 18.56 s
+[omp0] repro-tebox-it5                MISMATCH neq     25  iters 4  jacobians 0+post(psetnk)  8.69 s / 9.35 s
+    first mismatch: jacobian:post_exmain (permuted indices) (174 entries): first value at row ?(ix=0,iy=0) col ?(ix=1,iy=1) (iv 1,2): base 0.18872368263618683 new 0.03296377162881779
+[omp0] repro-tebox                    MISMATCH neq     25  iters 1  jacobians 0+post(sfsetnk)  8.04 s / 6.87 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+[omp0] pytests-full-d_c-16x8          MISMATCH neq   2340  iters 1  jacobians 0+post(sfsetnk)  17.4 s / 17.9 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+[omp0] pytests-D+C-it5                MISMATCH neq    780  iters 6  jacobians 0+post(psetnk)  6.57 s / 7.45 s
+    first mismatch: jacobian:post_exmain (permuted indices) (33099 entries): first value at row ?(ix=15,iy=15) col ?(ix=16,iy=16) (iv 16,17): base 0.9958351693587122 new -1.4786765108662014e-08
+[omp0] pytests-D_mols-it5             MISMATCH neq    480  iters 6  jacobians 0+post(psetnk)  5.13 s / 4.42 s
+    first mismatch: jacobian:post_exmain (permuted indices) (8238 entries): first value at row ?(ix=13,iy=13) col ?(ix=13,iy=13) (iv 14,14): base -1.0 new -0.9999999968317442
+[omp0] pytests-D_only-it5             MISMATCH neq    420  iters 6  jacobians 0+post(psetnk)  3.27 s / 2.68 s
+    first mismatch: jacobian:post_exmain (permuted indices) (898 entries): first value at row ?(ix=63,iy=63) col ?(ix=26,iy=26) (iv 64,27): base 7.440874053892518e-05 new 7.440865082776028e-05
+[omp0] pytests-slab                   AGREE    neq   4522  iters 1  jacobians 0+post(sfsetnk)  11.95 s / 11.29 s
+[omp0] pytests-D+C                    MISMATCH neq    780  iters 1  jacobians 0+post(sfsetnk)  4.56 s / 4.53 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+[omp0] pytests-D_only                 MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.48 s / 2.81 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+[omp0] pytests-D_mols                 MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  3.07 s / 3.42 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+[omp0] pytests-D_mols-drift           MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.07 s / 3.46 s
+    first mismatch: jacobian:post_exmain (1293 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.44055923353880644 new -0.44058197090635076
+[omp0] pytests-unit-convis            MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.83 s / 2.8 s
+    first mismatch: jacobian:post_exmain (720 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12041.047730804165 new -12041.047733646337
+[omp0] pytests-unit-core_nogradient   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.49 s / 2.83 s
+    first mismatch: jacobian:post_exmain (725 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1696.845515564149 new -1696.8455154753315
+[omp0] pytests-unit-curcore           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.93 s / 3.38 s
+    first mismatch: jacobian:post_exmain (768 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1728.4917802840025 new -1728.49177957346
+[omp0] pytests-unit-isfdiax           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.8 s / 2.78 s
+    first mismatch: jacobian:post_exmain (719 entries): first value at row te(ix=0,iy=1) col up[0](ix=0,iy=1) (iv 75,73): base -11050.542810228257 new -11050.542814842078
+[omp0] pytests-unit-ishosor           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.67 s / 2.46 s
+    first mismatch: jacobian:post_exmain (721 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12054.284914597702 new -12054.284883333821
+[omp0] pytests-unit-isnewpot          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.72 s / 2.6 s
+    first mismatch: jacobian:post_exmain (730 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12214.12859706561 new -12214.128597776153
+[omp0] pytests-unit-isnwconi2         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  2.52 s / 2.64 s
+    first mismatch: jacobian:post_exmain (764 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1708.9816850557324 new -1708.981716319613
+[omp0] pytests-unit-isnwcono3         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.84 s / 3.69 s
+    first mismatch: jacobian:post_exmain (749 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1720.019686501928 new -1720.0196850808427
+[omp0] pytests-unit-istepfc2          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.87 s / 3.73 s
+    first mismatch: jacobian:post_exmain (754 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -12131.195325082444 new -12131.195327924619
+[omp0] pytests-unit-istewc3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.64 s / 3.71 s
+    first mismatch: jacobian:post_exmain (781 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -11925.364900378101 new -11925.364901799187
+[omp0] pytests-unit-istiwc4           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.26 s / 4.69 s
+    first mismatch: jacobian:post_exmain (756 entries): first value at row te(ix=0,iy=1) col up[0](ix=0,iy=1) (iv 75,73): base -11149.322861670671 new -11149.322863979543
+[omp0] pytests-unit-isupwi3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.48 s / 4.38 s
+    first mismatch: jacobian:post_exmain (722 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1682.7544765618538 new -1682.7544763842186
+[omp0] pytests-unit-isupwo3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.27 s / 4.48 s
+    first mismatch: jacobian:post_exmain (695 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 75,75): base -11778.014206242915 new -11778.014203400742
+[omp0] pytests-unit-isvylog           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.27 s / 4.52 s
+    first mismatch: jacobian:post_exmain (707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1700.1396997784468 new -1700.1396983573613
+[omp0] pytests-unit-newbcl_iskaplex   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.48 s / 4.48 s
+    first mismatch: jacobian:post_exmain (669 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base 1284.2129535783897 new 1284.2129763157573
+[omp0] pytests-unit-recycmlb_therm_momflux MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.33 s / 4.44 s
+    first mismatch: jacobian:post_exmain (720 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1668.7623144662211 new -1668.7623116240502
+[omp0] pytests-unit-recycmrb          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.18 s / 4.37 s
+    first mismatch: jacobian:post_exmain (742 entries): first value at row te(ix=0,iy=1) col ni[0](ix=1,iy=1) (iv 75,78): base -118.13782592184909 new -118.13782521130635
+[omp0] pytests-unit-tg_atom_drifts    MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.7 s / 4.79 s
+    first mismatch: jacobian:post_exmain (1291 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.23575239538331516 new -0.2357552375542582
+[omp0] pytests-unit-tg_atom_istgwc2   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.2 s / 4.99 s
+    first mismatch: jacobian:post_exmain (712 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=1) (iv 85,85): base -12172.199807203298 new -12172.199807380935
+[omp0] pytests-unit-tg_mol_istgpfc4   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.68 s / 5.09 s
+    first mismatch: jacobian:post_exmain (652 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -2047.9874365264548 new -2047.9873455769846
+RESULT: MISMATCH  [pairs serial+omp0, cases all (42)]  (1259.4 s)
+real 1259.75
+exit 1
+  e.g. repro-full-it3, printed fnrm sequence:
+      fnrm_printed: 1 mismatch(es): [(0, '1.918820629111277'), (1, '1.836097068513709'), (2, '1.782757715864211'), (3, '1.762443625980891')] vs [(0, '1.918820661017701'), (1, '1.845784267180629'), (2, '1.785025246447537'), (3, '1.768715976617314')]
+
+R2-4. ulp-level control (one reassociated sum), serial pair, --cases all
+------------------------------------------------------------------------
+34 of 42 cases fail, among them all iterating cases with Te on; repro-tebox has 4 differing Jacobian entries and 1
+sfscal entry. (That the first entry's new value equals the one of the 1e-7 control is finite-difference
+quantisation: the FD quotient moves in steps of ulp(f)/dy, and both changes move f(y+dy) by one step there.)
+The Te-off presets, the orthogonal slab cases and two drift cases agree: the reassociated sum rounds the same on
+those states.
+[serial] repro-full-it3                 MISMATCH neq  44352  iters 4  jacobians 0+post(psetnk)  797.47 s / 808.73 s
+    first mismatch: jacobian:post_exmain (permuted indices) (64069 entries): first value at row ?(ix=468,iy=468) col ?(ix=189,iy=189) (iv 469,190): base 0.017308036917006307 new 0.01730803692205058
+[serial] repro-full                     MISMATCH neq  44352  iters 1  jacobians 0+post(sfsetnk)  268.02 s / 285.48 s
+    first mismatch: jacobian:post_exmain (40274 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=1) (iv 1019,1033): base 6594.185310859757 new 6594.192745978944
+[serial] repro-ni                       AGREE    neq  25344  iters 1  jacobians 0+post(sfsetnk)  156.24 s / 161.5 s
+[serial] repro-up                       AGREE    neq   6336  iters 1  jacobians 0+post(sfsetnk)  53.62 s / 49.94 s
+[serial] repro-te_phi                   MISMATCH neq   6336  iters 1  jacobians 0+post(sfsetnk)  52.88 s / 54.17 s
+    first mismatch: jacobian:post_exmain (7738 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=1) (iv 145,147): base 6594.185310859757 new 6594.192745978944
+[serial] repro-te-it3                   MISMATCH neq   3168  iters 4  jacobians 0+post(psetnk)  58.68 s / 53.52 s
+    first mismatch: jacobian:post_exmain (permuted indices) (5329 entries): first value at row ?(ix=6,iy=6) col ?(ix=0,iy=0) (iv 7,1): base -4.5564885289595487e-07 new -4.5565647394131016e-07
+[serial] repro-ti                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  27.09 s / 30.67 s
+[serial] repro-te                       MISMATCH neq   3168  iters 1  jacobians 0+post(sfsetnk)  32.04 s / 31.69 s
+    first mismatch: jacobian:post_exmain (3976 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=1) (iv 73,74): base 6594.185310859757 new 6594.192745978944
+[serial] repro-ng                       AGREE    neq   3168  iters 1  jacobians 0+post(sfsetnk)  34.95 s / 34.28 s
+[serial] pytests-full-d_c-16x8-it5      MISMATCH neq   2340  iters 6  jacobians 0+post(psetnk)  34.32 s / 31.5 s
+    first mismatch: jacobian:post_exmain (permuted indices) (505 entries): first value at row ?(ix=150,iy=150) col ?(ix=293,iy=293) (iv 151,294): base -1.520971168878096e-07 new -1.521593370215334e-07
+[serial] pytests-slab-it5               AGREE    neq   4522  iters 6  jacobians 0+post(psetnk)  28.66 s / 28.61 s
+[serial] repro-tebox-it5                MISMATCH neq     25  iters 4  jacobians 0+post(psetnk)  12.89 s / 13.33 s
+    first mismatch: jacobian:post_exmain (permuted indices) (3 entries): first value at row ?(ix=24,iy=24) col ?(ix=21,iy=21) (iv 25,22): base -0.003367550818522483 new -0.003367551299688318
+[serial] repro-tebox                    MISMATCH neq     25  iters 1  jacobians 0+post(sfsetnk)  11.74 s / 9.94 s
+    first mismatch: jacobian:post_exmain (4 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+[serial] pytests-full-d_c-16x8          MISMATCH neq   2340  iters 1  jacobians 0+post(sfsetnk)  21.53 s / 22.79 s
+    first mismatch: jacobian:post_exmain (279 entries): first value at row te(ix=8,iy=1) col te(ix=9,iy=2) (iv 349,596): base -7.114431355148554 new -7.117341738194227
+[serial] pytests-D+C-it5                MISMATCH neq    780  iters 6  jacobians 0+post(psetnk)  9.53 s / 8.94 s
+    first mismatch: jacobian:post_exmain (permuted indices) (32628 entries): first value at row ?(ix=15,iy=15) col ?(ix=16,iy=16) (iv 16,17): base 0.9958351693587122 new -1.4786765108662014e-08
+[serial] pytests-D_mols-it5             MISMATCH neq    480  iters 6  jacobians 0+post(psetnk)  5.64 s / 5.24 s
+    first mismatch: jacobian:post_exmain (permuted indices) (2 entries): first value at row ?(ix=158,iy=158) col ?(ix=334,iy=334) (iv 159,335): base 0.06606810461077485 new 0.06606810456185395
+[serial] pytests-D_only-it5             MISMATCH neq    420  iters 6  jacobians 0+post(psetnk)  4.48 s / 4.2 s
+    first mismatch: jacobian:post_exmain (permuted indices) (45 entries): first value at row ?(ix=134,iy=134) col ?(ix=88,iy=88) (iv 135,89): base 0.17314337906291208 new 0.17314337900723345
+[serial] pytests-slab                   AGREE    neq   4522  iters 1  jacobians 0+post(sfsetnk)  13.78 s / 13.92 s
+[serial] pytests-D+C                    MISMATCH neq    780  iters 1  jacobians 0+post(sfsetnk)  6.5 s / 6.56 s
+    first mismatch: jacobian:post_exmain (112 entries): first value at row te(ix=1,iy=1) col ni[7](ix=0,iy=0) (iv 154,8): base -3.512745649913995e-05 new -3.508304757815495e-05
+[serial] pytests-D_only                 MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.99 s / 3.57 s
+    first mismatch: jacobian:post_exmain (27 entries): first value at row te(ix=4,iy=2) col te(ix=4,iy=3) (iv 173,243): base 818.8821539079071 new 818.8822448573773
+[serial] pytests-D_mols                 MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.06 s / 4.23 s
+    first mismatch: jacobian:post_exmain (2 entries): first value at row te(ix=1,iy=4) col ni[0](ix=1,iy=4) (iv 333,329): base -26376.472271749662 new -26376.472203537556
+[serial] pytests-D_mols-drift           AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  3.75 s / 4.21 s
+[serial] pytests-unit-convis            MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.78 s / 3.68 s
+    first mismatch: jacobian:post_exmain (39 entries): first value at row te(ix=4,iy=3) col te(ix=4,iy=4) (iv 243,313): base 435.4226803116035 new 435.42269168028724
+[serial] pytests-unit-core_nogradient   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.38 s / 4.01 s
+    first mismatch: jacobian:post_exmain (7 entries): first value at row te(ix=6,iy=1) col ni[0](ix=5,iy=1) (iv 117,106): base 356406.21007360093 new 356406.21005086356
+[serial] pytests-unit-curcore           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.67 s / 4.95 s
+    first mismatch: jacobian:post_exmain (46 entries): first value at row te(ix=5,iy=3) col te(ix=6,iy=4) (iv 250,327): base 0.3990905383943754 new 0.3990663799413596
+[serial] pytests-unit-isfdiax           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.21 s / 4.81 s
+    first mismatch: jacobian:post_exmain (13 entries): first value at row te(ix=5,iy=2) col te(ix=6,iy=2) (iv 180,187): base 604067.7377882275 new 604067.7377541215
+[serial] pytests-unit-ishosor           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.68 s / 4.66 s
+    first mismatch: jacobian:post_exmain (45 entries): first value at row te(ix=1,iy=1) col te(ix=1,iy=0) (iv 82,12): base 3.991317498730496 new 3.9913118143886095
+[serial] pytests-unit-isnewpot          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.85 s / 4.55 s
+    first mismatch: jacobian:post_exmain (14 entries): first value at row te(ix=4,iy=1) col te(ix=4,iy=2) (iv 103,173): base 2246.0772015620023 new 2246.0786567535247
+[serial] pytests-unit-isnwconi2         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.27 s / 4.06 s
+    first mismatch: jacobian:post_exmain (9 entries): first value at row te(ix=1,iy=2) col ni[0](ix=2,iy=2) (iv 152,155): base 1510.6380232055017 new 1510.6380558904675
+[serial] pytests-unit-isnwcono3         MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.76 s / 3.86 s
+    first mismatch: jacobian:post_exmain (10 entries): first value at row te(ix=5,iy=2) col te(ix=5,iy=3) (iv 180,250): base 781.6614015609957 new 781.6614925104659
+[serial] pytests-unit-istepfc2          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.68 s / 4.44 s
+    first mismatch: jacobian:post_exmain (16 entries): first value at row te(ix=7,iy=1) col ni[0](ix=8,iy=1) (iv 124,127): base 295.2605546724385 new 295.2605562711596
+[serial] pytests-unit-istewc3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.12 s / 4.78 s
+    first mismatch: jacobian:post_exmain (4 entries): first value at row te(ix=5,iy=2) col te(ix=5,iy=2) (iv 180,180): base -1058691.2369944912 new -1058691.237039966
+[serial] pytests-unit-istiwc4           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.16 s / 4.32 s
+    first mismatch: jacobian:post_exmain (51 entries): first value at row te(ix=1,iy=1) col ni[0](ix=1,iy=1) (iv 82,78): base 144.57235337772545 new 144.57234769338356
+[serial] pytests-unit-isupwi3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.38 s / 4.34 s
+    first mismatch: jacobian:post_exmain (12 entries): first value at row te(ix=7,iy=1) col ni[0](ix=7,iy=1) (iv 124,120): base -415.30367305142585 new -415.3036748277827
+[serial] pytests-unit-isupwo3           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.13 s / 3.7 s
+    first mismatch: jacobian:post_exmain (6 entries): first value at row te(ix=1,iy=3) col te(ix=2,iy=2) (iv 222,159): base 3.342075260981403 new 3.3420620271229495
+[serial] pytests-unit-isvylog           MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.59 s / 4.31 s
+    first mismatch: jacobian:post_exmain (3 entries): first value at row te(ix=6,iy=3) col ni[0](ix=5,iy=3) (iv 257,246): base 15758.51110686699 new 15758.511108288076
+[serial] pytests-unit-newbcl_iskaplex   MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.44 s / 3.79 s
+    first mismatch: jacobian:post_exmain (22 entries): first value at row te(ix=2,iy=4) col ni[0](ix=1,iy=3) (iv 299,218): base -0.5390873525357165 new -0.5390852209075092
+[serial] pytests-unit-recycmlb_therm_momflux MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  3.9 s / 4.36 s
+    first mismatch: jacobian:post_exmain (16 entries): first value at row te(ix=3,iy=4) col ni[0](ix=4,iy=4) (iv 306,309): base 2596.5085539425563 new 2596.508558028177
+[serial] pytests-unit-recycmrb          MISMATCH neq    420  iters 1  jacobians 0+post(sfsetnk)  4.11 s / 4.54 s
+    first mismatch: jacobian:post_exmain (27 entries): first value at row te(ix=4,iy=3) col te(ix=4,iy=4) (iv 243,313): base 434.5140268924297 new 434.5140496297972
+[serial] pytests-unit-tg_atom_drifts    AGREE    neq    480  iters 1  jacobians 0+post(sfsetnk)  4.09 s / 4.06 s
+[serial] pytests-unit-tg_atom_istgwc2   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  4.42 s / 4.18 s
+    first mismatch: jacobian:post_exmain (9 entries): first value at row te(ix=1,iy=2) col te(ix=2,iy=2) (iv 173,181): base 7361.3956814710955 new 7361.395712734975
+[serial] pytests-unit-tg_mol_istgpfc4   MISMATCH neq    480  iters 1  jacobians 0+post(sfsetnk)  3.83 s / 3.91 s
+    first mismatch: jacobian:post_exmain (21 entries): first value at row te(ix=5,iy=2) col up[0](ix=4,iy=2) (iv 205,195): base 3260.3379603286853 new 3260.3376021736867
+  NOT THE GATE: pair omp0 not checked
+RESULT: MISMATCH  [pairs serial, cases all (42)]  (935.1 s)
+real 935.47
+exit 1
+
+R2-5. Capture path with the hook in both builds: AIUE-47-serial vs itself, --cases quick --allow-same-build --partial-ok
+------------------------------------------------------------------------------------------------------------------------
+"jacobians k+post" = k raw captured Jacobians compared, plus the post-exmain one (from sfsetnk or psetnk).
+  WARNING: serial base: HEAD 460aa5fc0834 is not origin/v9-develop or an ancestor of it
+[serial] repro-tebox                    AGREE    neq     25  iters 1  jacobians 1+post(sfsetnk)  9.35 s / 9.49 s
+[serial] repro-tebox-it5                AGREE    neq     25  iters 4  jacobians 2+post(psetnk)  10.95 s / 10.74 s
+[serial] pytests-D_only                 AGREE    neq    420  iters 1  jacobians 1+post(sfsetnk)  4.92 s / 5.12 s
+[serial] pytests-D+C                    AGREE    neq    780  iters 1  jacobians 1+post(sfsetnk)  6.35 s / 6.38 s
+[serial] pytests-D_mols                 AGREE    neq    480  iters 1  jacobians 1+post(sfsetnk)  3.31 s / 3.4 s
+[serial] pytests-full-d_c-16x8          AGREE    neq   2340  iters 1  jacobians 1+post(sfsetnk)  11.74 s / 12.09 s
+[serial] pytests-D_only-it5             AGREE    neq    420  iters 6  jacobians 2+post(psetnk)  3.48 s / 3.06 s
+[serial] pytests-D+C-it5                AGREE    neq    780  iters 6  jacobians 2+post(psetnk)  5.46 s / 5.81 s
+RESULT: AGREE, PARTIAL (--partial-ok; not the gate)  [pairs serial, cases partial (8)]  (33.6 s)
+  (exit 0)
+With the hook in one build only (base-serial vs AIUE-47-serial, --cases quick): a warning, capture 0 on both sides,
+8/8 AGREE, RESULT: INCOMPLETE ... [pairs serial, cases partial (8)], exit 2.
+
+R2-6. Timings (loaded machine, --jobs 4)
+----------------------------------------
+  --cases all, 2 pairs: 1083 s (R2-1), 980 s (R2-2), 1259 s (R2-3); serial pair only: 935 s (R2-4).
+  Bound by repro-full-it3 (410-510 s per run under this load) and repro-full (195 s). Unloaded, round 1 measured
+  repro-full at 53 s; expect --cases all in roughly 4-6 min with --jobs 4 on an idle 14-core machine.
+  --cases quick: 34-39 s per pair under load.
+
+Acceptance (round 2)
+--------------------
+  [x] v9-develop against itself passes in both builds: an independent build pair (R2-1, complete gate, exit 0) and
+      the same venv (R2-2, all 84 agree; INCOMPLETE by design because base = new)
+  [x] negative controls fail and name case and first entry, including the Newton-iteration cases (R2-3, R2-4)
+  [x] the solver path is covered (10 iterating cases; the fnrm sequence has 4-6 elements; psetnk Jacobians compared)
