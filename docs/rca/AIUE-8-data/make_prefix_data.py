@@ -13,6 +13,8 @@ The committed data was made with these NAME=DIR pairs (DIR relative to the AIUE-
   ctl_base_t4_k3/<cfg>=v56/base_<cfg>_t4_k3 for cfg in tebox full te te_phi ti ni up ng
   r54_new/<check>=r54/new/<check> for every check directory there
   k2_extra/<flow>/full/jacrhs_t<N>=<flow>/full/jacrhs_t<N> for flow in AIUE-52/acc_all_k2 AIUE-52/quick
+  (committed under records/ with the slash replaced by an underscore, e.g. AIUE-52_acc_all_k2; the
+  flow_summary.md files there are copied, not written by this script)
       AIUE-52/r1/quick rev52/quick and N in 2 4 8 (where present)
 
 A run directory is any directory holding spec.json. Its serial reference is the sibling "serial" directory of

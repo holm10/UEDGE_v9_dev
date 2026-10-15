@@ -11,7 +11,8 @@ gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACK
 
 **Platform: macOS only. Linux has not been characterised.** No Linux host was available locally (no running Docker
 daemon). The AIUE-57 CI job will run only the Te box and the full problem at 2 and 4 threads on ubuntu-latest (PRD
-§7.6). The rest of the Linux characterisation is an **owner decision, still open**: `te`, `ti`, `ni`, `up`, `ng`,
+§7.6). The rest of the Linux characterisation is **proposed to be deferred to AIUE-62** (filed by the unattended run;
+**the owner confirms, or chooses to run it now or to accept the gap**): `te`, `ti`, `ni`, `up`, `ng`,
 `te_phi`, 8 threads, the jacrhs arm beyond what the CI job reports, and the K=20 rates. The named follow-up is a Linux
 run of the same commands as below: `flow --all --repeats 2` and `flow --configs tebox|full --threads 4 --repeats 20`,
 on a libgomp-only build (PRD R4). Until that run exists, nothing in this section says anything about Linux.
@@ -35,7 +36,9 @@ Everything below is generated from the committed data in `docs/rca/AIUE-8-data/`
 - `prefix_runs.csv`: one row per run, with the harness commit, status, `ijactot`, the iteration count, the
   iteration-0 and last printed `fnrm`, which Jacobian is stored, and mismatch counts per section against the run's
   serial reference.
-- `prefix_stats.txt`: per-group numbers. Every number in this section comes from this file or from the CSV.
+- `prefix_stats.txt`: per-group numbers. Every number in this section comes from this file or from the CSV, except:
+  the `ci_base_pr` overflow counts (AIUE-57 scratch records), the `v56` and AIUE-57 timings (AIUE-56/AIUE-57
+  validation records), the build-log times, and the phi serial logs (session scratchpad `phi/`).
 - `make_prefix_data.py`: the script that wrote all three from the run directories (it needs the `.npz` files).
 
 | Data set | What | Harness commit | Machine load (1-min average) |
@@ -102,7 +105,7 @@ entries that differ from serial in value or pattern (extra + missing + value).
 | Configuration / arm | Runs | Agree with serial | Distinct results | Iteration-0 `fnrm` | Stored nonzeros | Serial reference |
 |---|---|---|---|---|---|---|
 | `tebox` / jac | 20 | **0/20** | 20 of 20 (no two runs equal) | 20 distinct, 0.1357213635807744 – 0.1786270608456234 | 10 distinct, 176–187 | `fnrm` 0.3221264477609989, nnz 169 |
-| `tebox` / jacrhs, no Newton step (run5, run14) | 2 | **0/2** | 2 of 2 | 0.1645118081253171, 0.1670300684916609 | 181, 177 | as above |
+| `tebox` / jacrhs, no Newton step (run5, run14) | 2 | **0/2** | 2 of 2 | 0.1645118081253171, 0.1670300684916609 | 177, 181 | as above |
 | `tebox` / jacrhs, Newton step taken | 18 | **0/18**, not comparable: the stored quantities are from iteration 1 | 18 of 18 | 18 distinct, 4.9e30 – 1.005e31 | not iteration 0: 304 (15 runs) or 169 (3 runs), row-normalised | as above |
 | `full` / jac | 20 | **0/20** | 20 of 20 | 16 distinct, 1.535419111648367 (5 runs) – 1.537122945485376 | 20 distinct, 3,632,025 – 3,677,607 | `fnrm` 1.918820629111277, nnz 3,190,290 |
 
@@ -168,7 +171,7 @@ No measurement here is on an idle machine, and **none is on a 4-vCPU Linux runne
 
 | Run | Build | Load (1-min average) | Wall time |
 |---|---|---|---|
-| Te box, one evaluation, serial or 1–8 threads | base | 10–40 | 1.4–4.6 s per run (K=2, K=20, `r54_new`); up to 5.9 s for a jacrhs run that takes a Newton step |
+| Te box, one evaluation, serial or 1–8 threads | base | 10–40 (K=2, K=20); 24–113 (`r54_new`) | 1.4–4.6 s per run (K=2, K=20, `r54_new`); up to 5.9 s for a jacrhs run that takes a Newton step |
 | Te box, one evaluation, 4 threads | base | 60–180 | 11–13 s per run (controls) |
 | Te box, `--itermx 3`, serial / 2 threads / 4 threads | base | ~30 | 1.7 / 1.7–2.6 / 2.9–3.2 s per run (`r54_new`) |
 | Te box, `--itermx 3`, serial / 4 threads | AIUE-56 fix | 60–180 | 11.1 / 9.9–13.0 s per run (`v56/new_tebox_t4_it3_k5`) |
@@ -189,7 +192,8 @@ No measurement here is on an idle machine, and **none is on a 4-vCPU Linux runne
 What the CI budget can take from this:
 - **Ratios, not absolute times.** Measured in the same session at low load, `--itermx 3` costs about 2.6× a single
   evaluation for the full serial reference (AIUE-57, 99.3 s against 38.2 s). In this revision's runs (load ~30) it costs
-  ~1.1× for the Te box serial and ~2× at 4 threads (2.9–3.2 s against 1.5–1.8 s for one evaluation at 4 threads).
+  ~1.1× for the Te box serial and ~2× at 4 threads (2.9–3.2 s against 1.5–1.8 s for one evaluation at 4 threads, the
+  latter measured with `OMPJacNchunks=-1`, not the default chunking).
 - **4 threads against serial.** At 4 threads, a full-problem evaluation takes about a third of the serial time
   (18–20 s against 56 s).
 - **Load matters more than anything else.** At load ≥ 60, the same run takes 5–8× its time at load 10–40 (full serial 56 s → 298–318 s, full 4 threads 18–20 s → 99–111 s, Te box 1.5 s → 11–13 s).
