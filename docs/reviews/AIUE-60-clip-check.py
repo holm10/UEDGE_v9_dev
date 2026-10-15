@@ -19,8 +19,8 @@ sfscal, suscal and which rows are Te equations.
 runs, one at a time, and reports:
   predicted   from the serial clip-0 Jacobian: entries the row rule and the column rule keep differently at L
   G1 (new)    every OpenMP entry present on one side only is a threshold flip: | |J(r,c)| - L/suscal(c) | <=
-              tau_eff * max_c'|J(r,c')| (row max of that side's J; the row rule keeps |J(r,c)| > L/suscal(c)), with
-              tau_eff = TAU + (max relative sfscal difference of the run) and TAU = 1e-8: the C2 round-off scale
+              tau_eff(r) * max_c'|J(r,c')| (row max of that side's J; the row rule keeps |J(r,c)| > L/suscal(c)),
+              tau_eff(r) = TAU + |sfscal_omp(r)/sfscal_serial(r) - 1| (per row) and TAU = 1e-8: the C2 round-off scale
               (largest observed C2 deviation 7.15e-9 x row max, AIUE-56; an observed value, not a bound).
               --strict (presets without C2, e.g. ni): additionally 0 one-sided entries when the run's common values
               and sfscal are bitwise equal to serial.
@@ -31,7 +31,7 @@ runs, one at a time, and reports:
   G2          report only: sfscal differences serial vs OpenMP (count, max relative). sfscal comes from the
               sfsetnk Jacobian, which round-off (C2) may change; each side's J is scaled by its own sfscal, so the
               band test above stays consistent within each side. suscal must be bitwise equal (else exit 2).
-  G3 (base)   negative control: every base OpenMP run has non-flips (the case is sensitive to the old rule)
+  G3 (base)   negative control: every base OpenMP run fails G1 under the same rule (the case detects the old rule)
   G4          the serial Jacobians of base and new are bitwise equal (pattern and values; serial unchanged)
 Exit: 0 all gates pass, 1 a gate fails, 2 harness error / precondition (suscal not bitwise, run failed).
 The harness core (presets, case files, rates, equation map) is read from --harness (AIUE-57 reviewed core).
@@ -150,8 +150,9 @@ def pattern_diff(ser, omp, clip):
     su = ser["suscal"]
     rmax_s, rmax_o = row_max(ser), row_max(omp)
     sf_diff = int((ser["sfscal"] != omp["sfscal"]).sum())
-    sf_rel = float(np.abs(omp["sfscal"] / ser["sfscal"] - 1).max())
-    tau_eff = TAU + sf_rel
+    sf_rel_row = np.abs(omp["sfscal"] / ser["sfscal"] - 1)
+    sf_rel = float(sf_rel_row.max())
+    tau_row = TAU + sf_rel_row  # per row: one row's sfscal change does not widen another row's band
     is_te = ser.get("is_te")
     only = [(rc, v, "serial") for rc, v in s.items() if rc not in o] + \
            [(rc, v, "omp") for rc, v in o.items() if rc not in s]
@@ -160,7 +161,7 @@ def pattern_diff(ser, omp, clip):
     for (r, c), v, side in only:
         rmax = rmax_s if side == "serial" else rmax_o  # each side's own J and row scale (its own sfscal)
         dist = dist_rowmax(v, r, c, su, rmax, clip)
-        if dist <= tau_eff:
+        if dist <= tau_row[r - 1]:
             flips += 1
         else:
             nonflips += 1
@@ -172,7 +173,7 @@ def pattern_diff(ser, omp, clip):
     return {"nnz_serial": len(s), "nnz_omp": len(o), "only_serial": sum(1 for x in only if x[2] == "serial"),
             "only_omp": sum(1 for x in only if x[2] == "omp"), "threshold_flips": flips, "non_flips": nonflips,
             "non_flips_te_within_c1_bound": nonflips_c2, "worst_nonflip_dist_rowmax": float(worst),
-            "value_diffs_common": vdiff, "serial_entries_in_band": band, "tau_eff": tau_eff,
+            "value_diffs_common": vdiff, "serial_entries_in_band": band, "tau_eff_max": float(tau_row.max()),
             "sfscal_diffs": sf_diff, "sfscal_max_rel_diff": sf_rel}
 
 
@@ -224,7 +225,8 @@ def check(a):
             b["G1"] = "FAIL" if "FAIL" in verdicts else ("PASS" if all(v == "PASS" for v in verdicts)
                                                           else "PASS (C2 tolerance)")
         else:
-            b["G3"] = "PASS" if all(r["non_flips"] > 0 for r in b["runs"]) else "FAIL (case not sensitive)"
+            # the negative control uses the same rule as G1: every base run must fail it
+            b["G3"] = "PASS" if all(r["G1"] == "FAIL" for r in b["runs"]) else "FAIL (case not sensitive)"
     if a.base_python:
         sn, sb = entries(sers["new"]), entries(sers["base"])
         same = sn.keys() == sb.keys() and all(np.float64(sn[k]).tobytes() == np.float64(sb[k]).tobytes() for k in sn)

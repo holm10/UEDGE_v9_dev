@@ -202,9 +202,15 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
    Run it for `AIUE-56-omp` and `AIUE-60-omp`, one after the other. The gates are judged per run and per section
    (`flow.json`: every comparison report with its `sections`), not on group verdicts or merged equation sets (L2-M1).
    - **Classes, fixed in advance from AIUE-56 evidence, not from this flow's outcome.**
-     - **Class X** (`ti`, `ni`, `up`, `ng`) was bitwise in every recorded AIUE-56 run: `jac` 5/5 at 4 threads, the
-       `base-omp` controls 3/3, and AIUE-52 PASS at 2/4/8 threads. The AIUE-58 probes at `yl0` were equal for these
-       presets.
+     - **Class X** (`ti`, `ni`, `up`, `ng`) was bitwise in every recorded run (L3-m3 attribution):
+       - AIUE-56 `jac` at 4 threads, 5/5 per preset (`AIUE-56-validation.txt:17-20`);
+       - the base-build controls, 3/3 (`:25-28`);
+       - AIUE-54's `k2_all` flow on the base build, 2/2 at 2/4/8 threads on both arms
+         (`AIUE-54/docs/rca/AIUE-8-data/records/k2_all/flow_summary.md`);
+       - the AIUE-58 probes on AIUE-56: `ni`/`up`/`ng` equal in every step, `ti` equal at `yl0`.
+
+       For AIUE-56 at 2 threads and on `jacrhs`, the support is the base-build data plus those probes. If the class is
+       wrong anywhere, the mechanical fallback below catches it.
      - **Class Y** (`tebox`, `full`, `te`, `phi`=`te_phi`) carries the C2 residual in Te rows, which is only
        intermittently bitwise (`AIUE-56-validation.txt`: Te box 1/5 and 1/30, full 2/5 and 0/30, `te`/`te_phi` 0/5).
    - **Section families.**
@@ -216,6 +222,9 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
      - (b) **Class Y, Jacobian sections:** every mismatch lies in a Te row (C2).
      - (c) **Class Y, Jacobian sections:** the AIUE-56 C1-gate bounds hold on every one-evaluation run
        (`docs/reviews/AIUE-56-c1-gate.py`: Te-row max ≤ 10 × serial; every deviation ≤ 1e-6 × serial row max).
+       The gate script reads a directory holding `serial/` and `run*/`, so `docs/reviews/AIUE-60-flow-gates.py` stages
+       one per group with symlinks (`serial` → `<config>/serial`, `run<k>` → `<config>/<arm>_t<n>/run<k>`) and runs it
+       there.
      - (d) **Every class, RHS sections:** bitwise equal to serial in every run.
        - On `jac` this is a property of the serial RHS, the scaling and the solver.
        - On `jacrhs` it holds on AIUE-56 for one-evaluation runs: Te box and full K=5, all agreeing in
@@ -229,19 +238,25 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
    - **Mechanical fallback (fixed in advance).** If an AIUE-56 run in this flow itself violates (a) or (d) for a group
      and section, AIUE-56 has shown that the property is intermittent there. For that group and section, AIUE-60 is then
      judged by the re-run rule below instead of (a)/(d).
-   - **Re-run rule.** Any group that fails (a)–(d) or (f) is re-run at K=5 on **both** builds, with the same
-     configuration, arm and thread count, one build after the other. The failure is a **confirmed regression** only if
-     the violated property fails in more AIUE-60 re-runs than AIUE-56 re-runs. Otherwise it is recorded as
-     pre-existing, with both counts. Each confirmed regression fails the acceptance criterion.
-   - **Why false failures are unlikely.** Each gate rests on a property that held in every recorded AIUE-56 run of the
-     same kind:
+   - **Re-run rule (L3-m1).** Any group that fails (a)–(d) or (f), or is marked RERUN by the fallback, is re-run at K=5
+     on **both** builds, with the same configuration, arm and thread count, one build after the other. Let
+     n₆₀ and n₅₆ be the numbers of re-runs that violate the property. Then:
+     - n₆₀ − n₅₆ ≥ 2: **confirmed regression**. A deterministic regression (5 vs 0) always confirms.
+     - n₆₀ − n₅₆ = 1: tie-break. Re-run K=10 more on both builds; a **confirmed regression** if AIUE-60 violates the
+       property in more of those 10 runs than AIUE-56.
+     - Otherwise: recorded as pre-existing, with all counts.
+
+     Each confirmed regression fails the acceptance criterion.
+   - **Why false failures are unlikely.** Each gate rests on a property that held in every recorded run of the same
+     kind:
      - (a) and (d): bitwise in 5/5, 3/3, K=2 and K=5 samples;
-     - (b) and (c): held in all 70+ AIUE-56 one-evaluation runs, with C1 gate PASS throughout;
+     - (b) and (c): held in all 110 C1-gated AIUE-56 one-evaluation runs;
      - (f): no AIUE-56 crash in one-evaluation runs.
 
-     So no gate depends on which way an intermittent baseline group fell. A false failure would need an event never
-     observed on AIUE-56, and the re-run rule then compares rates on both builds, so a single unlucky run can't fail
-     the ticket.
+     So no gate depends on which way an intermittent baseline group fell. If a property is intermittent at the same
+     rate q on both builds, a margin of ≥ 2 at K=5 is a false confirmation with probability 0.003 at q = 0.02 and
+     0.05 at q = 0.1 (round-3 table). The tie-break adds K=10 at a margin of 1. False confirmation is not impossible;
+     the rule errs toward failing, which is the safe direction for a race fix.
    - Reported, not gated: the counts of runs agreeing with serial per group, and group verdicts.
    - 8 threads are not run (machine rule); this is stated as a gap.
    - **Cross-build bitwise (deterministic configuration):** `cli.py check --preset tebox --arm jac --threads 4 --repeats 2
@@ -254,8 +269,9 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
    --clip 1e-6 --threads 4`, presets `ni` (`--repeats 3 --strict`) and `full` (`--repeats 2`, not strict). Precondition,
    met by Probe C: `rules_differ` > 0 for both presets. **Gates:**
    - **G1**: every one-sided entry of an AIUE-60 OpenMP run is a threshold flip,
-     `| |J(r,c)| − L/suscal(c) | ≤ τ_eff·max_c'|J(r,c')|`, computed on the side that holds the entry, with
-     `τ_eff = τ + sfscal_max_rel_diff` of the run and τ = 1e-8.
+     `| |J(r,c)| − L/suscal(c) | ≤ τ_eff(r)·max_c'|J(r,c')|`, computed on the side that holds the entry, with τ = 1e-8
+     and a per-row `τ_eff(r) = τ + |sfscal_omp(r)/sfscal_serial(r) − 1|` (L3-m2: one row's `sfscal` change doesn't
+     widen another row's band).
      - **τ is an observed value, not a bound.** The largest C2 deviation seen in AIUE-56 is 7.15e-9 × row max (`te_phi`).
        When `sfscal` differs, the distance to the threshold also gains the relative `sfscal` change, which is why that
        term is added. Together this can reach about 1.4e-8 × row max.
@@ -275,8 +291,10 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
      consistent within each side, and the run is judged by G1 with the band rule. `suscal` must be bitwise equal; if it
      isn't, the script exits 2 (not comparable). Such a run is re-run once, and if it persists it is reported as a
      harness error, never as a G1–G4 result.
-   - **G3**: every AIUE-56 OpenMP run has non-flip differences. This is the negative control that shows the case detects
-     the old rule; Probe C found 62 006 and 734 080.
+   - **G3**: `g1_verdict(base run) == "FAIL"` for every AIUE-56 OpenMP run, with the same strictness and tolerance as G1
+     (L3-m2). This is the negative control that shows the case detects the old rule; Probe C found 62 006 and 734 080
+     non-flips. The round-3 observation applies: the C2-tolerance escape is ~100 × τ wide, and the control bites
+     because the clip defect hits every equation.
    - **G4**: the AIUE-56 and AIUE-60 serial clipped Jacobians are bitwise equal.
 5. **TSan, before/after** (procedure of AIUE-50, `tsan_summary.py` on `feature/v9-AIUE-50-shared-state-scan`):
    - Two scratch detached trees: `../AIUE-60-tsan-pre` at `1553e75` and `../AIUE-60-tsan` at the implementation commit;
