@@ -124,7 +124,8 @@ array read outside its chunk range once the x-direction is split.
 | `full` | probe, `afrac`, `atau` | AIUE-56 | 2, 4 (×2), 8 threads | **R2**: 1410–2538 Te rows |
 | `te` | probe, `ueinit` | AIUE-56 | 1 (two `ueinit` calls) | **R3**: block moved, 1836–1855 Te rows, ≤ 5.1e56 relative |
 | `te` | probe, `ueinit` (old blocks held alive), then reassign | AIUE-56 | 1 (reviewer, `review_round1/r3`) | 1162 Te rows ≤ 3.7e34 and 78 876 `B1VAhL` errors although old = new tables; after reassigning the 12 arrays 889 rows ≤ 5.5e-9 |
-| `te` | probe, `ueinit`, then a second `exmain` with `icntnunk=0` | AIUE-56 | 2 (this round; the first stopped after `ueinit` at a then-unknown step) | block reused the address: 760–988 and 889 Te rows ≤ 5.5e-9; after the second `exmain` **bitwise equal**, also after `pert:1e-3` |
+| `te` | probe, `ueinit`, then a second `exmain` with `icntnunk=0` | AIUE-56 | 2 (this round; the first stopped after `ueinit` at a then-unknown step) | block reused the address: 760–988 and 889 Te rows, observed ≤ 5.5e-9 at these states; after the second `exmain` **bitwise equal**, also after `pert:1e-3` |
+| `te` | probe `same, ueinit, reexmain, pert:1e-3, ueinit` | AIUE-56 | 1 (reviewer round 2, not committed: `/tmp/aiue58-r2/te_reexmain/`) | block moved: 2194 Te rows ≤ 3.7e34; after the second `exmain` **bitwise equal**, also after `pert:1e-3`; the final `ueinit` broke it again (791 rows, ≤ 8.1e-9) |
 | `full` | probe, `ueinit` | AIUE-56 | 1 | `emcoef` reallocated at the same address; 1 Te row off by 3.8e-16 (R3's outcome depends on what the fresh allocation holds) |
 | `ti`, `te`, `te_phi`, `ni`, `up`, `ng` | probe, all steps | AIUE-56 | 1 each | R1 only where Ti is on (`ti`: 26 rows); R2 only where Te is on; `ni`, `up`, `ng`: equal in every step |
 | `full` | probe, all steps | **base** (pre-fix) | 1 | C1-RHS: 2198–2240 Te rows at `yl0` already; plus R1's 26 Ti rows after a perturbation |
@@ -133,6 +134,8 @@ array read outside its chunk range once the x-direction is split.
 | `ti` | sequence (`dtreal=1e-9`, then `icntnunk=1`), ± `afracs` | nofma | jac 1+1, jacrhs 2+2 | jac: bitwise equal to serial (`yl`, every printed `fnrm`); jacrhs: departs from iteration 1 (2.0676408e-4 vs 2.0676435e-4), 5 instead of 4 iterations in one run, final `yl` 1000–1254 entries off by ≤ 6.5e-11, differs between runs |
 | `ti` | same | AIUE-56 | as above | jacrhs not bitwise, as above (jac arm there also carries C2) |
 | `te` | sequence, ± `afracs` | nofma / AIUE-56 | jac 2 + 2, jacrhs 4 + 4 | jac: completes 4/4 (nofma bitwise equal to serial 2/2). **jacrhs: SIGSEGV 6/8** (R3 → R4); the AIUE-56 `afracs` survivor shows R2 (above) |
+
+The small residual after `ueinit` (Te rows at 1e-9–1e-8, observed 5.5e-9 and 8.1e-9 at different states; not a fixed bound) is not localised. The `reexmain` control removes it, but that control runs both the full worker copy and the Jacobian column loop, so it does not show that a refresh (master `pandf` + copy) alone removes it. AIUE-59 must show that.
 
 **The full-problem Jacobian re-check (ticket priority 2).** The main session's observation (full jacrhs, 2 and 4
 threads, Jacobian equal to serial) is **not specific to the RHS arm**: at the same low load the jac arm also gave a
@@ -209,7 +212,7 @@ The options as prepared for the owner (R3 wording corrected in review round 1):
 | Option | What AIUE-59 does | Result for `OMPParallelPandf1=1` | Serial | Cost / risk |
 |---|---|---|---|---|
 | **A. Fix all four** | R1: `hcyn` at `xe+1` (minimal form, not the scratch line) + audit of the `*omp` ranges against neighbour reads, starting with the `Nxchunks>1` rows; R2+R3: full worker refresh after `ueinit`, before the first parallel RHS of each `exmain`; R4: no `xerrab` inside parallel regions | Expected, **not shown**, bitwise equal to serial on the RHS for the default chunking; jacrhs then inherits only C2 | **Unchanged** (R1 by construction; the rest is `ppp/` only) | One extra full `pandf` + copy per refresh (not measured); the audit for `Nxchunks>1` is open-ended |
-| **B. Fix the crash path and the uninitialised read, document the rest** | R3 + R4 (+ R1, a serial-neutral change) | No crash; R2 remains for indexed/Fortran-side input changes until the next Jacobian | Unchanged | Users must set `icntnunk=0` after changing inputs; `continuation_solve` and `rundt` do not |
+| ~~B. Fix the crash path and the uninitialised read, document the rest~~ **Superseded** (R3's fix is the same worker refresh that fixes R2, so "R2 remains" no longer holds; the owner chose A) | R3 + R4 (+ R1, a serial-neutral change) | No crash; R2 remains for indexed/Fortran-side input changes until the next Jacobian | Unchanged | Users must set `icntnunk=0` after changing inputs; `continuation_solve` and `rundt` do not |
 | **C. Known limitation** | Declare `OMPParallelPandf1=1` experimental: warn in `InitParallel`, keep CI on the jac arm only | Wrong Newton trajectories with Ti on (R1), wrong RHS after input changes (R2), uninitialised tables and crashes in `rundt`-style runs with `isimpon=2/7` (R3/R4) | Unchanged | Leaves an uninitialised read and a SIGSEGV path reachable from a documented switch |
 | D. Nothing to fix | — | — | — | **Not supported by the evidence** (R1–R4 reproduce on the fixed build) |
 
