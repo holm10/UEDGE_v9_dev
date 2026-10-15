@@ -34,8 +34,8 @@ Arguments after "--" are passed to the child:
   --capture K        bbb.jaccapture=K (keep up to K raw Jacobians); --skip S sets jaccapskip
   --iprint N         com.iprint (default 1, so nksol prints the fnrm sequence)
 
---add-file PATH copies an extra file into the run directory (e.g. crumpet_nrates.dat,
-which the installed package does not ship; the D_mols decks need it).
+--add-file PATH copies an extra file into the run directory (e.g. rates/aph/crumpet_nrates.dat
+and crumpet_Erates.dat, which the installed package does not ship; the D_mols decks need both).
 
 Environment of the child: HOME is an empty temporary directory; OMP_NUM_THREADS
 (--threads, default 1), OMP_STACKSIZE (default 512M) and any --env K=V are set.
