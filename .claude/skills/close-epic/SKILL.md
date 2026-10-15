@@ -149,6 +149,17 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    the branch, `Merge pull request #N from <owner>/feature/v9-<KEY>-<slug>`; squash subjects end in `(#N)` and usually
    name the key). With `gh`: `gh pr list --state merged --search '<KEY>' --json number,headRefName,mergeCommit,mergedAt`.
    A PR whose state is MERGED counts as merged even when the branch tip is not an ancestor (squash, rebase).
+   **Without `gh`**, also try, in order:
+   - the key in GitHub's humanised squash title or in a commit body: `git log --first-parent --format='%H %s%n%b'
+     origin/v9-develop | grep -E '<PROJ>[- ]<N>([^0-9]|$)'`, and a PR number or branch name the progress log or a
+     Jira comment gives;
+   - patch identity, when the branch still exists: `git cherry origin/v9-develop <branch>` (every line `-` means each
+     commit landed, as in a rebase merge); for a squash, compare
+     `git diff <parent>...<branch> | git patch-id --stable` with `git show <S> | git patch-id --stable` for the
+     first-parent commits after the branch's fork point.
+
+   If none finds it, the merge is **undeterminable**: say so for that child, list "merge not located" as an open item
+   when Jira says Done or the branch is gone, and state the limitation in section 10.
 2. **Branch.** `git branch --list '*v9-<KEY>-*'` (local) and `git branch -r --list 'origin/*v9-<KEY>-*'`. The
    trailing hyphen keeps `AIUE-5` from matching `AIUE-50`. Drop `-planning` and `-integration` branches, which belong
    to an epic of that key. Report one tip per branch: the local one, noting if it is ahead of or behind its
@@ -157,9 +168,14 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
 3. **Prototype worktrees.** `git worktree list --porcelain`, keeping `worktree` paths whose last component is
    `<KEY>` or starts with `<KEY>-`. For each: HEAD, branch or detached, and `git -C <path> status --short`.
    Uncommitted changes in a prototype are an open item (they exist nowhere else), and so are commits reachable only
-   from a detached HEAD (`git branch -a --contains <HEAD>` empty). Say what each worktree is when a record names it
-   (a negative control or seeded race is deliberate; its open item is only the clean-up), else "not named in a
-   record".
+   from a detached HEAD (`git branch -a --contains <HEAD>` empty); list those commits (`git log --oneline
+   <merge-base with origin/v9-develop>..<HEAD>`). Say what each worktree is when a record names it (a negative
+   control or seeded race is deliberate; its open item is only the clean-up). Before writing "not named in a
+   record", grep the records for the worktree's name and its HEAD's short sha: `git grep -n -e '<name>' -e
+   '<sha7>' <rev> -- docs .claude/plans` for the planning tip and every ticket tip.
+
+   Agent work in progress outside the repo (a session scratchpad, a running study) is **in progress, not a source**:
+   name it in section 8 if a record mentions it, and never cite its numbers as evidence.
 
 Then, per child, the **range** that holds its own work:
 
@@ -169,6 +185,12 @@ Then, per child, the **range** that holds its own work:
 | squash or single rebased commit `S` | `S` | `git diff S^ S` | `S:<path>` |
 | rebase-merged series | the PR's commits (`gh pr view <N> --json commits`), else the first-parent run carrying the key | first^..last | last commit |
 | unmerged branch | `git log --oneline <parent>..<branch>` | `git diff <parent>...<branch>` | `<branch>:<path>` |
+
+**Stacked tickets merged together.** If two children resolve to the same merge or squash commit, or `M^1..M^2`
+contains another child's tip, the merge range covers more than one ticket. Then take each child's commits, diff and
+records from its own range, `<parent-tip>..<tip>` with the actual-base rule below (tips from the branches, or, if
+they are gone, from the snapshot, the progress log or the Jira comments), and note the shared merge in each child's
+entry. If the tips can't be recovered, say the range is shared and attribute nothing ticket by ticket.
 
 For an unmerged branch, `<parent>` is the **actual** base from git, not the breakdown's planned `Branch:` line:
 the branch with the most commits over `origin/v9-develop` among the epic's other ticket branches, its planning branch
@@ -189,11 +211,17 @@ From the range:
   '\*\*(APPROVE|REVISE|REJECT)'`); the response files for what was fixed, rebutted, deferred or left
   (`grep -inE 'defer|rebut|owner|not done|left for|follow-up|not covered'`). Note approvals that came only after an
   owner-authorised round past the cap.
-- **Commits after the approving round.** List the commits that add or follow the approving report, including changes
-  committed *together with* it (the reviewer saw the code before them). Classify each by what it changes: **text
-  only** (comments, docs, wording that adds or changes no claim) needs no new review; a change to **code, tests,
-  data or behaviour**, or new results or claims in a document, is an *unreviewed post-APPROVE change* and an open
-  item (the rule in `end-to-end-feature`).
+- **Commits after the approving round.** List every commit that adds or follows the approving report, including
+  changes committed *together with* it (the reviewer saw the work before them), and give each one class:
+
+  | Class | What it is | Open item? |
+  |---|---|---|
+  | **Text only** | comments, docs or wording that adds or changes no claim | no |
+  | **Requested fix** | a change to a document or record that does what the approving review's own findings asked (cite the finding ids) and no more, e.g. a corrected number or a qualifier the reviewer asked for | no; listed, low risk |
+  | **Unreviewed change** | any change to code, tests, data or behaviour (even when a finding asked for it: the `end-to-end-feature` rule requires a new round), or new results or claims nobody asked for | yes |
+
+  To tell a requested fix from an unreviewed change, compare the diff with the findings and the response file: every
+  changed claim must trace to a finding.
 - **Default results (every ticket gets a line).** If every changed path is under `docs/`, `.claude/`, `tests/`,
   `.github/`, or is `*.md`, `.gitignore`, `.mcp.json`, write "no change to built or run-time code" with the diff as
   the source. Otherwise (sources, `.v`, build files, `pyproject.toml`, `setup.py`, rate or data files, `src/uedge/`,
@@ -201,7 +229,8 @@ From the range:
   commit body ("bitwise unchanged on …", "cases X, Y moved because …") and cite it, including the commit it was
   measured on. If none says, write "not recorded"; never infer it from the diff.
 - **Evidence across tickets.** Where a criterion rests on several unmerged tickets (two fixes, a fix and its test
-  tool), say whether any record shows them tested together. If not, that is part of the criterion's gap.
+  tool), say whether any record shows them tested together. If not, the criterion is at best **Partly met**, with
+  the combined check as the missing part.
 - **Status claims in comments are snapshots and summaries.** Jira comments and the progress log quote tips and
   states at the time they were written, and summarise records. Take tips from git, states from Jira, and results
   from the record a comment summarises; list each contradiction in section 10.
@@ -233,23 +262,26 @@ Criteria the PRD marks as not gating (bonus track, quality indicators, user-expe
 way but don't decide completeness; the children that carry them still appear below. The PRD's MINORs carried to the
 tickets each get a disposition: applied in which ticket, or not found.
 
-Then list everything that is not done:
+Then list everything that is not done (the **open items**):
 
+- each gating criterion whose class is not Met or Superseded, with its class and the missing part;
 - children whose status category is not Done;
 - ticket work not merged into `v9-develop` (and branches with commits but no PR);
 - reviews not ending in APPROVE, and approvals given only on an owner override;
-- unreviewed post-APPROVE changes (code, tests, data or behaviour);
+- unreviewed post-APPROVE changes (the third class above);
 - deferred review findings, accepted gaps with no ticket, and rebuttals the reviewer didn't accept;
 - open owner decisions: every item of every "owner decisions" list in the progress log, the PRD decision table, and
   Jira or Confluence questions to the owner with no answer. An item counts as answered only if a source attributed to
   the owner answers it; an experiment that answers the technical question still needs the owner's acceptance;
-- prototype worktrees with uncommitted changes;
+- prototype worktrees with uncommitted changes, and commits on no branch;
+- merges that could not be located;
 - merge conditions recorded on a ticket ("don't merge before …");
 - open Confluence inline comments;
 - the epic's own Jira state if it disagrees with the work (e.g. still To Do while children are In Review).
 
-**The epic is complete** only if every gating criterion is Met or Superseded and every list above is empty. Otherwise
-write the record as a close-out draft (Step 4); the owner decides each open item in Step 6.
+**The epic is complete** only if the list above is empty; an unmet gating criterion is on it, so it can't be skipped.
+Otherwise write the record as a close-out draft (Step 4); the owner decides each open item in Step 6. A close-out
+draft always has at least one open item: if the list is empty while a criterion is unmet, the list is wrong.
 
 ### Step 4 — Write the record
 
@@ -264,8 +296,8 @@ The status line takes exactly one of:
 |---|---|
 | `Dry run - not reviewed, not published` | `--dry-run` |
 | `Complete` | Step 3 found the epic complete |
-| `Close-out draft - epic not complete (<n> open items)` | open items, before the owner has answered all of them |
-| `Closed by the owner on <date> - <a> accepted-open, <d> deferred to <KEYs>` | the owner answered every open item with close anyway or defer, and said yes to Done |
+| `Close-out draft - epic not complete (<n> open items)` | n ≥ 1 open items (unmet gating criteria included), before the owner has answered all of them |
+| `Closed by the owner on <date> - <a> accepted-open, <d> deferred to <KEYs>` | the owner answered every open item, including every unmet gating criterion, with close anyway or defer, and said yes to Done; a + d equals the number of open items |
 
 An epic the owner keeps open stays at `Close-out draft`.
 
@@ -326,7 +358,8 @@ must be self-contained:
   absolute path for the report (`<planning worktree>/docs/reviews/<EPIC-KEY>-closeout-round<N>.md`);
 - the git sources: the planning worktree and the ticket branches, merges and prototype worktrees;
 - that the reviewer has no Atlassian access: it checks Jira and Confluence claims against the snapshot, git claims
-  against the current tips, and lists what it could not verify;
+  against the current tips, and lists what it could not verify in its "Not independently verified (environment)"
+  section;
 - the owner's answers given in this session (Step 6 choices, confirmations, corrections), each marked binding;
 - on rounds 2+: the previous report and the response file (`...-closeout-round<N>-response.md`).
 
@@ -342,8 +375,8 @@ needs no new round; any change to a claim, a class, a status or an item does.
 Show the owner, in the terminal: the completion verdict, the not-done list, and what Step 7 will do. Ask, in one
 message:
 
-1. for each open item: close anyway (accepted-open), defer (to which follow-up: an existing key, or a new ticket to
-   file), or keep the epic open;
+1. for each open item, unmet gating criteria included: close anyway (accepted-open; for a criterion, the owner
+   accepts it as unmet), defer (to which follow-up: an existing key, or a new ticket to file), or keep the epic open;
 2. for each decision the record credits to the owner, and each "attribution unverified" one: confirm, correct, or
    mark as not the owner's;
 3. whether to publish the record to Confluence now;
@@ -360,8 +393,10 @@ closed, which would leave a Done epic with an open child). Skip any that a `summ
 ### Step 7 — Publish, link, close (only what the owner approved in Step 6)
 
 **Preconditions:** Step 5 returned APPROVE for the text being published, or the owner overrode it (Step 5). And the
-sources haven't moved: compare the planning tip, the ticket tips and each Jira issue's `updated` with the snapshot.
-If anything changed, re-gather what moved, update the record and the snapshot, and go back through Step 5.
+sources haven't moved: compare the planning tip, the ticket tips, the prototype worktrees, each Jira issue's
+`updated` and each page's version with the snapshot. This is the only freshness check on Jira and Confluence: the
+reviewer can't query them. If anything changed, re-gather what moved, update the record and the snapshot, and go
+back through Step 5.
 
 1. **Commit the record** on the planning branch with the `commit` skill: the record, the snapshot directory, and its
    review reports and responses, staged by path, `uv run .claude/hooks/change_kind.py --staged` clean. Message e.g.

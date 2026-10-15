@@ -76,38 +76,50 @@ The main session gives you the record, its **sources snapshot** directory, the g
 branches, merge commits, prototype worktrees) and the owner's answers so far, which are binding.
 
 You have no Atlassian access. Check Jira and Confluence claims against the snapshot files (`jira-*`,
-`confluence-*`), git claims against the current repository, and list every claim you could check neither way under
-"Not independently verified".
+`confluence-*`), git claims against the current repository, and list every claim you could check neither way in the
+report's "Not independently verified (environment)" section. The snapshot files are the author's copies: agreeing
+with them shows the record is consistent with what was read, not that the reads were faithful; say so there too.
 
 1. **Claims vs sources.** Re-check every fact you can: tips, bases, merge state and merge commits (`git rev-parse`,
    `git merge-base --is-ancestor`, `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop`),
    Jira states and comment ids (snapshot), review verdicts (read the report), numbers against the record they cite.
    A claim that a criterion is met when its record shows otherwise is a BLOCKER. A wrong tip, state, verdict, or a
    number whose error changes what it shows, is MAJOR; a rounding or wording slip that changes nothing is MINOR.
-2. **Freshness.** Compare the snapshot header (time, planning tip, ticket tips, Jira `updated`) with the current
-   repository. Anything that moved after the snapshot is a finding (MAJOR if it changes a class, an item or a
-   decision; MINOR otherwise) naming what changed, so the author re-gathers it.
+2. **Freshness (git only).** Compare the snapshot header's git part (planning tip, ticket tips, merges, prototype
+   worktree HEADs and dirty counts) with the current repository. Anything that moved after the snapshot is a finding
+   (MAJOR if it changes a class, an item or a decision; MINOR otherwise) naming what changed, so the author
+   re-gathers it. Jira and Confluence freshness is the author's Step 7 re-check: check only that the snapshot is
+   internally consistent (each issue's `updated` is no later than the read time, the record quotes the same states),
+   and list the rest under "Not independently verified (environment)". Agent work outside the repo (a scratchpad, a
+   running study) is in progress, not a source: it may be named as in progress, never cited as evidence.
 3. **Coverage.** Every child of the epic and every PRD success criterion appears, and the PRD's carried MINORs each
    have a disposition. Every class follows from its evidence: "Met" needs a record showing the criterion's own check
    passing on merged code; unmerged work is "Met (on unmerged branches)" and is described as what the branch
    contains, not as delivered; "Partly met" names the missing parts; "No evidence" is never Met. A criterion that
-   rests on several unmerged tickets says whether they were ever tested together.
+   rests on several unmerged tickets never tested together is at best "Partly met", with the combined check missing.
 4. **Open items.** Grep the response files, the progress log (every owner-decision list and follow-up section), the
    snapshot comments and the prototype worktrees (`git -C <path> status --short`, `git branch -a --contains <HEAD>`)
    for deferred findings, accepted gaps with no ticket, unanswered owner questions, merge conditions, uncommitted
-   work and commits on no branch. Classify every commit that adds or follows an
-   approving review: text only (comments, docs, wording that adds no claim) is fine; code, tests, data, behaviour or
-   new results is an unreviewed change and must be listed. Any open item the record misses is MAJOR.
+   work and commits on no branch. A worktree the record calls "not named in a record" must not be named by any
+   record: `git grep -n -e '<name>' -e '<sha7>' <rev> -- docs .claude/plans` over the planning and ticket tips.
+   Classify every commit that adds or follows an approving review (including changes committed with the report):
+   **text only** (wording that adds or changes no claim) and **requested fix** (a document change that does what the
+   approving review's findings asked and no more; check it against the findings and the response) are listed but not
+   open; **unreviewed change** (code, tests, data or behaviour even if requested, or new results or claims nobody
+   asked for) is an open item. Every unmet gating criterion is an open item too. Any open item the record misses is
+   MAJOR.
 5. **Decisions.** Each decision has an attribution (Owner / Agent / Reviewer / Attribution unverified) and a source
    that supports it. The author field proves nothing, because agents post through the owner's account. A statement
    credited to the owner without a source that records it as the owner's, an agent's choice listed as the owner's, or
    an open owner decision shown as taken, is a BLOCKER.
 6. **Default results.** Every ticket states whether default results changed, with a source, as CLAUDE.md requires.
    "No change to built or run-time code" must match the diff. A statement inferred from nothing is MAJOR.
-7. **Status line.** It is one of: `Dry run - not reviewed, not published` (a dry run); `Complete` (every gating
-   criterion Met or Superseded, nothing open); `Close-out draft - epic not complete (<n> open items)` (open items, owner
-   answers missing); `Closed by the owner on <date> - ...` (the owner's answer is recorded for every open item, each
-   close anyway or defer, and the owner said yes to Done). Any other combination is a BLOCKER.
+7. **Status line.** It is one of: `Dry run - not reviewed, not published` (a dry run); `Complete` (no open items,
+   so every gating criterion Met or Superseded); `Close-out draft - epic not complete (<n> open items)` (n ≥ 1, owner
+   answers missing); `Closed by the owner on <date> - <a> accepted-open, <d> deferred ...` (the owner's answer is
+   recorded for every open item, every unmet gating criterion included, each close anyway or defer, a + d equals the
+   number of open items, and the owner said yes to Done). A draft with 0 open items, or "Closed" over an unmet
+   criterion without the owner's answer, or any other combination, is a BLOCKER.
 8. **Dry-run appendix** (dry runs only). The page title, parent id, create-or-update and Done transition id match
    the snapshot.
 
