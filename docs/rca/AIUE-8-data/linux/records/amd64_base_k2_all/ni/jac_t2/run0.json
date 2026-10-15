@@ -1,0 +1,70 @@
+{
+ "capture": {
+  "count": 0,
+  "hook": false
+ },
+ "elapsed_s": 17.22,
+ "fnrm_final_hex": "0x1.1cf2984d859cdp-35",
+ "ijactot": 1,
+ "iterations": [
+  {
+   "fnrm_printed": "0.3239479570500001E-10",
+   "iter": 0,
+   "nfe": 1,
+   "omp": false
+  }
+ ],
+ "label": "ni_jac_t2_it0",
+ "neq": 25344,
+ "nnz_post": 713697,
+ "numvar": 8,
+ "post_exmain_from": "sfsetnk",
+ "post_exmain_permuted": false,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 2,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 0,
+  "OMP_NUM_THREADS": "2",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 0,
+  "build": {
+   "compiler": [
+    "GCC: (Debian 12.2.0-14+deb12u1) 12.2.0"
+   ],
+   "extensions_sha256": "f8959e61b67f95a64de06b9176443b89e70158afbf1e7ff67b468cc36b4c553a",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/work/src-baseld",
+   "source_dirty": false,
+   "source_head": "3865c79c959b18c346111ea62dc146de0671815b",
+   "uedge_file": "/work/venv-baseld/lib/python3.11/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "8ee189d76b0232cedfe17088574935b10b857df5",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "Linux-6.12.76-linuxkit-x86_64-with-glibc2.36",
+  "premeth": "ilut",
+  "python": "3.11.17",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": false,
+ "spec": {
+  "arm": "jac",
+  "capture": 16,
+  "itermx": null,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "ni",
+  "rhs_probe": true,
+  "threads": 2
+ }
+}

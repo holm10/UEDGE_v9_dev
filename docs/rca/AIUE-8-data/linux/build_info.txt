@@ -1,0 +1,114 @@
+AIUE-62 build and environment record (linux/amd64, Docker Desktop 29.6.2 on macOS arm64, Rosetta emulation)
+
+== Images (scripts: tests/deterministic_omp/linux/)
+aiue62:amd64        FROM python:3.11-bookworm@sha256:5887f265d8d44d8b4734d3658b21d668edf5aaf92e4945bc0c984afbfab105d3 + gfortran binutils file (Debian bookworm)
+aiue62-ubuntu:amd64 FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 (link check only)
+container: docker run -d --platform linux/amd64 --cpus 5 --memory 7g -v <repo>:/mnt/repo:ro -v <out>:/out -v <scripts>:/scripts:ro -v <volume>:/work aiue62:amd64 sleep infinity
+uname: Linux 6.12.76-linuxkit x86_64; CPU 'VirtualApple @ 2.50GHz'; /proc/cpuinfo flags include: fma avx avx2 (no avx512f)
+Python 3.11.17, gfortran/gcc: GNU Fortran (Debian 12.2.0-14+deb12u1) 12.2.0
+
+== Builds (git clone of the read-only repo inside the container; clean trees except the two control builds)
+baseld  3865c79 (origin/v9-develop; product code = 0fac655)  LDFLAGS=-fopenmp  python -m pip install -v .  BUILD_S 193
+fixld   1553e75 (bugfix/v9-AIUE-56-omp-jacobian-fix)          LDFLAGS=-fopenmp  python -m pip install -v .  BUILD_S 190
+fixtp   1553e75 + areapl '+threadprivate' (bbb/bbb.v)          LDFLAGS=-fopenmp  (control)
+fixfma  1553e75 + FARGSOPT ['-O3', '-mfma'] (setup.py)         LDFLAGS=-fopenmp  (control)
+pip freeze (fixld): Forthon==0.10.10 h5py==3.16.0 iniconfig==2.3.1 numpy==1.26.4 packaging==26.3 pluggy==1.7.0 Pygments==2.21.0 pytest==9.1.1 uedge @ file:///work/src-fixld 
+
+== Finding: the default OpenMP build does not import on Debian/Ubuntu (no LDFLAGS)
+Builds 'fix' and 'base' with the CI command and no LDFLAGS:
+fix import: /work/venv-fix/bin/python: symbol lookup error: /work/venv-fix/lib/python3.11/site-packages/uedge/bbbpy.cpython-311-x86_64-linux-gnu.so: undefined symbol: GOMP_parallel
+base import: /work/venv-base/bin/python: symbol lookup error: /work/venv-base/lib/python3.11/site-packages/uedge/bbbpy.cpython-311-x86_64-linux-gnu.so: undefined symbol: GOMP_parallel
+Cause: Forthon links each package extension (bbbpy, ppppy, apipy, ...) without -fopenmp/-lgomp; only uedgeC gets
+-fopenmp, and Debian/Ubuntu gcc link with --as-needed (gcc -dumpspecs), so libgomp is dropped from uedgeC too.
+bbbpy link line (base build): gcc -shared -L/usr/lib/gcc/x86_64-linux-gnu/12 -L/usr/lib/gcc/x86_64-linux-gnu/12/../../../x86_64-linux-gnu -L/usr/local/lib -lgfortran -lmvec -lreadline -o build/lib.linux-x86_64-cpython-311/uedge/bbbpy.cpython-311-x86_64-linux-gnu.so -Wl,-z,lazy
+Ubuntu 24.04 (gcc 13.3.0-6ubuntu2~24.04.1, Python 3.12), same command, no LDFLAGS:
+(console output of the check, not saved to a log) /work/venv-fix/bin/python: symbol lookup error: /work/venv-fix/lib/python3.12/site-packages/uedge/bbbpy.cpython-312-x86_64-linux-gnu.so: undefined symbol: GOMP_parallel
+Workaround used for every build below: LDFLAGS=-fopenmp (bbbpy, ppppy, apipy then NEED libgomp.so.1).
+
+== No-FMA evidence (objdump -d of every extension; fma_scan.sh)
+-- fixld (the AIUE-56 build, default flags)
+GNU Fortran (Debian 12.2.0-14+deb12u1) 12.2.0
+aphpy.cpython-311-x86_64-linux-gnu.so: insns 33668 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 460
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+apipy.cpython-311-x86_64-linux-gnu.so: insns 42177 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 556
+   needs: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+bbbpy.cpython-311-x86_64-linux-gnu.so: insns 808359 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 9016
+   needs: libgfortran.so.5 libmvec.so.1 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+compy.cpython-311-x86_64-linux-gnu.so: insns 42411 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 449
+   needs: libgfortran.so.5 libmvec.so.1 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+flxpy.cpython-311-x86_64-linux-gnu.so: insns 30620 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 178
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+grdpy.cpython-311-x86_64-linux-gnu.so: insns 89021 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 788
+   needs: libgfortran.so.5 libmvec.so.1 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+nclpy.cpython-311-x86_64-linux-gnu.so: insns 15511 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 450
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+ppppy.cpython-311-x86_64-linux-gnu.so: insns 60928 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 16
+   needs: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+svrpy.cpython-311-x86_64-linux-gnu.so: insns 52143 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 1330
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+uedgeC.cpython-311-x86_64-linux-gnu.so: insns 1349 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 0
+   needs: libreadline.so.8 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+wdfpy.cpython-311-x86_64-linux-gnu.so: insns 18019 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 19
+   needs: libgfortran.so.5 libc.so.6 
+   .comment: GCC: (Debian 12.2.0-14+deb12u1) 12.2.0;
+== Fortran compile lines in the build log (distinct flag sets)
+     64 gfortran -fPIC -ffixed-line-length-132 -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore -O3 -ftree-vectorize -ftree-vectorizer-verbose=0 -fopenmp -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+     10 gfortran -fPIC -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore  -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+      3 gfortran -fPIC -DFPSIZE=8 -fdefault-real-8 -fdefault-double-8 -DISZ=8 -fdefault-integer-8 -fimplicit-none -fno-second-underscore -O3 -ftree-vectorize -ftree-vectorizer-verbose=0 -fopenmp -g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none -fopenmp -O3  
+== cpu flags (fma/avx)
+fma avx avx2 
+-- baseld: identical counts except as listed by diff:
+   (no differences in counts or flag lines)
+-- fixfma (control, -mfma):
+aphpy.cpython-311-x86_64-linux-gnu.so: insns 33123 fma3/fma4(vf*m{add,sub}*) 228 ymm-operands 0 zmm-operands 0 mulsd/mulpd 0
+apipy.cpython-311-x86_64-linux-gnu.so: insns 44101 fma3/fma4(vf*m{add,sub}*) 182 ymm-operands 998 zmm-operands 0 mulsd/mulpd 0
+bbbpy.cpython-311-x86_64-linux-gnu.so: insns 821416 fma3/fma4(vf*m{add,sub}*) 2574 ymm-operands 2574 zmm-operands 0 mulsd/mulpd 0
+compy.cpython-311-x86_64-linux-gnu.so: insns 44280 fma3/fma4(vf*m{add,sub}*) 228 ymm-operands 525 zmm-operands 0 mulsd/mulpd 0
+flxpy.cpython-311-x86_64-linux-gnu.so: insns 30612 fma3/fma4(vf*m{add,sub}*) 80 ymm-operands 28 zmm-operands 0 mulsd/mulpd 0
+grdpy.cpython-311-x86_64-linux-gnu.so: insns 88905 fma3/fma4(vf*m{add,sub}*) 380 ymm-operands 102 zmm-operands 0 mulsd/mulpd 0
+nclpy.cpython-311-x86_64-linux-gnu.so: insns 16464 fma3/fma4(vf*m{add,sub}*) 221 ymm-operands 571 zmm-operands 0 mulsd/mulpd 0
+ppppy.cpython-311-x86_64-linux-gnu.so: insns 61056 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 140 zmm-operands 0 mulsd/mulpd 0
+svrpy.cpython-311-x86_64-linux-gnu.so: insns 57112 fma3/fma4(vf*m{add,sub}*) 705 ymm-operands 1210 zmm-operands 0 mulsd/mulpd 0
+uedgeC.cpython-311-x86_64-linux-gnu.so: insns 1349 fma3/fma4(vf*m{add,sub}*) 0 ymm-operands 0 zmm-operands 0 mulsd/mulpd 0
+wdfpy.cpython-311-x86_64-linux-gnu.so: insns 18081 fma3/fma4(vf*m{add,sub}*) 1 ymm-operands 0 zmm-operands 0 mulsd/mulpd 0
+
+== Vector math: the default build calls glibc libmvec (SSE2 variants) in bbbpy/compy/grdpy
+bbbpy: _ZGVbN2v_cos _ZGVbN2v_exp _ZGVbN2v_log _ZGVbN2vv_pow (27 call sites); compy: _ZGVbN2v_exp; grdpy: _ZGVbN2v_cos _ZGVbN2v_sin
+
+== Control patches
+diff --git a/bbb/bbb.v b/bbb/bbb.v
+index 3f58f8b..2368628 100644
+--- a/bbb/bbb.v
++++ b/bbb/bbb.v
+@@ -948,7 +948,7 @@ rdatlb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #inner recycp data for each
+ rdatrb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #outer recycp data for each ydatrb
+ alblb(0:ny+1,ngspmx,nxptmx) _real        +input #inner plate albedo; used if <1 (calc)
+ albrb(0:ny+1,ngspmx,nxptmx) _real        +input #outer plate albedo; used if <1 (calc)
+-areapl          real   /0./ +work   # Work variable for plate projection area for 
++areapl          real   /0./ +work +threadprivate   # Work variable for plate projection area for 
+                                     # albedo-like recycling
+ isoldalbarea    real   /0./ +input # Switch whether to use old (wrong) albedo
+                                     # area which is perpendicular-to-poloidal flux
+diff --git a/setup.py b/setup.py
+index 356b121..63d2082 100644
+--- a/setup.py
++++ b/setup.py
+@@ -90,7 +90,7 @@ FLAGS  = {
+         '-Og'
+     ],
+     # Specify optional flags used if not debugging
+-    'FARGSOPT': ['-O3'],
++    'FARGSOPT': ['-O3', '-mfma'],
+     # Specify OMP args
+     'OMPargs': ['--omp'],
+ }
