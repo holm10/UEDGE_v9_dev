@@ -96,3 +96,20 @@ review approves (awaiting the owner's review / PR). Owner decisions are prepared
   verification protocol; all three confirmed the code fix itself). Per the review loop: escalated to the owner;
   implementation proceeded under the open escalation (recorded in `docs/reviews/AIUE-56-plan-responses.md`).
 - **03:00** Machine load average ~140 on 14 cores (7–9 agents + validation runs): everything is slow, timings inflated.
+
+## Final state when the run stopped (~04:00, usage limit reached)
+
+- **Root causes:** C1 (copy order in `OMPJacBuilder`) is fixed on `bugfix/v9-AIUE-56-omp-jacobian-fix` (`4fae2f9`,
+  validation `ba12d94`). Defaults are bitwise unchanged (AIUE-53 serial check: AGREE on 42/42 cases in both builds).
+  The C1 gate PASSes in every post-fix run, and the pre-fix controls FAIL. **C2/M2** (FMA rounding history, ≤ 7e-9 ×
+  row max) is the only residual. Removing it (`-ffp-contract=off`) changes serial results at round-off level, so it is
+  **the owner's decision 9** (options in the AIUE-55 RCA; AIUE-61 is blocked on it).
+- **Approved:** AI layer, AIUE-46, AIUE-49.
+- **Fixed, in or awaiting round 2:** AIUE-47 (r2 running), AIUE-50 (fixes `86ec027`, no r2 yet), AIUE-52 (rebased onto
+  the core, r2 fixes `8d4c2c9`, no r3 yet), AIUE-53 (r2 running).
+- **Open reviews:** AIUE-54 r1 REVISE (6 major: CSV numbers, the RHS-arm runs that iterated, §6.3 row by row, Linux,
+  timings, records not committed), not yet addressed. AIUE-55 r1 review running.
+- **Still running when stopped:** the AIUE-57 CI-job subagent. AIUE-57 must be rebased onto AIUE-52 `8d4c2c9`.
+- **Escalated to the owner:** the AIUE-56 plan (round cap reached; the code is confirmed correct), decision 9, Linux
+  validation (no Docker daemon), and the AIUE-56 implementation review (not yet run).
+- **Not done:** restacking every branch onto merged parents, Jira updates for AIUE-47/50/52/53/54/55/56, PRs, push.
