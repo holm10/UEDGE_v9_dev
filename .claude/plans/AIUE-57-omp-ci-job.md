@@ -10,9 +10,10 @@
 **Branch / worktree**: `feature/v9-AIUE-57-omp-ci-job` @ `../uedge-wt/AIUE-57` (stacked on
 `feature/v9-AIUE-52-omp-test-flow`; restacked by the main session once AIUE-49's stricter comparator lands)
 
-> **DO NOT MERGE before AIUE-56 (the OpenMP Jacobian fix).** The job is red on the pre-fix code by design. With
-> only C1 fixed it is still red under the bitwise gate while M2 (round-off-level Te-row entries) remains, so
-> merging also waits for decision 9 (bitwise vs a fallback tolerance) or an M2 fix.
+> **DO NOT MERGE before AIUE-56 (the OpenMP Jacobian fix) AND before the gate can be green on it.** The job is red
+> on the pre-fix code by design. The AIUE-56 build is still red under the bitwise gate while C2/M2 (round-off-level
+> Te-row entries) remains, so merging also waits for decision 9 (a tolerance gate) or AIUE-61 (C2/M2 removed).
+> (Review round 1, R1-M2.)
 
 ## Problem and solution
 CI builds only `--serial` (`build-test-wheel.yml`), so OpenMP races are never seen. AIUE-57 adds a workflow that builds
@@ -24,13 +25,16 @@ All steps live in a script so they run the same locally and in CI.
   internals, so the AIUE-49 restack does not touch the CI files. `ci/report.py` reads only `flow.json` fields the
   AIUE-52 flow writes (`groups[].{config,arm,threads,verdict,first_mismatch,agree_serial,errors,run_failures}`,
   `gated`, `exit_code`, `settings`, `timing`).
-- **Triggers:** `push`, `pull_request` → `pr` set; `schedule` (daily 03:17 UTC) → `nightly` set; `workflow_dispatch`
+- **Triggers:** `pull_request`, `push` to `v9-develop`/`main` → `pr` set (review R1-m3: no duplicate push + PR
+  runs); `schedule` (daily 03:17 UTC) → `nightly` set; `workflow_dispatch`
   with a `set` choice. One job, set and timeout chosen by expression (30 min PR, 150 min nightly). `concurrency`
-  cancels superseded runs of the same ref and event.
-- **PR set** (reduced, budget ≤ 20 min): `tebox` 2,4 threads K=5 both arms; `full` 2,4 threads K=2 `jac` only; all
-  `--itermx 3`. The full-problem `jacrhs` runs are dropped from the PR set because the arm is report-only and they
+  cancels superseded pull-request runs only. `permissions: contents: read`.
+- **PR set** (reduced, budget ≤ 20 min): `tebox1` 2,4 threads K=3 `jac`, one evaluation (locates the defect
+  cell; review R1-M1); `tebox` 2,4 threads K=5 both arms; `full` 2,4 threads K=2 `jac` only; the last two
+  `--itermx 3`. Per-flow `itermx` is the sixth field of a flow spec. The full-problem `jacrhs` runs are dropped from the PR set because the arm is report-only and they
   are the most expensive runs (≈ 40 % of the full flow); the nightly set runs them.
-- **Nightly set:** `--all` (8 configurations, 2,4,8 threads), K=3, both arms, `--itermx 3`.
+- **Nightly set:** `--all` (8 configurations, 2,4,8 threads) one evaluation K=2, and `--all` K=3 `--itermx 3`;
+  both arms.
 - **Gate:** `--gate jac` (bitwise, the flow's own jac-arm verdict). `jacrhs` failures become `::warning::`
   annotations only. Exit 2 (cannot judge) is red as well.
 - **Decision-9 switch:** `OMP_CI_JAC_TOLERANCE` (workflow `env`). Empty = bitwise. Non-empty is forwarded as

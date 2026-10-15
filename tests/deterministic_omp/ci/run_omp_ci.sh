@@ -7,10 +7,14 @@
 # Steps: harness unit tests, import smoke test, then the AIUE-52 test flow (`harness/cli.py flow`)
 # for the selected set, then ci/report.py (combined summary, first mismatch per failing group).
 #
-# Sets (each entry is one flow: name|configurations|threads|repeats K|arms):
-#   pr       tebox at 2,4 threads K=5, both arms; full at 2,4 threads K=2, Jacobian arm only;
-#            all with --itermx 3 (the RHS arm is report-only, so the PR set skips its costly full runs)
-#   nightly  every configuration (--all: threads 2,4,8) K=3, both arms, --itermx 3
+# Sets (each entry is one flow: name|configurations|threads|repeats K|arms|itermx):
+#   pr       tebox1: tebox at 2,4 threads K=3, Jacobian arm, ONE EVALUATION (no --itermx): its
+#                    post-exmain Jacobian is in natural order, so the first mismatch is the defect cell;
+#            tebox:  tebox at 2,4 threads K=5, both arms, --itermx 3 (the Newton path);
+#            full:   full at 2,4 threads K=2, Jacobian arm only, --itermx 3 (the RHS arm is report-only, so
+#                    the PR set skips its costly full-problem runs). Every flow is gated the same way.
+#   nightly  all1: every configuration (--all: threads 2,4,8) K=2, both arms, one evaluation;
+#            all:  every configuration K=3, both arms, --itermx 3
 #
 # Environment (all optional):
 #   PYTHON                 interpreter of the build under test (default: python)
@@ -18,9 +22,11 @@
 #   OMP_CI_CORES           core budget for concurrent runs (default: all cores)
 #   OMP_CI_MAX_JOBS        at most this many runs at a time (default: OMP_CI_CORES)
 #   OMP_CI_GATE            arm(s) that set the exit code: jac (default), jacrhs, all, none
-#   OMP_CI_ITERMX          Newton iterations per run (default 3; set but empty: one evaluation)
-#   OMP_CI_FLOWS           custom flows instead of the set, "name|configs|threads|K|arms;..." (configs ALL:
-#                          --all; empty threads: the flow default; empty arms: jac,jacrhs)
+#   OMP_CI_ITERMX          Newton iterations for flows whose itermx field is empty (default 3; set but
+#                          empty: one evaluation)
+#   OMP_CI_FLOWS           custom flows instead of the set, "name|configs|threads|K|arms|itermx;..." (configs
+#                          ALL: --all; empty threads: the flow default; empty arms: jac,jacrhs; itermx none:
+#                          one evaluation, empty: OMP_CI_ITERMX)
 #   OMP_CI_SKIP_UNIT_TESTS 1 skips the harness unit tests
 #   OMP_CI_JAC_TOLERANCE   THE GATE-MODE SWITCH (decision 9). Empty (default): the Jacobian arm gates
 #                          bitwise. Non-empty: passed to the flow as `--jac-tolerance VALUE`. The harness
@@ -46,8 +52,8 @@ ITERMX=${OMP_CI_ITERMX-3}
 TOL=${OMP_CI_JAC_TOLERANCE:-}
 
 case "$SET" in
-    pr)      FLOWS="tebox|tebox|2,4|5|jac,jacrhs;full|full|2,4|2|jac" ;;
-    nightly) FLOWS="all|ALL||3|jac,jacrhs" ;;
+    pr)      FLOWS="tebox1|tebox|2,4|3|jac|none;tebox|tebox|2,4|5|jac,jacrhs|3;full|full|2,4|2|jac|3" ;;
+    nightly) FLOWS="all1|ALL||2|jac,jacrhs|none;all|ALL||3|jac,jacrhs|3" ;;
     *)       echo "run_omp_ci.sh: unknown set '$SET' (pr, nightly)"; exit 2 ;;
 esac
 if [ -n "${OMP_CI_FLOWS:-}" ]; then
@@ -104,11 +110,14 @@ DIRS=()
 CODES=""
 IFS=';' read -r -a FLOWLIST <<< "$FLOWS"
 for spec in "${FLOWLIST[@]}"; do
-    IFS='|' read -r name configs threads repeats arms <<< "$spec"
-    args=(flow --repeats "$repeats" --arms "${arms:-jac,jacrhs}" --gate "$GATE" --cores "$CORES" --max-jobs "$MAXJOBS" --python "$PY"
-          --out "$OUT/$name")
-    if [ -n "$ITERMX" ]; then
-        args+=(--itermx "$ITERMX")
+    IFS='|' read -r name configs threads repeats arms itermx <<< "$spec"
+    args=(flow --repeats "$repeats" --arms "${arms:-jac,jacrhs}" --gate "$GATE" --cores "$CORES"
+          --max-jobs "$MAXJOBS" --python "$PY" --out "$OUT/$name")
+    if [ -z "$itermx" ]; then
+        itermx=$ITERMX
+    fi
+    if [ -n "$itermx" ] && [ "$itermx" != none ]; then
+        args+=(--itermx "$itermx")
     fi
     if [ "$configs" = ALL ]; then
         args+=(--all)

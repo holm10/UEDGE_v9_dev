@@ -215,3 +215,61 @@ codes stand, but in the --itermx 3 runs the cells shown for jacobian:post_exmain
 comparator mapped the permuted psetnk matrix through igyl, which the final core no longer does (it compares by
 position). The one-evaluation runs (3e, OMP_CI_ITERMX= ) are not permuted, so their cells are valid.
 The full-problem, seeded-race and C1-swap runs were not repeated after the rebase.
+
+
+8. Review round 1 changes (docs/reviews/AIUE-57-implementation-round1.md, response -round1-response.md)
+-------------------------------------------------------------------------------------------------------
+Changes: PR set gains `tebox1` (Te box, jac, 2,4 threads, K=3, one evaluation; per-flow itermx = sixth field of a
+flow spec, `none` = one evaluation); nightly gains `all1` (--all, one evaluation, K=2). report.py: job-level
+FIRST MISMATCH line from a one-evaluation group; --itermx groups cite it, else a cell-mapped entry labelled "may be
+downstream"; serial references of --itermx N flows must show N Newton iterations (else exit 2). Workflow: full
+merge condition in the header, `permissions: contents: read`, push only to v9-develop/main, cancel-in-progress
+only for pull requests.
+
+Static: bash -n OK; shellcheck OK; actionlint OK; YAML load OK (push branches [v9-develop, main], permissions
+contents: read, cancel-in-progress expression). pytest tests/deterministic_omp/harness tests/deterministic_omp/ci:
+117 passed (107 + 10). check_context_refs.py --changed origin/v9-develop: OK.
+
+Runs: OMP_CI_CORES=4 OMP_CI_MAX_JOBS=3, OMP_CI_FLOWS="tebox1|tebox|2,4|3|jac|none;tebox|tebox|2,4|5|jac,jacrhs|3"
+(the Te-box part of the new PR set), load average ~45-60.
+
+8a. PRE-FIX (venvs/base-omp): run_omp_ci.sh EXIT 1, wall 280 s (tebox1 exit 1, 75 s; tebox exit 1, 192 s).
+FIRST MISMATCH: configuration tebox, arm jac, threads 2, equation te, cell (ix=5,iy=18) (flow tebox1)
+GATED [tebox1] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=5,iy=18); 0/3 runs agree with serial; jacobian:post_exmain value row te(ix=5,iy=18) col te(ix=5,iy=18) [agreement (serial vs run0)]
+GATED [tebox1] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=4,iy=18); 0/3 runs agree with serial; jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch at permuted Jacobian positions (not mapped to cells); located by the one-evaluation group [tebox1]: equation te, cell (ix=5,iy=18); 0/5 runs agree with serial; jacobian:post_exmain (permuted indices) value row position 1 col position 6 [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: ... located by the one-evaluation group [tebox1]: equation te, cell (ix=4,iy=18); 0/5 ...
+REPORT-ONLY [tebox] ... arm jacrhs, threads 2: ... first cell-mapped differing entry (may be downstream of the defect): equation te, cell (ix=3,iy=18) [sfscal]; 0/5 ...
+REPORT-ONLY [tebox] ... arm jacrhs, threads 4: ... (may be downstream of the defect): equation te, cell (ix=4,iy=18) [sfscal]; 0/5 ...
+OMP CI RESULT: FAIL (exit 1)
+    Mismatch counts (first failing report): tebox1 jac t2: jacobian 29, sfscal 9, fnrm 1; t4: jacobian 43, sfscal 18.
+    (The jacrhs arm is not in tebox1, so its lines fall back to the labelled downstream entry, as designed.)
+
+8b. AIUE-56 BUILD (venvs/AIUE-56-omp, C1 fixed): run_omp_ci.sh EXIT 1, wall 158 s (tebox1 26 s, tebox 127 s).
+FIRST MISMATCH: configuration tebox, arm jac, threads 2, equation te, cell (ix=4,iy=20) (flow tebox1)
+GATED [tebox1] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=4,iy=20); 0/3 runs agree with serial; jacobian:post_exmain value row te(ix=4,iy=20) col te(ix=3,iy=21) [agreement (serial vs run0)]
+GATED [tebox1] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=4,iy=20); 0/3 runs agree with serial; jacobian:post_exmain value row te(ix=4,iy=20) col te(ix=3,iy=21) [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch at permuted Jacobian positions (not mapped to cells); located by the one-evaluation group [tebox1]: equation te, cell (ix=4,iy=20); 0/5 runs agree with serial; jacobian:post_exmain (permuted indices) value row position 18 col position 13 [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: ... located by the one-evaluation group [tebox1]: equation te, cell (ix=4,iy=20); 0/5 ...
+REPORT-ONLY [tebox] ... arm jacrhs, threads 2: ... (may be downstream of the defect): equation te, cell (ix=3,iy=18) [yldot]; 1/5 runs agree with serial; ...
+REPORT-ONLY [tebox] ... arm jacrhs, threads 4: ... (may be downstream of the defect): equation te, cell (ix=3,iy=18) [yldot]; 0/5 ...
+OMP CI RESULT: FAIL (exit 1)
+    Mismatch counts (first failing report):
+      tebox1 (one evaluation) jac t2: jacobian 1 entry only; t4: jacobian 2 entries only (fnrm, yldot, sfscal agree);
+      tebox (--itermx 3) jac t2: jacobian (permuted) 1, yldot 25, yldot_probe 25, fnrm_final 1, fnrm_printed 1;
+      t4: jacobian 2, yldot 25, yldot_probe 25, fnrm 1+1.
+    => The headline names te(ix=4,iy=20), the M2 entry (R1-M1 resolved). Under --itermx 3 a Jacobian-only tolerance
+       would leave yldot/fnrm red (R1-m1). The AIUE-56 build is red under the bitwise gate (R1-M2): merge waits for
+       decision 9 or AIUE-61.
+
+8c. Newton iterations (R1-m4): every serial reference and OpenMP record of the --itermx 3 flows above has
+    max(iterations[].iter) = 3 (report.py check passed: no exit-2 line). Full problem, from the earlier records
+    (3a, t_full_* runs): serial and jac runs max iter 3, ijactot 2. Failed runs (jacrhs lusol0 overflow) have no
+    iterations, and the check applies to serial references only.
+
+8d. Budget: tebox1 adds 7 runs of ~1.4-3 s (26 s flow wall here, at load ~50) — under 1 min on CI. The tebox
+    --itermx 3 flow took 30 s at load ~5 (section 7a), 127-192 s at load ~50. Revised PR estimate: setup 1 +
+    build 4-7 + tests 0.5 + tebox1 <1 + tebox 1-2 + full 6.3-8.8 + upload 0.5 = ~14-20 min, central ~17.
+    Not measured in CI.
+
+Still open: CI wall time; 20/20 CI runs; "green on the fixed code" (needs decision 9 or AIUE-61); Linux/libgomp.

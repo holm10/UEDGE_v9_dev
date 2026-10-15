@@ -5,11 +5,16 @@ name: OpenMP determinism - OpenMP Jacobian vs serial
 # which runs the same steps locally. The Jacobian arm gates (bitwise by default); the
 # Jacobian + parallel RHS arm is report-only. See tests/deterministic_omp/README.md, "CI".
 #
-# DO NOT MERGE before the OpenMP Jacobian fix (AIUE-56): on the pre-fix code this job is red by
-# design, on every run.
+# DO NOT MERGE until BOTH hold:
+#   1. the OpenMP Jacobian fix (AIUE-56) is merged (on the pre-fix code this job is red on every run), and
+#   2. the gate can be green on the AIUE-56 code: either decision 9 adds a tolerance gate, or AIUE-61
+#      removes the remaining round-off difference (C2/M2, ~1e-7 relative in Te rows). The AIUE-56 build is
+#      still red under the default bitwise gate.
+# Merged earlier, it would turn every push and pull request red.
 
 on:
   push:
+    branches: [v9-develop, main]   # other branches are tested through their pull request
   pull_request:
   schedule:
     - cron: "17 3 * * *"   # nightly full matrix (runs only from the default branch)
@@ -22,9 +27,13 @@ on:
         type: choice
         options: [pr, nightly]
 
+permissions:
+  contents: read
+
 concurrency:
   group: omp-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  # superseded pull-request runs are cancelled; pushes to v9-develop/main and scheduled runs always finish
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   omp-determinism:
@@ -37,6 +46,8 @@ jobs:
       OMP_CI_GATE: jac
       # Gate-mode switch (decision 9). Empty: the Jacobian arm gates bitwise. A value is passed to the
       # flow as --jac-tolerance once the harness has a tolerance comparator; until then it stops with exit 2.
+      # Under --itermx 3 that comparator must also cover yldot and fnrm (the Newton path moves), or the gated
+      # flows must be one-evaluation ones.
       OMP_CI_JAC_TOLERANCE: ""
     steps:
     - uses: actions/checkout@v4

@@ -331,11 +331,16 @@ the same machine, never against this table.
 
 ## CI: `build-test-omp.yml` (AIUE-57)
 
-> **Do not merge this workflow before the OpenMP Jacobian fix (AIUE-56).** On the pre-fix code it is red on every
-> run by design (copy-order defect C1, all Jacobian groups fail in Te rows). Even with C1 fixed it stays red under
-> the default **bitwise** gate as long as the round-off residual M2 remains (1–2 Te-row entries at ~1e-7 relative
-> on the Te box, see `docs/reviews/AIUE-57-validation.txt`). Whether the gate stays bitwise or gets a fallback
-> tolerance is the owner's decision 9; the switch is described below.
+> **Do not merge this workflow until both conditions hold.**
+> 1. **The OpenMP Jacobian fix (AIUE-56) is merged.** On the pre-fix code the job is red on every run by design
+>    (copy-order defect C1, all Jacobian groups fail in Te rows).
+> 2. **The gate can be green on the AIUE-56 code.** The AIUE-56 build is still red under the default **bitwise**
+>    gate: the round-off residual (C2/M2, 1–2 Te-row Jacobian entries at ~1e-7 relative, varying run to run) remains,
+>    see `docs/reviews/AIUE-57-validation.txt`. Either the owner's decision 9 adds a tolerance gate (the switch is
+>    below), or AIUE-61 removes C2/M2 (an OpenMP-only replay remedy is being prototyped).
+>
+> Merged earlier, the job would turn every push to `v9-develop`/`main` and every pull request red. The ticket's
+> "green on the fixed code" acceptance item stays open until condition 2 holds.
 
 `.github/workflows/build-test-omp.yml` builds the **default OpenMP build** (`pip install -v .`) on `ubuntu-latest`
 (4 vCPUs) with Python 3.11, `numpy==1.26.4` and `h5py`, and calls `tests/deterministic_omp/ci/run_omp_ci.sh`. The
@@ -344,7 +349,7 @@ script holds every CI step, so the same steps run locally:
 ```bash
 PYTHON=/path/to/omp-venv/bin/python tests/deterministic_omp/ci/run_omp_ci.sh pr        # the PR set
 PYTHON=... OMP_CI_CORES=4 OMP_CI_MAX_JOBS=2 OMP_CI_OUT=/tmp/omp-ci tests/deterministic_omp/ci/run_omp_ci.sh nightly
-PYTHON=... OMP_CI_FLOWS="tebox|tebox|4|2|jac" tests/deterministic_omp/ci/run_omp_ci.sh  # a custom quick flow
+PYTHON=... OMP_CI_FLOWS="tebox1|tebox|4|2|jac|none" tests/deterministic_omp/ci/run_omp_ci.sh  # a custom quick flow
 ```
 
 Steps: the harness and CI unit tests (`harness/`, `ci/`, no build needed), an import smoke test (empty `HOME`,
@@ -353,10 +358,16 @@ appends it to `$GITHUB_STEP_SUMMARY`, and annotates the run. The rate files are 
 `builder/test/Forthon_cases/Forthon_case5/` (AIUE-46); nothing is downloaded. The harness sets
 `OMP_STACKSIZE=512M`.
 
-| Trigger | Set | Flows (all `--itermx 3`, one serial reference per configuration) | Timeout |
+| Trigger | Set | Flows (in run order; one serial reference per configuration and flow) | Timeout |
 |---|---|---|---|
-| `push`, `pull_request`, manual `pr` | `pr` | `tebox` at 2, 4 threads, K=5, arms `jac` and `jacrhs`; `full` at 2, 4 threads, K=2, arm `jac` | 30 min (budget 20) |
-| `schedule` (03:17 UTC daily), manual `nightly` | `nightly` | `--all`: every configuration at 2, 4, 8 threads, K=3, both arms | 150 min |
+| `pull_request`, `push` to `v9-develop`/`main`, manual `pr` | `pr` | `tebox1`: `tebox` at 2, 4 threads, K=3, arm `jac`, **one evaluation**; `tebox`: 2, 4 threads, K=5, arms `jac` and `jacrhs`, `--itermx 3`; `full`: 2, 4 threads, K=2, arm `jac`, `--itermx 3` | 30 min (budget 20) |
+| `schedule` (03:17 UTC daily), manual `nightly` | `nightly` | `all1`: `--all` (every configuration at 2, 4, 8 threads), K=2, both arms, one evaluation; `all`: `--all`, K=3, both arms, `--itermx 3` | 150 min |
+
+Every flow is gated the same way. The one-evaluation flows locate a defect (their post-`exmain` Jacobian is in
+natural order, so the first mismatch is a cell); the `--itermx 3` flows test the Newton path (several Jacobians,
+the `fnrm` sequence). Other branches run through their pull request only, so a push to a PR branch does not start
+a second, duplicate run. Superseded pull-request runs are cancelled; runs on `v9-develop`/`main` always finish.
+The workflow has `permissions: contents: read`.
 
 - **Gating.** The Jacobian arm (`jac`) gates: the job is red when any `jac` group is not bitwise equal to serial in
   all K runs and between runs (exit 1), or when the flow cannot judge (exit 2: failed serial reference, an arm that
@@ -365,27 +376,37 @@ appends it to `$GITHUB_STEP_SUMMARY`, and annotates the run. The rate files are 
   selects the gated arm (`jac`; `all` or `jacrhs` need `jacrhs` in every flow, so they fit only `nightly`).
 - **Gate mode (decision 9), one switch.** `OMP_CI_JAC_TOLERANCE` in the workflow `env`. Empty (the default): bitwise.
   A value is passed to the flow as `--jac-tolerance VALUE`. The harness has no tolerance comparator yet, so a value
-  stops the job with exit 2 and a message until the harness ticket adds that option; no other file has to change.
-- **What a failure says.** One `GATED` line (and a GitHub `::error::` annotation) per failing group, in run order,
-  naming the configuration, arm, threads, the row equation and cell of the first mismatch, and how many runs agreed,
-  e.g. `configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs
-  agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [...]`. A group whose runs
-  all crashed says so (`no comparable mismatch, the OpenMP run(s) failed; ... exited with -11`); an ERROR group
-  (cannot judge, e.g. the core's `check_arm` refusing a run of a serial build) gives its reasons and exit 2.
+  stops the job with exit 2 and a message until the harness ticket adds that option. **A Jacobian-only tolerance is
+  not enough under `--itermx 3`:** the ~1e-7 Jacobian difference moves the Newton iterate, so on the AIUE-56 build
+  `yldot` (all 25 Te-box entries), `yldot_probe` and `fnrm` also differ bitwise. The tolerance comparator must
+  therefore also cover `yldot`/`fnrm`, or the gated flows must be the one-evaluation ones (`tebox1`, `all1`; where
+  only the Jacobian differs) with the `--itermx 3` flows made report-only. Either way the switch alone does not
+  finish decision 9; the harness ticket that adds the option settles which sections it covers.
+- **What a failure says.** First one `FIRST MISMATCH` line (and an `::error::` annotation) for the job: the
+  configuration, arm, threads, equation and cell of the first mismatch, taken from a one-evaluation group when one
+  failed, e.g. `FIRST MISMATCH: configuration tebox, arm jac, threads 2, equation te, cell (ix=4,iy=20) (flow
+  tebox1)`. Then one `GATED` line (and annotation) per failing group, in run order, with the same fields, how many
+  runs agreed and the flow's raw first-mismatch text. A group whose runs all crashed says so (`no comparable
+  mismatch, the OpenMP run(s) failed; ... exited with -11`); an ERROR group (cannot judge, e.g. the core's
+  `check_arm` refusing a run of a serial build) gives its reasons and exit 2.
 - **`--itermx 3` and the permuted Jacobian.** After Newton iterations the post-`exmain` Jacobian is the `psetnk`
   one: row-normalised and RCM-permuted (`ireorder=1`). The harness core compares it **by position** (section
   `jacobian:post_exmain (permuted indices)`, positions such as `position 12`, not cells), and that comparison is
   part of the gate's verdict like every other section: a bitwise difference at any position fails the group.
-  Because such a first mismatch has no cell, `ci/report.py` then names the first mismatch of the same group that
-  is mapped to a cell (the captured raw Jacobians when the build has AIUE-47's hook, else `sfscal`, `yldot`, ...):
-  `first mismatch at permuted Jacobian positions (not mapped to cells); first localised mismatch in equation te,
-  cell (ix=3,iy=18) [sfscal]`. If no section has a cell it says `mismatch at permuted positions only`. A wrong
-  Jacobian also changes the Newton path, so on the full problem later iterates differ in every equation and the
-  first localised mismatch can be in an `ni` row; the Te box and the `mismatch rows` column narrow it down.
+  Such a first mismatch has no cell, so `ci/report.py` names the location found by the one-evaluation group of the
+  same configuration, arm and threads (`located by the one-evaluation group [tebox1]: equation te, cell
+  (ix=4,iy=20)`). Only when there is none does it give the first differing entry that maps to a cell, labelled as
+  what it is: `first cell-mapped differing entry (may be downstream of the defect): equation te, cell (ix=3,iy=18)
+  [yldot]`. Once the Newton path has moved, `sfscal`/`yldot` differ in every cell, so that entry is just the lowest
+  index, not the defect; it is never used for the `FIRST MISMATCH` line. On the full problem it can be an `ni` row.
+- **Newton iterations are checked.** For an `--itermx N` flow, `report.py` reads each serial reference's
+  `record.json` and fails the job with exit 2 if it made fewer than N Newton iterations (the largest
+  `iterations[].iter`), so a set never claims iterations it did not run. OpenMP runs that iterate differently
+  already fail the comparison (`fnrm_printed`).
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`, `record.json`,
   `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded; rerun locally.
-- **Budget.** The PR job is estimated at 14–21 min (central ~17) on `ubuntu-latest` (derivation in
+- **Budget.** The PR job is estimated at 14–20 min (central ~17) on `ubuntu-latest` (derivation in
   `docs/reviews/AIUE-57-validation.txt`); the `Wall time` step writes the measured job and build time to the step
   summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` (first `tebox` K=5 → 3, then `full` to
   4 threads only); the nightly set keeps the full matrix.
