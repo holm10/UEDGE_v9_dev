@@ -30,7 +30,7 @@ tolerance, A `-ffp-contract=off` (changes serial), B tolerance gate (interim CI 
 | AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | 8ee189d | **APPROVED** r2. **Don't merge** before AIUE-56 and a gate that can be green | In Review |
 | AIUE-60 races | — | — | filed, not started | To Do |
 | AIUE-61 C2 replay + stack crash | scratch `uedge-wt/AIUE-61-replay` | — | prototype; production awaits decision 9 | To Do |
-| AIUE-62 Linux | `feature/v9-AIUE-62-linux-characterisation` (on AIUE-55) | in progress | owner approved; running locally in Docker (linux/amd64 + arm64) | In Progress |
+| AIUE-62 Linux | `feature/v9-AIUE-62-linux-characterisation` (on AIUE-55) | 8277210 | **APPROVED** r2 | In Review |
 | AIUE-51 / 58 / 59 / 48 | — | — | not started (optional / bonus / owner task) | To Do |
 
 Stack, restacked after the review fixes (each child contains its parent's tip): v9-develop ← 46 ← {49 ← {52 ← 57,
@@ -166,3 +166,10 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   `full` no longer overflows (2 and 4 threads); `yldot` and the parallel RHS equal serial. Full/jacrhs also gave a
   bitwise Jacobian 3/3 on a heavily loaded machine, against the earlier residual: to re-check quietly (AIUE-58).
   Tips after restacking come from git; some Jira comments quote pre-restack tips (49, 54, 56).
+- **Owner follow-up 3 (12:00–12:50)** AIUE-62 APPROVED r2: on emulated x86-64 (Debian gcc 12.2 K=20, Ubuntu 24.04
+  gcc 13.3 K=5, libgomp, no FMA) the C1 fix alone is bitwise = serial and deterministic for the Te configurations;
+  exceptions are M3 (`up` rows by the inner plate, Linux, >=4 threads, pre-existing) -> AIUE-65. The Linux OpenMP build
+  doesn't import without `LDFLAGS=-fopenmp` -> AIUE-64 (blocks AIUE-57 CI). Cost study (scratch, unreviewed; AIUE-61
+  comment): F with round-robin fixed chunks +4-6 % vs default, reproducible; F with one chunk per thread +70-108 %;
+  E +27-154 % (+44 % at best), bitwise = serial; auto-balancing is inactive in the default by code. AI layer
+  consolidated onto local v9-develop (4faed39, 7 commits, not pushed); AI branches and worktrees deleted.
