@@ -18,15 +18,21 @@ results are **bitwise** unchanged against `v9-develop`, in the `--serial` build 
 ```bash
 python tests/deterministic_omp/harness/serial_check.py \
     --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \
-    --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python --cases all --jobs 10 --out DIR
+    --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python --jobs 4 --out DIR
 ```
 
-Four venvs: base and change, each built `--serial` and default (the tool does not build). It runs the reproducer
-presets and pytests cases (D_only, D+C, D_mols, a 16x8 fulltest, drifts, slab; `--list`) once per build in
-fresh processes and compares Jacobian, `sfscal`, `suscal`, `yldot`, `fnrm` bit for bit. Exit 0 identical, 1 mismatch
-(the summary names the case and the first differing entry), 2 harness error (also when base and new are the same
-build, or a build is of the wrong kind). Needs the pytests checkout (below). Paste the `RESULT` line into the PR.
-Details: `tests/deterministic_omp/README.md`.
+Four venvs: base and change, each built `--serial` and default, from clean committed trees (the tool does not
+build). It runs reproducer presets and pytests cases (D_only, D+C, D_mols, a 16x8 fulltest, drifts, slab and 20
+one-switch unit variants; `--list`) once per build in fresh processes. Cases ending in `-itN` run N Newton iterations,
+so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It compares every Jacobian, `sfscal`,
+`suscal`, `yldot` and the `fnrm` sequence bit for bit.
+- Exit 0: identical over the complete gate (both pairs, two different builds, `--cases all`).
+- Exit 1: mismatch (the summary names the case and the first differing entry).
+- Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path) or an
+  incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
+
+Needs the pytests checkout (below). Paste the build lines and the `RESULT` line into the PR. Details:
+`tests/deterministic_omp/README.md`.
 
 ## Suite structure (`upstream/pytests`)
 
