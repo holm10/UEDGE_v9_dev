@@ -4,6 +4,12 @@ These are the records behind the AIUE-64 fix: link the Forthon extensions with `
 build. The plan is `.claude/plans/AIUE-64-omp-linux-link.md` (§Testing strategy M1–M4, L1–L6).
 
 - Commits: `BASE` = `4faed39` (product tree identical to `0fac655`); `FIX` = `1e8eb78`.
+  - The Linux `base` builds cloned `4faed39`.
+  - The macOS "before" build (`macos/before/build_head.txt`) was built from `1adea93`, the plan's last commit before
+    the fix. Its product tree is identical to `4faed39`: `git diff 4faed39 1adea93 -- . ':!.claude' ':!docs'
+    ':!CLAUDE.md'` is empty.
+  - M3 ran on builds of `1e8eb78` with a clean tree, before any later commit. The later commits change only docs and
+    the AI layer, so they make those builds stale for `serial_check.py`, but not wrong.
 - Harness: AIUE-57 `8ee189d`.
 - Linux runs: Docker Desktop on macOS arm64, `--platform linux/amd64` (Rosetta), `--cpus 5 --memory 7g`, one
   container at a time. The repository was mounted read-only and every build cloned its commit (clean tree).
@@ -23,8 +29,48 @@ build. The plan is `.claude/plans/AIUE-64-omp-linux-link.md` (§Testing strategy
 | L4 Linux serial unchanged | PASS: all records identical; serial ppppy leaves `omp_get_thread_num_`, `omp_get_wtime_` unresolved (AIUE-67) | `ubuntu/rec_{base,fix}-ser/` |
 | L5 AIUE-57 CI step replay | PASS: `OMP CI RESULT: PASS (exit 0)`. The jac arm differs from serial, report-only (pre-AIUE-56 code) | `ubuntu/ci_step.log`, `ubuntu/ci/` |
 | L5 thread probe, as first registered | **FAIL** `n1-n0 = 0`. A probe-design error: the workers already exist after `import uedge` | `ubuntu/thread_probe*.txt/log`, `ubuntu_diag/` |
-| L5 thread probe, amended (plan amendment) | PASS: worker CPU during the Te-box `exmain` is ≥ max(5 × serial-arm control, 1 ms) at N=2 and N=4 | `ubuntu_probe2/thread_probe2.txt` |
+| L5 thread probe, amended (plan amendment) | PASS: worker CPU during the Te-box `exmain` is ≥ max(5 × serial-arm control, 1 ms) at N=2 and N=4: 10.1× the control at N=2, at least 8.0× at N=4. Caveats: the control's workers also gained 5–10 ms, so the amendment's "no region during `exmain`" was inaccurate (the margin covers it); the 5× factor was picked after the diagnostic had shown rough magnitudes | `ubuntu_probe2/thread_probe2.txt` |
 | L6 Debian 12 | PASS: import exit 0; `ldd -r` filter empty; NEEDED as in L2; `gcc -dumpspecs` `as-needed` 3 | `debian/` |
+| New `setup.py` log line (L2, L4, L6, M1(d)) | PASS: present once in every Linux OpenMP `fix` build log; absent from Linux `base`, `wkld`, both serial builds and every macOS build | `build_log_line.txt` (counts; the build logs themselves are not committed) |
+| M4 `validate` (macOS, builds of `a738e92`) | **Deviates from the pre-registered expectation ("`D_only` passes; `--omp` check as on `base-omp`"); identical on base.** See below | `validate/` |
+
+### M4 in detail
+
+- **Build and smoke: pass.** Serial and OpenMP builds exit 0, with the same number of warning lines as the base
+  build (serial 308, OpenMP 315). Smoke import `uedge_ver 8.1.2-beta.0`.
+- **`D_only`** (uedge-pytests `b535508`): `5 failed, 120 passed, 1 warning`.
+  - Failing tests:
+    - `nonog/concap`
+    - `nonog/ineudif0`
+    - `nonog/ineudif1`
+    - `nonog/ineudif3`
+    - `nonog/tg_atom_cftiexclg0p5`
+  - Three of them raise `ValueError: operands could not be broadcast together with shapes (10,6,2) (10,6)`.
+  - `base-serial` gives the same result: the `FAILED` lists and all `Returned fnrm`/`Reference fnrm` lines are
+    identical (`validate/d_only.txt`, which quotes the fnrm lines verbatim). The `ineudif*` `ValueError` failures were
+    already recorded on AIUE-56.
+- **OpenMP check** (CheckPandf1=1, CheckJac=1, 4 threads, `fulltests/nonog_d_c-fb_16x8`):
+  - Every run reports the parallel and serial Jacobians identical twice, and pandf identical at nfe 0 and 1. It then
+    stops with `RuntimeError: diff in rhsnk` and these lines:
+    ```
+     >>>>                  272   387.04448987743109        387.04448987291863        1.1658757793646371E-011
+     >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075279923317E-009
+    ```
+  - 3 alternating runs per build on `AIUE-64-omp` and `base-omp`: all exit 1. Each fix log is identical to the base
+    log of the same index once NULs and timing lines are removed (`validate/omp_check.txt`).
+  - Attribution: an RHS-check difference, consistent with AIUE-58 R1 (not shown). The Jacobians are identical.
+    Rows 272 and 428 are both Ti rows, at (ix=2, iy=1) and (ix=14, iy=1), by the 13-variables-per-cell ordering of
+    this deck.
+- **Two one-off abnormal exits** on `AIUE-64-omp` (`validate/one_off_exits.txt`):
+  - **Exit 133:** the first run, under the `gtimeout` wrapper. The wrapper itself died with SIGTRAP (its crash
+    report is quoted), and the log stops after the banner.
+  - **Exit 139:** happened once, after the same `RuntimeError`. No crash report was found for it.
+  - Neither recurred in the 3 alternating repeats per build.
+  - On macOS the change is inactive by construction (M1 identical, M3 bitwise AGREE), so the build has no way to
+    cause them.
+- **Branch check:** `change_kind --range origin/v9-develop..HEAD` reports a VIOLATION. This is the 7 local AI-layer
+  commits in the base (plan review L1-m8). The check against `v9-develop` and the drift check are OK
+  (`validate/build_smoke.txt`).
 
 ## Files
 
@@ -33,7 +79,8 @@ build. The plan is `.claude/plans/AIUE-64-omp-linux-link.md` (§Testing strategy
     amended L5 probe) and `run_debian64.sh` (L6). Helpers: `build_uedge.sh NAME COMMIT [serial]`,
     `link_record.sh`, `import_check.sh`, `thread_probe.py`, `diag_probe.py`, `thread_probe2.py`,
     `probe2_verdict.py`, `clone_harness.sh`.
-  - macOS: `build_pair.sh` (uses `uedge-wt/build_uedge.sh`) and `mac_record.sh`.
+  - macOS: `build_pair.sh` (uses `uedge-wt/build_uedge.sh`), `mac_record.sh`, and for M4 `omp_check.py` and
+    `omp_repeat.sh`.
 - `rec_<build>/` holds per-extension records:
   - `needed.txt`: `readelf -d` NEEDED;
   - `ldd.txt`;

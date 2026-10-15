@@ -334,6 +334,13 @@ Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
     OpenMP regions during the Jacobian; the serial-arm control, which has no region during `exmain`, separates
     it from idle pool threads.
   - Saved to `/out/thread_probe2.txt`.
+  - *Post-run note (implementation review I1-m2; the pre-registered text above is left as written):*
+    - "has no region during `exmain`" was inaccurate. The control's workers gained 5.3 ms (N=2) and 6.0–10.3 ms
+      (N=4) of CPU during `exmain`, so either the serial arm has OpenMP regions there or spin from earlier regions
+      carries on. The 5× margin covers both cases.
+    - The 5× factor was chosen after the diagnostic had shown rough magnitudes (a jac worker gained 7 ticks; control
+      workers on another preset gained 1–2 ticks). So the threshold was fixed before the run, but not blind.
+    - Result: 10.1× the control at N=2 and at least 8.0× at N=4.
   Deviations from CI, stated up front: Python 3.12 (Ubuntu system) instead of setup-python 3.11; emulated amd64;
   `OMP_CI_FLOWS`/`OMP_CI_GATE` override the `pr` set (the full `pr` set under emulation is too slow, and its gate
   is red on pre-AIUE-56 code by design, see the workflow's DO-NOT-MERGE note).

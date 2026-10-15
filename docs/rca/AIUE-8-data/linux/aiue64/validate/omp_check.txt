@@ -1,0 +1,35 @@
+# validate step 4 (M4): CheckPandf1=1 CheckJac=1, OMPParallelPandf1=OMPParallelJac=1, Nthreads=4, OMP_NUM_THREADS=4,
+# case uedge-pytests pytests/fulltests/nonog_d_c-fb_16x8, script omp_check.py; 3 alternating runs per build
+# FIX = venvs/AIUE-64-omp (a738e92, product tree = 1e8eb78); BASE = venvs/base-omp (0fac655)
+AIUE-64-omp run 1 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+base-omp run 1 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+AIUE-64-omp run 2 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+base-omp run 2 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+AIUE-64-omp run 3 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+base-omp run 3 exit 1 | jac-identical 2 | pandf-identical 4 | >>>> 2 | last:  >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075
+== AIUE-64-omp run 1: check lines and error (verbatim)
+RuntimeError: diff in rhsnk
+ --- Parallel and serial evaluations of jacobian are identical...
+  Serial and parallel pandf are identical for nfe =    0
+  Serial and parallel pandf are identical for nfe =    0
+ OMP iter=   0 fnrm=     0.3215437112043155     nfe=      1
+  Serial and parallel pandf are identical for nfe =    1
+ --- Parallel and serial evaluations of jacobian are identical...
+  Serial and parallel pandf are identical for nfe =    1
+ >>>>                  272   387.04448987743109        387.04448987291863        1.1658757793646371E-011
+ >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075279923317E-009
+== base-omp run 1: check lines and error (verbatim)
+RuntimeError: diff in rhsnk
+ --- Parallel and serial evaluations of jacobian are identical...
+  Serial and parallel pandf are identical for nfe =    0
+  Serial and parallel pandf are identical for nfe =    0
+ OMP iter=   0 fnrm=     0.3215437112043155     nfe=      1
+  Serial and parallel pandf are identical for nfe =    1
+ --- Parallel and serial evaluations of jacobian are identical...
+  Serial and parallel pandf are identical for nfe =    1
+ >>>>                  272   387.04448987743109        387.04448987291863        1.1658757793646371E-011
+ >>>>                  428  -102.89970684190475       -102.89970639107977        4.3812075279923317E-009
+== diff of each fix run log vs the base run log of the same index (NULs and timing lines removed):
+run 1: identical
+run 2: identical
+run 3: identical
