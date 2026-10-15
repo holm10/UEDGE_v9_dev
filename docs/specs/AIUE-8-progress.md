@@ -179,5 +179,6 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   AIUE-58 (RHS RCA) to completion.
 - **13:45** Owner: AIUE-62 resolves AIUE-54's I1-M4 → AIUE-54 In Review. M3 split out of AIUE-8 into the new epic
   **AIUE-66** ("OpenMP Jacobian on Linux: plate-boundary momentum rows"), AIUE-65 moved under it with the arm64 Linux run
-  added; AIUE-61 reports whether option F removes M3. A Claude Code restart lost the AIUE-61/60/58 agents before they
-  committed anything; relaunched (AIUE-64's plan had landed: `75108da`, plan review running).
+  added; AIUE-61 reports whether option F removes M3. After a Claude Code restart the AIUE-61/60/58 agents were wrongly
+  assumed lost and relaunched; the originals had survived, so the duplicates were stopped after ~4 minutes (they had
+  only read code). AIUE-64's plan landed (`75108da`); its plan review is running.
