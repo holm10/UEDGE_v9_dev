@@ -42,5 +42,22 @@ ppp.CheckJac = 1      # compares parallel vs serial Jacobian (ppp/ppp.v:9)
 bbb.exmain()
 ```
 
+`CheckJac`/`CheckPandf1` use an absolute tolerance of 1e-14, abort on the first mismatch, and change solver state, so
+they are diagnostics, not a baseline. The bitwise check against serial is the harness below.
+
 Test with a double-null / snowflake case too: X-point chunks are where regressions hide.
 Serial build (`--serial`) is what CI tests — it will **not** catch OpenMP races.
+
+## Bitwise OpenMP-vs-serial harness (`tests/deterministic_omp/harness/`)
+
+The AIUE-8 reproducer (`tests/deterministic_omp/case/`) plus a harness that runs one configuration per fresh
+`python -I` process and compares runs bit for bit, localising every mismatch to equation, species and cell
+(usage and presets: `tests/deterministic_omp/README.md`):
+
+```bash
+PY=<venv>/bin/python   # OpenMP build
+$PY tests/deterministic_omp/harness/cli.py check --preset tebox --arm jac --threads 4 --repeats 2 --python $PY --out /tmp/chk
+```
+
+Exit 0 agree, 1 mismatch, 2 harness error. Set `OMP_STACKSIZE` (the harness uses 512M): per-thread automatic arrays
+scale with `neq`. On `v9-develop` this case fails in the electron-energy rows (AIUE-8).
