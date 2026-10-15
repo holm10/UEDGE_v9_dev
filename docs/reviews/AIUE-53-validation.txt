@@ -1,0 +1,287 @@
+AIUE-53 — Serial old-vs-new bitwise check: validation
+=====================================================
+
+Machine: Apple M4 Pro (14 cores), macOS arm64, GNU Fortran (Homebrew GCC 15.2.0_1), Python 3.13.12.
+Tool: tests/deterministic_omp/harness/serial_check.py on feature/v9-AIUE-53-serial-bitwise-check
+(stacked on feature/v9-AIUE-49-omp-harness-core; the summary's "harness" commit is the HEAD the tool ran from,
+the new files were uncommitted at the time). pytests checkout: upstream/pytests b535508.
+
+Builds (never reinstalled for this ticket, except the scratch negative-control venvs):
+  base-serial  venvs/base-serial      v9-develop 0fac655, --serial          ext-sha256 141a53db4d12099e
+  base-omp     venvs/base-omp         v9-develop 0fac655, default (OpenMP)  ext-sha256 b71788af754cbe0a
+  neg-serial   venvs/AIUE-53-neg      origin/v9-develop 3865c79 + perturbation, --serial   d2d7ea2255c53ca9
+  neg-omp      venvs/AIUE-53-neg-omp  origin/v9-develop 3865c79 + perturbation, default    497df5c286c05f79
+(3865c79 differs from 0fac655 only in docs/; same Fortran.)
+
+Negative-control perturbation (detached scratch trees ../uedge-wt/AIUE-53-neg and ../uedge-wt/AIUE-53-neg-omp,
+never committed), bbb/pandf_plasma_energy.m:444, the non-orthogonal poloidal electron heat flux:
+-               feexy(ix,iy) = exp( 0.5*
++               feexy(ix,iy) = 1.0000001*exp( 0.5*
+Built with build_uedge.sh <tree> <venv> serial|omp (logs/AIUE-53-neg-{serial,omp}-build.log, both exit 0).
+
+Unit tests (no build needed): python -m pytest tests/deterministic_omp/harness  ->  30 passed
+
+Case set: --cases all = repro-{full,ni,up,ti,te,ng,tebox} (serial arm) + pytests-{full-d_c-16x8, D+C, D_only,
+D_mols, D_mols-drift, slab}. Excluded because they fail on v9-develop itself in both builds (still runnable by name):
+  repro-full_note     serial exmain: "*** Error: Jacobian row = 0 for eqn iv = 1092" (RuntimeError)
+  pytests-orthogonal  input.py: "RuntimeError: ueinit -- error in sign sx, sy" (the upstream pytest fails the same way)
+First try with them included: both pairs AGREE on the other 13 cases, these two ERROR, RESULT HARNESS ERROR, exit 2.
+
+Sanity of the pytests worker: for D_only, D+C and the 16x8 fulltest the recorded final fnrm reproduces the stored
+reference (rel. diff 1.5e-8, 4.3e-9, 8.2e-10; rtol 1e-5 passes). D_mols gives 2.416585650108225 against the reference
+0.9957; running the upstream test_nonog_mols_default.py with the same build (and the crumpet rate files) returns
+exactly the same 2.4165856501082246, so the worker reproduces the test; the reference itself is stale on v9-develop.
+
+1. Base against base, both builds, --cases all (--allow-same-build), --jobs 10
+------------------------------------------------------------------------------
+SERIAL BITWISE CHECK (AIUE-53)  harness fbe0adfbc455  pytests b5355080d99d
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 141a53db4d12099e  openmp False
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 141a53db4d12099e  openmp False
+  build omp0   base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 b71788af754cbe0a  openmp True
+  build omp0   new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 b71788af754cbe0a  openmp True
+  WARNING: serial: base and new are the same build (--allow-same-build)
+  WARNING: omp0: base and new are the same build (--allow-same-build)
+[serial] repro-full               AGREE    neq  44352  53.13 s / 52.56 s
+[serial] repro-ni                 AGREE    neq  25344  32.87 s / 33.1 s
+[serial] repro-up                 AGREE    neq   6336  10.58 s / 10.71 s
+[serial] repro-ti                 AGREE    neq   3168  4.92 s / 5.04 s
+[serial] repro-te                 AGREE    neq   3168  4.92 s / 4.86 s
+[serial] repro-ng                 AGREE    neq   3168  5.79 s / 5.74 s
+[serial] repro-tebox              AGREE    neq     25  2.08 s / 1.96 s
+[serial] pytests-full-d_c-16x8    AGREE    neq   2340  3.45 s / 3.68 s
+[serial] pytests-D+C              AGREE    neq    780  1.18 s / 1.23 s
+[serial] pytests-D_only           AGREE    neq    420  0.9 s / 0.74 s
+[serial] pytests-D_mols           AGREE    neq    480  0.91 s / 0.95 s
+[serial] pytests-D_mols-drift     AGREE    neq    480  0.72 s / 0.68 s
+[serial] pytests-slab             AGREE    neq   4522  2.29 s / 2.25 s
+[omp0] repro-full               AGREE    neq  44352  57.4 s / 57.15 s
+[omp0] repro-ni                 AGREE    neq  25344  35.89 s / 35.86 s
+[omp0] repro-up                 AGREE    neq   6336  9.65 s / 10.15 s
+[omp0] repro-ti                 AGREE    neq   3168  5.64 s / 5.51 s
+[omp0] repro-te                 AGREE    neq   3168  5.76 s / 5.55 s
+[omp0] repro-ng                 AGREE    neq   3168  6.18 s / 5.83 s
+[omp0] repro-tebox              AGREE    neq     25  1.84 s / 2.1 s
+[omp0] pytests-full-d_c-16x8    AGREE    neq   2340  3.82 s / 4.08 s
+[omp0] pytests-D+C              AGREE    neq    780  1.36 s / 1.46 s
+[omp0] pytests-D_only           AGREE    neq    420  0.74 s / 0.81 s
+[omp0] pytests-D_mols           AGREE    neq    480  0.94 s / 0.98 s
+[omp0] pytests-D_mols-drift     AGREE    neq    480  0.81 s / 0.72 s
+[omp0] pytests-slab             AGREE    neq   4522  2.35 s / 2.4 s
+RESULT: AGREE (bitwise identical)  (72.6 s)
+real 72.83
+user 381.71
+sys 19.05
+exit 0
+
+2. Negative control, both builds, --cases all, --jobs 10
+--------------------------------------------------------
+Expected: every case that has the Te equation on and a non-orthogonal grid fails; the presets with Te off
+(ni, up, ti, ng) and the orthogonal slab case agree, which shows that the check is specific, not just noisy.
+SERIAL BITWISE CHECK (AIUE-53)  harness fbe0adfbc455  pytests b5355080d99d
+  build serial base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 141a53db4d12099e  openmp False
+  build serial new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 d2d7ea2255c53ca9  openmp False
+  build omp0   base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 b71788af754cbe0a  openmp True
+  build omp0   new  /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg-omp/bin/python  uedge /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg-omp/lib/python3.13/site-packages/uedge/__init__.py  ext-sha256 497df5c286c05f79  openmp True
+[serial] repro-full               MISMATCH neq  44352  51.6 s / 58.55 s
+    first mismatch: jacobian:post_exmain (285402 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 1019,14): base -29250.330752575745 new -29250.330707348414
+      jacobian:post_exmain: 285402 mismatch(es) (value 275212, only-a 3980, only-b 6210); pairs te/ng: 2902, te/ni: 193386, te/phi: 27771, te/te: 21926, te/ti: 27270, te/up: 12147; first value row te(ix=0,iy=1) col phi(ix=0,iy=0)
+      sfscal: 2165 mismatch(es); by equation {'te': 2165}; first at te(ix=1,iy=1)
+      yldot: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      yldot_probe: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.eb37d428ec4f0p+0 vs 0x1.eb37d4b1f5cadp+0
+      fnrm_printed: 1 mismatch(es): [(0, '1.918820629111277')] vs [(0, '1.918820661017701')]
+[serial] repro-ni                 AGREE    neq  25344  30.22 s / 39.61 s
+[serial] repro-up                 AGREE    neq   6336  9.34 s / 18.8 s
+[serial] repro-ti                 AGREE    neq   3168  6.65 s / 6.34 s
+[serial] repro-te                 MISMATCH neq   3168  6.29 s / 6.53 s
+    first mismatch: jacobian:post_exmain (21844 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=0) (iv 73,2): base -559.7526751444093 new -559.7526524070418
+      jacobian:post_exmain: 21844 mismatch(es) (value 21259, only-a 430, only-b 155); pairs te/te: 21844; first value row te(ix=0,iy=1) col te(ix=1,iy=0)
+      sfscal: 2512 mismatch(es); by equation {'te': 2512}; first at te(ix=0,iy=1)
+      yldot: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      yldot_probe: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.d160218cb35a4p+1 vs 0x1.d16021f9255aap+1
+      fnrm_printed: 1 mismatch(es): [(0, '3.635746186925376')] vs [(0, '3.635746237424162')]
+[serial] repro-ng                 AGREE    neq   3168  6.51 s / 6.22 s
+[serial] repro-tebox              MISMATCH neq     25  3.56 s / 2.68 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+      jacobian:post_exmain: 135 mismatch(es) (value 129, only-a 0, only-b 6); pairs te/te: 135; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+      sfscal: 19 mismatch(es); by equation {'te': 19}; first at te(ix=3,iy=18)
+      yldot: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+      yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+      fnrm_final: 1 mismatch(es): 0x1.49db83f93d961p-2 vs 0x1.49db83fb03e37p-2
+      fnrm_printed: 1 mismatch(es): [(0, '0.3221264477609989')] vs [(0, '0.3221264478642953')]
+[serial] pytests-full-d_c-16x8    MISMATCH neq   2340  3.47 s / 3.72 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+      jacobian:post_exmain: 6747 mismatch(es) (value 6535, only-a 109, only-b 103); pairs te/ng: 64, te/ni: 4962, te/te: 848, te/ti: 702, te/up: 171; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 114 mismatch(es); by equation {'te': 114}; first at te(ix=0,iy=1)
+      yldot: 144 mismatch(es); by equation {'te': 144}; first at te(ix=0,iy=1)
+      yldot_probe: 144 mismatch(es); by equation {'te': 144}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.4942c12f8cbb7p-2 vs 0x1.4942c12ffef33p-2
+      fnrm_printed: 1 mismatch(es): [(0, '0.3215437112114005')] vs [(0, '0.3215437112373706')]
+[serial] pytests-D+C              MISMATCH neq    780  1.46 s / 1.34 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+      jacobian:post_exmain: 1707 mismatch(es) (value 1688, only-a 7, only-b 12); pairs te/ng: 17, te/ni: 1295, te/te: 188, te/ti: 166, te/up: 41; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 24 mismatch(es); by equation {'te': 24}; first at te(ix=0,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.9e014ef974242p-3 vs 0x1.9e014ef986753p-3
+      fnrm_printed: 1 mismatch(es): [(0, '0.2021509332539769')] vs [(0, '0.2021509332560592')]
+[serial] pytests-D_only           MISMATCH neq    420  0.64 s / 0.8 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+      jacobian:post_exmain: 692 mismatch(es) (value 692, only-a 0, only-b 0); pairs te/ni: 218, te/phi: 65, te/te: 210, te/ti: 151, te/up: 48; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 25 mismatch(es); by equation {'te': 25}; first at te(ix=2,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.04ceff22662abp-3 vs 0x1.04ceff229ea32p-3
+      fnrm_printed: 1 mismatch(es): [(0, '0.1273479397175568')] vs [(0, '0.1273479397239768')]
+[serial] pytests-D_mols           MISMATCH neq    480  0.83 s / 0.99 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+      jacobian:post_exmain: 658 mismatch(es) (value 655, only-a 1, only-b 2); pairs te/ng: 15, te/ni: 193, te/phi: 58, te/te: 200, te/ti: 150, te/up: 42; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 23 mismatch(es); by equation {'te': 23}; first at te(ix=0,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.3552adb7994f0p+1 vs 0x1.3552adb79952dp+1
+      fnrm_printed: 1 mismatch(es): [(0, '2.416585650108225')] vs [(0, '2.416585650108252')]
+[serial] pytests-D_mols-drift     MISMATCH neq    480  0.89 s / 0.96 s
+    first mismatch: jacobian:post_exmain (1293 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.44055923353880644 new -0.44058197090635076
+      jacobian:post_exmain: 1293 mismatch(es) (value 1283, only-a 6, only-b 4); pairs te/ng: 20, te/ni: 314, te/phi: 318, te/te: 258, te/ti: 278, te/up: 105; first value row te(ix=0,iy=1) col te(ix=0,iy=0)
+      sfscal: 29 mismatch(es); by equation {'te': 29}; first at te(ix=1,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.a9ba6ffce6348p+1 vs 0x1.a9ba6ffce6542p+1
+      fnrm_printed: 1 mismatch(es): [(0, '3.326002119527775')] vs [(0, '3.326002119528000')]
+[serial] pytests-slab             AGREE    neq   4522  2.07 s / 2.16 s
+[omp0] repro-full               MISMATCH neq  44352  56.47 s / 62.15 s
+    first mismatch: jacobian:post_exmain (285402 entries): first value at row te(ix=0,iy=1) col phi(ix=0,iy=0) (iv 1019,14): base -29250.330752575745 new -29250.330707348414
+      jacobian:post_exmain: 285402 mismatch(es) (value 275212, only-a 3980, only-b 6210); pairs te/ng: 2902, te/ni: 193386, te/phi: 27771, te/te: 21926, te/ti: 27270, te/up: 12147; first value row te(ix=0,iy=1) col phi(ix=0,iy=0)
+      sfscal: 2165 mismatch(es); by equation {'te': 2165}; first at te(ix=1,iy=1)
+      yldot: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      yldot_probe: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.eb37d428ec4f0p+0 vs 0x1.eb37d4b1f5cadp+0
+      fnrm_printed: 1 mismatch(es): [(0, '1.918820629111277')] vs [(0, '1.918820661017701')]
+[omp0] repro-ni                 AGREE    neq  25344  34.13 s / 42.48 s
+[omp0] repro-up                 AGREE    neq   6336  11.59 s / 10.5 s
+[omp0] repro-ti                 AGREE    neq   3168  6.89 s / 6.33 s
+[omp0] repro-te                 MISMATCH neq   3168  6.34 s / 6.12 s
+    first mismatch: jacobian:post_exmain (21844 entries): first value at row te(ix=0,iy=1) col te(ix=1,iy=0) (iv 73,2): base -559.7526751444093 new -559.7526524070418
+      jacobian:post_exmain: 21844 mismatch(es) (value 21259, only-a 430, only-b 155); pairs te/te: 21844; first value row te(ix=0,iy=1) col te(ix=1,iy=0)
+      sfscal: 2512 mismatch(es); by equation {'te': 2512}; first at te(ix=0,iy=1)
+      yldot: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      yldot_probe: 3024 mismatch(es); by equation {'te': 3024}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.d160218cb35a4p+1 vs 0x1.d16021f9255aap+1
+      fnrm_printed: 1 mismatch(es): [(0, '3.635746186925376')] vs [(0, '3.635746237424162')]
+[omp0] repro-ng                 AGREE    neq   3168  6.83 s / 6.02 s
+[omp0] repro-tebox              MISMATCH neq     25  3.01 s / 2.66 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+      jacobian:post_exmain: 135 mismatch(es) (value 129, only-a 0, only-b 6); pairs te/te: 135; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+      sfscal: 19 mismatch(es); by equation {'te': 19}; first at te(ix=3,iy=18)
+      yldot: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+      yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+      fnrm_final: 1 mismatch(es): 0x1.49db83f93d961p-2 vs 0x1.49db83fb03e37p-2
+      fnrm_printed: 1 mismatch(es): [(0, '0.3221264477609989')] vs [(0, '0.3221264478642953')]
+[omp0] pytests-full-d_c-16x8    MISMATCH neq   2340  4.06 s / 3.66 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+      jacobian:post_exmain: 6747 mismatch(es) (value 6535, only-a 109, only-b 103); pairs te/ng: 64, te/ni: 4962, te/te: 848, te/ti: 702, te/up: 171; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 114 mismatch(es); by equation {'te': 114}; first at te(ix=0,iy=1)
+      yldot: 144 mismatch(es); by equation {'te': 144}; first at te(ix=0,iy=1)
+      yldot_probe: 144 mismatch(es); by equation {'te': 144}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.4942c12f8cbb7p-2 vs 0x1.4942c12ffef33p-2
+      fnrm_printed: 1 mismatch(es): [(0, '0.3215437112114005')] vs [(0, '0.3215437112373706')]
+[omp0] pytests-D+C              MISMATCH neq    780  1.31 s / 1.37 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+      jacobian:post_exmain: 1707 mismatch(es) (value 1688, only-a 7, only-b 12); pairs te/ng: 17, te/ni: 1295, te/te: 188, te/ti: 166, te/up: 41; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 24 mismatch(es); by equation {'te': 24}; first at te(ix=0,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.9e014ef974242p-3 vs 0x1.9e014ef986753p-3
+      fnrm_printed: 1 mismatch(es): [(0, '0.2021509332539769')] vs [(0, '0.2021509332560592')]
+[omp0] pytests-D_only           MISMATCH neq    420  0.82 s / 0.92 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+      jacobian:post_exmain: 692 mismatch(es) (value 692, only-a 0, only-b 0); pairs te/ni: 218, te/phi: 65, te/te: 210, te/ti: 151, te/up: 48; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 25 mismatch(es); by equation {'te': 25}; first at te(ix=2,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.04ceff22662abp-3 vs 0x1.04ceff229ea32p-3
+      fnrm_printed: 1 mismatch(es): [(0, '0.1273479397175568')] vs [(0, '0.1273479397239768')]
+[omp0] pytests-D_mols           MISMATCH neq    480  1.02 s / 1.03 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+      jacobian:post_exmain: 658 mismatch(es) (value 655, only-a 1, only-b 2); pairs te/ng: 15, te/ni: 193, te/phi: 58, te/te: 200, te/ti: 150, te/up: 42; first value row te(ix=0,iy=1) col ni[0](ix=0,iy=1)
+      sfscal: 23 mismatch(es); by equation {'te': 23}; first at te(ix=0,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.3552adb7994f0p+1 vs 0x1.3552adb79952dp+1
+      fnrm_printed: 1 mismatch(es): [(0, '2.416585650108225')] vs [(0, '2.416585650108252')]
+[omp0] pytests-D_mols-drift     MISMATCH neq    480  1.2 s / 1.28 s
+    first mismatch: jacobian:post_exmain (1293 entries): first value at row te(ix=0,iy=1) col te(ix=0,iy=0) (iv 85,5): base -0.44055923353880644 new -0.44058197090635076
+      jacobian:post_exmain: 1293 mismatch(es) (value 1283, only-a 6, only-b 4); pairs te/ng: 20, te/ni: 314, te/phi: 318, te/te: 258, te/ti: 278, te/up: 105; first value row te(ix=0,iy=1) col te(ix=0,iy=0)
+      sfscal: 29 mismatch(es); by equation {'te': 29}; first at te(ix=1,iy=1)
+      yldot: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      yldot_probe: 40 mismatch(es); by equation {'te': 40}; first at te(ix=0,iy=1)
+      fnrm_final: 1 mismatch(es): 0x1.a9ba6ffce6348p+1 vs 0x1.a9ba6ffce6542p+1
+      fnrm_printed: 1 mismatch(es): [(0, '3.326002119527775')] vs [(0, '3.326002119528000')]
+[omp0] pytests-slab             AGREE    neq   4522  2.72 s / 2.38 s
+RESULT: MISMATCH  (76.4 s)
+real 76.65
+user 372.29
+sys 23.31
+exit 1
+
+3. Negative control, --cases quick
+----------------------------------
+[serial] repro-tebox              MISMATCH neq     25  2.65 s / 2.7 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+[serial] pytests-D_only           MISMATCH neq    420  1.27 s / 1.28 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+[serial] pytests-D+C              MISMATCH neq    780  1.42 s / 1.51 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+[serial] pytests-D_mols           MISMATCH neq    480  0.94 s / 1.04 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+[serial] pytests-full-d_c-16x8    MISMATCH neq   2340  2.41 s / 2.48 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+[omp0] repro-tebox              MISMATCH neq     25  2.7 s / 2.74 s
+    first mismatch: jacobian:post_exmain (135 entries): first value at row te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106
+[omp0] pytests-D_only           MISMATCH neq    420  1.34 s / 1.87 s
+    first mismatch: jacobian:post_exmain (692 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 75,71): base -1735.8742752549003 new -1735.8742695705587
+[omp0] pytests-D+C              MISMATCH neq    780  1.26 s / 1.43 s
+    first mismatch: jacobian:post_exmain (1707 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 141,131): base -4535.082303691595 new -4535.082358758657
+[omp0] pytests-D_mols           MISMATCH neq    480  1.02 s / 0.86 s
+    first mismatch: jacobian:post_exmain (658 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 85,81): base -4975.882438884582 new -4975.882393409848
+[omp0] pytests-full-d_c-16x8    MISMATCH neq   2340  2.79 s / 2.7 s
+    first mismatch: jacobian:post_exmain (6747 entries): first value at row te(ix=0,iy=1) col ni[0](ix=0,iy=1) (iv 245,235): base -1814.842685377016 new -1814.842656955307
+RESULT: MISMATCH  (7.4 s)
+real 7.46
+exit 1
+
+4. Build guard
+--------------
+Same build as base and new without --allow-same-build:
+HARNESS ERROR: serial pair: base and new are the same build (extension SHA-256 141a53db4d12099e; base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py, new /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py). Pass --allow-same-build to compare a build with itself on purpose.
+real 1.16
+user 0.49
+sys 0.10
+exit 2
+
+A serial build in the omp0 pair (and the same serial build twice):
+HARNESS ERROR: serial pair: base and new are the same build (extension SHA-256 141a53db4d12099e; base /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py, new /Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/lib/python3.13/site-packages/uedge/__init__.py). Pass --allow-same-build to compare a build with itself on purpose.
+omp0 new build /Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-53-neg/bin/python is not an OpenMP build; the omp0 pair needs the default OpenMP build
+exit 2
+
+5. Timings (wall clock, this machine)
+-------------------------------------
+  --cases all,   4 builds (2 pairs), --jobs 10:  72.8 s (base vs base), 76.7 s (negative control)
+  --cases quick, 4 builds (2 pairs), --jobs 8/10:  7.5-8.0 s
+  Per run: repro-full ~53 s serial / ~57 s OpenMP build, repro-ni ~33 s, repro-up ~10 s, te/ti/ng ~5-6 s,
+  tebox ~2 s, pytests cases 0.7-4 s. A whole --cases all is bound by repro-full.
+  Disk: the run directories of --cases all take 180 MB when everything agrees (record.npz pruned) and 400 MB in the
+  negative control (records of mismatching cases kept).
+  Seen once (first try): one 1.7 s pytests run took 77 s, all of it before Python started importing (process start
+  under load); results were unaffected.
+
+Acceptance
+----------
+  [x] v9-develop against itself passes in both builds (section 1, exit 0)
+  [x] negative control fails and names case and first entry (sections 2-3, exit 1; e.g.
+      "[serial] repro-tebox MISMATCH ... first mismatch: jacobian:post_exmain (135 entries): first value at row
+      te(ix=3,iy=18) col te(ix=3,iy=18) (iv 1,1): base -93872.95340275158 new -93872.95349370106")
+  [x] documented as required for every PR touching Fortran, .v or ppp/ (README, testing.md, openmp-jacobian.md)
+  [x] documented in .claude/context/openmp-jacobian.md and testing.md (AI-layer: code-facts commit)

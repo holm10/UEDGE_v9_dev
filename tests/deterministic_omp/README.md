@@ -150,6 +150,60 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
 
 Unit tests (no UEDGE build needed): `python -m pytest tests/deterministic_omp/harness`.
 
+## Serial old-vs-new check: does a change leave serial results bit for bit as they were?
+
+`harness/serial_check.py` (AIUE-53) is the "nothing may change" gate of epic AIUE-8. **Run it for every PR that
+touches Fortran (`*.m`, `*.F90`, hand-written `*.f`), a `.v` file or `ppp/`**, and paste its `RESULT` line and any
+`first mismatch` lines into the PR. The upstream pytests suite (`rtol=1e-5`) is no substitute.
+
+It takes four interpreters: the `--serial` build and the default (OpenMP) build of the base (`v9-develop`) and of the
+change. Build them in separate venvs first (`pip install . -C "--build-option=--serial"` and `pip install .`; the
+tool does not build). Then:
+
+```bash
+H=tests/deterministic_omp/harness/serial_check.py
+python $H --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \
+          --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python \
+          --cases all --jobs 10 --out /tmp/serial_check       # ~75 s on 14 cores; --cases quick ~8 s
+python $H --list                                               # the case set
+```
+
+- **What runs:** every case once per build, each in a fresh `python -I` process with an empty `HOME`, on the serial
+  path: `ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0`, `Nthreads = 1`, `OMP_NUM_THREADS = 1`. Pair `serial`
+  compares the two `--serial` builds, pair `omp0` the two OpenMP builds with both switches 0 (both builds have the
+  `ppp` package). Leaving out one pair is allowed, but the summary then warns that the gate needs both.
+- **Cases:** `repro-<preset>` for every preset of `harness/config.py` (serial arm), and `pytests-*`, upstream pytests
+  cases run the way their `test_reference` runs them (`harness/pytests_worker.py`): exec `input.py`, `issfon=1`,
+  `ftol=1e20`, `exmain()`, equation switches from `solution.h5:pytests/default`, state from `solution.h5:bbb`,
+  `exmain()` again. `perturb_solution` is not called (the test does not call it either; it perturbs the file only when
+  the reference is written). `com.iprint` stays 1 so that the `fnrm` lines are printed; it changes no number.
+  `quick` = `repro-tebox`, `pytests-D_only`, `pytests-D+C`, `pytests-D_mols`, `pytests-full-d_c-16x8`; `all` adds
+  the other presets, `pytests-D_mols-drift` (drifts) and `pytests-slab`. Two cases fail on `v9-develop` itself, in
+  both builds, so `all` leaves them out (they still run by name): `repro-full_note` (serial `exmain` stops with
+  "Jacobian row = 0 for eqn iv = 1092", although `config.py` describes it as the phi-including alternative to the phi
+  preset) and `pytests-orthogonal` (`ueinit -- error in sign sx, sy`; the upstream test fails the same way). Neither
+  the pytests suite nor `builder/test/Forthon_cases` has a double-null case, so there is none yet. The D_mols decks
+  read `rates/aph/crumpet_{n,E}rates.dat` from the working directory; the tool copies them in.
+- **pytests checkout:** `--pytests-dir`, else `$UEDGE_PYTESTS_DIR`, else `../uedge-pytests` or `../../uedge-pytests`
+  next to the repository (`git worktree add ../uedge-pytests upstream/pytests`).
+- **What is compared:** the full AIUE-49 comparison above (`compare.compare_records`), bitwise: the post-`exmain`
+  Jacobian (with `ftol=1e20` the `sfsetnk` Jacobian, i.e. the AIUE-47 capture point scaled by `1/suscal`), the raw
+  captured Jacobians when both records hold them (if only one build has the AIUE-47 hook they are skipped, with a
+  note; the pytests worker records none), `sfscal`, `suscal`, `yldot`, one more RHS through `ffun`, the final `fnrm`
+  (`float.hex`) and the printed `fnrm` sequence. ±0 differ and any NaN/Inf fails.
+- **Build guard:** each interpreter is probed first (`harness/build_probe.py`): path, `uedge.__file__`, version,
+  SHA-256 of every compiled extension and one combined hash, and whether `bbbpy` is an OpenMP build (`GOMP_` or
+  `__kmpc_` symbols). Base and new with the same hash is a harness error (`--allow-same-build` makes it a warning,
+  for self-tests), and so is a serial build in the `omp0` pair or an OpenMP build in the `serial` pair.
+- **Output:** `serial_check.json` (builds, cases, every report), `summary.txt` (one line per case; for a mismatch the
+  first mismatching quantity with its first entry, located through `igyl`, then the per-section counts), and the runs
+  in `<pair>/<base|new>/<case>/`. `record.npz` of agreeing cases is deleted unless `--keep-records`.
+- **Exit codes:** 0 every case agrees, 1 at least one mismatch, 2 harness error (bad build pair, missing case or
+  pytests checkout, a failed run). A harness error wins over a mismatch, because the result is incomplete.
+- `pytests-D_mols` does not reproduce its stored reference `fnrm` on `v9-develop` (2.4166 against 0.9957; the
+  upstream test fails the same way, with the same number). That does not matter here: the check compares two builds,
+  not a build with a reference.
+
 The owner's original check, from inside a copy of `case/` (with the environment above):
 
 ```bash
