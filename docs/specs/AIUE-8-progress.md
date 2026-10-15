@@ -182,3 +182,13 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   added; AIUE-61 reports whether option F removes M3. After a Claude Code restart the AIUE-61/60/58 agents were wrongly
   assumed lost and relaunched; the originals had survived, so the duplicates were stopped after ~4 minutes (they had
   only read code). AIUE-64's plan landed (`75108da`); its plan review is running.
+- **14:05 Owner decisions on AIUE-61 (plan `4dea642`):** D1 approved (fixed boundaries + fresh full pandf per chunk +
+  dynamic schedule; literal static,1 is not thread-count independent: 64 chunks gave different hashes at 4 and 8
+  threads). Q2 default 64 chunks, user-editable. Q3 deterministic non-convergence of the hard dtreal=1e-9 step is
+  acceptable. Q4 `isjacreset` unchanged; its removal filed as **AIUE-68** under the owner's optimisation epic AIUE-63.
+  Q5 minimum chunk length. Q6 post-Jacobian worker reset for the RHS arm referred to AIUE-58/59.
+  Also: AIUE-64 plan APPROVED r2, implementing; follow-up **AIUE-67** (serial build links uedgeC with -fopenmp).
+  AIUE-60 plan `d2fac6e` (areapl/timers threadprivate, nfsp, clip index; measured clip bug) in plan review.
+  **AIUE-58 RCA done** (`ee291a4`, in review): the parallel RHS is still wrong post-fix: R1 `hcyn` chunk-edge range
+  (one-line fix shown), R2 stale threadprivate inputs, R3 dangling `emcoef` copyin pointer after `ueinit` with
+  icntnunk=1 (SIGSEGV 6/8), R4 `xerrab` on a worker thread segfaults (also the AIUE-54 pre-fix crashes).
