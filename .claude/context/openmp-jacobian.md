@@ -175,7 +175,8 @@ harness error, never a pass; so is a comparison report with errors. Output: `sum
 The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
 (`python -m pytest tests/deterministic_omp/harness`).
 In CI (`run_omp_ci.sh`; locally `PYTHON=$PY tests/deterministic_omp/ci/run_omp_ci.sh pr`) a failing `jac` group is
-reported as configuration, arm, threads, equation and cell of the first mismatch; `jacrhs` only warns.
+reported as configuration, arm, threads, equation and cell of the first mismatch (when that is at permuted `psetnk`
+positions of the `--itermx 3` post-`exmain` Jacobian, the first mismatch that maps to a cell); `jacrhs` only warns.
 
 ## Serial old-vs-new bitwise check (`tests/deterministic_omp/harness/serial_check.py`)
 
