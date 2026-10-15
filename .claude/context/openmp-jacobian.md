@@ -63,3 +63,11 @@ $PY tests/deterministic_omp/harness/cli.py check --preset tebox --arm jac --thre
 
 Exit 0 agree, 1 mismatch, 2 harness error. Set `OMP_STACKSIZE` (the harness uses 512M): per-thread automatic arrays
 scale with `neq`. On `v9-develop` this case fails in the electron-energy rows (AIUE-8).
+
+## Serial old-vs-new bitwise check (`tests/deterministic_omp/harness/serial_check.py`)
+
+**Serial results must not change.** Any change to Fortran, a `.v` file or `ppp/` (including an OpenMP fix) must
+leave the serial path bitwise identical to `v9-develop`, in the `--serial` build and in the OpenMP build with
+`OMPParallelJac = OMPParallelPandf1 = 0`. Prove it with `tests/deterministic_omp/harness/serial_check.py` (four venvs:
+base and change, `--serial` and default; exit 0 = identical). See `testing.md` and `tests/deterministic_omp/README.md`.
+OpenMP-vs-serial agreement of one build is a separate check (`tests/deterministic_omp/harness/cli.py check`).
