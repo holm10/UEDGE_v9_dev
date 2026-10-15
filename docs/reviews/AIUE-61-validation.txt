@@ -44,18 +44,21 @@ G5  PASS  flow --all, K=2, 2/4/8 threads, both arms: "deterministic: yes" in all
 G6  PASS  AIUE-56 C1 gate: 105/105 runs of G2+G3 PASS (worst |a-b|/rowmax 4.59e-09), 48/48 flow jac runs PASS
           (worst 7.15e-09, te_phi); magnitude ratio <= 1 everywhere.
 G8  PASS  NC3 and NC4 below.
-G9a PASS* D_only (125 test files, one process per file, decks' default switches): AIUE-61-omp 121 pass / 4 fail,
+G9a PASS  (criterion amended after implementation review I1-M1: the CheckPandf1 part is report-only by the owner's
+          decision of 2026-10-15 15:35, RHS work moved to epic AIUE-70; AIUE-8-progress.md:209-212, Jira AIUE-59
+          comment 10029. Before the amendment this gate's CheckPandf1 condition FAILED, pre-existing, as below.)
+          D_only (125 test files, one process per file, decks' default switches): AIUE-61-omp 121 pass / 4 fail,
           per-file outcomes IDENTICAL to AIUE-56-omp; AIUE-61-serial 120 / 5, IDENTICAL to base-serial (the extra
           failure, concap, fails in both serial builds and passes in both OpenMP builds: pre-existing).
           Failing in all builds: ineudif0, ineudif1, ineudif3, tg_atom_cftiexclg0p5.
-          *OpenMP check (validate step 4), D_only default case, 4 threads:
-            CheckPandf1=1 (with OMPParallelPandf1=1): AIUE-61-omp "CHECK FAILED pandf1 RuntimeError diff in rhsnk" at
+          OpenMP check (validate step 4), D_only default case, 4 threads:
+            CheckPandf1=1 (with OMPParallelPandf1=1; REPORT ONLY): AIUE-61-omp "CHECK FAILED pandf1 RuntimeError diff in rhsnk" at
               nfe=2, after the second Jacobian:
                 >>>>   76   2032.0288514119870   2032.0288330644739   9.0291597447081350E-009
                 >>>>  132  -48175.314616658346  -48175.314617835662   2.4438147107762436E-011
-              AIUE-56-omp: the SAME two entries with the same values -> pre-existing (RHS arm, AIUE-58); ⚠️, not caused
-              here. The D_only case has neq 420, so the new default runs its Jacobian as 1 chunk.
-            CheckJac=1 (report only): no difference reported (CHECK OK) on both builds.
+              AIUE-56-omp: the SAME two entries with the same values, "CHECK FAILED pandf1 RuntimeError diff in
+              rhsnk" -> pre-existing (RHS arm, epic AIUE-70); not caused here. The D_only case has neq 420, so the new default runs its Jacobian as 1 chunk.
+            CheckJac=1 (gating part): no difference reported (CHECK OK) on both builds: PASS.
 G9b PASS  D_only default case (neq 420), jac: default (1 chunk) and OMPJacMinChunkLen=1 (64 chunks), 4 threads K=3 and
           2 threads: all runs bitwise equal to each other and 0 entries different from serial.
 G10 PASS  checkbounds build, no runtime error: tebox 1 chunk at 4 threads; tebox OMPJacMinChunkLen=12 (2 chunks) at
@@ -107,3 +110,9 @@ build/temp.*/bbb_p.F90 and api_p.F90 are byte-identical to the AIUE-56 tree's. B
 sources: bbb 89 scalars (~712 bytes at 8 bytes each), api 12 scalars (96 bytes); api loads after bbb, and its block is
 smaller, so OmpCopyScalarapi stays inside bbb's first definition. No new exposure from AIUE-61; re-check on the
 AIUE-60-combined tree (AIUE-60 adds threadprivate scalars).
+
+## After implementation review round 1 (text and a verbose-print change; no runs)
+- I1-m2: the fixed-mode OMPJacVerbose chunk table no longer prints OMPLoadWeight (ppp/omp_parallel.F90, jac_calc_omp).
+  Compile-checked in the scratch venv AIUE-61-probe; it is part of the final combined-tree build and run. The
+  preliminary results above were obtained with 155e562 (without this print change).
+- I1-m1: the OMPJacFixedChunks description in ppp/ppp.v now names the unvalidated paths (line-neutral).

@@ -29,8 +29,12 @@ in (response `docs/reviews/AIUE-61-plan-round2-response.md`). Round 1: `docs/rev
 - **Merge order (owner, via the coordinator): AIUE-56, then AIUE-60, then AIUE-61.**
 - Implementation and development checks run on the current base, `bugfix/v9-AIUE-56-omp-jacobian-fix` `1553e75`.
 - Once AIUE-60's implementation is approved, rebase: `git rebase --onto bugfix/v9-AIUE-60-omp-races bugfix/v9-AIUE-56-omp-jacobian-fix`.
-  AIUE-60's plan is `d2fac6e`, revised to `203a5ff`. It makes `areapl`, `TimingPandfOn` and the `com` timers threadprivate, and writes `nfsp`
-  only when it changes.
+  AIUE-60's plan is `d2fac6e`, revised to `203a5ff`, with amendment 1 at `cb05472` (in review; the combined-tree run
+  uses AIUE-60's **approved final tip**, whatever it contains). Under amendment 1, AIUE-60 makes `areapl` and
+  `TimingPandfOn` threadprivate, keeps the `com` timers shared but accumulates them atomically (`acctim`), writes
+  `nfsp` only when it changes, and replaces `iflag_aph` with locals; it adds no `+threadprivate` to `com`/`aph`
+  scalars. AIUE-61 doesn't depend on the timers being threadprivate: they are output only (read in prints and the
+  debug dump, never by the RHS or the Jacobian).
 - **The final gates G0–G10 run on the combined tree.**
 - Expected conflicts, as AIUE-60's plan foresees:
   - `ppp/parallel.F90`: AIUE-60's `sfscal(ii)` clip is at `:288,292` and doesn't overlap AIUE-61's edits;
@@ -134,8 +138,9 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
     description and `openmp-jacobian.md` name the conditions.
 - **Shared state a full `pandf` writes:** AIUE-60's Probe S (plan `d2fac6e`, revised `203a5ff`) is a static scan of
   every unit reachable from `pandf`. It doesn't depend on whether the call is local or full, so it covers the reset.
-  - Default paths, Part A, made safe by AIUE-60: `areapl`, `TimingPandfOn`, `com.nfsp`, and the `com` timers
-    (`ttimpfe`, `ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv`).
+  - Default paths, Part A, made safe by AIUE-60 (amendment 1): `areapl` and `TimingPandfOn` threadprivate; the `com`
+    timers (`ttimpfe`, `ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv`) atomic through
+    `acctim`; `com.nfsp` written only when it changes.
   - Non-default paths kept in AIUE-60 (Part B in `203a5ff`): B2 `sputflxllim/rlim` (limiter sputtering) and B4
     `aph.workh/iflag_aph` (`istabon=5,6`).
   - Moved to AIUE-69 (Part C in `203a5ff`): `ghxpt/gvxpt/sxyxpt` (`nxpt=2`), `iwalli/iwallo/fngysi/fngyso` (coupled
@@ -154,7 +159,8 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
 - **RHS arm (`OMPParallelPandf1=1`): untouched** (owner Q6 → AIUE-58/AIUE-59). `OMPPandf1Rhs` runs on whatever state
   each worker kept from its last chunk, and under the dynamic schedule that varies. The `jacrhs` arm is report-only
   (R3), read against AIUE-58's R1 (the `hcyn` range bug at chunk edges).
-- **The resets add time to the full-RHS timers and counters** (`ttimpfe`, `ttnpg`, `TotTimePandf`, …). The PR says so.
+- **The resets add to the full-RHS timers and counters** (`ttimpfe`, `ttnpg`, `TotTimePandf`, …). With AIUE-60's atomic
+  accumulation the worker resets add CPU time summed over threads, so these timers can exceed wall time. The PR says so.
 - **No settings-changed guard in `jac_calc_omp`:** `exmain` always re-runs `InitOMPJac` (Solution 7), so modes can't
   be mixed through `exmain`. This is documented, not guarded.
 
@@ -249,6 +255,8 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
     the same way). Comment: in fixed mode the chunk count can be smaller than the team; legacy unchanged.
   - Add `OMPJacFixedChunks` (from `OMPJacSettings`) and `OMPJacChunkReset` (from `ParallelDebug`) to the `USE` lists
     (`:646-647`). Comment at the call: why the chunk starts fresh (AIUE-8 C2, column history).
+  - **Verbose table (implementation review I1-m2):** in `jac_calc_omp`, with `OMPJacVerbose>0`, fixed mode prints the
+    chunk table without `OMPLoadWeight` (unused there); legacy mode prints it as before.
   - Keep `schedule(dynamic,OMPLoopJacNchunk)` and the `copyin` list (D1). Dropping `emcoef` from `copyin` (AIUE-60
     plan, A6) is left out deliberately, so the directive keeps its tested form.
 - **GOTCHA**:
@@ -327,7 +335,7 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
 | ID | What | PASS when |
 |---|---|---|
 | **G0a** | P3 again (`AIUE-61-state_probe.py`), serial build `AIUE-61-serial`, **`yl(neq+1)=1` set explicitly**, all packages (`bbb, com, api, aph, wdf, svr, flx, grd, ppp, ncl`) in all 4 regions | after the full `pandf`, only timers/counters and the `Jacobian_restore` scratch differ from the fresh state |
-| **G0b** | Shared writes of one full Jacobian-mode `pandf` (`AIUE-61-shared-full.py --sentinel`, all packages) | the set of non-threadprivate variables WRITTEN is a subset of AIUE-60 Probe S Part A plus the non-default variables of B2/B4 and of AIUE-69 (on the combined tree: of whatever AIUE-60's final version leaves non-threadprivate; `203a5ff` expects Probe S shared writes 161 → 147). Anything else: STOP and report (a race the reset exposes) |
+| **G0b** | Shared writes of one full Jacobian-mode `pandf` (`AIUE-61-shared-full.py --sentinel`, all packages) | AIUE-56 base: WRITTEN is a subset of AIUE-60 Probe S Part A (preliminary result: exactly Part A). **Combined tree (pre-registered, AIUE-60 amendment 1): WRITTEN is exactly `com.nfsp` (a sentinel artefact: write-if-changed fires because the sentinel differs from `nisp`) plus the 7 timers `com.totintrv, ttimpfe, ttngfd2, ttngfxy, ttngxlog, ttngylog, ttnpg` (atomic, output only); `areapl` and `TimingPandfOn` drop out.** If AIUE-60's approved final tip differs from amendment 1, the expected set is re-derived from it before the run and recorded. Anything else: STOP and report (a race the reset exposes) |
 | **G1** | Defaults unchanged: `serial_check.py --base-python base-serial --new-python AIUE-61-serial --base-omp-python base-omp --new-omp-python AIUE-61-omp --jobs 4` (all 42 cases, both pairs) | `RESULT: AGREE (bitwise identical; complete gate)` |
 | **G2** | K=20 determinism, jac arm, 4 threads, one evaluation: `check --preset full`; `check --preset tebox` **with `OMPJacMinChunkLen=1`** (25 chunks) and with the default (1 chunk); `--repeats 20` each | all 20 runs deterministic in every group |
 | **G3** | Thread identity. `check`, jac arm, K=3, at **1, 2, 3, 4 and 8** threads, for `full` (default), `tebox` with `OMPJacMinChunkLen=1`, and `tebox` with the default. Compare run0 of each thread count with 4 threads. **G3-sched:** `full` at 4 threads with `OMPLoopJacNchunk=3` against the default 1. **G3-count:** `AIUE-61-jworker.py` records `NchunksJac` at 1/2/4/8 threads for `full` (64), `tebox` (1), and `tebox` with min 1 (25) | AGREE for every pair; every group deterministic; G3-sched AGREE; G3-count shows the same count at every thread count |
@@ -336,7 +344,7 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
 | **G6** | AIUE-56 C1 gate on every one-evaluation jac run of G2, G3 and G5 | `GATE PASS` everywhere |
 | **G7** | Cost (`AIUE-61-timing.py`), see the rules below | the median NEW/OLD `ttjstor` ratio is ≤ **1.10** at 2, 4 and 8 threads. Nothing else decides: there is no "within noise" exemption |
 | **G8** | Heap fix (NC3) and the legacy path unchanged (NC4) | as stated in the controls |
-| **G9a** | `validate` skill: branch hygiene, drift check, serial build and smoke, D_only with the serial build, **D_only with the OpenMP build** (decks' default switches), and the OpenMP check on the D_only default case with `OMPParallelPandf1=1, OMPParallelJac=1, Nthreads=4, CheckPandf1=1` | all pass; `CheckPandf1` reports no difference |
+| **G9a** | `validate` skill: branch hygiene, drift check, serial build and smoke, D_only with the serial build, **D_only with the OpenMP build** (decks' default switches), and the OpenMP check on the D_only default case (`OMPParallelJac=1, Nthreads=4`, `CheckJac=1`). **The `CheckPandf1=1` part (with `OMPParallelPandf1=1`) is report-only** (amended after implementation review I1-M1): the owner moved all parallel-RHS work to epic AIUE-70 on 2026-10-15 15:35 (`feature/v9-AIUE-8-planning`, `docs/specs/AIUE-8-progress.md:209-212`; Jira AIUE-59 comment 10029) | D_only per-file outcomes identical to the old build (OpenMP) and to `base-serial` (serial); drift check and hygiene clean; `CheckJac` reports no difference. `CheckPandf1`: output quoted verbatim for both builds, not gated |
 | **G9b** | `AIUE-61-pytests_omp.py` on `pytests/unittests/D_only/nonog/default`: jac arm, the default and `OMPJacMinChunkLen=1`, at 2 and 4 threads, K=3, plus a serial reference | deterministic; 2 threads = 4 threads; deviation from serial within the C1-gate bounds on all rows. **`CheckJac=1` on the same case is report-only** (L1-m4): its absolute 1e-14 positional comparison (`ppp/parallel.F90:120`) can't express the accepted C2 difference, and it stops at the first entry. Its output is quoted verbatim |
 | **G10** | L1-B1 bounds: `AIUE-61-chk` build, jac arm: `tebox` default (1 chunk) at 4 threads, K=1; **`tebox` with `OMPJacMinChunkLen=12` (2 chunks) and `full` with `OMPJacNchunksFixed=2`, both at 8 threads, K=5** (one process at a time). **G10-static:** a script check that `OMPTimeLocalJac(tid+1)` occurs only inside the legacy (`OMPJacFixedChunks=0`) branch of `OMPJacBuilder`. **G10b:** `AIUE-61-omp`, `full` default, 4 and 8 threads, with `OMP_STACKSIZE` removed explicitly (`env -u OMP_STACKSIZE` in the launcher), plus the same runs on `AIUE-56-omp` (default) as a control | no runtime bounds error and no crash; G10-static clean; G10b hashes equal G3's. If G10b crashes on **both** builds, it is recorded as pre-existing and the docs state that `OMP_STACKSIZE` is required; only an AIUE-61-only crash is a FAIL |
 
@@ -373,6 +381,11 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
 ### Reported, not gated
 - **R1:** deviation from serial for each configuration and thread count: entries, rows by equation, and worst ratio,
   compared with `AIUE-56-validation.txt`.
+- **Pre-registered for the combined tree (I1-M2.5):** AIUE-60 changes the clip test in `LocalJacBuilder` from
+  `sfscal(iv)` to `sfscal(ii)` (`ppp/parallel.F90:288,292` on AIUE-60). With the default `jaccliplim=0`
+  (`bbb/bbb.v:3308`), which the reproducer deck doesn't change, the test is `jacelem≠0` either way, so the full-problem
+  hash **`8761cd9e36658ee1`** (P2/G3) and R2's bits are expected to be unchanged on the combined tree. A change is
+  investigated, not explained away.
 - **R2:** the `dtreal=1e-9` scenario (`AIUE-61-conv_worker.py`), new default, 4 threads K=2, and 2 and 8 threads K=1.
   Pre-registered from P5: step 1 fails (`iterm=4`) in all four runs, with final `get_fnrm` `0x1.aa0e230edbab4p-2` and a
   bitwise-equal final state. **Identical outcomes are required (owner Q3), and a difference is a G3 FAIL.** Convergence
@@ -402,6 +415,10 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
    at 2/4), NC1, NC3, NC4, G10 and NC5 (≈ 60 min) — an early warning, not the final record.
 2. When AIUE-60's implementation is approved: rebase, rebuild, then the **final run on the combined tree:**
    - G0a and G0b (10 min)
+   - **G-common and G-iotable** (AIUE-60's gates, run because AIUE-61 edits `ppp/ppp.v`): AIUE-60's static
+     `/ompcommonscalarcopy/` check `docs/reviews/AIUE-60-common-check.py` and its probe
+     `docs/reviews/AIUE-60-iotable-probe.py`, on the combined OpenMP build, with the PASS criteria AIUE-60 states;
+     record the extensions that define `_ompcommonscalarcopy_` and their block sizes (minutes)
    - G1 (35 min)
    - NC1–NC5, C-isjr, C-guard (30 min)
    - G2 (30 min)
@@ -441,7 +458,8 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
 - [ ] The PR states: the OpenMP default change (decision 9, an owner-approved exception, comment 10021); D1; the
       trade-off against the old default's occasional bitwise agreement; that small problems no longer parallelise the
       Jacobian, or only partly (under the Q5 rule a problem with neq < 300·T can't use all T threads, and below 600
-      it runs as one chunk; R4's mid-size numbers); the timers the resets add to; findings F-61-1
+      it runs as one chunk; R4's mid-size numbers); that the resets add CPU time summed over threads to the full-RHS timers (which can then
+      exceed wall time); findings F-61-1
       and F-61-2
 
 ## Notes
