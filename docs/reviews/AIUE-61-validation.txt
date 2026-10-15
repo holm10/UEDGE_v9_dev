@@ -98,3 +98,12 @@ R3 jacrhs arm: deterministic in every flow group (2/4/8 threads); yldot, RHS pro
   (including OMPJacNchunksFixed 8 and 16 at 8 threads); R5 Linux.
 - Development-time timing hints only (not G7; concurrent load): full, 4 threads, ttjstor 9.62-12.0 s new vs 9.35 s old
   in G10b; 8 threads 5.73 s new vs 5.72 s old (single samples, no load control).
+
+## /ompcommonscalarcopy/ hazard (AIUE-60 review I1-B1), checked on AIUE-61-omp
+AIUE-61 adds no +threadprivate variable (git diff 1553e75 155e562 -- '*.v': 0 added threadprivate attributes; the new
+ppp variables are plain inputs). Only bbbpy and apipy define _ompcommonscalarcopy_ (llvm-nm on all extensions; compy,
+grdpy, flxpy, ppppy and the others define none), exactly as in the AIUE-56-omp build. The generated
+build/temp.*/bbb_p.F90 and api_p.F90 are byte-identical to the AIUE-56 tree's. Block contents from the generated
+sources: bbb 89 scalars (~712 bytes at 8 bytes each), api 12 scalars (96 bytes); api loads after bbb, and its block is
+smaller, so OmpCopyScalarapi stays inside bbb's first definition. No new exposure from AIUE-61; re-check on the
+AIUE-60-combined tree (AIUE-60 adds threadprivate scalars).
