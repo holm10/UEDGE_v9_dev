@@ -370,9 +370,18 @@ appends it to `$GITHUB_STEP_SUMMARY`, and annotates the run. The rate files are 
   naming the configuration, arm, threads, the row equation and cell of the first mismatch, and how many runs agreed,
   e.g. `configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs
   agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [...]`. A group whose runs
-  all crashed says so (`no comparable mismatch, the OpenMP run(s) failed; ... exited with -11`). With `--itermx 3`
-  a wrong Jacobian changes the Newton path, so on the full problem later iterates differ in every equation and the
-  first mismatch can be in an `ni` row; the Te box and the `mismatch rows` column localise it.
+  all crashed says so (`no comparable mismatch, the OpenMP run(s) failed; ... exited with -11`); an ERROR group
+  (cannot judge, e.g. the core's `check_arm` refusing a run of a serial build) gives its reasons and exit 2.
+- **`--itermx 3` and the permuted Jacobian.** After Newton iterations the post-`exmain` Jacobian is the `psetnk`
+  one: row-normalised and RCM-permuted (`ireorder=1`). The harness core compares it **by position** (section
+  `jacobian:post_exmain (permuted indices)`, positions such as `position 12`, not cells), and that comparison is
+  part of the gate's verdict like every other section: a bitwise difference at any position fails the group.
+  Because such a first mismatch has no cell, `ci/report.py` then names the first mismatch of the same group that
+  is mapped to a cell (the captured raw Jacobians when the build has AIUE-47's hook, else `sfscal`, `yldot`, ...):
+  `first mismatch at permuted Jacobian positions (not mapped to cells); first localised mismatch in equation te,
+  cell (ix=3,iy=18) [sfscal]`. If no section has a cell it says `mismatch at permuted positions only`. A wrong
+  Jacobian also changes the Newton path, so on the full problem later iterates differ in every equation and the
+  first localised mismatch can be in an `ni` row; the Te box and the `mismatch rows` column narrow it down.
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`, `record.json`,
   `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded; rerun locally.

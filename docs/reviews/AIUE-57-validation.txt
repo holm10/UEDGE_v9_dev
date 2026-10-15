@@ -175,3 +175,43 @@ Timeout 150 min. Not measured.
 - Build on ubuntu-latest with `pip install -v .` (OpenMP) is unexercised; the serial build of the same tree builds
   in build-test-wheel.yml with the same setup.
 - Nightly schedule runs only from the default branch.
+
+
+7. After the rebase onto feature/v9-AIUE-52-omp-test-flow 8d4c2c9 (final harness core, core check_arm)
+--------------------------------------------------------------------------------------------------------
+Rebase: `git rebase --onto feature/v9-AIUE-52-omp-test-flow f3799f7 feature/v9-AIUE-57-omp-ci-job`, no conflicts
+(the context and README edits applied cleanly). Load average ~5 during these runs.
+
+Static: bash -n OK, shellcheck OK, actionlint OK; python -m pytest tests/deterministic_omp/harness
+tests/deterministic_omp/ci: 115 passed (107 harness + 8 ci/report).
+
+Change to report.py: with --itermx 3 the post-exmain Jacobian is the psetnk one (row-normalised, RCM-permuted);
+the core compares it by position ("jacobian:post_exmain (permuted indices)", "position N"), so the flow's
+first_mismatch for such a group names no cell. report.py now says so and names the first mismatch of the group
+that is mapped to a cell (captured Jacobians if the build has the AIUE-47 hook, else sfscal/yldot/...). Before the
+fix it would have printed "no comparable mismatch, the OpenMP run(s) failed", which is wrong for that case. New
+unit tests: the permuted fallback, permuted-only, and an ERROR group from an arm-check failure (exit 2).
+
+7a. PRE-FIX, base-omp, OMP_CI_MAX_JOBS=3, OMP_CI_FLOWS="tebox|tebox|2,4|5|jac,jacrhs", --itermx 3
+    harness+ci unit tests 115 passed; smoke OK; flow tebox exit 1, 30 s; run_omp_ci.sh EXIT 1, wall 31 s.
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch at permuted Jacobian positions (not mapped to cells); first localised mismatch in equation te, cell (ix=3,iy=18) [sfscal]; 0/5 runs agree with serial; jacobian:post_exmain (permuted indices) value row position 1 col position 6 [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: first mismatch at permuted Jacobian positions (not mapped to cells); first localised mismatch in equation te, cell (ix=4,iy=18) [sfscal]; 0/5 runs agree with serial; jacobian:post_exmain (permuted indices) value row position 1 col position 6 [agreement (serial vs run0)]
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 2: FAIL: ... equation te, cell (ix=4,iy=18) [sfscal]; 0/5 ...
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 4: FAIL: ... equation te, cell (ix=3,iy=18) [sfscal]; 0/5 ...
+OMP CI RESULT: FAIL (exit 1)
+    (base-omp has no capture hook, so there are no captured-Jacobian sections; sections compared:
+    jacobian:post_exmain (permuted indices), sfscal, suscal, yldot, yldot_probe, fnrm_final, fnrm_printed.)
+    Timing: the Te-box half of the PR set took 30 s here at low load (vs 110-219 s under load), so the 1.5-3 min
+    CI estimate for it is conservative.
+
+7b. SERIAL BUILD (base-serial, --serial build of 0fac655), OMP_CI_FLOWS="tebox|tebox|4|2|jac,jacrhs":
+    flow tebox exit 2, 9 s; run_omp_ci.sh EXIT 2.
+GATED [tebox] configuration tebox, arm jac, threads 4: ERROR (cannot judge): run0: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no OpenMP runtime; run1: ...
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 4: ERROR (cannot judge): run0: arm did not take effect: jacrhs arm but ParallelJac=0 ...; jacrhs arm but ParallelPandf1=0; jacrhs arm but the RHS probe did not take the parallel branch; ...
+OMP CI RESULT: ERROR (exit 2)
+
+Sections 3a-3e above were run on the pre-rebase harness (f3799f7, the older comparator). Their verdicts and exit
+codes stand, but in the --itermx 3 runs the cells shown for jacobian:post_exmain are not reliable: the old
+comparator mapped the permuted psetnk matrix through igyl, which the final core no longer does (it compares by
+position). The one-evaluation runs (3e, OMP_CI_ITERMX= ) are not permuted, so their cells are valid.
+The full-problem, seeded-race and C1-swap runs were not repeated after the rebase.

@@ -83,3 +83,31 @@ def test_crash_only_group_says_so(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "configuration tebox, arm jac, threads 4: FAIL: no comparable mismatch" in out
     assert "exited with -11" in out
+
+
+def test_permuted_first_mismatch_falls_back_to_a_localised_section(tmp_path, capsys):
+    rep = {"kind": "agreement (serial vs run0)", "agree": False, "errors": [], "sections": {
+        "jacobian:post_exmain (permuted indices)": {"mismatches": 2, "first": [
+            {"kind": "value", "row": "position 12", "col": "position 13"}]},
+        "yldot": {"mismatches": 1, "first": [{"iv": 4, "at": "te(ix=6,iy=18)", "a": "1", "b": "2"}]}}}
+    g = {"config": "tebox", "arm": "jac", "threads": 4, "verdict": "FAIL", "agree_serial": "0/5", "reports": [rep],
+         "first_mismatch": "jacobian:post_exmain (permuted indices) value row position 12 col position 13 [x]"}
+    a = _flow(tmp_path, "tebox", 1, [g])
+    assert report.main([a]) == 1
+    out = capsys.readouterr().out
+    assert "first mismatch at permuted Jacobian positions" in out
+    assert "equation te, cell (ix=6,iy=18) [yldot]" in out
+    g2 = dict(g, reports=[dict(rep, sections={k: v for k, v in rep["sections"].items() if k != "yldot"})])
+    b = _flow(tmp_path, "tebox2", 1, [g2])
+    assert report.main([b]) == 1
+    assert "mismatch at permuted positions only" in capsys.readouterr().out
+
+
+def test_error_group_from_arm_check_is_exit_2(tmp_path, capsys):
+    g = {"config": "tebox", "arm": "jac", "threads": 4, "verdict": "ERROR", "agree_serial": "0/2",
+         "errors": ["agreement (serial vs run0): b: ParallelJac = 0, expected > 0 (arm jac did not take effect)"]}
+    a = _flow(tmp_path, "tebox", 2, [g])
+    assert report.main(["--codes", "2", a]) == 2
+    out = capsys.readouterr().out
+    assert "ERROR (cannot judge): agreement (serial vs run0): b: ParallelJac = 0" in out
+    assert "OMP CI RESULT: ERROR (exit 2)" in out

@@ -32,6 +32,27 @@ def locate(text):
     return m.group(1), "ix={},iy={}".format(m.group(2), m.group(3))
 
 
+def first_localised(group):
+    """(equation, cell, section) of the first mismatch that is mapped to a cell, scanning the group's
+    failing comparison reports in compare order; (None, None, None) if there is none. Needed when the
+    first failing section is a permuted post-exmain Jacobian (psetnk, ireorder=1), which the harness
+    compares by position ('position 12') and does not map to cells."""
+    for rep in group.get("reports", []):
+        if rep.get("agree") or rep.get("errors"):
+            continue
+        for name, sec in rep.get("sections", {}).items():
+            for f in sec.get("first") or []:
+                for key in ("row", "at"):
+                    eq, cell = locate("{} {}".format(key, f.get(key, "")))
+                    if eq:
+                        return eq, cell, name
+    return None, None, None
+
+
+def failed_reports(group):
+    return any(not r.get("agree") and not r.get("errors") for r in group.get("reports", []))
+
+
 def load_flow(path):
     try:
         with open(os.path.join(path, "flow.json")) as f:
@@ -52,13 +73,23 @@ def problem_lines(name, flow):
             text = "ERROR (cannot judge): " + "; ".join(g.get("errors", []))[:400]
         else:
             first = g.get("first_mismatch", "")
+            agree = g.get("agree_serial", "?")
             eq, cell = locate(first)
             if eq:
                 text = "FAIL: first mismatch in equation {}, cell ({}); {} runs agree with serial; {}".format(
-                    eq, cell, g.get("agree_serial", "?"), first)
+                    eq, cell, agree, first)
+            elif failed_reports(g):  # first failing section has no cell map (permuted post-exmain Jacobian)
+                eq, cell, sec = first_localised(g)
+                if eq:
+                    text = ("FAIL: first mismatch at permuted Jacobian positions (not mapped to cells); first "
+                            "localised mismatch in equation {}, cell ({}) [{}]; {} runs agree with serial; {}").format(
+                        eq, cell, sec, agree, first)
+                else:
+                    text = "FAIL: mismatch at permuted positions only (no cell map); {} runs agree with serial; {}"\
+                        .format(agree, first)
             else:  # every failing run stopped (crash, solver stop, timeout): nothing to localise
                 text = "FAIL: no comparable mismatch, the OpenMP run(s) failed; {} runs agree with serial; {}".format(
-                    g.get("agree_serial", "?"), first)
+                    agree, first)
             if g.get("run_failures") and eq:
                 text += "; plus {} failed run(s)".format(len(g["run_failures"]))
         out.append((g.get("arm") in gated, "[{}] {}: {}".format(name, where, text)))
