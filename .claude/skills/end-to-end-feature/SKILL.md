@@ -91,14 +91,17 @@ issue past In Progress, and don't open a PR for it.
 
 ## Adversarial review loop
 
-Used by Step 2b and Step 3b here, and by `plan-feature`, `execute` and `implement-fix`.
+Used by Step 2b and Step 3b here, and by `plan-feature`, `execute` and `implement-fix`. Inside this skill, Steps 2b
+and 3b **are** those skills' review gates: run each loop once, not again from `plan-feature` or `execute`, so the
+3-round cap counts one loop.
 
 **Who reviews.** Never review your own plan or code, and never use a fork or an agent that saw the drafting. Spawn a
 **fresh** `uedge-reviewer` agent for every round (Agent tool, `subagent_type: "uedge-reviewer"`). If you can't spawn
 one (no Agent tool, nesting limit reached, running as a subagent without it), **stop after validation** and return
 to your caller: the work state, the validation output, and the ready-to-use reviewer prompt below. The caller then
 runs the loop. Whoever runs the loop also decides who applies the fixes: itself, or the implementing agent (resumed
-with the findings). The one applying fixes re-validates before the next round.
+with the findings). The one applying fixes re-validates before the next round. After a hand-off, the caller also
+owns the rest of this skill for that ticket: Step 4 (commit the reports), Step 5 (Learn) and the Final Summary.
 
 1. **Prompt.** The reviewer can't see this conversation, so its prompt must be self-contained:
    - `stage` (`plan` or `implementation`), round number, ticket key (or feature name), branch and worktree path;

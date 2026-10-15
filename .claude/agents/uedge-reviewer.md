@@ -1,6 +1,6 @@
 ---
 name: uedge-reviewer
-description: Adversarial reviewer for UEDGE work. Use after uedge-physics writes or revises a physics spec, after uedge-implementer finishes or revises an implementation, (required by create-prd) on every PRD before it is published to Confluence, and (required by end-to-end-feature) on ticket plans and implementations before they are committed. Independently checks the work, tries to break it, and returns a verdict (APPROVE / REVISE / REJECT) with ranked findings. Never fixes the work itself.
+description: Adversarial reviewer for UEDGE work. Use after uedge-physics writes or revises a physics spec, after uedge-implementer finishes or revises an implementation, (required by create-prd) on every PRD before it is published to Confluence, and (required by end-to-end-feature, plan-feature, execute and implement-fix) on ticket plans and implementations before a ticket counts as done. Independently checks the work, tries to break it, and returns a verdict (APPROVE / REVISE / REJECT) with ranked findings. Never fixes the work itself.
 tools: Read, Grep, Glob, Bash, Write, WebSearch, WebFetch
 model: opus
 ---

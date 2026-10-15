@@ -29,6 +29,12 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 Follow the RCA reproduction on the current build and confirm the failure (error, wrong value, crash,
 serial/parallel mismatch). Record the observed output — you will compare against it.
 
+## 2b. Plan review (high-risk fixes)
+
+If the fix touches the `pandf` tree, `ppp/`, the Jacobian or a `.v` file, run the **Adversarial review loop** in
+`.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` on the intended change (the RCA's fix section, or a
+short plan) **before writing code**.
+
 ## 3. Implement
 
 - Edit the `.m`/`.v`/`.F90`/`.py` sources named in the RCA — never generated `.F` files.
@@ -56,9 +62,8 @@ trailer `AI-layer: code-facts`.
 ## 4c. Adversarial review
 
 Run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`. The reference is the RCA document (root cause, the fix it proposes, the
-reproduction) and, for a Jira ticket, its acceptance criteria. If the fix touches the `pandf` tree, `ppp/`, the
-Jacobian or a `.v` file, also run a `stage: plan` round on the intended change (the RCA's fix section, or a short
-plan) before writing code. The fix is done only after APPROVE on the final diff.
+reproduction) and, for a Jira ticket, its acceptance criteria. The fix is done only after APPROVE on the final
+diff.
 
 ## 5. Regression coverage
 
