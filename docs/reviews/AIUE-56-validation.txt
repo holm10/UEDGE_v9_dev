@@ -57,9 +57,9 @@ end Thu Oct 15 03:56:46 PDT 2026
 
 # Addendum after implementation review round 1
 
-Tool commits: the first 9 directories in protocol.log used the harness core at cf23ddf, the rest de57d59 (docs-only difference); serial check AIUE-53 0f5190e; gate script = this branch.
+Tool commits: the first 6 directories in protocol.log used the harness core at cf23ddf, the later ones de57d59 (two directories straddle the change; the difference is docs only); serial check AIUE-53 0f5190e; gate script = this branch.
 
-## Timing (interleaved, one run at a time, full problem, jac arm, 4 threads, harness run, elapsed_s)
+## Timing (interleaved base/new, one timing run at a time, K=8 (plan: 10), full problem, jac arm, 4 threads, harness run, elapsed_s; the D_only pytests ran concurrently 05:07-05:19, overlapping pairs 1-7, so individual pairs are noisy; the reviewer's independent 8-pair rerun gave the same 0.995)
 base 1 14.9
 AIUE-56 1 30.5
 base 2 80.04
@@ -83,7 +83,7 @@ ratio new/base median 0.9947331460674157
 ## Upstream pytests D_only with the OpenMP builds (switches default 0), one process per test file (pytest-isolate not installed)
 IDENTICAL outcomes per file
 
-(base-omp and AIUE-56-omp: per-file outcomes identical; the same 3 files fail in both builds)
+(base-omp and AIUE-56-omp: per-file outcomes identical: 117 files pass, 3 fail, 5 tg_atom_* files end without a pytest summary, in both builds)
 
 ## Residual, RHS arm, --itermx runs
 ## --itermx 3 runs (report-only): printed fnrm sequence, sfscal, final fnrm vs serial
@@ -133,4 +133,16 @@ new_full_t4_it3_k5 serial: ['1.918820629111277', '1.836097068513709', '1.7827577
 | Code facts | met (47e02cc, 205bd09) |
 
 ## C1 on the RHS arm (Jacobian-then-RHS sequence)
-With the fix, the jacrhs Te box shows only the 1-2 residual Jacobian entries; yldot, yldot_probe and fnrm are bitwise equal to serial (above). Pre-fix (AIUE-54): all 25 Te rows of yldot wrong, fnrm ~1e31. OMPParallelPandf1=1 forces OMPParallelJac=1 (ppp/parallel.F90:30-36), so the parallel RHS always follows a Jacobian copy in the nksol sequence.
+With the fix, the jacrhs Te box shows only the 1-2 residual Jacobian entries; yldot, yldot_probe and fnrm are bitwise equal to serial (above). Pre-fix (AIUE-54): all 25 Te rows of yldot wrong, fnrm ~1e31. OMPParallelPandf1=1 forces OMPParallelJac=1 (ppp/parallel.F90:30-36). Within an exmain the RHS before the first Jacobian is serial because OMPPandf1Rhs falls back to pandf while ijactot=0 (exmain resets ijactot when icntnunk=0); with icntnunk=1 or an RHS call from Python after an earlier exmain, the parallel RHS runs on the worker state the previous Jacobian left (correct state after this fix, since that copy now has the right order).
+
+## Residual: size, location, history (plan testing step 4; review round 2 I2-M1)
+new_full_t4_k30 residual entries over 10 runs: 14202 | cells (ix,iy) most frequent: [((1, 4), 1402), ((68, 3), 894), ((5, 7), 779), ((7, 3), 674), ((4, 13), 628), ((59, 8), 493), ((2, 14), 481), ((58, 11), 478)]
+   entries in cells with ix<=2 or ix>=nx-2 (plate-adjacent, nx=71): 3266 of 14202 (23%); distinct cells 71
+   |dJ| * dyl / ulp(|yldot| of the row) (dyl lower bound del/suscal): median 1, p90 9, max 83.6
+new_tebox_t4_k30 residual entries over 10 runs: 13 | cells (ix,iy) most frequent: [((4, 20), 13)]
+   entries in cells with ix<=2 or ix>=nx-2 (plate-adjacent, nx=7): 0 of 13 (0%); distinct cells 1
+   |dJ| * dyl / ulp(|yldot| of the row) (dyl lower bound del/suscal): median 0.5, p90 0.5, max 0.5
+
+- Size: about one ulp of the row's |yldot| divided by dyl (median 1; Te box 0.5), i.e. finite-difference noise from a 1-ulp difference in a local evaluation. (dyl is taken at its lower bound del*dylconst/suscal, so these ratios are lower bounds.)
+- Location: Te rows only; not concentrated at the plates (23% of full-problem entries in cells with ix<=2 or ix>=nx-2, 71 distinct cells); the Te box residual is always the single cell (ix=4,iy=20), far from any plate.
+- History: serial is bitwise insensitive to history outside the Jacobian loop (P3-m3, 40 random local pandf evaluations + a full pandf before exmain); the history that produces the residual is inside the serial column loop: a Python emulation of jac_calc reproduces the exmain Jacobian bitwise, and starting each chunk from the fresh full-RHS state, as a worker does, reproduces exactly this residual; the 1-ulp carrier is bbb.vsoree, attributed to FMA contraction (-ffp-contract=off removes it). Details and the open OpenMP-only 'replay' remedy: AIUE-55 RCA (docs/rca/AIUE-8-omp-jacobian-nondeterminism.md on feature/v9-AIUE-55-omp-jacobian-rca) and AIUE-61.
