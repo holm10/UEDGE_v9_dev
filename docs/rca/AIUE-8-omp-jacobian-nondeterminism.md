@@ -2,8 +2,8 @@
 
 Status: shared-state scan (AIUE-50), characterisation (AIUE-54) and the Jacobian RCA (AIUE-55) done; the Phase 2
 exit decision is **open for the owner** (decision 9, §Jacobian RCA → Exit decision: bitwise is reachable without
-changing serial via an OpenMP-only replay, at an estimated +18–35 % Jacobian cost; a static partition gives
-run-to-run reproducibility without replay). RHS section (AIUE-58) to follow.
+changing serial via an OpenMP-only replay, at an estimated +18–35 % Jacobian cost; fixed chunk boundaries
+gave run-to-run reproducibility without replay at 4 threads, empirically). RHS section (AIUE-58) to follow.
 
 Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
@@ -24,7 +24,7 @@ referenced, not committed).
 | C1-RHS | The same stale worker state is used by the parallel RHS | `OMPPandf1Rhs` (`ppp/omp_parallel.F90:900-997`) never copies; its workers run on whatever the last `OMPJacBuilder` copy left | Te box `jacrhs`: all 25 Te rows of `yldot` wrong, fnrm ≈ 8e30, an extra Newton step; the swap build matches serial on that arm (AIUE-50 review) | Fixed by the same swap for the Jacobian-then-RHS sequence nksol uses | None | AIUE-56 (validated there); remaining RHS issues → AIUE-58 |
 | F16 | `areapl` (`bbb/bbb.v:951`) is written in the plate BCs during `pandf` but is not `+threadprivate` | A data race on physics state (CLAUDE.md rule 1 for the `pandf` tree) | Static/dynamic scan (F16); not seen to change results so far | Mark `+threadprivate` | None (serial build unaffected; OpenMP build with switches 0 unaffected) | AIUE-60 |
 | (races) | Timers, `TimingPandfOn`, `com.nfsp` written in `pandf`, not threadprivate | Lost timer updates; every thread writes the same `nfsp` | TSan on the swap build | Optional cleanup | None | AIUE-60 |
-| **C2** (M2) | Column-to-column history in the serial loop: stale threadprivate values that a column reads outside its recomputed box (carrier `vsoree`, `bbb/pandf_plasma_energy.m:613-619`), triggered by local-vs-full-row rounding differences (FMA contraction — *inferred*, assembly not inspected). OpenMP workers start each chunk from the fresh full-RHS state, so they don't share serial's history | ulp history → finite-difference noise entries | emulation, carrier search; `-ffp-contract=off` → bitwise; **replay of the preceding `ubw` columns per chunk → bitwise, serial unchanged** (below) | **reproduce the history** (OpenMP-only replay; serial unchanged) or remove the trigger (changes serial) | replay: **none**; flag/history-free columns: round-off change | AIUE-61 |
+| **C2** (M2) | Column-to-column history in the serial loop: stale threadprivate values that a column reads outside its recomputed box (carrier `vsoree`, `bbb/pandf_plasma_energy.m:613-619`), triggered by local-vs-full-row rounding differences (FMA contraction — *inferred*, assembly not inspected). OpenMP workers start their first chunk from the fresh full-RHS state (later chunks from whatever the thread's previous chunk left), so they don't share serial's history | ulp history → finite-difference noise entries | emulation, carrier search; `-ffp-contract=off` → bitwise; **replay of the preceding `ubw` columns per chunk → bitwise, serial unchanged** (below) | **reproduce the history** (OpenMP-only replay; serial unchanged) or remove the trigger (changes serial) | replay: **none**; flag/history-free columns: round-off change | AIUE-61 |
 
 ### Residual after C1 (M2) and its mechanism C2
 
@@ -75,7 +75,7 @@ investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
    `replay/`, tree `uedge-wt/AIUE-61-replay`.) Before its first column, each chunk replays the restoring local
    `pandf(xc,yc)` of the R columns preceding it (yl unperturbed), so the worker reaches serial's state.
    - Emulation, full problem: R = `numvar` 479 mismatches (4 chunks), one grid row (1036) 162, two rows (2072) 0 for 4
-     chunks but 84 for 8; **R = `ubw` (= `mu` = 3920) 0 for 4, 8 and 16 chunks**. Proposed rule: R = `ubw` (the columns
+     chunks but 84 for 8; **R = `ubw` (= `mu` = 3920) 0 for 8 and 16 chunks** (4 chunks not emulated at R = `ubw`; already 0 at R = 2072). Proposed rule: R = `ubw` (the columns
      whose Jacobian band reaches the chunk's first column).
    - Threaded prototype (`LocalJacBuilder` warm-up, scratch switch `OMPJacReplay`; the worker loop otherwise mirrors
      serial `jac_calc`), reviewed harness, 4 threads, K=3, same build's serial reference: Te box with contiguous
@@ -160,7 +160,8 @@ to take and whether the cost is acceptable; the evidence per option:
 **Recommendation (owner to accept or reject):** E if bitwise agreement with serial is wanted (AIUE-61: OpenMP-only,
 serial untouched; cost estimated at ≈ +18 % on 4 threads and ≈ +35 % on 8, to be measured). F if the PRD §11 fallback
 (bitwise reproducibility plus a tolerance against serial) is enough: cheaper, also OpenMP-only, also needs the crash
-fix. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D/AIUE-62 measured on
+fix, and needs a fixed chunk-to-thread mapping (`schedule(static)`, one chunk per thread) or a worker-state reset at
+each chunk start to make the reproducibility guaranteed rather than empirical. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D/AIUE-62 measured on
 Linux first. A only if the owner prefers changing the build over the replay cost.
 
 ### Fix tickets
