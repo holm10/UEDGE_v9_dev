@@ -38,20 +38,41 @@ OMPCopyArray      integer   /1/     # For Debug purpose: turn on/off(0/1) copy o
 OMPCopyScalar     integer    /1/    # For Debug purpose: turn on/off copy(0/1) of threadprivate scalar 
                                     # before jacobian calculation (WARNING:could cause numerical 
                                     #inacurracy if turned on)
+OMPJacChunkReset  integer [none] /1/  # For debug, OMPJacFixedChunks=1 only: [1] evaluate the full RHS (pandf) on
+                                      # the thread before each chunk, so every chunk starts from the same state;
+                                      # [0] skip it (the Jacobian then depends on the thread count and the schedule)
 
 ***** OMPJacSettings:
 OMPJacNchunks   integer     /0/     # Number of chunks to be used to calculate the Jacobian. If 
                                     # Nchunks.lt.0, Nchunks=Nthreads elif Nchunks=0, Nchunks=neq
+                                    # (OMPJacFixedChunks=0 only)
 OMPJacVerbose   integer     /0/     # Print info for omp jacobian calculation
 OMPlenpfac      integer     /5/     # Factor to increase nnzmxperchunk
 OMPCheckNaN     integer     /0/     # Check whether jacobian terms are NaN after jacobian calculation
 OMPLoadBalance  integer     /0/     # Enable user defined weights for each OMP tasks (overrided by 
-                                    # MPIAutoBalance)
+                                    # MPIAutoBalance) (OMPJacFixedChunks=0 only)
 OMPAutoBalance  integer     /1/     # Automatic load balancing for OMP thread tasks (if OMPLoadWeight=)
+                                    # (OMPJacFixedChunks=0 only)
 OMPBalanceStrength  real    /1.0/   # Strenght s of the load balance 
-                                    # (Loadweight=Loadweight*(t_thread/<t_thread>)**s)
+                                    # (Loadweight=Loadweight*(t_thread/<t_thread>)**s) (OMPJacFixedChunks=0 only)
 OMPTimingJacRow     integer /0/     # Profile execution time of calculatation of each row of the jacobian
 OMPLoopJacNchunk    integer /1/     
+OMPJacFixedChunks   integer [none] /1/   # [1] (default): fixed contiguous chunks; every chunk starts from a fresh
+                                         # full pandf on its thread, so the OpenMP Jacobian is bitwise reproducible and
+                                         # the same for any number of OpenMP threads (OMP_NUM_THREADS); it still differs
+                                         # from serial at round-off on some platforms. Holds where a full pandf resets
+                                         # all state, i.e. the paths the exmain OpenMP checks allow (ismcnon=0 and
+                                         # isimpon 0, 2, 6, 7 only); see .claude/context/openmp-jacobian.md.
+                                         # OMPJacNchunks, OMPLoadBalance, OMPAutoBalance are then ignored.
+                                         # [0]: the partition used before AIUE-61 (varies from run to run at
+                                         # round-off). OpenMP build only; takes effect at the next exmain.
+OMPJacNchunksFixed  integer [none] /64/  # Maximum number of chunks when OMPJacFixedChunks=1. The count used is
+                                         # min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen)), independent of the
+                                         # thread count. Use about 8 or more chunks per thread for load balance; a
+                                         # different count changes the Jacobian at round-off. Next exmain.
+OMPJacMinChunkLen   integer [none] /300/ # Minimum number of Jacobian columns per chunk when OMPJacFixedChunks=1, so
+                                         # small problems get fewer chunks (each chunk costs one full pandf).
+                                         # Next exmain.
 OMPJacStamp     character*20    /"*OMPJac* "/ 
                                     # Stamp for hybrid output (not an user input)
 
