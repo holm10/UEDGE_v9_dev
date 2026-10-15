@@ -3,12 +3,103 @@
 Status: shared-state scan (AIUE-50), characterisation (AIUE-54) and the Jacobian RCA (AIUE-55) done; the Phase 2
 exit decision is **open for the owner** (decision 9, §Jacobian RCA → Exit decision: bitwise is reachable without
 changing serial via an OpenMP-only replay, at an estimated +18–35 % Jacobian cost; fixed chunk boundaries
-gave run-to-run reproducibility without replay at 4 threads, empirically). RHS section (AIUE-58) to follow.
+gave run-to-run reproducibility without replay at 4 threads, empirically). Linux x86-64 characterised (AIUE-62): the
+AIUE-56 build is bitwise equal to serial there in every Te configuration, so C2/M2 does not appear on x86-64; a
+separate, smaller residual M3 (up rows at the plate, ≥ 4 threads, pre-existing) does. RHS section (AIUE-58) to follow.
 
-Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below were obtained on macOS arm64,
+Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below except §Linux characterisation
+(AIUE-62) and the Linux rows marked as such were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
 `python -I` with an empty `HOME`. "Serial" means a reference run of the same build with `OMP_NUM_THREADS=1` or the
 `--serial` build, as stated.
+
+## Linux characterisation (AIUE-62)
+
+Linux x86-64 with libgomp, in Docker on this Mac (`linux/amd64`, Rosetta emulation, `--cpus 5`; one container at a
+time). Data: `docs/rca/AIUE-8-data/linux/` — every run's `record.json` (`records/<data set>/…`), `runs.csv` and
+`stats.txt` written by `make_prefix_data.py` unchanged (renamed from `prefix_*`, since they also hold post-fix
+data), each flow's `flow_summary.md`, `flows.log` (commands and wall times), `c1_gate.txt`/`c1_gate_summary.txt`
+(the AIUE-56 gate script, unchanged, on every Jacobian-arm group) and `build_info.txt` (images, compiler, flags,
+objdump counts, link evidence). Scripts and Dockerfiles: `tests/deterministic_omp/linux/`. `record.npz` arrays stay
+in the session scratch directory. **linux/arm64 (native libgomp) was not run** (stopped at the build step for time).
+
+- **Environment.** `python:3.11-bookworm` (digest in `build_info.txt`), gfortran/gcc 12.2.0 (Debian), Python 3.11,
+  `numpy==1.26.4`, the CI command `python -m pip install -v .` (default OpenMP build: `-O3`, no `-march`). Harness:
+  the reviewed one at `feature/v9-AIUE-57-omp-ci-job` `8ee189d`. Builds: `base` = `origin/v9-develop` `3865c79`
+  (product code = `0fac655`), `fix` = AIUE-56 `1553e75`. Serial references are bitwise equal between the two builds
+  in all 8 configurations, and between flows.
+- **The default OpenMP build does not import on Debian or Ubuntu.** `import uedge` stops with `bbbpy…so: undefined
+  symbol: GOMP_parallel` (Debian 12 gcc 12, and Ubuntu 24.04 gcc 13.3, the CI runner's distribution). Forthon links the
+  package extensions without `-fopenmp`; only `uedgeC` gets it, and the distributions' `--as-needed` default drops
+  `libgomp` there too. So the AIUE-57 job (`build-test-omp.yml`) would stop at its smoke test (exit 2) on
+  `ubuntu-latest`. **Every Linux build here used `LDFLAGS=-fopenmp`**; that is the only deviation from the CI command.
+  (Product fix needed: link the extensions with `-fopenmp`; not in this ticket.)
+- **No FMA in the x86-64 build.** `objdump -d` of all 11 extensions: 0 `vf*madd/sub*` instructions and 0 `ymm`/`zmm`
+  operands (both builds; `bbbpy` 808 359 instructions). The emulated CPU advertises `fma avx avx2`, so glibc may pick
+  FMA variants of `exp`/`log` at run time; those are pure functions of their arguments. The build does call glibc
+  `libmvec` (`_ZGVbN2v_exp/log/cos`, `_ZGVbN2vv_pow`) from vectorised loops.
+
+### Results (4 threads unless stated; agree = bitwise in every compared quantity, as in §Characterisation)
+
+| Data set | Configuration / arm | Runs | Agree with serial | Deterministic | C1 gate (AIUE-56) |
+|---|---|---|---|---|---|
+| `amd64_base_k20_tebox` | `tebox` / jac | 20 | **0/20** | no (18 distinct of 20) | FAIL 20/20 |
+| `amd64_base_k20_tebox` | `tebox` / jacrhs | 20 | **0/20** (13 took a Newton step) | no | — |
+| `amd64_base_k20_full` | `full` / jac | 20 | **0/20** | no (20 distinct) | FAIL 20/20 |
+| `amd64_fix_k20_tebox` | `tebox` / jac | 20 | **20/20** | yes | PASS, deviation 0 in 20/20 |
+| `amd64_fix_k20_tebox` | `tebox` / jacrhs | 20 | **20/20** | yes | — |
+| `amd64_fix_k20_full` | `full` / jac | 20 | **20/20** | yes | PASS, deviation 0 in 20/20 |
+| `amd64_fix_k2_all` | `tebox`, `te`, `ti`, `ni`, `ng`, `phi` (`te_phi`), both arms, 2/4/8 threads | 2 per group | **2/2 in every group** | yes | PASS, deviation 0 |
+| `amd64_fix_k2_all` | `full`, both arms, 2/4 threads; jac 8 threads | 2 per group | 2/2 | yes | PASS, deviation 0 |
+| `amd64_fix_k2_all` | `full` / jacrhs 8; `up` jac 8, jacrhs 8 | 2 | 1/2; 0/2; 0/2 | no | PASS (up, worst 6.63e-10 × row max) |
+| `amd64_base_k2_all` | as `k2_all` on macOS (below) | 2 per group | 0/2 in `tebox`, `full`, `te`, `phi`; 2/2 in `ti`, `ni`, `ng`; `up` 2/2 at 2/4 threads, 0/2 at 8 | — | FAIL in every Te group |
+
+**Pre-fix (C1) on Linux** reproduces the macOS picture, with three differences (from `stats.txt`):
+- Te box jac: iteration-0 `fnrm` 0.1322747614580312 – 0.181059468674829 (15 distinct; serial 0.3221264488412611,
+  nnz 169), nnz 175–182, `sfscal` 18–19 rows, max |J| 2.22e43–2.60e43, `yldot` equal 20/20, pattern a superset of
+  serial's (6–13 extra, 0 missing).
+- **Full problem: one iteration-0 `fnrm` in all 20 runs** (1.535419111984408; serial 1.918820629909679, nnz 3 185 635)
+  where macOS had 16 distinct values; nnz 3 686 595 – 3 695 034 (20 distinct), 500 960 – 509 399 extra entries and
+  **0 missing** (macOS: 225–1736 missing), `sfscal` 2940 Te rows, `yldot` equal 20/20, max |J| 5.98e43. The missing
+  entries and the `fnrm` spread on macOS are the C2 noise on top of C1; on x86-64 only the C1 corruption varies.
+- RHS arm: the Te box took a Newton step in 13/20 runs (macOS 18/20). The full problem's jacrhs arm did **not**
+  overflow at 2 threads (0/2; macOS 10/10): `fnrm` 1.535419111984453 (2 threads), …467/…468 (4), …466/…479 (8);
+  `yldot` differs in 1514 / 2176 / 2548–2582 Te entries plus 345 opposite-sign zeros. `te` and `te_phi` jacrhs crash
+  (SIGSEGV) in 11 of 12 runs, as on macOS.
+
+**C2/M2 on x86-64: absent.** With the AIUE-56 fix and the default `-O3` (no FMA), every Te configuration is bitwise
+equal to serial and between runs: Te box 20/20 on both arms, full problem 20/20, and 2/2 in every Te group of
+`flow --all` at 2/4/8 threads, except `full` jacrhs at 8 threads (1/2: its mismatch is M3, `up` rows only, no Te
+row) (macOS, same fix: Te box 1/30, full 0/30 at 4 threads). The C1 gate's deviation is 0 in
+all of these runs.
+
+**Control: FMA on x86-64 does not bring C2 back** (`fixfma`, `-mfma` added: 2574 FMA instructions in `bbbpy`).
+Serial results change (Te box `fnrm` 0.3221264488412611 → 0.3221264476514322; full 1.918820629909679 →
+1.918820628546987, nnz 3 185 635 → 3 186 351), yet OpenMP equals serial: Te box 20/20 (both arms), full 5/5. So "FMA
+contraction" is not sufficient for C2; the trigger on macOS is something more specific to that code generation
+(arm64, gfortran 15: e.g. how the vectorised and scalar versions of the `vsoree` loop are contracted). The AIUE-55
+attribution (`-ffp-contract=off` removes it on arm64) stands; "FMA" alone should not be read as the mechanism.
+
+**New: M3, an up-row residual at the inner plate (Linux, ≥ 4 threads, pre-existing).** Not C1, not C2:
+- Where: rows `up[1]` at ix=1, columns at ix=0 (the plate cell), mostly of `up`, some of `ni`; in the runs inspected 9–15 of
+  the 27–48 differing entries exist only in the OpenMP Jacobian. `sfscal`, `suscal`, `yldot`, the probe and `fnrm` stay equal. Size ≤ 6.63e-10 ×
+  the serial row max (C1 gate PASS).
+- Rate (`up` preset, jac arm, fix build): 4 threads 3/5 agree, 5 threads 2/5, 6 threads 0/5, 8 threads 0/5 (plus 0/2 in
+  `k2_all`); full problem jac 8 threads 0/5 (`ctl_fix_t8_up_full_k5`) but 2/2 in `k2_all` and 20/20 at 4 threads.
+  Present in the **base** build as well (`up` 8 threads 0/2 both arms). Not seen on macOS (`up` passed in every run).
+- Not the `areapl` race (F16): with `areapl` `+threadprivate` (`fixtp`) the rate is unchanged (up jac 8: 0/5; full
+  jac 8: 2/5).
+- Gone with fixed contiguous chunks (`OMPJacNchunks=-1`, `OMPAutoBalance=0`): up jac 8 threads **5/5 agree,
+  deterministic** (`ctl_fix_up_t8_static_k5`). That points at column history (as for C2) rather than a data race,
+  but it is not shown.
+- A follow-up should test: whether it is libgomp- or x86-specific (linux/arm64, not run here); the replay prototype
+  (AIUE-61) on `up`; a carrier search like AIUE-55's (state left by a column whose box contains ix=0); and K ≥ 20
+  rates at 4 threads for the full problem (20/20 agreed here, so the rate there is low).
+
+**Timing (emulated x86-64, 5 CPUs, not a CI budget):** full problem serial 49–54 s, 4 threads 17–24 s per run; Te box
+3–5 s; `flow --all` K=2 with `--max-jobs 1` 1011–1077 s; builds 190–235 s (`flows.log`, `build_info.txt`).
+
+**Not run:** linux/arm64; `--itermx` flows; the jacrhs arm of the full problem at K=20 (AIUE-54 ran jac only).
 
 ## Jacobian RCA and Phase 2 exit decision (AIUE-55)
 
@@ -107,8 +198,8 @@ without changing serial results** — by reproducing that history on the workers
 (PRD §9: "chunking, resets and copy coverage … in scope without escalation"). The estimated cost (≈ 4.4 % × T for one chunk per thread: ≈ +9 % at 2 threads,
 +18 % at 4, +35 % at 8; not measured) exceeds 10 % from 4 threads on, which is a §9 *report to the owner*, not a §9(a) escalation. Removing the trigger instead (`-ffp-contract=off`,
 history-free columns) also reaches bitwise but changes serial. The FMA attribution is inferred (identical inputs plus
-the flag's effect); arm64/gfortran 15 only: on x86-64, `-O3` without `-march` does not emit FMA, so M2 may not appear
-on the Linux CI runner (AIUE-62).
+the flag's effect); arm64/gfortran 15 only. AIUE-62: M2 does not appear on Linux x86-64, with or without `-mfma`,
+so FMA instructions alone do not produce it (§Linux characterisation).
 
 Ruled out as M2 carriers: `areapl` (bitwise equality reached while it is still shared — it stays a real race to
 fix), the `isjacreset` call, the `emissbs`/`B3VAL` work arrays and `emcoef`, non-local Te BCs, the clip index.
@@ -145,7 +236,10 @@ to take and whether the cost is acceptable; the evidence per option:
 | `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | `te_phi` **3/3** (addendum); `te` not run | `te_phi` **3/3**, also 5 Newton its; `te` not run | not run |
 | `tebox`, `full` | jacrhs | 4 | yldot/fnrm equal serial; Jacobian residual only | not run | not run | not run |
 | any | any | 2 / 8 | — | not run | not run | not run |
-| any | any | Linux | not run (AIUE-62) | not run | not run | not run |
+| `tebox`, `full` | jac (both arms for `tebox`) | Linux x86-64, 4 | **bitwise 20/20 each** (AIUE-62) | not needed | not run | not run |
+| `te`, `te_phi`, `ti`, `ni`, `ng`, `full` | jac, jacrhs | Linux x86-64, 2 / 4 / 8 | **bitwise 2/2 per group** (except `full` jacrhs 8: 1/2, M3) | not needed | not run | not run |
+| `up` | jac, jacrhs | Linux x86-64, 4–8 | M3: 3/5 (4), 2/5 (5), 0/5 (6, 8); static chunks 5/5 at 8 | not run | not run | 5/5 (up, 8 threads) |
+| any | any | Linux arm64 | not run | not run | not run | not run |
 
 | Option | What | OpenMP vs serial | Serial results | Cost / risk |
 |---|---|---|---|---|
@@ -155,14 +249,14 @@ to take and whether the cost is acceptable; the evidence per option:
 | C. History-free columns (restore from a saved full-RHS state) | removes the history in both loops | bitwise expected | changes at round-off | larger change in `jac_calc` + `LocalJacBuilder` |
 | B. **Tolerance gate** (keep the C1 build, default dynamic chunks) | none | not bitwise, **not deterministic** with the default dynamic, auto-balanced chunks (full problem: two runs differ in 70 entries, `replay/t_c1_dflt_1` vs `_2`) — so it does **not** meet PRD §11's fallback; usable only as an interim CI gate | unchanged | gate: AIUE-56's bounds; measured serial-history spread ≤ 5.6e-10 × row max (Te box) and ≤ 4.6e-9 (full) — the 1e-6 bound is a margin over that, not derived from it |
 | F. **Static partition + tolerance** (candidate §11 fallback): contiguous chunk boundaries fixed (`OMPAutoBalance=0`), no replay; heap per-chunk arrays (crash fix as in E). **As tested, chunks are still handed out by `schedule(dynamic,OMPLoopJacNchunk)` (`ppp/omp_parallel.F90:712`, `OMPLoopJacNchunk=1`) and worker state carries from chunk to chunk, so which history a chunk starts from depends on the timing-dependent assignment**; a production F needs `schedule(static)` with one chunk per thread, or a fixed worker state at every chunk start | removes the run-to-run variation (empirically), not the residual | not bitwise vs serial (Te box: the same 2 entries every run; full, 16 static chunks: 5698 entries vs serial; AIUE-56 tolerance gate PASS on those records, worst 4.59e-9 × row max) but **bitwise identical between runs where tested** (Te box 3/3; full `t_c1_n16_1` vs `_2`): consistent with PRD §11's fallback at 4 threads on this evidence; reproducibility is empirical, not guaranteed, with the tested scheduling | unchanged | tolerance as in B; load-balance cost of static scheduling not measured; 2/8 threads, fresh CI sessions and Newton iterations not shown. Unlike F, E rebuilds the history whichever thread runs a chunk |
-| D. Bitwise gate only where the platform has no FMA (x86-64 without `-march`) | none | to be measured (AIUE-62) | unchanged | platform-dependent |
+| D. Bitwise gate on Linux x86-64 (the CI runner) | none | **measured (AIUE-62): bitwise and deterministic in every Te configuration with the AIUE-56 fix** (Te box 20/20, full 20/20, `--all` K=2); also with `-mfma`, so it is not "no FMA" that matters but the platform's code generation. Not bitwise: M3 (`up` rows at the plate, ≥ 4 threads, pre-existing, ≤ 6.6e-10 × row max) | unchanged | platform-dependent: macOS arm64 keeps C2; the M3 groups (`up`, and `full` at 8 threads) would gate red; the default Linux OpenMP build does not import without `LDFLAGS=-fopenmp` |
 
 **Recommendation (owner to accept or reject):** E if bitwise agreement with serial is wanted (AIUE-61: OpenMP-only,
 serial untouched; cost estimated at ≈ +18 % on 4 threads and ≈ +35 % on 8, to be measured). F if the PRD §11 fallback
 (bitwise reproducibility plus a tolerance against serial) is enough: cheaper, also OpenMP-only, also needs the crash
 fix, and needs a fixed chunk-to-thread mapping (`schedule(static)`, one chunk per thread) or a worker-state reset at
-each chunk start to make the reproducibility guaranteed rather than empirical. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D/AIUE-62 measured on
-Linux first. A only if the owner prefers changing the build over the replay cost.
+each chunk start to make the reproducibility guaranteed rather than empirical. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D: AIUE-62 measured it (Linux x86-64 bitwise in
+every Te configuration, but M3 in `up` at ≥ 4 threads, and the CI build needs the link fix). A only if the owner prefers changing the build over the replay cost.
 
 ### Addendum (owner questions, after review round 4): effect on Newton solves, and phi
 
@@ -201,11 +295,12 @@ iterations and then drifts. Only the replay remedy reproduced serial's trajector
 | C1 (copy order; also the RHS arm) | AIUE-56 | fix committed on `bugfix/v9-AIUE-56-omp-jacobian-fix`; validation: static hazards 12 → 0, defaults bitwise unchanged (serial check, 42 cases, both builds), C1 gate PASS in every Te configuration, no slowdown |
 | F16 `areapl` race, timer/flag races, clip-index inconsistency, `emcoef` `copyin` (benign), `fmombal` SAVE arrays (`isimpon=5`) | **AIUE-60** | not started |
 | C2 / M2 (history inside the column loop) + the `OMPJacNchunks≠0` stack crash | **AIUE-61** | prototype shows option E works; production fix pending the owner's choice of path |
-| Linux characterisation, FMA on x86-64 | **AIUE-62** | proposed; owner decides |
+| Linux characterisation, FMA on x86-64 | **AIUE-62** | done on `feature/v9-AIUE-62-linux-characterisation` (x86-64; arm64 not run). New: M3 (`up` rows, Linux), and the Linux OpenMP build's missing `libgomp` link — tickets to be filed |
 
 ## Characterisation before any fix (AIUE-54)
 
-**Platform: macOS only. Linux has not been characterised.** No Linux host was available locally (no running Docker
+**Platform: macOS only** in this section; the Linux x86-64 runs of the same commands are in §Linux characterisation
+(AIUE-62), and their K=20 rows are added to the tables below. No Linux host was available locally (no running Docker
 daemon). The AIUE-57 CI job will run only the Te box and the full problem at 2 and 4 threads on ubuntu-latest (PRD
 §7.6). The rest of the Linux characterisation is **proposed to be deferred to AIUE-62** (filed by the unattended run;
 **the owner confirms, or chooses to run it now or to accept the gap**): `te`, `ti`, `ni`, `up`, `ng`,
@@ -288,13 +383,13 @@ printed `0.2395993421575909E+31`, so it is in fact 2.4e30, and it was misread. T
 `phi_te` was a temporary preset equal to the committed `te_phi` (Te and phi on). "Entries" counts Jacobian
 entries that differ from serial in value or pattern (extra + missing + value).
 
-| Configuration | neq | Jacobian arm (2/4/8 threads) | Jacobian + RHS arm (2/4/8 threads) |
-|---|---|---|---|
-| `tebox` (owner's Te box) | 25 | FAIL at all three: Te rows only, repeats differ | FAIL at all three, but 5 of the 6 runs took a Newton step (table above). The one comparable run (2 threads) differs in Te rows of the Jacobian |
-| `full` | 44352 | FAIL at all three: Te rows only. 448,768–449,736 / 601,948–610,901 / 774,378–777,247 entries. Repeats differ | 2: both runs stop with the lusol0 overflow. 4 and 8: FAIL in Te rows only. 651,109–655,853 and 627,405–766,390 entries; `yldot` differs in 2198–2560 and 2158–2560 Te entries, plus 345 zeros of opposite sign |
-| `te` (Te alone) | 3168 | FAIL at all three: Te rows only, repeats differ | Every run crashes: SIGSEGV (exit −11), or a RuntimeError at 2 threads |
-| `ti`, `ni`, `up`, `ng` (each alone) | 3168 / 25344 / 6336 / 3168 | **PASS** at all three | **PASS** at all three. `ni` and `ti` have 255 and 36 zeros of opposite sign in `yldot`, which P3-m2 allows |
-| `te_phi` (Te + phi) | 6336 | FAIL at all three: only Te rows differ, phi rows agree | Every run crashes (SIGSEGV) |
+| Configuration | neq | Jacobian arm (2/4/8 threads) | Jacobian + RHS arm (2/4/8 threads) | Linux x86-64, pre-fix (`amd64_base_k2_all`) | Linux x86-64, AIUE-56 fix (`amd64_fix_k2_all`) |
+|---|---|---|---|---|---|
+| `tebox` (owner's Te box) | 25 | FAIL at all three: Te rows only, repeats differ | FAIL at all three, but 5 of the 6 runs took a Newton step (table above). The one comparable run (2 threads) differs in Te rows of the Jacobian | FAIL both arms at 2/4/8, Te rows; jacrhs took a Newton step in 5/6 runs | PASS both arms at 2/4/8 |
+| `full` | 44352 | FAIL at all three: Te rows only. 448,768–449,736 / 601,948–610,901 / 774,378–777,247 entries. Repeats differ | 2: both runs stop with the lusol0 overflow. 4 and 8: FAIL in Te rows only. 651,109–655,853 and 627,405–766,390 entries; `yldot` differs in 2198–2560 and 2158–2560 Te entries, plus 345 zeros of opposite sign | FAIL both arms at 2/4/8, Te rows; jacrhs ran at 2 threads (no overflow), `yldot` 1514–2582 Te entries | PASS, except jacrhs 8: 1/2 (M3, `up` rows) |
+| `te` (Te alone) | 3168 | FAIL at all three: Te rows only, repeats differ | Every run crashes: SIGSEGV (exit −11), or a RuntimeError at 2 threads | jac FAIL (Te rows); jacrhs SIGSEGV in 6/6 | PASS both arms at 2/4/8 |
+| `ti`, `ni`, `up`, `ng` (each alone) | 3168 / 25344 / 6336 / 3168 | **PASS** at all three | **PASS** at all three. `ni` and `ti` have 255 and 36 zeros of opposite sign in `yldot`, which P3-m2 allows | PASS, except `up` at 8 threads: 0/2 on both arms (M3) | PASS, except `up` at 8 threads: 0/2 on both arms (M3) |
+| `te_phi` (Te + phi) | 6336 | FAIL at all three: only Te rows differ, phi rows agree | Every run crashes (SIGSEGV) | jac FAIL (Te rows only); jacrhs: 5/6 crash (SIGSEGV or RuntimeError) | PASS both arms at 2/4/8 |
 
 ### Pre-fix rates at 4 threads (K=20 fresh runs, PRD §11, P3-m4)
 
@@ -304,6 +399,10 @@ entries that differ from serial in value or pattern (extra + missing + value).
 | `tebox` / jacrhs, no Newton step (run5, run14) | 2 | **0/2** | 2 of 2 | 0.1645118081253171, 0.1670300684916609 | 177, 181 | as above |
 | `tebox` / jacrhs, Newton step taken | 18 | **0/18**, not comparable: the stored quantities are from iteration 1 | 18 of 18 | 18 distinct, 4.9e30 – 1.005e31 | not iteration 0: 304 (15 runs) or 169 (3 runs), row-normalised | as above |
 | `full` / jac | 20 | **0/20** | 20 of 20 | 16 distinct, 1.535419111648367 (5 runs) – 1.537122945485376 | 20 distinct, 3,632,025 – 3,677,607 | `fnrm` 1.918820629111277, nnz 3,190,290 |
+| **Linux x86-64** `tebox` / jac | 20 | **0/20** | 18 of 20 | 15 distinct, 0.1322747614580312 – 0.181059468674829 | 7 distinct, 175–182 | `fnrm` 0.3221264488412611, nnz 169 |
+| **Linux x86-64** `tebox` / jacrhs | 20 | **0/20** (13 took a Newton step) | 17 of 20 | 7 comparable runs: 0.156194351810621 – 0.1803218335027441 | 7 runs 176–181; 13 runs 304 | as above |
+| **Linux x86-64** `full` / jac | 20 | **0/20** | 20 of 20 | **1 value in all 20**: 1.535419111984408 | 20 distinct, 3,686,595 – 3,695,034 | `fnrm` 1.918820629909679, nnz 3,185,635 |
+| **Linux x86-64, AIUE-56 fix** `tebox` jac / jacrhs, `full` jac | 20 each | **20/20 each** | 1 | equal to serial | equal to serial | as the two rows above |
 
 - **The §11 pre-fix requirements hold.** The full problem disagrees with serial in 20/20 runs. The Te box disagrees
   in 20/20 runs on each arm, and no two of its runs are equal.
