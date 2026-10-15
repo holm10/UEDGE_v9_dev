@@ -1,125 +1,185 @@
 # Feature: AIUE-61 — Reproducible OpenMP Jacobian: fixed chunk partition (decision 9, option F)
 
 Validate the patterns and file references below before implementing. Line numbers are those of this branch's base
-(`bugfix/v9-AIUE-56-omp-jacobian-fix` at `1553e75`).
+(`bugfix/v9-AIUE-56-omp-jacobian-fix` at `1553e75`). Revision 2, after plan review round 1
+(`docs/reviews/AIUE-61-plan-round1.md`, response `docs/reviews/AIUE-61-plan-round1-response.md`).
 
 ## Summary
 **Type**: Numerics/Parallel (OpenMP-only code path), plus the `OMPJacNchunks≠0` stack-crash fix
-**Complexity**: Low (code, ~40 lines in `ppp/`), High (validation)
+**Complexity**: Low (code, ~60 lines in `ppp/`), High (validation)
 **Default results**:
 - **Serial build and OpenMP build with `OMPParallelJac=0`: unchanged.** The changed routines run only with
   `ppp.OMPParallelJac=1` in the OpenMP build. The new `.v` variables are inert elsewhere.
-- **OpenMP Jacobian (`OMPParallelJac=1`): changed on purpose. This is the owner's decision 9 (2026-10-15),
-  an explicit, owner-approved exception to the PRD/`CLAUDE.md` rule against changing defaults.** The default OpenMP
-  Jacobian becomes bitwise reproducible and independent of the thread count. On macOS arm64 it still differs from
-  serial at round-off (C2: about 12 000 entries in 78 rows of the full problem, worst 4.6e-9 × row max, probe P2).
-  On Linux x86-64 it is expected to equal serial bitwise (to be checked, G10). The old behaviour stays available
-  through `ppp.OMPJacFixedChunks=0`. The PR states this in its first paragraph.
+- **OpenMP Jacobian (`OMPParallelJac=1`): changed on purpose. This is the owner's decision 9 (2026-10-15), an explicit,
+  owner-approved exception to the PRD/`CLAUDE.md` rule against changing defaults** (Jira AIUE-61 comment 10021). The
+  default OpenMP Jacobian becomes bitwise reproducible and independent of the number of OpenMP threads, within the
+  scope stated under "Guarantee and its scope". On macOS arm64 it still differs from serial at round-off (C2: about
+  12 000 entries in 78 rows of the full problem, worst 4.6e-9 × row max, probe P2). On Linux x86-64 it is expected to
+  equal serial bitwise (to be checked, R5). The old behaviour stays available through `ppp.OMPJacFixedChunks=0`.
+- **A trade-off the PR states:** on macOS at 4 threads or fewer, the old default often equals serial bitwise (9 of 10
+  study runs at 4 threads, and P2's `full_D_t4`), but it varies from run to run. The new default always differs from
+  serial in the C2 rows, and never varies.
+- The PR states all of this in its first paragraph, together with decision 9 and D1.
+
 **Packages / files**: `ppp/ppp.v`, `ppp/omp_parallel.F90` (`InitOMPJac`, `jac_calc_omp`, `OMPJacBuilder`, new
 `OMPFixedSplitIndex`), `ppp/parallel.F90` (`LocalJacBuilder`), `.claude/context/openmp-jacobian.md` (code facts),
-`docs/reviews/AIUE-61-*` (validation scripts and record)
-**Branch / worktree**: `bugfix/v9-AIUE-61-omp-static-partition` @ `/Users/holma/Documents/uedge/src/uedge-wt/AIUE-61`
-(base: `bugfix/v9-AIUE-56-omp-jacobian-fix` `1553e75`, stacked; the PR targets that branch until AIUE-56 merges, then
-`git rebase --onto v9-develop bugfix/v9-AIUE-56-omp-jacobian-fix`). Venvs: `venvs/AIUE-61-omp` (this tree),
-`venvs/AIUE-61-serial` (second tree `uedge-wt/AIUE-61-serial`, detached at the same commit, as AIUE-56 did).
+`docs/reviews/AIUE-61-*` (validation scripts and record).
 
-## Owner decisions this plan relies on, and one deviation that needs the owner (D1)
+**Branch / worktree**: `bugfix/v9-AIUE-61-omp-static-partition` @ `/Users/holma/Documents/uedge/src/uedge-wt/AIUE-61`.
+- **Merge order (owner, via the coordinator): AIUE-56, then AIUE-60, then AIUE-61.**
+- Implementation and development checks run on the current base, `bugfix/v9-AIUE-56-omp-jacobian-fix` `1553e75`.
+- Once AIUE-60's implementation is approved, rebase: `git rebase --onto bugfix/v9-AIUE-60-omp-races bugfix/v9-AIUE-56-omp-jacobian-fix`.
+  AIUE-60's plan is `d2fac6e`. It makes `areapl`, `TimingPandfOn` and the `com` timers threadprivate, and writes `nfsp`
+  only when it changes.
+- **The final gates G0–G10 run on the combined tree.**
+- Expected conflicts, as AIUE-60's plan foresees:
+  - `ppp/parallel.F90`: AIUE-60's `sfscal(ii)` clip is at `:288,292` and doesn't overlap AIUE-61's edits;
+  - `openmp-jacobian.md` and `.claude/context/refs.lock.json`: keep both texts, re-lock after re-reading.
+- If AIUE-60 is not approved when AIUE-61's validation is otherwise done, the PR says that the reproducibility claim is
+  **unproven until it is validated together with AIUE-60**, and the AIUE-56-based results are labelled preliminary.
+- Venvs: `venvs/AIUE-61-omp` (this tree), `venvs/AIUE-61-serial` (second tree `uedge-wt/AIUE-61-serial`, detached at
+  the same commit, as AIUE-56 did), `venvs/AIUE-61-chk` (this tree, OpenMP, `--checkbounds`, for G10).
 
-- **Decision 9 = option F** (Jira AIUE-61): fixed contiguous chunks, a chunk count that doesn't depend on the thread
-  count (capped at `neq`), boundaries that don't move between Jacobians, heap fix, new default, old behaviour behind
-  a documented OpenMP-only switch, serial unchanged. All of this is implemented as decided.
-- **D1, deviation for the owner to confirm before implementation:** decision 9 names `schedule(static,1)` and
-  assumes that "the Jacobian depends only on the chunk count". **The cost study's own data refutes that
-  assumption** (P1 below). The same 64 chunks give a different Jacobian at 4 and at 8 threads. So static round-robin
-  alone can't meet the acceptance criterion "the same Jacobian at 2/4/8 threads". This plan adds a **fresh full `pandf`
-  on the thread at the start of every chunk**. That makes each chunk's columns a pure function of `yl` and the chunk
-  boundaries. The result then doesn't depend on the schedule either, so the plan keeps the existing
-  `schedule(dynamic,OMPLoopJacNchunk)` loop, which balances load better than static round-robin at the same chunk
-  count. The study measured static round-robin with 64 chunks at +24 % at 8 threads, and dynamic at −4 %. This
-  also removes the loop duplication the prototype needed. If the owner insists on literal `static,1`, it is a
-  one-clause change in task 3. The reset stays in either case, because without it the thread-count criterion fails.
+## Owner decisions (Jira AIUE-61 comment 10021, 2026-10-15; relayed by the coordinator)
 
-## Pre-plan probes (scratch, macOS arm64, gfortran 15; not reviewed; reproduce in phase 2)
+| # | Decision | Where in this plan |
+|---|---|---|
+| Decision 9 | Option F: fixed contiguous chunks, a count independent of the thread count, boundaries fixed between Jacobians, heap fix, new OpenMP default, the old behaviour behind a documented OpenMP-only switch, serial unchanged | Solution 1–5 |
+| D1 / Q1 | **Approved:** fixed boundaries, a fresh full `pandf` at every chunk start, and the **dynamic** schedule instead of decision 9's literal `schedule(static,1)`. Reason: P1, P2, P2-neg | Solution 2, 4 |
+| Q2 | Default **64 chunks**, as a user-editable `ppp` variable (`OMPJacNchunksFixed`) | task 1 |
+| Q3 | A hard `dtreal=1e-9` step that doesn't converge is acceptable **as long as it is deterministic** (R2 then gates determinism, not convergence) | R2 |
+| Q4 | `isjacreset` unchanged; removing it is AIUE-68 (epic AIUE-63) | Deliberate choices |
+| Q5 | **Add a minimum chunk length, by a rule that depends only on problem size** | Solution 1, task 1–2, G3 |
+| Q6 | A post-Jacobian worker reset for the RHS arm is **out of scope**: AIUE-58/AIUE-59 (AIUE-59 waits for AIUE-60 and AIUE-61) | Deliberate choices, R3 |
 
-Scratch files are in `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/`. The prototype tree is
-`uedge-wt/AIUE-61-probe` (detached at `1553e75` plus the design below), with `venvs/AIUE-61-probe` (OpenMP). The
-case is the reviewed AIUE-57 harness case (`full`: neq 44352, numvar 14; `tebox`: neq 25).
+## Pre-plan probes (scratch, macOS arm64, gfortran 15; not reviewed; reproduced in phase 2)
+
+Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts and records). Prototype: the tree
+`uedge-wt/AIUE-61-probe` (detached at `1553e75` plus the revision-1 design, which has no minimum chunk length and the
+`OMPTimeLocalJac` defect of L1-B1) and `venvs/AIUE-61-probe` (OpenMP). Case: the AIUE-57 harness case (`full`: neq
+44352, numvar 14; `tebox`: neq 25).
 
 | # | Question | Result |
 |---|---|---|
-| P1 | Does static round-robin without a reset give a thread-independent Jacobian? (cost-study records, `OMPJacSchedule=2`, `OMPAutoBalance=0`) | **No.** 16 chunks: same hash at 2/4/8 threads; 32 chunks: same at 4/8. **64 chunks: 4 threads `217b791b…` ≠ 8 threads `8761cd9e…`** (5 runs each, each deterministic). Mechanism: under `static,1` a worker starts chunk k from the state left by chunk k−T. With 64 chunks (693 columns each), chunk k−4 lies within the column-history reach of chunk k (P3), and chunk k−8 does not. |
-| P2 | Fixed partition, 64 chunks, **reset (full `pandf` at every chunk start)**, `schedule(dynamic,1)` | **Full problem: identical hash `8761cd9e36658ee1` at 2, 3 and 4 threads and in two runs at 4 threads**, nnz 3 180 971. This equals the study's 64-chunk static run at 8 threads, where every chunk also started from a state without nearby history. vs serial (`0ee4446a…`, nnz 3 190 290): 12 275 mismatching entries in 78 rows, worst 4.59e-9 × serial row max (AIUE-56 C1 gate bound 1e-6). Te box: same hash at 2 and 4 threads, 2 entries in 1 row vs serial, 5.62e-10. Cost at 4 threads: `ttjstor` 9.99/10.06 s vs 9.68 s for the old default in the same batch (single samples). At 2 threads: 19.31 s (the study's old default was 18.4 s). |
-| P2-neg | Same partition **without** the reset (`OMPJacChunkReset=0`) | Full problem: 2 threads `48d3f455…` ≠ 4 threads `6ece2e5a…` (nnz 3 184 409 vs 3 181 726). The reset is what removes the thread dependence. |
-| P3 | Does a full `pandf(-1,-1)` erase the column-loop history? (serial build `AIUE-56-serial`; snapshot every variable of `bbb, com, api, aph, wdf, svr, flx, grd, ppp`; 3000-column Jacobian-like loops in 4 regions, then a full `pandf`) | **Yes.** The column loop changes about 150 variables (`vsoree`-type carriers, `Selec` ranges, `areapl`, `api.work2/iworki`, …). After the full `pandf`, every variable equals the fresh state except (a) timers/counters and (b) the `Jacobian_restore` scratch (`*old`, `*o`, `*om`). `jacobian_store_*` writes the scratch at the start of each local `pandf` and `jacobian_reset` reads it at the end of the same call (`bbb/pandf_jacobian.m:6-67,69-131`), so it carries no history. `yldot` is bitwise equal. |
-| P4 | Cost of the reset | Full `pandf` 23.1 ms, local `pandf` 0.30 ms, serial Jacobian 34.2 s (full problem, 1 thread). 64 resets are about 1.5 s of CPU, which is about 4–5 % of the Jacobian work, spread over the threads. Te box: the reset dominates (`ttjstor` 0.22–0.35 s vs 0.06 s without it), because the grid is full-size while neq is 25. |
-| P5 | `dtreal=1e-9` scenario (deck, `full`, 5 × `exmain`, stop at the first failed step), prototype at 4 threads | **64 chunks: step 1 fails, `iterm=4` after 30 iterations, final `get_fnrm` `0x1.aa0e230edbab4p-2`.** These are the same bits as the cost study's 64-chunk static run at 8 threads (failed 3/3), so the failure is reproducible across thread counts. 128 chunks: also fails (`0x1.a9ef9d857899cp-2`). For comparison: serial converges (21, 4, 3, 4, 3); serial with `-ffp-contract=off` fails; the old default converged in 3 of 5 runs at 4 threads. The step is on a knife edge at round-off; the new default falls on the failing side deterministically on this deck (Q3). |
+| P1 | Does static round-robin without a reset give a thread-independent Jacobian? (cost-study records, `OMPJacSchedule=2`, `OMPAutoBalance=0`, uniform boundaries) | **No.** 8 chunks: the same hash at 2/4/8 threads; 16 chunks: the same at 2/4/8; 32 chunks: the same at 4/8. **64 chunks: 4 threads give `217b791b…`, 8 threads give `8761cd9e…`** (5 runs each, each deterministic). Under `static,1` a worker starts chunk k from the end state of chunk k−T. This fits a column-history reach of about 2–4 thousand columns (an inference; the conclusion doesn't depend on it). Re-derived independently by the round-1 reviewer. |
+| P2 | Fixed partition, 64 chunks, reset (a full `pandf` at every chunk start), `schedule(dynamic,1)` | **Full problem: one hash, `8761cd9e36658ee1`, at 2, 3 and 4 threads and in two runs at 4 threads**, nnz 3 180 971. It is the same as the study's 64-chunk static run at 8 threads, where no chunk started near another chunk's history. Against serial (`0ee4446a…`, nnz 3 190 290): 12 275 mismatching entries in 78 rows, worst 4.59e-9 × the serial row max (the AIUE-56 C1-gate bound is 1e-6). Te box (25 one-column chunks): the same hash at 2 and 4 threads, 2 entries in 1 row against serial, 5.62e-10. Cost at 4 threads: `ttjstor` 9.99 and 10.06 s, against 9.68 s for the old default in the same batch (single samples). At 2 threads: 19.31 s (the study's old default: 18.4 s). |
+| P2-neg | The same partition **without** the reset (`OMPJacChunkReset=0`) | Full problem: 2 threads `48d3f455…`, 4 threads `6ece2e5a…` (nnz 3 184 409 vs 3 181 726). The reset is what removes the thread dependence. |
+| P3 | Does a full `pandf(-1,-1)` erase the column-loop history? Serial build `AIUE-56-serial`, one deck (`full`). A Jacobian-like column loop of 3000 columns (perturbed and restoring local `pandf`, plus the `isjacreset` call), then a full `pandf`, with snapshots before and after. Regions 1–3000, 20001–23000 and 41001–44352 snapshot `bbb`, `com` and `api` (`reset1`). Region 12001–15000 snapshots `bbb, com, api, aph, wdf, svr, flx, grd, ppp` (`reset2`). **`yl(neq+1)` was left at its post-`exmain` value, not set to Jacobian mode.** | **Yes, within that scope.** The column loop changes about 150 variables (`vsoree`-type carriers, the `Selec` ranges, `areapl`, `api.work2/iworki`, …). After the full `pandf`, every variable equals the fresh state except timers/counters and the `Jacobian_restore` scratch. `yldot` is bitwise equal. How the scratch is used (corrected after review L1-m1): `jacobian_store_*` writes `*o`, `*om` and most `*old` at the start of each local `pandf` (`bbb/pandf_jacobian.m:6-67`). Six scalars are written instead inside the energy loops: `erlizold`, `erlrcold`, `eeliold`, `pwrebkgold`, `pwribkgold`, and `pradold` when `isimpon≥2` (`bbb/pandf_plasma_energy.m:574-575,597,771,909,927`). They come from the box's last cell, and `jacobian_reset` (`bbb/pandf_jacobian.m:87-93`) then writes them into `(xc,yc)`, which restores the wrong cell. That is a pre-existing history carrier inside the column loop; the full reset rewrites it. The probe doesn't see `save`d locals or F90 module state. Phase 2 re-runs P3 in Jacobian mode over all packages and regions (G0a). |
+| P4 | Cost of the reset | A full `pandf` takes 23.1 ms and a local one 0.30 ms. The serial Jacobian takes 34.2 s (0.77 ms per column, full problem, 1 thread). 64 resets are about 1.5 s of CPU, about 4–5 % of the Jacobian work, spread over the threads. Te box with 25 one-column chunks: the reset dominates (`ttjstor` 0.22–0.35 s against 0.06 s without it), because the grid is full-size while neq is 25. Hence Q5. |
+| P5 | `dtreal=1e-9` scenario: the deck, `full`, 5 × `exmain`, stopping at the first failed step; prototype at 4 threads | **64 chunks: step 1 fails, with `iterm=4` after 30 iterations and final `get_fnrm` `0x1.aa0e230edbab4p-2`.** These are the same bits as the study's 64-chunk static run at 8 threads (failed 3 of 3). 128 chunks: also fails (`0x1.a9ef9d857899cp-2`). For comparison, serial converges (21, 4, 3, 4, 3 iterations), serial with `-ffp-contract=off` fails, and the old default converged in 3 of 5 runs at 4 threads. Accepted by the owner if deterministic (Q3). |
 
 ## Problem and solution
 
-**Problem (RCA `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md` §Jacobian RCA, on `feature/v9-AIUE-62-linux-characterisation`):**
-after the C1 fix (AIUE-56), the OpenMP Jacobian still differs from serial at round-off and **varies from run to
-run** (C2/M2). The serial Jacobian depends on the history inside its column loop: `vsoree` and similar values get a
-different last bit in a local loop than in the full-row loop, and later columns read them. OpenMP workers have a
-different history, and with the default dynamic one-column chunks it depends on timing. Separately, any
-`OMPJacNchunks≠0` crashes the full problem: the `firstprivate` automatic arrays `iJacColCopy`/`rJacElemCopy`
-(`ppp/omp_parallel.F90:672,675,720`) sit on the master's 8 MB stack.
+**Problem** (RCA `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md` §Jacobian RCA, on `feature/v9-AIUE-62-linux-characterisation`).
+- After the C1 fix (AIUE-56), the OpenMP Jacobian still differs from serial at round-off and **varies from run to
+  run** (C2/M2).
+- The serial Jacobian depends on the history inside its column loop. OpenMP workers have a different history, and
+  with the default dynamic one-column chunks that history depends on timing.
+- Separately, any `OMPJacNchunks≠0` crashes the full problem. The `firstprivate` automatic arrays
+  `iJacColCopy`/`rJacElemCopy` (`ppp/omp_parallel.F90:672,675,720`) sit on the master's 8 MB stack.
 
 **Solution (default `OMPJacFixedChunks=1`):**
-1. **Fixed partition:** `NchunksJac = min(OMPJacNchunksFixed, neq)` (default 64, independent of `Nthreads`). Chunk i
-   covers columns `(i−1)·neq/N + 1 … i·neq/N` (integer division), a pure function of `neq` and `N`. Load weights,
-   `OMPAutoBalance`, `OMPLoadBalance` and `OMPSplitIndex` are not used in this mode, so the boundaries never move
-   between Jacobians. The study shows that auto-balancing does nothing in today's default anyway: `OMPSplitIndex`
-   returns one column per chunk before it reads the weights (`ppp/omp_parallel.F90:766-771`).
-2. **Fresh start per chunk:** `LocalJacBuilder` calls `pandf(-1,-1,neq,t,yl,wk)` (unperturbed `yl`, the routine's
-   own automatic `wk`) before its first column when its new argument `ifresh=1`. Every chunk then starts from the
-   fresh full-RHS state whatever ran before it on that thread (P3), so the Jacobian is a function of `yl` and the
-   boundaries only (P2). The debug switch `OMPJacChunkReset=0` turns this off (negative control).
-3. **Heap fix (both modes):** drop `iJacColCopy`/`rJacElemCopy`. `LocalJacBuilder` writes straight into
-   `iJacCol(:,ichunk)`/`rJacElem(:,ichunk)`, a contiguous column of the module arrays owned by that chunk only, so
-   there is no race and no temporary.
-4. **Schedule:** unchanged, `schedule(dynamic,OMPLoopJacNchunk)` (see D1).
-5. **Legacy (`OMPJacFixedChunks=0`):** today's code path exactly (`OMPJacNchunks`, weights, `OMPSplitIndex`, no reset),
-   apart from the heap fix, which changes no values (control NC4).
+1. **Fixed partition, with a problem-size-only chunk count:**
+   `NchunksJac = min(OMPJacNchunksFixed, max(1, neq / OMPJacMinChunkLen))`, with integer division. The defaults are
+   64 and 300.
+   - The count depends on `neq` and the inputs only, never on the thread count.
+   - Full problem: 44352/300 = 147, so it gets 64 chunks, which keeps P2, P5 and R2's pre-registered bits valid. Any
+     `OMPJacMinChunkLen` ≤ 693 would do that.
+   - Te box: 25/300 = 0, so it gets 1 chunk.
+   - Why 300: at 0.77 ms per column against 23 ms per reset (P4), a 300-column chunk keeps the reset at about 10 % or
+     less, and longer chunks less.
+   - The reset cost scales with the grid, not with `neq`, so problems with few equations on a large grid get
+     relatively more. The owner asked for a rule based on problem size only, and this rule satisfies that.
+   - Chunk i covers columns `(i−1)·neq/N + 1 … i·neq/N` (`OMPFixedSplitIndex`).
+   - Weights, `OMPAutoBalance`, `OMPLoadBalance` and `OMPSplitIndex` are not used, so the boundaries never move
+     between Jacobians. Auto-balancing does nothing in today's default anyway: `OMPSplitIndex` returns one column per
+     chunk before it reads the weights (`ppp/omp_parallel.F90:766-771`).
+2. **Fresh start per chunk:** `LocalJacBuilder` calls `pandf(-1,-1,neq,t,yl,wk)` before its first column when its new
+   argument `ifresh=1`. It uses unperturbed `yl`, with the Jacobian-mode flag `yl(neq+1)=1` that `jac_calc` callers
+   set (`bbb/oderhs.m:1716,1939,2325`), and the routine's own automatic `wk`. The chunk then starts from the fresh
+   full-RHS state whatever ran before it on that thread (P3), so its columns are a function of `yl` and the boundaries
+   only (P2). The debug switch `OMPJacChunkReset=0` turns this off (negative control).
+3. **Per-chunk timing slot (L1-B1):** in fixed mode, `OMPJacBuilder` writes the chunk's time to
+   `OMPTimeLocalJac(ichunk)`, never to `(tid+1)`. The array has `NchunksJac` elements, and the team can be larger
+   than that: there is no `num_threads` clause, `InitOMPJac` calls `OMP_SET_NUM_THREADS(OMP_GET_MAX_THREADS())`
+   (`:296`), and fixed mode can have few chunks. Fixed mode never reads the array for weights. Legacy mode keeps
+   `(tid+1)`, unchanged, so NC4 stays bitwise. Its pre-existing out-of-bounds risk when `NchunksJac` is smaller than
+   the team (`OMPJacNchunks>0` small, or `-1` with `Nthreads` below the team size) is recorded as finding F-61-2 for a
+   follow-up, not fixed here.
+4. **Heap fix (both modes):** drop `iJacColCopy`/`rJacElemCopy`. `LocalJacBuilder` writes straight into
+   `iJacCol(:,ichunk)`/`rJacElem(:,ichunk)`, a contiguous column owned by that chunk, so there is no race and no
+   temporary.
+5. **Schedule:** unchanged, `schedule(dynamic,OMPLoopJacNchunk)` (D1, approved). With the reset, the schedule doesn't
+   change the result (control G3-sched).
+6. **Legacy (`OMPJacFixedChunks=0`):** today's path (`OMPJacNchunks`, weights, `OMPSplitIndex`, `(tid+1)` timing, no
+   reset), apart from the heap fix, which changes no values (NC4).
+7. **When settings take effect:** `InitOMPJac` runs from `InitParallel` in `allocate` (`bbb/odesetup.m:369`), which
+   `exmain` calls unconditionally (`bbb/odesetup.m:6649`). A change to the three inputs therefore takes effect at the
+   next `exmain`. The `.v` descriptions say so.
 
-**Deliberate choices:**
-- **`isjacreset` (`bbb/bbb.v:3305`, default 1) is left as it is in both modes.** Its extra local `pandf` per cell
-  (`ppp/parallel.F90:320-338`) does not change the Jacobian: it recomputes the same box from the same inputs (RCA
-  emulation; control C-isjr below re-checks it). It is a consistency check that aborts if a repeated local `pandf`
-  changes `wk`. It is in the old default too, so the timing comparison is like for like. Users can already set
-  `bbb.isjacreset=0` to save about 5 %. The serial `jac_calc` ignores it, so changing its default would be an
-  unrelated behaviour change.
-- **`OMPParallelPandf1` (RHS arm):** untouched. `OMPPandf1Rhs` still runs on whatever state each worker kept from its
-  last Jacobian chunk. Under the dynamic schedule, which chunk that is varies from run to run. AIUE-56 showed the
-  parallel RHS equal to serial on the Te box and the full problem at 4 threads, but whether it depends on that state
-  belongs to AIUE-58. The `jacrhs` arm is report-only here. If its determinism is worse than on the AIUE-56 build,
-  that goes to AIUE-58 (option for the owner, Q6: one full `pandf` per thread after the loop).
-- **Shared-state race F16 (`areapl`, `bbb/bbb.v:951`, not threadprivate, written and immediately read in the plate BCs
-  `bbb/pandf_boundary.m:3091-4281`):** the resets add full evaluations that write it. If a determinism run fails in
-  plate rows, that is reported as a probable F16 effect and coordinated with AIUE-60. It is not masked here.
+### Guarantee and its scope (L1-M2, L1-M3)
+- **The guarantee:** for a given `yl`, inputs, `neq`, `OMPJacNchunksFixed` and `OMPJacMinChunkLen`, the fixed-mode
+  Jacobian is bitwise the same for any number of OpenMP threads (`OMP_NUM_THREADS`), any schedule, and any run. It
+  holds **as long as a full `pandf` in Jacobian mode is a pure function of `yl` and the inputs, and no shared
+  (non-threadprivate) variable carries results between threads.**
+- **Known exceptions, already refused by the existing OpenMP roadblocks in `exmain`** (`bbb/odesetup.m:6727-6770`,
+  evaluated after `allocate` has set `ParallelJac`):
+  - `ismcnon≠0` ("Only ismcnon=0 is validated with openmp"). That covers `ismcnon=4`: `initialize_ismcnon`
+    (`bbb/pandf_plasma_continuity.m:124-133`) multiplies the shared `parvis`/`travis` by `pnc_cf*` in every Jacobian-mode
+    full call and only `jacobian_reset` divides it back, so the resets would compound it.
+  - `isimpon` other than 0, 2, 6, 7 ("Invalid isimpon"). That covers `isimpon=5` with its `save`d `fmombal` arrays
+    (`api/fmombal.m:70,368,1064`).
+  - Also refused: `ishosor`, `ispsorave`, `cfvisxneoq/v`.
+  - Control C-guard checks that both exceptions stop before any Jacobian. This plan adds no new guard. The `.v`
+    description and `openmp-jacobian.md` name the conditions.
+- **Shared state a full `pandf` writes:** AIUE-60's Probe S (plan `d2fac6e`) is a static scan of every unit reachable
+  from `pandf`. It doesn't depend on whether the call is local or full, so it covers the reset.
+  - Default paths, Part A, made safe by AIUE-60: `areapl`, `TimingPandfOn`, `com.nfsp`, and the `com` timers
+    (`ttimpfe`, `ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv`).
+  - Non-default paths, Part B: `ghxpt/gvxpt/sxyxpt` (`nxpt=2`), `sputflxllim/rlim` (limiter sputtering),
+    `iwalli/iwallo/fngysi/fngyso` (coupled walls), `aph.workh/iflag_aph` (`istabon=5,6`).
+  - Part C: `isimpon=5` and `ismcnon` (refused above).
+  - Phase 2 checks this dynamically for a full Jacobian-mode evaluation (G0b). Part B configurations are outside the
+    validated scope and are named as such in `openmp-jacobian.md`.
+- **The validated scope:** the eight `flow --all` configurations of the reproducer deck at 1–8 threads; the D_only
+  default case (G9b); macOS arm64; and Linux x86-64 if R5 runs.
+- **Any determinism or thread-identity failure in the gates is a FAIL whatever its cause** (F16/`areapl`, a new
+  history carrier, a race). It is not attributed away. If the cause is a shared variable AIUE-60 fixes, the remedy is
+  the rebase onto AIUE-60, after which the gates are re-run.
+
+### Deliberate choices
+- **`isjacreset` (`bbb/bbb.v:3305`, default 1) is unchanged in both modes** (owner Q4; removing it is AIUE-68). It
+  doesn't change the Jacobian (control C-isjr).
+- **RHS arm (`OMPParallelPandf1=1`): untouched** (owner Q6 → AIUE-58/AIUE-59). `OMPPandf1Rhs` runs on whatever state
+  each worker kept from its last chunk, and under the dynamic schedule that varies. The `jacrhs` arm is report-only
+  (R3), read against AIUE-58's R1 (the `hcyn` range bug at chunk edges).
+- **The resets add time to the full-RHS timers and counters** (`ttimpfe`, `ttnpg`, `TotTimePandf`, …). The PR says so.
+- **No settings-changed guard in `jac_calc_omp`:** `exmain` always re-runs `InitOMPJac` (Solution 7), so modes can't
+  be mixed through `exmain`. This is documented, not guarded.
 
 ## Context references — read before implementing
-- `ppp/ppp.v:18-40` (group `ParallelDebug`), `ppp/ppp.v:42-56` (group `OMPJacSettings`): where the new variables go.
-- `ppp/omp_parallel.F90:281-333` `InitOMPJac` (chunk count at `:312-319`, `nnzmxperchunk` at `:320-324`); called from
-  `InitParallel` (`ppp/parallel.F90:4-43`) at every `allocate` (`bbb/odesetup.m:369`).
+- `ppp/ppp.v:18-40` (group `ParallelDebug`) and `ppp/ppp.v:42-56` (group `OMPJacSettings`), where the new variables go.
+  `ppp/ppp.v` group `OMPJac`: `OMPTimeLocalJac(1:NchunksJac)`.
+- `ppp/omp_parallel.F90:281-333` `InitOMPJac`: team size at `:296`, chunk count at `:312-319`, `nnzmxperchunk` at
+  `:320-324`. Called from `InitParallel` (`ppp/parallel.F90:4-43`) at every `allocate` (`bbb/odesetup.m:369`, `:6649`).
 - `ppp/omp_parallel.F90:495-642` `jac_calc_omp` (weights and split at `:545-563`).
-- `ppp/omp_parallel.F90:645-754` `OMPJacBuilder` (copies `:678-699`, automatic arrays `:672,675`, init `:706-707`,
-  loop `:718-747`).
+- `ppp/omp_parallel.F90:645-754` `OMPJacBuilder`: copies `:678-699`, automatic arrays `:672,675`, init `:706-707`,
+  loop `:718-747`, timing writes `:740,744`.
 - `ppp/omp_parallel.F90:759-813` `OMPSplitIndex` (legacy; unchanged).
-- `ppp/parallel.F90:159-345` `LocalJacBuilder` (arguments `:159-160,185`, `wk` `:195`, loop start `:210-211`).
-- `bbb/oderhs.m:1090-1235` serial `jac_calc` column loop (no `isjacreset` call, `:1218-1222` commented out).
-- `.claude/context/openmp-jacobian.md` "OpenMP parallelism" (Jacobian bullet, line refs).
-- `.claude/context/variables-forthon.md` (units bracket, `#` description, `[none]` for dimensionless switches, e.g.
-  `bbb/bbb.v:1334`).
-- Prototype for the heap fix: the cost study diff (`OMPJacBuilder` hunks only; its `OMPJacSchedule`/`OMPJacReplay`
-  scratch switches are **not** brought over). The probe tree `uedge-wt/AIUE-61-probe` holds the design below as an
-  uncommitted diff (`git -C …/AIUE-61-probe diff`). It is a reference, not a source to copy blindly: its `.v` texts
-  are placeholders.
+- `ppp/parallel.F90:159-345` `LocalJacBuilder`: arguments `:159-160,185`, `wk` `:195`, loop start `:210-211`.
+- `bbb/oderhs.m:1090-1235`, the serial `jac_calc` column loop; `bbb/oderhs.m:1716`, the Jacobian-mode flag.
+- `bbb/odesetup.m:6727-6770`, the OpenMP roadblocks.
+- AIUE-60 plan `d2fac6e:.claude/plans/AIUE-60-omp-races.md` (Parts A–C; merge notes).
+- `.claude/context/openmp-jacobian.md` "OpenMP parallelism"; `.claude/context/variables-forthon.md` (`[none]` for
+  dimensionless inputs, e.g. `bbb/bbb.v:1334`).
+- Probe tree `uedge-wt/AIUE-61-probe` (`git -C … diff`): the revision-1 design. It is a reference only; it lacks Q5
+  and the L1-B1 fix, and its `.v` texts are placeholders.
 
 ## Patterns to mirror
-- Switch with a documented legacy value: `OMPCopyArray integer /1/ # For Debug purpose: …` (`ppp/ppp.v:35`).
-- Fatal input check in `InitOMPJac`: `call xerrab('Nthread must be >0')` (`ppp/omp_parallel.F90:305`).
-- Free-form F90 rules (`.claude/context/mppl-fortran.md` "Hand-written free-form sources"): `!` comments, `&`
-  continuation, `USE …, ONLY:`. Default integers are 8-byte (`-fdefault-integer-8`, `ISZ=8` in the build line), so
+- A switch with a documented legacy value: `OMPCopyArray integer /1/ # For Debug purpose: …` (`ppp/ppp.v:35`).
+- A fatal input check in `InitOMPJac`: `call xerrab('Nthread must be >0')` (`ppp/omp_parallel.F90:305`).
+- Free-form F90 (`.claude/context/mppl-fortran.md` "Hand-written free-form sources"). Default integers are 8-byte
+  (`-fdefault-integer-8`, `-DISZ=8`; seen in the probe build log and re-checked in task 4's build log), so
   `(i-1)*neq` doesn't overflow.
 
 ## Step-by-step tasks
@@ -127,180 +187,260 @@ different history, and with the default dynamic one-column chunks it depends on 
 ### 1. UPDATE `ppp/ppp.v`
 - **IMPLEMENT** in `OMPJacSettings`, after `OMPLoopJacNchunk` (`:54`):
   ```
-  OMPJacFixedChunks   integer [none] /1/  # [1] (default): split the Jacobian columns into OMPJacNchunksFixed fixed
-                                          # contiguous chunks (at most neq) and start every chunk from a fresh full
-                                          # pandf on its thread, so the OpenMP Jacobian is bitwise reproducible and the
-                                          # same for any Nthreads; OMPJacNchunks, OMPLoadBalance and OMPAutoBalance are
-                                          # ignored. [0]: the partition used before AIUE-61 (OMPJacNchunks chunks, load
-                                          # balancing), which varies from run to run at round-off. OpenMP build only.
-  OMPJacNchunksFixed  integer [none] /64/ # Number of chunks when OMPJacFixedChunks=1, capped at neq. Independent of
-                                          # Nthreads; use at least about 8 chunks per thread for load balance.
+  OMPJacFixedChunks   integer [none] /1/   # [1] (default): fixed contiguous chunks; every chunk starts from a fresh
+                                           # full pandf on its thread, so the OpenMP Jacobian is bitwise reproducible and
+                                           # the same for any number of OpenMP threads (OMP_NUM_THREADS); it still differs
+                                           # from serial at round-off on some platforms. Holds where a full pandf resets
+                                           # all state, i.e. the paths the exmain OpenMP checks allow (not ismcnon, not
+                                           # isimpon=5); see .claude/context/openmp-jacobian.md. OMPJacNchunks,
+                                           # OMPLoadBalance, OMPAutoBalance are then ignored. [0]: the partition used
+                                           # before AIUE-61 (varies from run to run at round-off). OpenMP build only;
+                                           # takes effect at the next exmain.
+  OMPJacNchunksFixed  integer [none] /64/  # Maximum number of chunks when OMPJacFixedChunks=1. The count used is
+                                           # min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen)), independent of the
+                                           # thread count. Use about 8 or more chunks per thread for load balance; a
+                                           # different count changes the Jacobian at round-off. Next exmain.
+  OMPJacMinChunkLen   integer [none] /300/ # Minimum number of Jacobian columns per chunk when OMPJacFixedChunks=1, so
+                                           # small problems get fewer chunks (each chunk costs one full pandf).
+                                           # Next exmain.
   ```
-  Append `(OMPJacFixedChunks=0 only)` to the descriptions of `OMPJacNchunks`, `OMPLoadBalance`, `OMPAutoBalance`,
+  Append `(OMPJacFixedChunks=0 only)` to the descriptions of `OMPJacNchunks`, `OMPLoadBalance`, `OMPAutoBalance` and
   `OMPBalanceStrength` (`:43-51`).
   In `ParallelDebug`, after `OMPCopyScalar` (`:38-40`):
   ```
   OMPJacChunkReset  integer [none] /1/  # For debug, OMPJacFixedChunks=1 only: [1] evaluate the full RHS (pandf) on
                                         # the thread before each chunk, so every chunk starts from the same state;
-                                        # [0] skip it (the Jacobian then depends on Nthreads and the schedule)
+                                        # [0] skip it (the Jacobian then depends on the thread count and the schedule)
   ```
-- **GOTCHA**: no `#` inside descriptions; none of these is written inside `pandf`, so they are not `+threadprivate`.
-- **VALIDATE**: after task 4's build: `python -c "from uedge import ppp; print(ppp.OMPJacFixedChunks, ppp.OMPJacNchunksFixed, ppp.OMPJacChunkReset)"` → `1 64 1`, in both venvs.
+- **GOTCHA**: no `#` inside descriptions. None of these is written inside `pandf`, so none is `+threadprivate`.
+- **VALIDATE**: after task 4's build, `python -c "from uedge import ppp; print(ppp.OMPJacFixedChunks, ppp.OMPJacNchunksFixed, ppp.OMPJacMinChunkLen, ppp.OMPJacChunkReset)"` → `1 64 300 1` in both venvs.
 
 ### 2. UPDATE `ppp/omp_parallel.F90` — `InitOMPJac`, `jac_calc_omp`, new `OMPFixedSplitIndex`
-- **IMPLEMENT** `InitOMPJac` (`:312`): a new first branch
+- **IMPLEMENT** `InitOMPJac` (`:312`), a new first branch:
   ```fortran
   if (OMPJacFixedChunks.gt.0) then
       if (OMPJacNchunksFixed.le.0) call xerrab('*** InitOMPJac: OMPJacNchunksFixed must be > 0 ***')
-      NchunksJac=min(OMPJacNchunksFixed,neq)
+      if (OMPJacMinChunkLen.le.0) call xerrab('*** InitOMPJac: OMPJacMinChunkLen must be > 0 ***')
+      ! problem size only (AIUE-61): never depends on the thread count
+      NchunksJac=min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen))
   elseif (OMPJacNchunks.eq.0) then   ! legacy branches unchanged
   ```
-  (`USE OMPJacSettings` is already whole-module.) `nnzmxperchunk` keeps its formula (same total storage as today).
-- **IMPLEMENT** `jac_calc_omp` (`:545-563`): `if (OMPJacFixedChunks.gt.0) then call OMPFixedSplitIndex(neq,NchunksJac,OMPivmin,OMPivmax) else <weights block and OMPSplitIndex unchanged> endif`.
+  `USE OMPJacSettings` is already whole-module. `nnzmxperchunk` keeps its formula, which gives the same total storage
+  as today.
+- **IMPLEMENT** `jac_calc_omp` (`:545-563`):
+  `if (OMPJacFixedChunks.gt.0) then; call OMPFixedSplitIndex(neq,NchunksJac,OMPivmin,OMPivmax); else; <weights block and OMPSplitIndex unchanged>; endif`.
   Add `OMPJacFixedChunks` to the `USE OMPJacSettings, ONLY:` list (`:509-510`).
-- **IMPLEMENT** `SUBROUTINE OMPFixedSplitIndex(neq,N,ivmin,ivmax)` next to `OMPSplitIndex` (outside `#ifdef _OPENMP`,
-  like it): `ivmin(i)=((i-1)*neq)/N+1`, `ivmax(i)=(i*neq)/N`, for i=1..N. Comment: the boundaries depend only on neq and N, never on weights or timings.
-- **GOTCHA**: with N = neq every chunk is one column. That is valid, but each chunk then pays one full `pandf` (P4: the Te box).
-- **VALIDATE**: build (task 4). With `OMPJacVerbose=1` the chunk table of a full-problem run shows 64 chunks of 693 columns, the same in two Jacobians of one `--itermx 3` run.
+- **IMPLEMENT** `SUBROUTINE OMPFixedSplitIndex(neq,N,ivmin,ivmax)` next to `OMPSplitIndex`, outside `#ifdef _OPENMP`
+  like it: `ivmin(i)=((i-1)*neq)/N+1`, `ivmax(i)=(i*neq)/N` for i=1..N. Comment: the boundaries depend only on neq and
+  N.
+- **VALIDATE**: task 4's build. With `OMPJacVerbose=1`, a full-problem run shows 64 chunks of 693 columns, the same in
+  both Jacobians of one `--itermx 3` run. The Te box shows 1 chunk, and 25 with `OMPJacMinChunkLen=1`.
 
-### 3. UPDATE `ppp/omp_parallel.F90` — `OMPJacBuilder` (heap fix, reset flag)
-- **IMPLEMENT**: delete `iJacColCopy`, `rJacElemCopy` (declarations `:672,675`, init `:706-707`, `firstprivate`
-  `:720`, copy-back `:734-735`). Pass `iJacCol(:,ichunk), rJacElem(:,ichunk)` to `LocalJacBuilder` (`:729-730`).
-  New local `integer :: ifresh`, set before the loop: `ifresh = merge(1,0, OMPJacFixedChunks.gt.0 .and. OMPJacChunkReset.gt.0)`
-  (or an `if`), passed as the new last argument. It is shared and read-only in the loop. Add `OMPJacFixedChunks`, and
-  `OMPJacChunkReset` from `ParallelDebug`, to the `USE` lists (`:646-647`). Comment at the call: why the chunk starts fresh (AIUE-8 C2: column history; P3).
-  Keep `schedule(dynamic,OMPLoopJacNchunk)` (D1; literal decision 9 would be `schedule(static,1)` here).
-- **GOTCHA**: `iJacCol(:,ichunk)` is a contiguous column, so no copy-in temporary; each `ichunk` is written by one
-  thread only. `iJacCol` entries beyond `nnz(ichunk)-1` keep the old values, and `OMPCollectJacobian` reads only
-  `1:nnz-1` (`:477-482`). The remaining `firstprivate` arrays (`ylcopy`, `iJacRowCopy`, `TimeJacRowcopy`, size neq) are unchanged (not this ticket).
-- **VALIDATE**: task 4's build, then NC3 (the crash is gone).
+### 3. UPDATE `ppp/omp_parallel.F90` — `OMPJacBuilder` (heap fix, reset flag, timing slot)
+- **IMPLEMENT**:
+  - Delete `iJacColCopy` and `rJacElemCopy`: the declarations (`:672,675`), the init (`:706-707`), the `firstprivate`
+    entry (`:720`) and the copy-back (`:734-735`). Pass `iJacCol(:,ichunk), rJacElem(:,ichunk)` to
+    `LocalJacBuilder` (`:729-730`).
+  - New local `integer :: ifresh`, set before the loop: `1` if `OMPJacFixedChunks.gt.0 .and. OMPJacChunkReset.gt.0`,
+    else `0`. Shared and read-only in the loop, and passed as the new last argument.
+  - **Timing (L1-B1):** replace the write at `:740`, and the verbose print at `:744`, with
+    `if (OMPJacFixedChunks.gt.0) then; OMPTimeLocalJac(ichunk)=…; else; OMPTimeLocalJac(tid+1)=…; endif` (the print
+    the same way). Comment: in fixed mode the chunk count can be smaller than the team; legacy unchanged.
+  - Add `OMPJacFixedChunks` (from `OMPJacSettings`) and `OMPJacChunkReset` (from `ParallelDebug`) to the `USE` lists
+    (`:646-647`). Comment at the call: why the chunk starts fresh (AIUE-8 C2, column history).
+  - Keep `schedule(dynamic,OMPLoopJacNchunk)` and the `copyin` list (D1). Dropping `emcoef` from `copyin` (AIUE-60
+    plan, A6) is left out deliberately, so the directive keeps its tested form.
+- **GOTCHA**:
+  - `iJacCol(:,ichunk)` is a contiguous column, so there is no copy-in temporary, and each `ichunk` belongs to one
+    thread.
+  - `OMPCollectJacobian` reads only `1:nnz-1` (`:477-482`).
+  - The remaining `firstprivate` arrays (`ylcopy`, `iJacRowCopy`, `TimeJacRowcopy`, each of size neq) are unchanged.
+- **VALIDATE**: task 4's build, then NC3 and G10.
 
 ### 4. UPDATE `ppp/parallel.F90` — `LocalJacBuilder`
-- **IMPLEMENT**: new argument `ifresh` (`integer,intent(in)`, appended to the argument list `:159-160` and the declaration
-  `:185`). Before `loopiv` (`:211`): `if (ifresh.gt.0) call pandf (-1, -1, neq, t, yl, wk)`, with the comment "start this chunk
-  from the fresh full-RHS state, so the columns don't depend on what this thread evaluated before (AIUE-61)". `wk`
-  is the routine's automatic array (`:195`). Every column re-initialises `wk(ii1:ii2)` from `yldot00` (`:236-238`), so the reset's `wk` contents are never read.
-- **GOTCHA**: `yl` here is the thread's `firstprivate` `ylcopy`, unperturbed between columns. `LocalJacBuilder` has no other caller (`grep -rn LocalJacBuilder ppp bbb`).
-- **VALIDATE**: `build_uedge.sh /Users/holma/Documents/uedge/src/uedge-wt/AIUE-61 venvs/AIUE-61-omp omp`; then the second tree
-  `git worktree add --detach ../AIUE-61-serial <commit>` → `build_uedge.sh … venvs/AIUE-61-serial serial`. Both
-  import; no new warnings in `ppp/*` (`grep -a -i warning` in the build logs for `omp_parallel`/`parallel.F90`). Smoke run: probe P2 again (`jworker.py` in the scratch directory) with the real build: same hash at 2 and 4 threads.
+- **IMPLEMENT**: a new argument `ifresh` (`integer,intent(in)`), appended at `:159-160` and declared at `:185`.
+  Before `loopiv` (`:211`) add `if (ifresh.gt.0) call pandf (-1, -1, neq, t, yl, wk)`, with a comment: start this
+  chunk from the fresh full-RHS state, so its columns don't depend on what this thread evaluated before (AIUE-61).
+  Every column re-initialises `wk(ii1:ii2)` (`:236-238`), so nothing reads the reset's output.
+- **GOTCHA**: `yl` is the thread's `firstprivate` `ylcopy`: unperturbed between columns, with `yl(neq+1)` as the
+  caller set it. `LocalJacBuilder` has no other caller.
+- **VALIDATE**:
+  - `build_uedge.sh …/AIUE-61 venvs/AIUE-61-omp omp`.
+  - The second tree: `git worktree add --detach ../AIUE-61-serial <commit>`, then `build_uedge.sh … venvs/AIUE-61-serial serial`.
+  - `venvs/AIUE-61-chk`: the same as `build_uedge.sh … omp`, but with `-C "--build-option=--checkbounds"`. Use a copy
+    of the script with that option, never an edit of the shared script.
+  - All three import, with no new warnings in `ppp/*`.
+  - Smoke: P2 with the real build gives the same full-problem hash at 2 and 4 threads.
 
 ### 5. UPDATE `.claude/context/openmp-jacobian.md` (own commit, trailer `AI-layer: code-facts`)
-- **IMPLEMENT**: in the Jacobian bullet, the default is a fixed contiguous partition (`OMPJacFixedChunks=1`,
-  `OMPJacNchunksFixed=64`, capped at neq). Each chunk starts with a full `pandf` on its thread (why: column history,
-  AIUE-8 C2). The result is bitwise reproducible and independent of `Nthreads`, but not equal to serial on macOS
-  arm64. The legacy partition is `OMPJacFixedChunks=0`. `LocalJacBuilder` writes straight into `iJacCol/rJacElem`, so
-  there are no per-thread automatic copies. A rule for future code: anything that makes a full `pandf` not reset
-  some state (a new history carrier) breaks this guarantee. Then `uv run .claude/hooks/check_context_refs.py
-  --changed origin/v9-develop` (`--fix` for the moved `ppp/omp_parallel.F90` lines, then `--update` after re-reading).
-- **VALIDATE**: the drift check is clean; `uv run .claude/hooks/change_kind.py --range bugfix/v9-AIUE-56-omp-jacobian-fix..HEAD` is clean.
+- **IMPLEMENT**:
+  - In the Jacobian bullet:
+    - the default fixed partition (`OMPJacFixedChunks=1`; the chunk count rule with `OMPJacNchunksFixed=64` and
+      `OMPJacMinChunkLen=300`);
+    - the full `pandf` at each chunk start, and why;
+    - the guarantee and its scope: the exmain roadblocks, the AIUE-60 Part B paths unvalidated, macOS ≠ serial;
+    - the legacy switch;
+    - no per-thread automatic copies;
+    - `OMPTimeLocalJac` per chunk in fixed mode.
+  - A rule for future code: a new history carrier that a full `pandf` doesn't reset, or a shared variable written in
+    `pandf`, breaks the guarantee.
+  - Then run `check_context_refs.py --changed origin/v9-develop` (`--fix` for the moved `ppp/omp_parallel.F90` lines;
+    `--update` after re-reading).
+- **VALIDATE**: the drift check is clean; `change_kind.py --range <base>..HEAD` is clean.
 
-### 6. ADD `docs/reviews/AIUE-61-*` (validation tooling and record, artifact path)
-- `AIUE-61-run_protocol.sh` (every phase-2 command below), `AIUE-61-jworker.py` and `AIUE-61-conv_worker.py` (the
-  probe workers, recreated because the session scratchpad of the cost study is gone), `AIUE-61-timing.py`
-  (interleaved timing driver), `AIUE-61-validation.txt` (results, tool commits, verbatim RESULT lines).
+### 6. ADD `docs/reviews/AIUE-61-*` (validation tooling and record, an artifact path)
+- `AIUE-61-run_protocol.sh`: every command below.
+- `AIUE-61-jworker.py`: one Jacobian, its hash, `NchunksJac`, `ttjstor`.
+- `AIUE-61-conv_worker.py`: the `dtreal=1e-9` driver.
+- `AIUE-61-timing.py`: the interleaved timing driver with the load rule.
+- `AIUE-61-state_probe.py`: G0a.
+- `AIUE-61-shared-full.py`: G0b, a copy of AIUE-50's `scan_shared_state.py` sentinel test with the column pair
+  replaced by one full `pandf(-1,-1)` in Jacobian mode.
+- `AIUE-61-pytests_omp.py`: G9b, the AIUE-53 `pytests_worker.py` sequence with the jac arm, plus the C1-bound
+  comparison.
+- `AIUE-61-validation.txt`: the results, tool commits, and verbatim RESULT lines.
 
-## Validation protocol (pre-registered; macOS arm64 unless stated)
+## Validation protocol (pre-registered; macOS arm64 unless stated; final run on the AIUE-60-combined tree)
 
-**Tools and builds (pinned in the validation record).** Harness: reviewed core at
-`feature/v9-AIUE-57-omp-ci-job` `8ee189d` (`/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp/harness/cli.py`).
-Serial check: `feature/v9-AIUE-53-serial-bitwise-check` `15ae327` (`harness/serial_check.py`). C1 gate:
-`docs/reviews/AIUE-56-c1-gate.py` from the AIUE-56 branch (unchanged). Builds: `AIUE-61-omp`, `AIUE-61-serial`.
-References: `base-omp`, `base-serial` (`v9-develop` product `0fac655`) and `AIUE-56-omp` (the old default, C1-fixed).
-Every harness run is a fresh `python -I` process with an empty HOME and `OMP_STACKSIZE=512M`. **Every new-mode run passes
-its settings explicitly** (`--ppp '{"OMPJacFixedChunks": 1, "OMPJacNchunksFixed": 64}'`), because the harness
-provenance doesn't record the new switches (`worker.py:246-248`; follow-up for the harness, not here).
-Budget: at most 2 UEDGE processes at a time and at most 4 threads each, except 8-thread runs, which run alone. Timing runs
-one process at a time. Record the load average with each timing run.
+**Tools and builds**, pinned in the validation record:
+- Harness: the reviewed core, `feature/v9-AIUE-57-omp-ci-job` `8ee189d`.
+- Serial check: `feature/v9-AIUE-53-serial-bitwise-check` `15ae327`.
+- C1 gate: `docs/reviews/AIUE-56-c1-gate.py`, unchanged.
+- Builds: `AIUE-61-omp`, `AIUE-61-serial`, `AIUE-61-chk`.
+- References: `base-omp`/`base-serial` (product `0fac655`); `AIUE-56-omp` (the old default); after the rebase, also an
+  `AIUE-60-omp` build of AIUE-60's approved commit as the old-default reference for G7.
 
-**"Deterministic"** below means: every quantity the harness compares (every captured Jacobian, the post-`exmain`
-Jacobian, `sfscal`, `suscal`, `yldot`, the RHS probe, the printed `fnrm` sequence, `get_fnrm`) is bitwise equal between
-the runs (the harness's run-0-vs-run-k verdict). Thread identity uses the same comparison
-(`cli.py compare A/run0 B/run0`).
+**Run conditions:**
+- Every harness run is a fresh `python -I` process with an empty HOME and `OMP_STACKSIZE=512M` (except G10b).
+- Every fixed-mode run passes its settings explicitly, e.g.
+  `--ppp '{"OMPJacFixedChunks": 1, "OMPJacNchunksFixed": 64, "OMPJacMinChunkLen": 300}'`, because the harness
+  provenance doesn't record the new switches (`worker.py:246-248`; a harness follow-up).
+- At most 2 UEDGE processes at a time, at most 4 threads each; 8-thread runs and all timing runs run alone.
+
+**"Deterministic"** means that everything the harness compares is bitwise equal between the runs: every captured
+Jacobian, the post-`exmain` Jacobian, `sfscal`, `suscal`, `yldot`, the RHS probe, the printed `fnrm` sequence and
+`get_fnrm`. Thread identity uses the same comparison (`cli.py compare A/run0 B/run0`). **Any determinism or identity
+failure is a FAIL, whatever its cause** (Guarantee and its scope).
 
 ### Gates (each PASS/FAIL; all must PASS)
 | ID | What | PASS when |
 |---|---|---|
+| **G0a** | P3 again (`AIUE-61-state_probe.py`), serial build `AIUE-61-serial`, **`yl(neq+1)=1` set explicitly**, all packages (`bbb, com, api, aph, wdf, svr, flx, grd, ppp, ncl`) in all 4 regions | after the full `pandf`, only timers/counters and the `Jacobian_restore` scratch differ from the fresh state |
+| **G0b** | Shared writes of one full Jacobian-mode `pandf` (`AIUE-61-shared-full.py --sentinel`, all packages) | the set of non-threadprivate variables WRITTEN is a subset of AIUE-60 Probe S Parts A and B (on the combined tree: Part A gone). Anything else: STOP and report (a race the reset exposes) |
 | **G1** | Defaults unchanged: `serial_check.py --base-python base-serial --new-python AIUE-61-serial --base-omp-python base-omp --new-omp-python AIUE-61-omp --jobs 4` (all 42 cases, both pairs) | `RESULT: AGREE (bitwise identical; complete gate)` |
-| **G2** | K=20 determinism, jac arm, 4 threads, one evaluation: `check --preset tebox` and `--preset full`, `--repeats 20` | all 20 runs deterministic in both presets |
-| **G3** | Thread identity: `check --preset full` and `--preset tebox`, jac arm, K=3 at **1, 2, 3, 4, 8** threads; `compare` run0 of each thread count against 4 threads | AGREE for every pair, and each group deterministic |
-| **G4** | Newton path: `check --itermx 3`, full and tebox, jac arm, 4 threads K=5; plus 2 and 8 threads K=1 each, compared with 4 threads | deterministic; thread pairs AGREE |
-| **G5** | `flow --all` (all 8 configurations, 2/4/8 threads, K=2, both arms, `--max-jobs 2 --cores 8 --gate none`), plus `compare` of jac run0 at 2 vs 4 vs 8 threads per configuration | jac arm: "deterministic: yes" in **every** group and every thread pair AGREE. jacrhs: report only |
-| **G6** | AIUE-56 C1 gate on every one-evaluation jac run of G2, G3, G5 | `GATE PASS` everywhere (magnitude ≤ 10× serial Te-row max; deviation ≤ 1e-6 × serial row max) |
-| **G7** | Cost (`AIUE-61-timing.py`): full problem, one Jacobian (`com.ttjstor`) and `exmain` wall; NEW (AIUE-61-omp default) vs OLD (AIUE-56-omp default) vs LEG (AIUE-61-omp, `OMPJacFixedChunks=0`), at 2, 4, 8 threads, **≥ 5 repeats each, one shuffled interleaved order, one process at a time** | median NEW/OLD `ttjstor` ≤ **1.10** at 2, 4 and 8 threads (the ticket's "within about 10 %"). Report median, min–max and every sample. A ratio within 1.10 but with overlapping spreads is reported as "within noise" |
-| **G8** | Heap fix (NC3 below) and legacy path unchanged (NC4) | as stated there |
-| **G9** | `validate` skill: branch hygiene + drift check clean, serial build + smoke, D_only with the serial build, **D_only pytests with the OpenMP build** (switches at the decks' defaults), OpenMP check (step 4) on the D_only default case with `OMPParallelPandf1=1, OMPParallelJac=1, Nthreads=4, CheckPandf1=1, CheckJac=1` | D_only passes in both builds; the OpenMP check reports no difference. If `CheckJac` reports a round-off difference (its tolerance is an absolute 1e-14, `ppp/parallel.F90:120`), run the same check on `AIUE-56-omp`: the same kind of difference there → ⚠️ pre-existing (C2), reported verbatim; a new kind → ❌ |
+| **G2** | K=20 determinism, jac arm, 4 threads, one evaluation: `check --preset full`; `check --preset tebox` **with `OMPJacMinChunkLen=1`** (25 chunks) and with the default (1 chunk); `--repeats 20` each | all 20 runs deterministic in every group |
+| **G3** | Thread identity. `check`, jac arm, K=3, at **1, 2, 3, 4 and 8** threads, for `full` (default), `tebox` with `OMPJacMinChunkLen=1`, and `tebox` with the default. Compare run0 of each thread count with 4 threads. **G3-sched:** `full` at 4 threads with `OMPLoopJacNchunk=3` against the default 1. **G3-count:** `AIUE-61-jworker.py` records `NchunksJac` at 1/2/4/8 threads for `full` (64), `tebox` (1), and `tebox` with min 1 (25) | AGREE for every pair; every group deterministic; G3-sched AGREE; G3-count shows the same count at every thread count |
+| **G4** | Newton path: `check --itermx 3`, `full` and `tebox` (min 1), jac arm, 4 threads, K=5; plus 2 and 8 threads, K=1 each, compared with 4 threads | deterministic; thread pairs AGREE |
+| **G5** | `flow --all` (8 configurations, 2/4/8 threads, K=2, both arms, `--max-jobs 2 --cores 8 --gate none`), plus a `compare` of jac run0 at 2 against 4 and 8 threads for every configuration | jac arm: "deterministic: yes" in **every** group, and every thread pair AGREE. jacrhs: report only (R3) |
+| **G6** | AIUE-56 C1 gate on every one-evaluation jac run of G2, G3 and G5 | `GATE PASS` everywhere |
+| **G7** | Cost (`AIUE-61-timing.py`), see the rules below | the median NEW/OLD `ttjstor` ratio is ≤ **1.10** at 2, 4 and 8 threads. Nothing else decides: there is no "within noise" exemption |
+| **G8** | Heap fix (NC3) and the legacy path unchanged (NC4) | as stated in the controls |
+| **G9a** | `validate` skill: branch hygiene, drift check, serial build and smoke, D_only with the serial build, **D_only with the OpenMP build** (decks' default switches), and the OpenMP check on the D_only default case with `OMPParallelPandf1=1, OMPParallelJac=1, Nthreads=4, CheckPandf1=1` | all pass; `CheckPandf1` reports no difference |
+| **G9b** | `AIUE-61-pytests_omp.py` on `pytests/unittests/D_only/nonog/default`: jac arm, the default and `OMPJacMinChunkLen=1`, at 2 and 4 threads, K=3, plus a serial reference | deterministic; 2 threads = 4 threads; deviation from serial within the C1-gate bounds on all rows. **`CheckJac=1` on the same case is report-only** (L1-m4): its absolute 1e-14 positional comparison (`ppp/parallel.F90:120`) can't express the accepted C2 difference, and it stops at the first entry. Its output is quoted verbatim |
+| **G10** | L1-B1 bounds: `AIUE-61-chk` build, jac arm, 4 threads: `tebox` default (1 chunk), `tebox` with `OMPJacMinChunkLen=12` (2 chunks), `full` with `OMPJacNchunksFixed=2`, each K=1. **G10b:** `AIUE-61-omp`, `full` default, 4 and 8 threads, **without `OMP_STACKSIZE`** (L1-m6; the `AIUE-61-jworker.py` launcher with the variable left out) | no runtime bounds error and no crash; G10b hashes equal G3's |
+
+**G7 rules (L1-m2):**
+- Configurations: NEW = `AIUE-61-omp` default; OLD = the old default (`AIUE-56-omp`, and after the rebase `AIUE-60-omp`);
+  LEG = `AIUE-61-omp` with `OMPJacFixedChunks=0`.
+- The full problem, one Jacobian per run (`com.ttjstor`, and `exmain` wall time), at 2, 4 and 8 threads.
+- **At least 5 valid repeats per configuration at 2 and 4 threads, and at least 9 at 8 threads**, in one shuffled,
+  interleaved order, one process at a time.
+- **Load rule:** before each run, record the 1-minute load average. A run is valid only if load1 ≤ 14 − T (the host has
+  14 CPUs). An invalid run is re-queued at the end, at most 3 times per slot.
+- If a cell can't reach its valid count within the session, G7 is "not run (machine busy)". It is rescheduled with the
+  coordinator for a quiet window, never passed.
+- Report every sample with its load, the medians, min–max, and the median ratio NEW/OLD and LEG/OLD.
+- Secondary, report-only: the mean `ttjstor` per Jacobian from runs with `itermx=3`, 3 repeats per configuration at 4
+  and 8 threads.
 
 ### Negative and positive controls (each must behave as stated, or the gate that relies on it is void)
 | ID | Run | Expected |
 |---|---|---|
-| NC1 | AIUE-61-omp, `OMPJacChunkReset=0`, full, jac, 2 and 4 threads, K=2 | thread pair **MISMATCH** (P2-neg). This shows G3 can detect thread dependence |
-| NC2 | AIUE-61-omp, `OMPJacFixedChunks=0` (legacy), full, jac, 8 threads, K=5 | **not deterministic** (the study saw 5 distinct hashes in 5 runs). This shows G2 can detect run-to-run variation. A deterministic K=5 outcome is reported as "control inconclusive", not as a pass |
-| NC3 | full, jac, 4 threads, `OMPJacNchunks=16, OMPAutoBalance=0`, no `ulimit`: AIUE-56-omp vs AIUE-61-omp (`OMPJacFixedChunks=0`) | AIUE-56: crash (signal, no record); AIUE-61: completes and passes the C1 gate |
-| NC4 | jac arm, **1 thread**, full and tebox: AIUE-56-omp (default) vs AIUE-61-omp `OMPJacFixedChunks=0` | bitwise AGREE: with 1 thread both run the legacy path in the same column order, so the heap fix changes no value |
-| C-isjr | AIUE-61-omp, full, jac, 4 threads, `bbb.isjacreset=0` vs default | AGREE (isjacreset doesn't change the Jacobian); its time is reported (the size of the optional saving) |
-| C-ser | Every `check` includes a serial reference of the same build | for the report: mismatch count, rows, worst deviation vs serial per configuration (expected on macOS: Te rows only, ≤ 4.6e-9 × row max) |
+| NC1 | `OMPJacChunkReset=0`, `full`, jac, 2 and 4 threads, K=2 | thread pair **MISMATCH** (P2-neg). Shows that G3 detects thread dependence |
+| NC2 | `OMPJacFixedChunks=0` (legacy), `full`, jac, 8 threads, K=5 | **not deterministic** (study: 5 distinct hashes in 5 runs). Shows that G2 detects variation; a deterministic outcome is "control inconclusive", never a pass |
+| NC3 | `full`, jac, 4 threads, `OMPJacNchunks=16, OMPAutoBalance=0`, no `ulimit`: `AIUE-56-omp` against `AIUE-61-omp` with `OMPJacFixedChunks=0` | AIUE-56 crashes (a signal, no record); AIUE-61 completes and passes the C1 gate |
+| NC4 | jac arm, **1 thread**, `full` and `tebox`: `AIUE-56-omp` (default) against `AIUE-61-omp` with `OMPJacFixedChunks=0` | bitwise AGREE (with one thread both run the legacy path in serial column order, so the heap fix changes no value) |
+| NC5 | `AIUE-61-chk`, legacy `OMPJacNchunks=2`, `tebox`, 4 threads, K=5 | at least one run stops with a bounds error on `OMPTimeLocalJac` (F-61-2). Shows that G10 can see this array; if none trips, G10 is void and reported so |
+| C-isjr | `full`, jac, 4 threads, `bbb.isjacreset=0` against the default | AGREE; its time is reported |
+| C-guard | the deck with `OMPParallelJac=1` plus `ismcnon=4`; plus `isimpon=5` | `exmain` stops with the roadblock messages before any Jacobian |
+| C-ser | every `check` includes a serial reference | for R1 |
 
 ### Reported, not gated
-- **R1 Deviation from serial** per configuration and thread count (G2–G5 records): entries, rows by equation (via
-  the harness localisation), worst ratio, compared with the AIUE-56 build's numbers (`AIUE-56-validation.txt`).
-- **R2 `dtreal=1e-9` scenario** (`AIUE-61-conv_worker.py`: deck, `full`, jac arm, `dtreal=1e-9`, 5 × `exmain`,
-  Jacobian recomputed each step): NEW at 4 threads K=2, at 2 and 8 threads K=1. **Expected:** identical per-step
-  `iterm`/`fnrm` and a bitwise-equal final state in all four runs. If that
-  expectation doesn't hold, it counts as a G3 FAIL. Whether step 1 converges is reported, not gated. **Pre-registered expectation from P5: step 1 fails (`iterm=4`) in all four runs, with identical `fnrm`** (see Q3). The serial build converges
-  (21, 4, 3, 4, 3 iterations), serial with `-ffp-contract=off` does not, and the old default converged in 3 of 5.
-- **R3 jacrhs arm** (G5): determinism and agreement per group, compared with the AIUE-56 build. Any regression → AIUE-58.
-- **R4 Sensitivity:** `OMPJacNchunksFixed` 32 and 128 at 4 and 8 threads, 3 interleaved repeats each (cost and deviation
-  only), and the Te box `ttjstor` with and without the reset (P4) — for the owner's Q2/Q5.
-- **R5 Linux x86-64 (if feasible):** AIUE-62's Docker setup (`tests/deterministic_omp/linux/README.md` on the AIUE-62 branch;
-  Debian image, `LDFLAGS=-fopenmp`, `--cpus 5`, **one container at a time**, coordinated with the AIUE-64 agent).
-  Build this branch; `check` tebox and full jac at 4 threads K=5, full jac at 2 and 8 threads K=2, `up` jac at 4 and 8
-  threads K=5 (M3, AIUE-65), and thread-pair compares. **Expected:** tebox and full bitwise equal to serial and deterministic
-  (no C2 on x86-64, so the fresh chunk start produces serial's values). M3: the `up` rows at the inner plate either
-  disappear (as with fixed chunks in `ctl_fix_up_t8_static_k5`) or appear deterministically at every thread count.
-  If R5 runs, a determinism or thread-identity failure there counts as a G2/G3 FAIL. If it can't run, the PR says
-  "Linux not run" and the first green AIUE-57 CI run is the check.
+- **R1:** deviation from serial for each configuration and thread count: entries, rows by equation, and worst ratio,
+  compared with `AIUE-56-validation.txt`.
+- **R2:** the `dtreal=1e-9` scenario (`AIUE-61-conv_worker.py`), new default, 4 threads K=2, and 2 and 8 threads K=1.
+  Pre-registered from P5: step 1 fails (`iterm=4`) in all four runs, with final `get_fnrm` `0x1.aa0e230edbab4p-2` and a
+  bitwise-equal final state. **Identical outcomes are required (owner Q3), and a difference is a G3 FAIL.** Convergence
+  is not required.
+- **R3:** the jacrhs arm (G5) against the AIUE-56 build, read alongside AIUE-58's R1. Regressions go to AIUE-58.
+- **R4:** sensitivity:
+  - `OMPJacNchunksFixed` 32 and 128 at 4 and 8 threads, 3 interleaved repeats;
+  - the Te box `ttjstor` with the default (1 chunk) and with min 1 (25 chunks);
+  - the D_only time with the default.
+- **R5:** Linux x86-64, if Docker is free (AIUE-62 scripts; Debian, `LDFLAGS=-fopenmp`, `--cpus 5`, one container at a
+  time, coordinated with AIUE-64):
+  - `check` runs: `tebox` (min 1) and `full`, jac, 4 threads, K=5; `full` jac at 2 and 8 threads, K=2; `up` jac at 4
+    and 8 threads, K=5 (M3, AIUE-65); thread-pair compares.
+  - Expected: `tebox` and `full` bitwise equal to serial and deterministic. M3 either disappears or appears
+    deterministically.
+  - A determinism or identity failure there is a G2/G3 FAIL. Not run → "Linux not run" in the PR.
+- **Findings for others, not fixed here:**
+  - **F-61-1** (RCA, AIUE-60): `jacobian_reset` restores six scalars that were taken from the box's last cell, so it
+    writes them to the wrong cell (`bbb/pandf_plasma_energy.m:574-575,597,771,909,927`, `bbb/pandf_jacobian.m:87-93`).
+    It happens in serial too, and it is a history carrier.
+  - **F-61-2** (follow-up): legacy `OMPTimeLocalJac(tid+1)` overflows when `NchunksJac` is smaller than the team (NC5).
 
 ### Run order and estimate
-Build both venvs (≈ 10 min) → G1 (≈ 35 min, `--jobs 4`) → NC3, NC4, C-isjr (≈ 10 min) → G2 (full K=20 at 4 threads ≈ 25 min;
-tebox ≈ 2 min) → G3 + NC1 + NC2 (≈ 30 min) → G4 (≈ 25 min) → G5 (≈ 60–90 min) → G6 (script, minutes) → G7 (45 runs ≈ 35 min,
-alone) + R4 → R2 (≈ 30 min) → G9 (≈ 20 min) → R5 (≈ 60 min, if Docker is free).
+1. Implement on the AIUE-56 base. Build the three venvs (≈ 15 min). Development checks: G0a, G0b, G3 (`full`/`tebox`
+   at 2/4), NC1, NC3, NC4, G10 and NC5 (≈ 60 min) — an early warning, not the final record.
+2. When AIUE-60's implementation is approved: rebase, rebuild, then the **final run on the combined tree:**
+   - G0a and G0b (10 min)
+   - G1 (35 min)
+   - NC1–NC5, C-isjr, C-guard (30 min)
+   - G2 (30 min)
+   - G3 and G3-sched (40 min)
+   - G4 (25 min)
+   - G5 (60–90 min)
+   - G6 (minutes)
+   - G7, alone (about 70 runs, ≈ 60 min) and R4
+   - R2 (≈ 40 min)
+   - G9a and G9b (30 min)
+   - G10 (15 min)
+   - R5 (≈ 60 min)
 
 ## AI-layer facts affected
-- `.claude/context/openmp-jacobian.md`: the Jacobian bullet (new default, reset, legacy switch, no per-thread copies)
-  and the moved `ppp/omp_parallel.F90` line refs (`:645`, `:721`, `:908` are cited there; the edits shift `:908`).
-  Checked: `.claude/context/mppl-fortran.md:69` cites `ppp/omp_parallel.F90:908-936` (OMPPandf1Rhs), so `--fix` that line
-  too. `architecture.md` (`ppp` row: file list unchanged), `CLAUDE.md`, `testing.md`: no change (no new file or build step).
+- `.claude/context/openmp-jacobian.md`: the Jacobian bullet (task 5) and the moved `ppp/omp_parallel.F90` refs
+  (`:908`, and `:959-961` in rule 4).
+- `.claude/context/mppl-fortran.md:69` (`ppp/omp_parallel.F90:908-936`): `--fix`.
+- `architecture.md` (the `ppp` file list is unchanged), `CLAUDE.md`, `testing.md`: no change.
+- After the rebase, merge with AIUE-60's edits to the same file and re-lock.
 
 ## Acceptance criteria (Jira AIUE-61, mapped)
 - [ ] AIUE-53 serial check AGREE, both builds, complete gate (G1)
-- [ ] K=20 bitwise-identical runs, Te box and full, 4 threads (G2); the same Jacobian at 2/4/8 threads (G3; 1 and 3 as
-      extra); `flow --all` deterministic in every configuration (G5); also over 3 Newton iterations (G4)
-- [ ] AIUE-56 C1 gate PASS; deviation from serial reported (G6, R1)
-- [ ] Cost vs the old default, interleaved at 2/4/8 threads, within about 10 % (G7)
-- [ ] Effect on M3 (R5) and on the `dtreal=1e-9` scenario (R2) reported
-- [ ] Heap fix: `OMPJacNchunks≠0` no longer crashes (NC3); legacy behaviour available and documented (`OMPJacFixedChunks=0`, NC4)
+- [ ] K=20 bitwise-identical runs, Te box and full problem, 4 threads (G2)
+- [ ] The same Jacobian at 2/4/8 threads, plus 1 and 3 (G3)
+- [ ] `flow --all` deterministic in every configuration (G5)
+- [ ] Also deterministic over 3 Newton iterations (G4)
+- [ ] AIUE-56 C1 gate PASS (G6, G9b); deviation from serial reported (R1)
+- [ ] Cost against the old default, interleaved at 2/4/8 threads, within about 10 % (G7)
+- [ ] Effect on M3 (R5) and on the `dtreal=1e-9` scenario reported, the latter deterministic (R2)
+- [ ] Heap fix: `OMPJacNchunks≠0` no longer crashes (NC3)
+- [ ] Legacy behaviour available and documented (`OMPJacFixedChunks=0`, NC4)
+- [ ] No out-of-bounds write with fewer chunks than threads (G10)
+- [ ] Owner Q5: the minimum chunk length is implemented and tested (tasks 1–2, G3-count)
 - [ ] New variables visible from Python with `[none]` units and descriptions (task 1)
 - [ ] `openmp-jacobian.md` updated; drift check clean (task 5)
-- [ ] PR states the OpenMP-build default change (decision 9, owner-approved exception) and D1's resolution
-
-## Open questions for the owner
-- **Q1 (D1, blocking):** accept the per-chunk reset plus the dynamic schedule instead of literal `schedule(static,1)`?
-  The evidence is P1, P2 and P2-neg. Without the reset, the thread-identity criterion fails at 64 chunks. With it, static and
-  dynamic give the same Jacobian, and dynamic is cheaper.
-- **Q2:** default `OMPJacNchunksFixed` = 64. With the dynamic schedule this is about 8 chunks per thread at 8 threads (the study:
-  −4 % vs the old default at 8 threads, before the reset's ≈ 3–4 %). At 16 or more threads users should raise it; any
-  change of the count changes the Jacobian at round-off. 128 halves the load-balance risk and doubles the reset cost
-  and the number of chunk-start mismatches (R4 measures it).
-- **Q3:** with the new default, the `dtreal=1e-9` hard first step of the reproducer deck fails **every time** (P5: 64 and 128 chunks, 2 of 2 configurations), where serial converges and the old default converged in 3 of 5. This is the decision-9 caveat measured on the production design. "Reproducible" here means "reproducibly failing" on this deck (`rundt` would cut the step and retry). It is not a defect of the partition: the trajectory is sensitive at round-off, and an equally valid serial build (`-ffp-contract=off`) fails too. The plan does **not** tune the chunk count to pass this one case. Confirm that this is acceptable for the default.
-- **Q4:** `isjacreset` stays (it costs about 5 % in both modes, and the serial loop doesn't do it) — confirm, or open a separate ticket.
-- **Q5:** small problems (e.g. the 25-equation Te box on the full grid): the reset dominates the cost (0.22–0.35 s vs 0.06 s per
-  Jacobian), small in absolute terms. Accept, or add a minimum chunk length (another input)?
-- **Q6:** optional: one full `pandf` per thread after the loop would make the RHS arm's worker state independent of the
-  Jacobian schedule (about 23 ms per Jacobian). Not in scope unless the owner wants it here rather than in AIUE-58.
+- [ ] Final gates run on the tree combined with AIUE-60, or the PR says the claim is unproven until then
+- [ ] The PR states: the OpenMP default change (decision 9, an owner-approved exception, comment 10021); D1; the
+      trade-off against the old default's occasional bitwise agreement; the timers the resets add to; findings F-61-1
+      and F-61-2
 
 ## Notes
-- Rejected: literal `static,1` without a reset (P1 thread dependence); one chunk per thread (+70–108 %, study); replay (E,
-  +27–98 %, study); the `schedule(runtime)` + `omp_set_schedule` route (crashed in the study's build, and is not needed).
+- Rejected:
+  - literal `static,1` without a reset (P1);
+  - one chunk per thread (+70–108 %, study);
+  - replay (E, +27–98 %, study);
+  - `schedule(runtime)` (it crashed in the study's build, and isn't needed);
+  - a settings-changed guard (Solution 7).
 - Scratch artefacts to remove after the ticket: `uedge-wt/AIUE-61-probe`, `venvs/AIUE-61-probe`,
-  `uedge-wt/scratch-AIUE-61` (all created by this ticket's planning; nothing in them is committed).
+  `uedge-wt/scratch-AIUE-61`. All of them were created during this ticket's planning, and nothing in them is committed.
