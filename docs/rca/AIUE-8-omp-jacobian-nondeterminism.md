@@ -1,11 +1,76 @@
 # AIUE-8: Non-deterministic OpenMP Jacobian (RCA working document)
 
-Status: in progress (sections filled by AIUE-50; characterisation AIUE-54 and RCA AIUE-55 to follow).
+Status: in progress (shared-state scan AIUE-50, characterisation AIUE-54; RCA AIUE-55 to follow).
 
 Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
 `python -I` with an empty `HOME`. "Serial" means a reference run of the same build with `OMP_NUM_THREADS=1` or the
 `--serial` build, as stated.
+
+## Characterisation before any fix (AIUE-54)
+
+Build: OpenMP build of `v9-develop` `0fac655` (`venvs/base-omp`), macOS arm64, gfortran 15.2, Homebrew LLVM
+clang/libomp. Tools: the AIUE-49 harness and the AIUE-52 flow (`tests/deterministic_omp/harness/`). Every run is a
+fresh `python -I` process with an empty `HOME` and `OMP_STACKSIZE=512M`; "serial" is a reference run of the same
+build with both OpenMP switches 0. One evaluation per run (`ftol=1e20`: the `sfsetnk` Jacobian and the iteration-0
+residual) unless stated. "Agree" means bitwise equal in every compared quantity (Jacobian entries and pattern,
+`sfscal`, `suscal`, `yldot`, the RHS probe, `fnrm`). **Linux was not available locally (no running Docker daemon):
+every number here is macOS only; Linux comes with the CI job (AIUE-57).**
+
+### Matrix: every configuration, both arms, 2/4/8 threads (K=2 fresh runs each)
+
+From the AIUE-52 acceptance run (`flow --all --repeats 2`; record `docs/reviews/AIUE-52-validation.txt` on
+`feature/v9-AIUE-52-omp-test-flow`). `phi_te` was a temporary preset equal to the committed `te_phi` (Te and phi on).
+
+| Configuration | neq | Jacobian arm (2/4/8 threads) | Jacobian + RHS arm (2/4/8 threads) |
+|---|---|---|---|
+| `tebox` (owner's Te box) | 25 | FAIL at all three: Te rows, repeats differ | FAIL at all three: Te rows of the Jacobian and of `yldot`, repeats differ |
+| `full` | 44352 | FAIL at all three: Te rows only (≈0.45M / 0.61M / 0.77M entries vs serial), repeats differ | 2 threads: both runs stop with `overflow: SVR routine lusol0 loop 40` (fnrm 2.4e31); 4, 8: FAIL in Te rows, incl. 2–2.5k Te entries of `yldot` |
+| `te` (Te alone) | 3168 | FAIL at all three: Te rows, repeats differ | crashes at all three (SIGSEGV, exit −11, or RuntimeError) |
+| `ti`, `ni`, `up`, `ng` (alone) | 3168 / 25344 / 6336 / 3168 | **PASS** at all three | **PASS** at all three (with ±0 equal in the parallel-RHS `yldot`, PRD P3-m2) |
+| `te_phi` (Te + phi) | 6336 | FAIL at all three: only Te rows differ, phi rows agree | crashes at all three (SIGSEGV) |
+
+Answers to the PRD's open questions:
+
+- **Ion energy (Ti):** clean on both arms at 2/4/8 threads.
+- **Potential (phi):** phi can't be isolated without Te. Phi alone, phi with ni+up, phi with ni+up+ti and the full
+  problem without Te all stop in **serial** with "Jacobian row = 0" at phi(ix=11, iy=1) (e.g. iv 924/1008/1092). With
+  Te on (`te_phi`), the phi rows agree with serial and only Te rows differ. So phi shows no defect of its own, but it
+  can't get an independent verdict while the Te defect exists.
+- **The RHS arm is worse than the Jacobian arm:** it crashes (SIGSEGV) whenever Te is on without the other plasma
+  equations, and overflows the linear solver on the full problem at 2 threads.
+
+### Pre-fix rates at 4 threads (K=20 fresh runs, PRD §11, P3-m4)
+
+Data: `docs/rca/AIUE-8-data/prefix_k20_4threads.csv` (one row per run) and the flow summaries next to it.
+
+| Configuration | Arm | Agree with serial | Distinct iteration-0 `fnrm` among the 20 runs | Distinct nonzero counts | Serial reference |
+|---|---|---|---|---|---|
+| `tebox` | jac | **0/20** | 20 (0.1487 … 0.1775) | 10 (176–189) | fnrm 0.3221264477609989, nnz 169 |
+| `tebox` | jacrhs | **0/20** | 20 (≈8e30) | 4 | as above |
+| `full` | jac | **0/20** | 16 (most common 1.535419111648367, 5 runs) | 20 | fnrm 1.918820629111277, nnz 3190290 |
+
+- The §11 pre-fix requirements hold: the full problem disagrees with serial in 20/20 runs, and the Te box is
+  non-deterministic in 20/20 (every run differs from every other).
+- **Correction to PRD §6.3:** the full problem's printed `fnrm` is *not* stable from run to run (16 distinct values in
+  20 runs here; planning saw 7/7 equal). The full Jacobian is never stable: every run has a different number of
+  nonzeros (3.62–3.69M vs 3.19M serial). The OpenMP pattern has ~0.5M extra entries, all in Te rows, spread over
+  every column equation (te/ni dominates).
+
+### Timing (for the CI budget, AIUE-57)
+
+Measured while other agents loaded the machine (load average 10–75 on 14 cores), so these are upper bounds.
+
+| Run | Wall time |
+|---|---|
+| Te box, one run (serial or 4 threads) | 2–6 s |
+| `flow --configs tebox --threads 4` (K=2, both arms) | 5–23 s |
+| Full problem, serial reference, one evaluation | 35–55 s |
+| Full problem, 4 threads, one evaluation | 11–13 s |
+| Full-problem comparison (two records, ~3.6M entries) | ~5 s |
+| `flow` quick set (tebox + full, 2 and 4 threads, both arms, K=2) | 127 s (idle-ish) to 1260 s (load ~90) |
+| `flow --all` (8 configurations × 2 arms × 3 thread counts, K=2) | 368 s |
+| K=20 full problem, 4 threads, `--cores 8 --max-jobs 2` | 29 min (load ~40) |
 
 ## Shared-state scan (AIUE-50)
 
