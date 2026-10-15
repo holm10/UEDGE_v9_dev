@@ -24,19 +24,27 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 
 ## Raw-Jacobian capture (`bbb.jaccapture`, off by default)
 
-`bbb.jac` after `exmain` is not the raw finite-difference Jacobian: `sfsetnk` scales its columns by `1/suscal`,
-and `psetnk` also scales rows by `sfscal`, normalises rows and factorises it. To get the raw matrix, set
+`bbb.jac` after `exmain` is not the matrix `jac_calc` returned: `sfsetnk` scales its columns by `1/suscal`,
+and `psetnk` also scales rows by `sfscal`, normalises rows and factorises it. To get the unscaled matrix, set
 `bbb.jaccapture = K` (group `Jacobian_capture`, `bbb/bbb.v:4221`). `jac_calc_interface` (`bbb/oderhs.m:4676`) then
 copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/oderhs.m:4716`, routine
 `jac_capture` at `bbb/oderhs.m:4738`) into slots `1..bbb.jaccapn`:
 
+- What is captured is the `jac_calc`/`jac_calc_parallel` output: finite-difference `d(yldot)/d(yl)` including the
+  `-1/dtuse`, `-1/dtphi` and `-nufak` diagonal terms, with entries `|J*sfscal| <= jaccliplim` dropped (serial
+  `jac_calc` uses `sfscal` of the row, `ppp/parallel.F90` `LocalJacBuilder` of the column), so the pattern
+  depends on `sfscal`.
 - Python: `bbb.jaccapv[:nnz,k]`, `bbb.jaccapj[:nnz,k]`, `bbb.jaccapi[:neq+1,k]` with `nnz = bbb.jaccapnnz[k]`
   and `neq = bbb.jaccapneq[k]`. These use the same 1-based CSR convention as `jac/jacj/jaci`.
-- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4249`). With `ppp.ForceSerialCheck>0`,
-  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4252`).
+- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4260`). With `ppp.ForceSerialCheck>0`,
+  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4263`).
   `jaccapseq[k]` is the Jacobian's sequence number.
 - Stores the Jacobians numbered `jaccapskip+1 .. jaccapskip+jaccapture`. `jaccapture=1, jaccapskip=k-1` keeps
-  only the k-th. `exmain` does not reset the counters; set `jaccapcount = jaccapn = 0` to restart.
+  only the k-th. `exmain` does not reset the counters; set `jaccapcount = jaccapn = 0` to restart, and also after
+  `bbb.gfree("Jacobian_capture")` (the stored slots are gone; the next capture reallocates zero-filled arrays).
+- Memory: slots are allocated as they are filled (`jaccapnslot` doubles, capped at `jaccapture`, which is only a
+  cap). Each slot is about `16*nnz + 8*(neq+1)` bytes (8-byte reals and integers): ~51 MB on the 44352-equation
+  reproducer. A growth briefly holds the old and the new arrays; a failed allocation makes Forthon exit.
 - Only `sfsetnk` and `psetnk` (the `nksol` path) call `jac_calc_interface`. The Jacobian routines of the
   other solvers (`jacd1`, `jacd2`, `jacnw`, `jacvd`, `FPRECO`) call `jac_calc` directly and are not captured.
 - The capture runs on the master thread outside any parallel region, so the group is **not** `+threadprivate`.

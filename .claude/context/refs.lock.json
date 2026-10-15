@@ -57,6 +57,8 @@
  "bbb/bbb.v:4221": "***** Jacobian_capture:",
  "bbb/bbb.v:4249": "jaccapsrc(jaccapnslot) _integer [ ] # Routine that produced slot k: 1 = jac_calc",
  "bbb/bbb.v:4252": "jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk",
+ "bbb/bbb.v:4260": "jaccapsrc(jaccapnslot) _integer [ ] # Routine that produced slot k: 1 = jac_calc",
+ "bbb/bbb.v:4263": "jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk",
  "bbb/bbb.v:62": "isrecmon integer /0/ +input",
  "bbb/bbb.v:65": "cfrecom real /1./ +input",
  "bbb/convert.m:345": "call remark(\"*** ni is negative - calculation stopped\")",
