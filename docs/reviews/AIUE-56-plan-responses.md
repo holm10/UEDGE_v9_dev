@@ -36,3 +36,8 @@ escalated to the owner. All three rounds confirmed the code change itself (copy 
 leaves defaults unchanged; the open points were verification details, now applied. Running unattended, the session
 proceeded with implementation and validation under this open escalation (nothing merged or pushed); the owner decides
 whether to accept the plan as revised.
+
+# Response to plan round 4 (APPROVE, 0/0/0; round authorised by the owner beyond the cap)
+
+The optional alignment is applied: plan lines 31 and 102 now point to the named `base-omp` negative controls instead of
+the old "re-run where a protocol differs" / AIUE-54-data wording. The escalation is closed by this approval.

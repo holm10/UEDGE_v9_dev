@@ -28,7 +28,7 @@ the owner; the owner decides the merge order):
   the pre-review core until it is restacked) is used only for the report-only summary table. Serial check
   (`feature/v9-AIUE-53-serial-bitwise-check`), OmpCopy scan (`tests/deterministic_omp/tools/scan_ompcopy.py` on
   AIUE-50). Pre-fix baselines: AIUE-54 (K=20 at 4 threads on `base-omp`, `docs/rca/AIUE-8-data/` on
-  `feature/v9-AIUE-54-omp-characterisation`), re-run here as a negative control where a protocol differs.
+  `feature/v9-AIUE-54-omp-characterisation`), for comparison only; the negative controls are the fresh `base-omp` runs named in Testing (they go through the same gate script).
 - Intended merge order: AIUE-46 → 47 → 49 → 52, 53 → 50 → 54 → 55 → **56** → 57.
 
 ## Problem and solution
@@ -99,7 +99,7 @@ references `venvs/base-omp`, `venvs/base-serial`.
    - Te box and full problem at 4 threads: K=30, one evaluation, and K=5 with `--itermx 3`;
    - Te box and full problem at 2 and 8 threads: K=5;
    - `te`, `ti`, `ni`, `up`, `ng`, `te_phi` at 4 threads: K=5.
-   The same protocol on `base-omp` for the cases not covered by AIUE-54's K=20 data (negative control).
+   Negative controls: the fresh `base-omp` runs named below (one evaluation, 4 threads, K=3), not the AIUE-54 data.
 4. **Residual, reported neutrally:** for every mismatch left after the fix: which equation rows/columns, which cells
    (plate-adjacent or not; `areapl` F16 is written in plate BCs), magnitude vs ulp(yldot)/dyl, whether it varies
    between OpenMP runs, and whether a serial run with different history reproduces it. No attribution (M2, F16, …)
