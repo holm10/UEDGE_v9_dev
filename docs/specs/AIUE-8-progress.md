@@ -10,11 +10,11 @@ review approves (awaiting the owner's review / PR). Owner decisions are prepared
 
 | Ticket | Branch (local) | State | Notes |
 |---|---|---|---|
-| AI layer | `feature/v9-ai-adversarial-ticket-review` | committed `3b99e75` | Adds plan/implementation review gates to `end-to-end-feature`, `plan` stage to `uedge-reviewer` |
-| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | committed, in adversarial review | Trim bitwise-proven; bug reproduced |
-| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | subagent implementing | |
+| AI layer | `feature/v9-ai-adversarial-ticket-review` | round 1 REVISE (5 major) → fixed `4e191a7`; round 2 review running | Gates in `end-to-end-feature`, `execute`, `plan-feature`, `implement-fix`; `plan` stage + run budget in `uedge-reviewer` |
+| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | **APPROVED** round 1 (8 minor, all fixed `f5fee63`); Jira In Review | Trim bitwise-proven; bug reproduced |
+| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | implemented (subagent), 16/16 bitwise default-off; adversarial review running | `bbb.jaccapture` etc. |
 | AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` (on AIUE-46) | subagent implementing | |
-| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` (on AIUE-46) | part 1 committed `fbe0adf`; capture integration waits for AIUE-47 | critical path |
+| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` (on AIUE-46) | implemented `e1f5808` (incl. capture); adversarial review running | critical path |
 | AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` (on AIUE-49) | subagent implementing | |
 | AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` (on AIUE-49) | subagent implementing | |
 | AIUE-51 diagnostics | — | deferred (optional) | |
@@ -52,3 +52,13 @@ review approves (awaiting the owner's review / PR). Owner decisions are prepared
 - **01:15** Checked and ruled out as the cause here: the clip index difference (`sfscal(ii)` serial vs `sfscal(iv)`
   parallel) — `jaccliplim=0` so it has no effect on this case (still a latent bug for jaccliplim>0); `del` vs
   `delperturb` — both 1e-8.
+- **01:25** AIUE-46 adversarial review: APPROVE, 0/0/8. Fixed all minors (relative rate path for deep checkouts,
+  fingerprint hashes yldot before get_fnrm, README corrections, provenance hashes). Jira → In Review.
+- **01:30** AI-layer review round 1: REVISE (5 major): "done" must be defined by APPROVE not by commit; fallback when an
+  agent can't spawn a reviewer; run budget + "not independently verified" category; re-review after post-APPROVE
+  edits; implement-fix/execute/plan-feature ungated. All fixed in `4e191a7`; round 2 running.
+- **01:45** AIUE-47 done by subagent: capture hook (`bbb.jaccapture`, `jaccapv/j/i`, per-slot source/caller), default
+  off bitwise-neutral on the reproducer + D_only/D+C/D_mols in both builds; captured×(1/suscal) == bbb.jac bit for bit.
+- **01:55** AIUE-49 harness now compares the raw captured Jacobians. Te box, 3 Newton iterations: only 2 Jacobians
+  (sfsetnk + one psetnk); the OMP psetnk Jacobian differs from serial in 1 entry, the sfsetnk one in ~40.
+- Note: machine load average ~75 on 14 cores while 6–7 agents run; timings measured now are inflated.
