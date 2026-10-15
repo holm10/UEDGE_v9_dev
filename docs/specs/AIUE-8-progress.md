@@ -197,3 +197,11 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   makes the parallel RHS correct (probe at perturbed states and after input changes, `--itermx 5`, two-exmain
   `icntnunk=1` sequences, R4 raises instead of crashing), and switches the AIUE-57 RHS arm to gating. Jira AIUE-59
   rewritten; it depends on AIUE-61/60 (same files).
+- **15:00 Check after a usage-limit pause:** no agent was cut off. AIUE-61 is implementing (commits `155e562`,
+  `a00a63a`, `70418f1`), preliminary gates running. AIUE-64: fix `1e8eb78`, M1-M3 and L1-L6 PASS; the L5 thread probe
+  failed against its pre-registered value because the libgomp workers already exist at `import uedge`. A diagnostic
+  shows workers doing real work (about 121 ticks each vs 1-2 in the serial control), so the main session accepted
+  the amended probe (CPU ticks per worker, baseline after import); evidence/code-facts commits and validate follow.
+  AIUE-60 plan round 2 REVISE (L2-M1 no-regression gates unsound under C2), revision round 3. AIUE-58 APPROVED
+  (`3aa0357`), In Review. Follow-up tickets: AIUE-67 (serial uedgeC link), AIUE-68 (isjacreset, epic AIUE-63),
+  AIUE-69 (non-default-path races, PETSc clip index).
