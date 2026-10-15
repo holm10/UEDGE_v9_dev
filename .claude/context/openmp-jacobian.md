@@ -70,6 +70,6 @@ scale with `neq`. On `v9-develop` this case fails in the electron-energy rows (A
 leave the serial path bitwise identical to `v9-develop`, in the `--serial` build and in the OpenMP build with
 `OMPParallelJac = OMPParallelPandf1 = 0`. Prove it with `tests/deterministic_omp/harness/serial_check.py`. It needs
 four venvs (base and change, `--serial` and default). Exit 0 only for the complete gate (both pairs, `--cases all`,
-two different builds). The gate includes Newton-iteration cases, so `psetnk` and the preconditioner are covered.
+two different builds from clean committed trees, base on `origin/v9-develop`). The gate includes Newton-iteration cases, so `psetnk` and the preconditioner are covered.
 See `testing.md` and `tests/deterministic_omp/README.md`.
 OpenMP-vs-serial agreement of one build is a separate check (`tests/deterministic_omp/harness/cli.py check`).

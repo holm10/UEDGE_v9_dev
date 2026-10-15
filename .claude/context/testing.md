@@ -26,10 +26,11 @@ build). It runs reproducer presets and pytests cases (D_only, D+C, D_mols, a 16x
 one-switch unit variants; `--list`) once per build in fresh processes. Cases ending in `-itN` run N Newton iterations,
 so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It compares every Jacobian, `sfscal`,
 `suscal`, `yldot` and the `fnrm` sequence bit for bit.
-- Exit 0: identical over the complete gate (both pairs, two different builds, `--cases all`).
+- Exit 0: identical over the complete gate (both pairs, two different builds from clean committed trees with
+  known sources, base on `origin/v9-develop`, `--cases all`).
 - Exit 1: mismatch (the summary names the case and the first differing entry).
-- Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path) or an
-  incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
+- Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path; an
+  `-itN` case that did not iterate) or an incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
 
 Needs the pytests checkout (below). Paste the build lines and the `RESULT` line into the PR. Details:
 `tests/deterministic_omp/README.md`.
