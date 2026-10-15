@@ -311,6 +311,29 @@ Commits: `BASE=4faed39`, `FIX=<task 2 commit>`.
   `bbb.exmain()` on the tebox preset), then record `n1` the same way and `grep -c libgomp /proc/self/maps`.
   Expected: `n1 - n0 ≥ 1` (libgomp keeps its worker thread in the pool after the parallel region) and the
   `libgomp` count ≥ 1. Saved to `/out/thread_probe.txt`.
+  **Amendment to a pre-registered check (main-session decision, written before the re-run).** The probe above ran
+  on `1e8eb78` and gave `RESULT FAIL n1-n0 = 0` (n0 = n1 = 2). This was a probe-design error, not a fix failure:
+  the libgomp workers already exist right after `import uedge`. A diagnostic (not a gate) showed 2 threads after
+  import at `OMP_NUM_THREADS=2`, 4 at 4 and 1 at 1, most likely from the parallel regions in Forthon's `--omp`
+  wrappers. So n1−n0 cannot rise. The failed run and the diagnostic stay in the evidence. **Amended probe**
+  (`thread_probe2.py`, run once on a fresh `fix` build of `1e8eb78` in the Ubuntu container, as the formal L5
+  result):
+  - Baseline after `import uedge` and the deck. The measure is each thread's CPU time during the Te-box `exmain`
+    (one evaluation, `ftol=1e20`), from `/proc/self/task/<tid>/schedstat` (ns). If `schedstat` is missing, the
+    probe uses utime+stime from `stat` (clock ticks) and prints the resolution it used.
+  - Four processes, each a fresh interpreter with `OPENBLAS_NUM_THREADS=1`:
+    - jac arm at `OMP_NUM_THREADS=Nthreads=2`;
+    - jac arm at `OMP_NUM_THREADS=Nthreads=4`;
+    - serial-arm control (`OMPParallelJac=0`) at `OMP_NUM_THREADS=2`;
+    - serial-arm control at `OMP_NUM_THREADS=4`.
+  - **Expected**, for each N in {2, 4}: every worker thread's (non-main) CPU-time increase during the jac-arm
+    `exmain` is ≥ max(5 × the largest worker increase in the serial-arm control at the same N, 1 ms). Also, the
+    `libgomp` mappings are ≥ 1 and `ppp.OMPParallelJac` is 1 after `exmain`.
+  - The 1 ms floor stops a control of 0 from passing noise. A tick fallback makes the floor one tick.
+  - Worker CPU time in a parallel region includes libgomp's spin-wait. That still shows the worker took part in
+    OpenMP regions during the Jacobian; the serial-arm control, which has no region during `exmain`, separates
+    it from idle pool threads.
+  - Saved to `/out/thread_probe2.txt`.
   Deviations from CI, stated up front: Python 3.12 (Ubuntu system) instead of setup-python 3.11; emulated amd64;
   `OMP_CI_FLOWS`/`OMP_CI_GATE` override the `pr` set (the full `pr` set under emulation is too slow, and its gate
   is red on pre-AIUE-56 code by design, see the workflow's DO-NOT-MERGE note).
@@ -360,8 +383,8 @@ Checked `CLAUDE.md` and `.claude/context/*.md` for `setup.py`, link, `LDFLAGS`, 
 - [ ] Linux serial build link unchanged
 - [ ] AIUE-53 serial check `RESULT: AGREE (bitwise identical; complete gate)`, both pairs, on builds that are not
       stale against HEAD
-- [ ] AIUE-57 workflow's build + smoke replayed green on Ubuntu 24.04; short Te-box flow completes; the thread probe
-      shows a second thread
+- [ ] AIUE-57 workflow's build + smoke replayed green on Ubuntu 24.04; short Te-box flow completes; the amended
+      thread probe (L5 amendment) shows the workers working during the Jacobian
 - [ ] Linux evidence committed under `docs/rca/AIUE-8-data/linux/aiue64/`
 - [ ] `architecture.md` updated (step 3 corrected, `uedgeC` step added; code-facts commit); drift check clean after
       `--update`
@@ -370,8 +393,9 @@ Checked `CLAUDE.md` and `.claude/context/*.md` for `setup.py`, link, `LDFLAGS`, 
 ## Notes
 - **Records (owner decision: commit on the branch).** Commit a small set under
   `docs/rca/AIUE-8-data/linux/aiue64/` (artifact class): the driver scripts, `import.txt`, `ldd_r_omp.txt`,
-  `needed.txt`, the link-line diffs (L2-L4), `thread_probe.txt`, the Debian `gcc -dumpspecs` count, and the CI
-  replay `ci.log`/`summary.md`. Not the build trees or full build logs. The commit comes in task 5, after M3 (task 3
+  `needed.txt`, the link-line diffs (L2-L4), `thread_probe.txt` (the failed original), the diagnostic,
+  `thread_probe2.txt` (the amended probe), the macOS M1/M2 records (`mac_before`/`mac_after`), the M3
+  `serial_check` output, the Debian `gcc -dumpspecs` count, and the CI replay `ci.log`/`summary.md`. Not the build trees or full build logs. The commit comes in task 5, after M3 (task 3
   ordering, review L1-m4).
 - **PR precondition (review L1-m8).** The branch starts from local `v9-develop` `4faed39`, which is 7 AI-layer-only
   commits (`.claude/`, `CLAUDE.md`, `docs/`) ahead of `origin/v9-develop` `3865c79`. Open the PR only once those
