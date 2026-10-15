@@ -241,3 +241,26 @@ afrac1.1/restored          ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
 atau2/P1                   ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
 atau2/P2                   ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
 atau2/restored             ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+=== te_t4_ueinit_stepless (stopped at the unknown step 'reexmain'; the steps before it are valid)  (exit 2 elapsed 3 s load 5.45 7.55 9.01)
+Traceback (most recent call last):
+  File "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-58/tests/deterministic_omp/rhs/rhs_probe.py", line 34, in main
+    run(spec, result)
+    ~~~^^^^^^^^^^^^^^
+  File "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-58/tests/deterministic_omp/rhs/rhs_probe.py", line 160, in run
+    raise ValueError("unknown step " + step)
+ValueError: unknown step reexmain
+
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff   988  sz   36  {'te': 988}  ncells  988  [[0, 13], [0, 14], [0, 15], [0, 33], [0, 34], [0, 35], [0, 36], [0, 37]]  max_rel 5.5e-09
+ueinit/P2                  ndiff   760  sz   36  {'te': 760}  ncells  760  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 41], [0, 42], [1, 13], [1, 14]]  max_rel 5.5e-09
+=== te_t4_ueinit_reexmain  (exit 0 elapsed 4 s load 5.19 7.36 8.91)
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff   889  sz   36  {'te': 889}  ncells  889  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 33], [0, 34], [0, 35], [0, 36]]  max_rel 5.5e-09
+ueinit/P2                  ndiff   889  sz   36  {'te': 889}  ncells  889  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 33], [0, 34], [0, 35], [0, 36]]  max_rel 5.5e-09
+reexmain/P1                ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+reexmain/P2                ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0

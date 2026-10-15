@@ -1,0 +1,50 @@
+{
+ "ijactot": 1,
+ "steps": [
+  {
+   "name": "base/P1",
+   "ndiff": 0,
+   "max_rel": 0.0
+  },
+  {
+   "name": "keep_ueinit/P1",
+   "ndiff": 1162,
+   "max_rel": 3.743904968011322e+34
+  },
+  {
+   "name": "keep_ueinit/P2",
+   "ndiff": 1162,
+   "max_rel": 3.743904968011322e+34
+  },
+  {
+   "name": "reassign/P1",
+   "ndiff": 889,
+   "max_rel": 5.5035900761872065e-09
+  },
+  {
+   "name": "reassign/P2",
+   "ndiff": 889,
+   "max_rel": 5.5035900761872065e-09
+  }
+ ],
+ "moved": {
+  "xdata_api": true,
+  "ydata_api": true,
+  "zdata": true,
+  "fdata_api": true,
+  "work2": true,
+  "work3": true,
+  "xknots_api": true,
+  "yknots_api": true,
+  "zknots": true,
+  "emcoef": true,
+  "z1coef": true,
+  "z2coef": true
+ },
+ "tables_equal_old_new": {
+  "xknots_api": true,
+  "yknots_api": true,
+  "zknots": true,
+  "emcoef": true
+ }
+}

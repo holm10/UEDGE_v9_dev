@@ -13,6 +13,9 @@ Jacobian, so ijactot>0 and the workers hold the state OMPJacBuilder left). Then 
   "afrac:<f>"       bbb.afrac *= f on the master (Python sees the master's threadprivate copy):
                     P(yl0) twice, S(yl0); afrac restored afterwards
   "atau:<f>"        the same for bbb.atau
+  "ueinit"          bbb.ueinit() (what every exmain runs first; reallocates the api Imslwrk tables), then P twice, S
+  "reexmain"        a second exmain with icntnunk=0, ftol=1e20 (new OpenMP Jacobian after ueinit), then P twice,
+                    S at the new yl0
 Every P is compared with the S of the same yl, bitwise; differences in the sign of a zero are counted
 separately (REDUCTION(+) turns -0.0 into +0.0). Writes the comparisons to <out>.
 """
@@ -156,6 +159,17 @@ def run(spec, result):
             s0 = ser(yl0)
             compare("ueinit/P1", pa, s0)
             compare("ueinit/P2", pb, s0)
+        elif kind == "reexmain":
+            # a second exmain with icntnunk=0 and ftol=1e20: ueinit, then (ijactot reset to 0) a serial first RHS
+            # and a new OpenMP Jacobian, whose OMPJacBuilder copies the full worker state after ueinit
+            bbb.icntnunk = 0
+            bbb.exmain()
+            result.setdefault("reexmain_ijactot", []).append(int(bbb.ijactot))
+            yl0 = np.array(bbb.yl[: neq + 2])
+            pa, pb = par(yl0), par(yl0)
+            s0 = ser(yl0)
+            compare("reexmain/P1", pa, s0)
+            compare("reexmain/P2", pb, s0)
         else:
             raise ValueError("unknown step " + step)
 
