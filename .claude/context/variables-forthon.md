@@ -34,7 +34,7 @@ Routines live in `***** Subs:` (`bbb/bbb.v:3353`). Untyped args default to integ
 
 ## Attributes in use (count in `bbb.v`)
 
-`+input` (843) user-settable switch/parameter · `+threadprivate` (522) per-thread copy for OpenMP ·
+`+input` (843) user-settable switch/parameter · `+threadprivate` (526) per-thread copy for OpenMP ·
 `+maybeinput` (108) · `+mcinput` (33) MC-neutrals inputs · `+work`, `+hyd`, `+solver`, `+neut`, `+setup` (rare).
 Extra words in a group header become an attribute on every variable in that group (Forthon `interfaceparser.py`; only `hidden` is special-cased).
 Seven `bbb` groups carry `restart`: `Model_choice`, `Coefeq`, `Bcond`, `Err_msg_out`, `Comtra`, `Variable_perturbation`, `Jacobian_clipping` (`bbb/bbb.v:268,272,419,1126,1325,3300,3307`).
@@ -45,7 +45,7 @@ Nothing in UEDGE's Python or in Forthon reads this attribute (Forthon's `pydump`
 1. Put it in the group whose routines use it (search `Use(Group)` sites). New group only for a coherent new model.
 2. Units in `[...]`, default in `/.../`, doc after `#`. Mark switches `+input`.
 3. Pick a default that reproduces existing behaviour (e.g. `cf* = 0.` for a new term, `is*on = 0` for a new model), unless the change is an intended physics change to the defaults. In that case, document it in the PR (see CLAUDE.md hard rules).
-4. If it is written anywhere inside the `pandf` call tree → `+threadprivate` (see `openmp-jacobian.md`).
+4. If it is written anywhere inside the `pandf` call tree → `+threadprivate` (see `openmp-jacobian.md` rule 1: or written only on change; never for values set outside `pandf`).
 5. Dynamic arrays (`_real`) are allocated by `call gchange("Group",0)` — make sure the group is (re)allocated in
    `odesetup.m` after dims are known (`bbb/odesetup.m:87` pattern).
 6. If it must be saved/restored, add to the save list in `src/uedge/hdf5.py` (`hdf5_save` `varlist`, `src/uedge/hdf5.py:82`).

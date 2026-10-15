@@ -31,16 +31,36 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
   run the RHS evaluations before the first Jacobian are serial only because `OMPPandf1Rhs` falls back to `pandf`
   while `ijactot` is 0, and `exmain` resets `ijactot` only when `icntnunk=0`: with `icntnunk=1`, or an RHS call from
   Python after an earlier `exmain`, the parallel RHS runs on whatever worker state the previous Jacobian left.
+- **Clip rule, serial vs parallel.** `LocalJacBuilder` keeps an entry when `abs(jacelem*sfscal(ii)) > jaccliplim`
+  with `ii` the row (equation), as `jac_calc` does (`ppp/parallel.F90:292`, `bbb/oderhs.m:1187`; AIUE-60 fixed a
+  column index there). Keep the two loops in step. Known remaining differences (not races): the parallel builder
+  subtracts the diagonal `1/dtuse` for every `svrpkg` and `nufak` also for `cvode`; both agree for `nksol`. The
+  PETSc path (`svr/petsc-uedge.F90`) still clips with `sfscal(iv)` (AIUE-69).
+- `emcoef` is also in the loop's `copyin` (`ppp/omp_parallel.F90:721`): it pointer-assigns the workers' `emcoef` to the
+  master's array, which persists after the loop, so from the second Jacobian on `OmpCopyPointeremcoef` has the
+  workers write identical values into the master's array (benign; redundant since the scalars-first copy).
 
 ## Rules for code in the `pandf` tree
 
 1. Any module variable **assigned** during RHS evaluation must be `+threadprivate`. Missing it = data race that
-   shows up only with `Nthreads > 1`.
+   shows up only with `Nthreads > 1`. Exception: a shared scalar that every call recomputes to one value may instead
+   be written only when it changes, so threads only read it in the loop (`nfsp`, `bbb/pandf.m:48-51`). Threadprivate
+   timers (`com.ttimpjf`, …) report the master thread only. **Don't** make a value that is set outside `pandf`
+   (geometry, user inputs) threadprivate to silence a write in `pandf`: workers would see it only through the
+   `OMPJacBuilder` copy, and the parallel RHS never copies (stale values, see above). Compute it into a local instead.
 2. Use `ixm1/ixp1` and the `Selec` ranges; padding around chunk edges and X-point cuts depends on the stencil width.
    A new term with a wider stencil (e.g. second neighbours) requires increasing the padding/`xlinc`/`yinc`.
 3. No `save`d locals or accumulation into module arrays across calls.
 4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:959-961`) — similar global
    accumulators need the same treatment.
+
+## Known OpenMP-unsafe paths
+
+- `exmain` stops OpenMP runs with `isimpon` other than 0/2/6/7, `ismcnon>0`, `ishosor>0`, `ispsorave>0` or
+  `cfvisxneoq/v≠0` (`bbb/odesetup.m:6727-6772`). Behind it: the `isimpon=5` reduced-ion path (`mombal`/`fmombal`:
+  shared `Reduced_ion_*` arrays and SAVE locals) and the Monte Carlo neutral coupling write shared state in `pandf`.
+- Not blocked, still racy (AIUE-69): full double null (`nxpt=2`) writes the shared `com` `ghxpt/gvxpt/sxyxpt` on every
+  call; coupled wall sources (`iscpli/iscplo=1`) write `iwalli/iwallo/fngysi/fngyso` in `wsmodi/wsmodo`.
 
 ## Verifying a change touches this correctly
 
