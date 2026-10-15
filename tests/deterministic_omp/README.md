@@ -115,9 +115,9 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   `jac_calc_parallel`) when the build has the hook, and the post-`exmain` `bbb.jac` arrays always. So a
   changed sparsity pattern shows up as entries "only in a/b"; `sfscal`, `suscal`, `yldot`; one more RHS evaluation
   through the solver path (`ffun`, the parallel RHS on the `jacrhs` arm); the final `get_fnrm()` as `float.hex`; and
-  the `fnrm` sequence nksol printed. ±0 count as different and any NaN/Inf fails, except for the RHS probe of a
-  parallel RHS, where `REDUCTION(+)` turns a serial −0.0 into +0.0, so ±0 are equal there (`--rhs-signed-zero-equal`
-  overrides).
+  the `fnrm` sequence nksol printed. ±0 count as different and any NaN/Inf fails, except in `yldot` and the RHS
+  probe when a run used the parallel RHS, where `REDUCTION(+)` turns a serial −0.0 into +0.0, so ±0 are equal there
+  and counted as `signed_zero_differences` (`--rhs-signed-zero-equal` overrides).
 - **Localisation:** every mismatch is mapped through `igyl` and the `idx*` tables to equation, species and cell, and
   counted per (row equation, column equation) pair, e.g. `te/ni: 387007; first value row te(ix=1,iy=1) col
   ni[0](ix=1,iy=1)`.
@@ -149,6 +149,43 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   by the harness.
 
 Unit tests (no UEDGE build needed): `python -m pytest tests/deterministic_omp/harness`.
+
+## Test flow: the configuration matrix with per-arm verdicts
+
+`cli.py flow` (AIUE-52, `harness/flow.py`) runs a set of configurations on both OpenMP arms at several thread
+counts, K fresh-process repeats each, against **one serial reference per configuration** of the same build, and
+gives **one verdict per arm**:
+
+```bash
+$PY $H flow --configs tebox --threads 4 --python $PY --out /tmp/flow_tebox   # Te box, ~5 s: "where does it differ?"
+$PY $H flow --python $PY --out /tmp/flow                                     # quick set: tebox, full at 2, 4 threads
+$PY $H flow --all --python $PY --out /tmp/flow_all                           # every configuration at 2, 4, 8 threads
+$PY $H flow --list                                                           # the configuration table
+```
+
+- **Configurations** (`flow.CONFIGS`): `tebox`, `full`, `te`, `ti`, `ni`, `up`, `ng`, `phi`. `phi` is the potential
+  isolation; its preset is named once, in `flow.PHI_PRESET` (currently `full_note`, whose serial reference fails on
+  this case, so `phi` reports ERROR until the preset is revised). `--configs`, `--threads`, `--arms jac,jacrhs` and
+  `--repeats K` (default 2) select the matrix.
+- **Group verdict** (configuration, arm, threads): PASS when all K runs agree bitwise with serial **and** with each
+  other (the first successful run vs every later one). An OpenMP run that crashes or stops with a solver error while
+  the serial reference ran is a FAIL; a failed serial reference or an unreadable record is an ERROR (harness).
+  **Arm verdict:** ERROR if any group is ERROR, else FAIL if any group fails, else PASS.
+- **Exit code** (`--gate`, default `jac`): 2 if a gated arm is ERROR, 1 if a gated arm FAILs, 0 otherwise; the other
+  arm is still run and reported. `--gate jacrhs` and `--gate all` gate on that arm or on both, `--gate none` only
+  reports (0). Bad arguments or an existing `--out` give 2.
+- **Concurrency:** runs share a core budget (`--cores`, default all cores; a run takes `threads` cores, serial 1)
+  and at most `--max-jobs` (default 8; a full-problem run peaks at ~1.4 GB) run at a time. Serial references and the
+  expensive configurations start first. `--max-jobs 1` runs everything one after the other.
+- **Output** in `--out`: `summary.md` (also printed: configuration, arm, threads, verdict, runs agreeing with serial,
+  deterministic, row equations with mismatches, failing sections, first mismatch with equation and cell),
+  `flow.json` (settings, provenance, timings, verdicts, every comparison report), and the run directories
+  `<config>/serial` and `<config>/<arm>_t<threads>/run<k>`.
+
+On `v9-develop` (`0fac655`, macOS arm64, gfortran 15, K=2, 2/4/8 threads) the Jacobian arm fails for `tebox`,
+`full` and `te` with mismatches only in Te rows that also differ between repeats, and passes for `ti`, `ni`, `up`,
+`ng`. The Jacobian + RHS arm passes for `ti`, `ni`, `up`, `ng`, fails for `tebox` and `full` (also in the Te rows of
+`yldot`), and crashes for `te`. See `docs/reviews/AIUE-52-validation.txt`.
 
 The owner's original check, from inside a copy of `case/` (with the environment above):
 
