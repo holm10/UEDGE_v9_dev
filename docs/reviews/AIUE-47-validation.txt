@@ -1,0 +1,702 @@
+AIUE-47 raw-Jacobian capture hook: validation output
+======================================================
+Tool: tests/deterministic_omp/tools/capture_check.py (each run = fresh 'python -I' child in a temporary copy
+of the case, empty HOME; SHA-256 of raw array bytes, get_fnrm() as float.hex, nksol-printed g26.16 fnrm
+sequence). 'base' = v9-develop 0fac655 (code-identical to origin/v9-develop 3865c79, which adds only docs).
+Code under test: 5f0a633 (bbb/bbb.v, bbb/oderhs.m); later commits change only the tool and docs.
+Builds: --serial (venvs base-serial, AIUE-47-serial) and OpenMP (venvs base-omp, AIUE-47-omp).
+OpenMP AC1 runs set ppp.OMPParallelJac=0, ppp.OMPParallelPandf1=0 and OMP_NUM_THREADS=4.
+'ftol' = one exmain with ftol=1e20 (one sfsetnk Jacobian); 'newton' = itermx=3, ftol=1e-30.
+fnrm_printed_seq includes the deck's own first exmain (reproducer deck) before the measured one.
+Cases: AIUE-46 reproducer (tests/deterministic_omp/case, input_mod4.py, full 44352-equation problem;
+Te box = 25 equations), pytests D_only/nonog/default, D+C/nonog_carbon/default, D_mols/nonog_mols/default
+(pytests decks: bbb.issfon=1 as in their test_*.py).
+
+Driver (machine-specific paths) that produced the output below:
+----------------------------------------------------------------
+#!/bin/zsh
+# AIUE-47 validation driver (machine-specific paths; the tool itself is generic).
+W=/Users/holma/Documents/uedge/src/uedge-wt
+T=$W/AIUE-47/tests/deterministic_omp/tools/capture_check.py
+PYT=/usr/bin/python3                     # parent process only; children use the venv pythons
+REPRO=$W/AIUE-46/tests/deterministic_omp/case
+RATES=UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5
+P=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests
+DONLY=$P/D_only/nonog/default
+DC=$P/D+C/nonog_carbon/default
+DMOL=$P/D_mols/nonog_mols/default
+CRM=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-47/rates/aph  # crumpet_*.dat are not shipped in the installed package
+fails=0
+run() { "$@"; rc=$?; [ $rc -ne 0 ] && fails=$((fails+1)); echo "(exit $rc)"; echo; }
+
+echo "=== provenance"
+echo "new commit: $(git -C $W/AIUE-47 rev-parse HEAD) (omp tree), $(git -C $W/AIUE-47-serial rev-parse HEAD) (serial tree)"
+echo "base commit: $(git -C $W/base-serial rev-parse HEAD) (base-serial), $(git -C $W/base-omp rev-parse HEAD) (base-omp)"
+echo "gfortran: $(gfortran --version | head -1)"
+echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo
+
+for BUILD in serial omp; do
+  B=$W/venvs/base-$BUILD/bin/python
+  N=$W/venvs/AIUE-47-$BUILD/bin/python
+  if [ $BUILD = omp ]; then TH=4; OFF=(--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0); else TH=1; OFF=(); fi
+  echo "=== AC1 switch off (default), $BUILD build: base v9-develop vs AIUE-47, identical inputs"
+  for MODE in ftol newton; do
+    if [ $MODE = newton ]; then M=(--newton 3); else M=(); fi
+    run $PYT $T compare --case $REPRO --deck input_mod4.py --base $B --new $N --threads $TH --env $RATES \
+        --label "AC1/$BUILD/repro-full/$MODE" -- $OFF $M
+    for C in DONLY DC DMOL; do
+      X=(); [ $C = DMOL ] && X=(--add-file $CRM/crumpet_nrates.dat --add-file $CRM/crumpet_Erates.dat)
+      run $PYT $T compare --case ${(P)C} $X --deck input.py --base $B --new $N --threads $TH \
+          --label "AC1/$BUILD/$C/$MODE" -- --set bbb.issfon=1 $OFF $M
+    done
+  done
+  echo "=== AC1b + AC2 serial path, $BUILD build: hook ON in AIUE-47 only (results must still equal base)"
+  run $PYT $T compare --case $REPRO --deck input_mod4.py --base $B --new $N --threads $TH --env $RATES \
+      --new-extra "--capture 4" --label "AC2/$BUILD/repro-full/ftol/capture4" -- $OFF
+  for C in DONLY DC DMOL; do
+      X=(); [ $C = DMOL ] && X=(--add-file $CRM/crumpet_nrates.dat --add-file $CRM/crumpet_Erates.dat)
+    run $PYT $T compare --case ${(P)C} $X --deck input.py --base $B --new $N --threads $TH \
+        --new-extra "--capture 4" --label "AC2/$BUILD/$C/ftol/capture4" -- --set bbb.issfon=1 $OFF
+  done
+  run $PYT $T compare --case $DONLY --deck input.py --base $B --new $N --threads $TH \
+      --new-extra "--capture 8" --label "AC2/$BUILD/DONLY/newton3-incpset1/capture8" -- \
+      --set bbb.issfon=1 --set bbb.incpset=1 $OFF --newton 3
+done
+
+echo "=== AC2 parallel path, OpenMP build, ppp.OMPParallelJac=1 (capture must be jac_calc_parallel and equal bbb.jac*suscal)"
+N=$W/venvs/AIUE-47-omp/bin/python
+run $PYT $T run --case $REPRO --deck input_mod4.py --python $N --threads 4 --env $RATES \
+    --label "AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4" -- \
+    --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4
+run $PYT $T run --case $REPRO --deck input_mod4.py --python $N --threads 4 --env $RATES \
+    --label "AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8" -- \
+    --tebox --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --set bbb.incpset=1 --newton 3 --capture 8
+run $PYT $T run --case $DONLY --deck input.py --python $N --threads 4 \
+    --label "AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4" -- \
+    --set bbb.issfon=1 --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4
+
+echo "=== AC2 capture bookkeeping (serial build, Te box, 4 Jacobians): slot k of capture-all == only slot of skip=k-1"
+N=$W/venvs/AIUE-47-serial/bin/python
+for A in "--capture 8" "--capture 1 --skip 0" "--capture 1 --skip 1" "--capture 1 --skip 2" "--capture 1 --skip 3" "--capture 2 --skip 1"; do
+  $PYT $T run --case $REPRO --deck input_mod4.py --python $N --env $RATES \
+      --label "bookkeeping/tebox/newton3-incpset1 $A" -- --tebox --set bbb.incpset=1 --newton 3 ${=A} \
+      | grep -v FINGERPRINT
+done
+echo
+
+echo "=== AC3 MPPL hazards in lines added to .m/.v (setup.py M2F rules: '#' in strings, float, break, while (, do i1=, (Size4), elseif)"
+git -C $W/AIUE-47 diff -U0 origin/v9-develop -- '*.m' '*.v' | grep '^+[^+]' > /private/tmp/claude-501/-Users-holma-Documents-uedge-src-UEDGE-v9-dev/2129e705-3f07-427f-a973-d2dbc3c7ccdb/scratchpad/aiue47_added.txt
+echo "added lines: $(wc -l < /private/tmp/claude-501/-Users-holma-Documents-uedge-src-UEDGE-v9-dev/2129e705-3f07-427f-a973-d2dbc3c7ccdb/scratchpad/aiue47_added.txt)"
+echo "string literals in added lines:"; grep '"' /private/tmp/claude-501/-Users-holma-Documents-uedge-src-UEDGE-v9-dev/2129e705-3f07-427f-a973-d2dbc3c7ccdb/scratchpad/aiue47_added.txt
+echo "hazard hits (float|break|while (|do i1=|Size4|elseif|#.*\"):"; grep -n -i -E 'float|break|while \(|do i1=|Size4|elseif|"[^"]*#[^"]*"' /private/tmp/claude-501/-Users-holma-Documents-uedge-src-UEDGE-v9-dev/2129e705-3f07-427f-a973-d2dbc3c7ccdb/scratchpad/aiue47_added.txt || echo "  none"
+echo "added .m code lines longer than 72 columns:"; git -C $W/AIUE-47 diff -U0 origin/v9-develop -- '*.m' | grep '^+[^+]' | awk '{ if (length($0)-1 > 72) print }' || true
+echo "generated OpenMP .F for the c!omp line (AIUE-47 omp tree):"; grep -n "jcsrc" $W/AIUE-47/bbb/oderhs.F
+echo "generated serial .F for the c!omp line (AIUE-47-serial tree):"; grep -n "jcsrc" $W/AIUE-47-serial/bbb/oderhs.F
+echo "compiler diagnostics mentioning the new code (both build logs):"
+grep -n -i -E "jaccap|jac_capture|jcsrc|Jacobian_capture" $W/logs/AIUE-47-serial-build.log $W/logs/AIUE-47-omp-build.log | grep -v -E "Forthon3|^.*gfortran " || echo "  none"
+echo
+echo "TOTAL FAILURES: $fails"
+----------------------------------------------------------------
+
+=== provenance
+new commit: af95dbf505a619227a124e4cba82ac082289fcd9 (omp tree), 5f0a6337cac2c0f422c8de3ccb7b0c56ddf59098 (serial tree)
+base commit: 0fac6550b888c42a4b2033167b3446d952e3d71d (base-serial), 0fac6550b888c42a4b2033167b3446d952e3d71d (base-omp)
+gfortran: GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0
+date: 2026-10-15T07:34:30Z
+
+=== AC1 switch off (default), serial build: base v9-develop vs AIUE-47, identical inputs
+[AC1/serial/repro-full/ftol] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args= OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC1/serial/repro-full/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/repro-full/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/repro-full/ftol] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[AC1/serial/repro-full/ftol] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[AC1/serial/repro-full/ftol] ijactot           EQUAL  1
+[AC1/serial/repro-full/ftol] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[AC1/serial/repro-full/ftol] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[AC1/serial/repro-full/ftol] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[AC1/serial/repro-full/ftol] neq               EQUAL  44352
+[AC1/serial/repro-full/ftol] nnz               EQUAL  3190290
+[AC1/serial/repro-full/ftol] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC1/serial/repro-full/ftol] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC1/serial/repro-full/ftol] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[AC1/serial/repro-full/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/repro-full/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DONLY/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DONLY/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DONLY/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DONLY/ftol] fnrm              EQUAL  0x1.04ceff2339405p-3
+[AC1/serial/DONLY/ftol] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[AC1/serial/DONLY/ftol] ijactot           EQUAL  1
+[AC1/serial/DONLY/ftol] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[AC1/serial/DONLY/ftol] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[AC1/serial/DONLY/ftol] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[AC1/serial/DONLY/ftol] neq               EQUAL  420
+[AC1/serial/DONLY/ftol] nnz               EQUAL  8194
+[AC1/serial/DONLY/ftol] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC1/serial/DONLY/ftol] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC1/serial/DONLY/ftol] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[AC1/serial/DONLY/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DONLY/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DC/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DC/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DC/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DC/ftol] fnrm              EQUAL  0x1.9e014ef9b9f29p-3
+[AC1/serial/DC/ftol] fnrm_printed_seq  EQUAL  n=1 0.2021509332619129
+[AC1/serial/DC/ftol] ijactot           EQUAL  1
+[AC1/serial/DC/ftol] jac               EQUAL  11bbeea4f21ac8bb7a7c3e66fc0945e4315a2e4227104d0fc35cb52111120520
+[AC1/serial/DC/ftol] jaci              EQUAL  9d870c44e7877558ed6f815246c1964fd1ce594120b322a5e6308168046a8f7c
+[AC1/serial/DC/ftol] jacj              EQUAL  a9331f91b84e170cf559ec4f935d21e742157b109e225a74ae05d8accb71a029
+[AC1/serial/DC/ftol] neq               EQUAL  780
+[AC1/serial/DC/ftol] nnz               EQUAL  21500
+[AC1/serial/DC/ftol] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC1/serial/DC/ftol] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC1/serial/DC/ftol] yldot             EQUAL  08cd4118e0a08234ab04f72a62ad5a50c18b8a0f75b3ad046f5b698193c1d043
+[AC1/serial/DC/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DC/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DMOL/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DMOL/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DMOL/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DMOL/ftol] fnrm              EQUAL  0x1.3552adc8df492p+1
+[AC1/serial/DMOL/ftol] fnrm_printed_seq  EQUAL  n=1 2.416585658151754
+[AC1/serial/DMOL/ftol] ijactot           EQUAL  1
+[AC1/serial/DMOL/ftol] jac               EQUAL  928d71179b81a4feaa5859aaa15050043431930e5cb4b8619c4ec9721c98b43a
+[AC1/serial/DMOL/ftol] jaci              EQUAL  1925477eaba3108d3863e310c416729c34098bfc0310dbe9d45add6125f6d7d9
+[AC1/serial/DMOL/ftol] jacj              EQUAL  59b9e731bd15eaeb11288543019b1fc75bffdc4b0d903f74fbe51017f0a3efa2
+[AC1/serial/DMOL/ftol] neq               EQUAL  480
+[AC1/serial/DMOL/ftol] nnz               EQUAL  9566
+[AC1/serial/DMOL/ftol] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC1/serial/DMOL/ftol] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC1/serial/DMOL/ftol] yldot             EQUAL  22c98d1e4adf8a1c4de9865aa717a6a3c64fd96cadd2e77029aba8a3e627528a
+[AC1/serial/DMOL/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DMOL/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/repro-full/newton] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--newton 3 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC1/serial/repro-full/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/repro-full/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/repro-full/newton] fnrm              EQUAL  0x1.c32f8166a1af7p+0
+[AC1/serial/repro-full/newton] fnrm_printed_seq  EQUAL  n=5 271985200.1005400 1.918820629111277 1.836097068513709 1.782757715864211 1.762443625980891
+[AC1/serial/repro-full/newton] ijactot           EQUAL  2
+[AC1/serial/repro-full/newton] jac               EQUAL  1f6d700b12965b14e2207e689600db96a6c0c6067dd8e83bb2da068488dd85e3
+[AC1/serial/repro-full/newton] jaci              EQUAL  89d1d14f7b135607058550a5a1e26bc03db106508f3a55623e339452ad2531ec
+[AC1/serial/repro-full/newton] jacj              EQUAL  87837d99b57d117aa994b08da5e2a597e05dcaa66a7dd9a85e7a572cdb93d66a
+[AC1/serial/repro-full/newton] neq               EQUAL  44352
+[AC1/serial/repro-full/newton] nnz               EQUAL  3190290
+[AC1/serial/repro-full/newton] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC1/serial/repro-full/newton] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC1/serial/repro-full/newton] yldot             EQUAL  f5c858b4fef3ca3ad2dc2ce4249f0722387fa58890d597344a8dbe56df068a3a
+[AC1/serial/repro-full/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/repro-full/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DONLY/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --newton 3 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DONLY/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DONLY/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DONLY/newton] fnrm              EQUAL  0x1.f0c7a5964c17fp-5
+[AC1/serial/DONLY/newton] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8379428362662000E-01 0.6064207402448839E-01
+[AC1/serial/DONLY/newton] ijactot           EQUAL  2
+[AC1/serial/DONLY/newton] jac               EQUAL  cbc3a9a48740c490a387f4e3d189bd6d87aa0f5711632022316c4274033474c4
+[AC1/serial/DONLY/newton] jaci              EQUAL  b8da69465fcd511978da8fc23328af4eecaa2d37216ff30ade72d98efd98ace2
+[AC1/serial/DONLY/newton] jacj              EQUAL  e45147f3785bfabc26a188b166d3fdb7706fd5dfa9432f857e323c7eb0e905dd
+[AC1/serial/DONLY/newton] neq               EQUAL  420
+[AC1/serial/DONLY/newton] nnz               EQUAL  8194
+[AC1/serial/DONLY/newton] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC1/serial/DONLY/newton] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC1/serial/DONLY/newton] yldot             EQUAL  5416b8fa4e2d1c64e5a58a41e232910f040c7a4416a91c238d6178dbc286f1e2
+[AC1/serial/DONLY/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DONLY/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DC/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 --newton 3 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DC/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DC/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DC/newton] fnrm              EQUAL  0x1.9691439974bd0p-14
+[AC1/serial/DC/newton] fnrm_printed_seq  EQUAL  n=4 0.2021509332619129 0.1597211321036661E-01 0.3408902822966514E-02 0.9693323081387474E-04
+[AC1/serial/DC/newton] ijactot           EQUAL  2
+[AC1/serial/DC/newton] jac               EQUAL  eb95ed7e889e0a661a7d2df5518f5699076f8de32968b76eba763c3cc6a76330
+[AC1/serial/DC/newton] jaci              EQUAL  fd34e8bea52fa0af27949bef1f689dcd8b67a594cdfe7b0acd708759fd53881f
+[AC1/serial/DC/newton] jacj              EQUAL  0e9d20d91697b3c9baa8c5de730c4cfd9ac86a0e42485a1ff65633d3c630b391
+[AC1/serial/DC/newton] neq               EQUAL  780
+[AC1/serial/DC/newton] nnz               EQUAL  21500
+[AC1/serial/DC/newton] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC1/serial/DC/newton] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC1/serial/DC/newton] yldot             EQUAL  66f9560d6a48c0c8b8a2d8171e4580992ffc9a8fc9a9640071b74d4a2d27bcde
+[AC1/serial/DC/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DC/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/serial/DMOL/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 --newton 3 OMP_NUM_THREADS=1 env=[]
+[AC1/serial/DMOL/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC1/serial/DMOL/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python 
+[AC1/serial/DMOL/newton] fnrm              EQUAL  0x1.64b808dba975ap+1
+[AC1/serial/DMOL/newton] fnrm_printed_seq  EQUAL  n=4 2.416585658151754 2.646015782824272 2.896975891201152 2.786866290337383
+[AC1/serial/DMOL/newton] ijactot           EQUAL  2
+[AC1/serial/DMOL/newton] jac               EQUAL  1801d2a9f7162b7952991280022c87e34493bd98ff42cb78bee2f30a9d8e1745
+[AC1/serial/DMOL/newton] jaci              EQUAL  c6d600f32d607cc44a9c9a5f3c1bfce04b7a59895df13292f2c03bb1a57d14df
+[AC1/serial/DMOL/newton] jacj              EQUAL  a2af7c1b64577aac9ad9b5a44f27e94900fdd0ac9fd6199689a82aa1c1933584
+[AC1/serial/DMOL/newton] neq               EQUAL  480
+[AC1/serial/DMOL/newton] nnz               EQUAL  9566
+[AC1/serial/DMOL/newton] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC1/serial/DMOL/newton] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC1/serial/DMOL/newton] yldot             EQUAL  34ac46faca46a085ab8c133ca15f5bf67ecc58be948a0ab487825629ce653732
+[AC1/serial/DMOL/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/serial/DMOL/newton: PASS (bitwise equal)
+(exit 0)
+
+=== AC1b + AC2 serial path, serial build: hook ON in AIUE-47 only (results must still equal base)
+[AC2/serial/repro-full/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args= OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC2/serial/repro-full/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC2/serial/repro-full/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[AC2/serial/repro-full/ftol/capture4] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[AC2/serial/repro-full/ftol/capture4] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[AC2/serial/repro-full/ftol/capture4] ijactot           EQUAL  1
+[AC2/serial/repro-full/ftol/capture4] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[AC2/serial/repro-full/ftol/capture4] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[AC2/serial/repro-full/ftol/capture4] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[AC2/serial/repro-full/ftol/capture4] neq               EQUAL  44352
+[AC2/serial/repro-full/ftol/capture4] nnz               EQUAL  3190290
+[AC2/serial/repro-full/ftol/capture4] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC2/serial/repro-full/ftol/capture4] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC2/serial/repro-full/ftol/capture4] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[AC2/serial/repro-full/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/serial/repro-full/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=44352 nnz=3190290 ia_last_ok=True sha256(v,j,i)=711d3536cf1dfd76 2eae17debdcbe582 1a8dfbb156e44570
+[AC2/serial/repro-full/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[AC2/serial/repro-full/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/serial/repro-full/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/serial/repro-full/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/serial/DONLY/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC2/serial/DONLY/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC2/serial/DONLY/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[AC2/serial/DONLY/ftol/capture4] fnrm              EQUAL  0x1.04ceff2339405p-3
+[AC2/serial/DONLY/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[AC2/serial/DONLY/ftol/capture4] ijactot           EQUAL  1
+[AC2/serial/DONLY/ftol/capture4] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[AC2/serial/DONLY/ftol/capture4] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[AC2/serial/DONLY/ftol/capture4] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[AC2/serial/DONLY/ftol/capture4] neq               EQUAL  420
+[AC2/serial/DONLY/ftol/capture4] nnz               EQUAL  8194
+[AC2/serial/DONLY/ftol/capture4] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC2/serial/DONLY/ftol/capture4] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC2/serial/DONLY/ftol/capture4] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[AC2/serial/DONLY/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/serial/DONLY/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/serial/DONLY/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[AC2/serial/DONLY/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/serial/DONLY/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/serial/DONLY/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/serial/DC/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC2/serial/DC/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC2/serial/DC/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[AC2/serial/DC/ftol/capture4] fnrm              EQUAL  0x1.9e014ef9b9f29p-3
+[AC2/serial/DC/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 0.2021509332619129
+[AC2/serial/DC/ftol/capture4] ijactot           EQUAL  1
+[AC2/serial/DC/ftol/capture4] jac               EQUAL  11bbeea4f21ac8bb7a7c3e66fc0945e4315a2e4227104d0fc35cb52111120520
+[AC2/serial/DC/ftol/capture4] jaci              EQUAL  9d870c44e7877558ed6f815246c1964fd1ce594120b322a5e6308168046a8f7c
+[AC2/serial/DC/ftol/capture4] jacj              EQUAL  a9331f91b84e170cf559ec4f935d21e742157b109e225a74ae05d8accb71a029
+[AC2/serial/DC/ftol/capture4] neq               EQUAL  780
+[AC2/serial/DC/ftol/capture4] nnz               EQUAL  21500
+[AC2/serial/DC/ftol/capture4] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC2/serial/DC/ftol/capture4] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC2/serial/DC/ftol/capture4] yldot             EQUAL  08cd4118e0a08234ab04f72a62ad5a50c18b8a0f75b3ad046f5b698193c1d043
+[AC2/serial/DC/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/serial/DC/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=780 nnz=21500 ia_last_ok=True sha256(v,j,i)=c10ce1b30a62e596 a9331f91b84e170c 9d870c44e7877558
+[AC2/serial/DC/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2172567873898888e-16
+[AC2/serial/DC/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/serial/DC/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/serial/DC/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/serial/DMOL/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 OMP_NUM_THREADS=1 env=[]
+[AC2/serial/DMOL/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC2/serial/DMOL/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 4
+[AC2/serial/DMOL/ftol/capture4] fnrm              EQUAL  0x1.3552adc8df492p+1
+[AC2/serial/DMOL/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 2.416585658151754
+[AC2/serial/DMOL/ftol/capture4] ijactot           EQUAL  1
+[AC2/serial/DMOL/ftol/capture4] jac               EQUAL  928d71179b81a4feaa5859aaa15050043431930e5cb4b8619c4ec9721c98b43a
+[AC2/serial/DMOL/ftol/capture4] jaci              EQUAL  1925477eaba3108d3863e310c416729c34098bfc0310dbe9d45add6125f6d7d9
+[AC2/serial/DMOL/ftol/capture4] jacj              EQUAL  59b9e731bd15eaeb11288543019b1fc75bffdc4b0d903f74fbe51017f0a3efa2
+[AC2/serial/DMOL/ftol/capture4] neq               EQUAL  480
+[AC2/serial/DMOL/ftol/capture4] nnz               EQUAL  9566
+[AC2/serial/DMOL/ftol/capture4] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC2/serial/DMOL/ftol/capture4] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC2/serial/DMOL/ftol/capture4] yldot             EQUAL  22c98d1e4adf8a1c4de9865aa717a6a3c64fd96cadd2e77029aba8a3e627528a
+[AC2/serial/DMOL/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/serial/DMOL/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=480 nnz=9566 ia_last_ok=True sha256(v,j,i)=a7c5603b68ec4d2f 59b9e731bd15eaeb 1925477eaba3108d
+[AC2/serial/DMOL/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2156928148379877e-16
+[AC2/serial/DMOL/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/serial/DMOL/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/serial/DMOL/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/serial/DONLY/newton3-incpset1/capture8] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set bbb.incpset=1 --newton 3 OMP_NUM_THREADS=1 env=[]
+[AC2/serial/DONLY/newton3-incpset1/capture8] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+[AC2/serial/DONLY/newton3-incpset1/capture8] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python --capture 8
+[AC2/serial/DONLY/newton3-incpset1/capture8] fnrm              EQUAL  0x1.f11ff5a8391b9p-5
+[AC2/serial/DONLY/newton3-incpset1/capture8] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8401859174210745E-01 0.6068418483644984E-01
+[AC2/serial/DONLY/newton3-incpset1/capture8] ijactot           EQUAL  4
+[AC2/serial/DONLY/newton3-incpset1/capture8] jac               EQUAL  02a05aa6e5b7325c8e827e33c7670bc8506cb0abeb2efdebbbd7903a19a044e0
+[AC2/serial/DONLY/newton3-incpset1/capture8] jaci              EQUAL  ccd1ce93fe6a3e2693b5d75001a108f15a1635cdd0f17390f83f4b276dfab678
+[AC2/serial/DONLY/newton3-incpset1/capture8] jacj              EQUAL  7683797df13351831fa196589c11375dc8e4b566f4b6da1851e7199e9da843f3
+[AC2/serial/DONLY/newton3-incpset1/capture8] neq               EQUAL  420
+[AC2/serial/DONLY/newton3-incpset1/capture8] nnz               EQUAL  8194
+[AC2/serial/DONLY/newton3-incpset1/capture8] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC2/serial/DONLY/newton3-incpset1/capture8] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC2/serial/DONLY/newton3-incpset1/capture8] yldot             EQUAL  c9b56473873e2a9b36e5fe8736cc8878fba6bdaa7672e44b9fb04a11108415cc
+[AC2/serial/DONLY/newton3-incpset1/capture8] new build capture state: jaccapture=8 jaccapcount=4 jaccapn=4
+[AC2/serial/DONLY/newton3-incpset1/capture8:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/serial/DONLY/newton3-incpset1/capture8:new] slot 2: seq=2 src=jac_calc from=psetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/serial/DONLY/newton3-incpset1/capture8:new] slot 3: seq=3 src=jac_calc from=psetnk neq=420 nnz=8201 ia_last_ok=True sha256(v,j,i)=0137d421ff82f823 a6c71cd794039caa a681829a4304cc78
+[AC2/serial/DONLY/newton3-incpset1/capture8:new] slot 4: seq=4 src=jac_calc from=psetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=dc49aaac387b2deb 9f277eca7b97682f 9e9dd9d86cdae34c
+RESULT AC2/serial/DONLY/newton3-incpset1/capture8: PASS (bitwise equal)
+(exit 0)
+
+=== AC1 switch off (default), omp build: base v9-develop vs AIUE-47, identical inputs
+[AC1/omp/repro-full/ftol] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC1/omp/repro-full/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/repro-full/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/repro-full/ftol] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[AC1/omp/repro-full/ftol] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[AC1/omp/repro-full/ftol] ijactot           EQUAL  1
+[AC1/omp/repro-full/ftol] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[AC1/omp/repro-full/ftol] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[AC1/omp/repro-full/ftol] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[AC1/omp/repro-full/ftol] neq               EQUAL  44352
+[AC1/omp/repro-full/ftol] nnz               EQUAL  3190290
+[AC1/omp/repro-full/ftol] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC1/omp/repro-full/ftol] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC1/omp/repro-full/ftol] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[AC1/omp/repro-full/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/repro-full/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DONLY/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DONLY/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DONLY/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DONLY/ftol] fnrm              EQUAL  0x1.04ceff2339405p-3
+[AC1/omp/DONLY/ftol] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[AC1/omp/DONLY/ftol] ijactot           EQUAL  1
+[AC1/omp/DONLY/ftol] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[AC1/omp/DONLY/ftol] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[AC1/omp/DONLY/ftol] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[AC1/omp/DONLY/ftol] neq               EQUAL  420
+[AC1/omp/DONLY/ftol] nnz               EQUAL  8194
+[AC1/omp/DONLY/ftol] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC1/omp/DONLY/ftol] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC1/omp/DONLY/ftol] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[AC1/omp/DONLY/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DONLY/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DC/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DC/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DC/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DC/ftol] fnrm              EQUAL  0x1.9e014ef9b9f29p-3
+[AC1/omp/DC/ftol] fnrm_printed_seq  EQUAL  n=1 0.2021509332619129
+[AC1/omp/DC/ftol] ijactot           EQUAL  1
+[AC1/omp/DC/ftol] jac               EQUAL  11bbeea4f21ac8bb7a7c3e66fc0945e4315a2e4227104d0fc35cb52111120520
+[AC1/omp/DC/ftol] jaci              EQUAL  9d870c44e7877558ed6f815246c1964fd1ce594120b322a5e6308168046a8f7c
+[AC1/omp/DC/ftol] jacj              EQUAL  a9331f91b84e170cf559ec4f935d21e742157b109e225a74ae05d8accb71a029
+[AC1/omp/DC/ftol] neq               EQUAL  780
+[AC1/omp/DC/ftol] nnz               EQUAL  21500
+[AC1/omp/DC/ftol] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC1/omp/DC/ftol] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC1/omp/DC/ftol] yldot             EQUAL  08cd4118e0a08234ab04f72a62ad5a50c18b8a0f75b3ad046f5b698193c1d043
+[AC1/omp/DC/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DC/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DMOL/ftol] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DMOL/ftol] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DMOL/ftol] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DMOL/ftol] fnrm              EQUAL  0x1.3552adc8df492p+1
+[AC1/omp/DMOL/ftol] fnrm_printed_seq  EQUAL  n=1 2.416585658151754
+[AC1/omp/DMOL/ftol] ijactot           EQUAL  1
+[AC1/omp/DMOL/ftol] jac               EQUAL  928d71179b81a4feaa5859aaa15050043431930e5cb4b8619c4ec9721c98b43a
+[AC1/omp/DMOL/ftol] jaci              EQUAL  1925477eaba3108d3863e310c416729c34098bfc0310dbe9d45add6125f6d7d9
+[AC1/omp/DMOL/ftol] jacj              EQUAL  59b9e731bd15eaeb11288543019b1fc75bffdc4b0d903f74fbe51017f0a3efa2
+[AC1/omp/DMOL/ftol] neq               EQUAL  480
+[AC1/omp/DMOL/ftol] nnz               EQUAL  9566
+[AC1/omp/DMOL/ftol] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC1/omp/DMOL/ftol] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC1/omp/DMOL/ftol] yldot             EQUAL  22c98d1e4adf8a1c4de9865aa717a6a3c64fd96cadd2e77029aba8a3e627528a
+[AC1/omp/DMOL/ftol] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DMOL/ftol: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/repro-full/newton] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC1/omp/repro-full/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/repro-full/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/repro-full/newton] fnrm              EQUAL  0x1.c32f8166a1af7p+0
+[AC1/omp/repro-full/newton] fnrm_printed_seq  EQUAL  n=5 271985200.1005400 1.918820629111277 1.836097068513709 1.782757715864211 1.762443625980891
+[AC1/omp/repro-full/newton] ijactot           EQUAL  2
+[AC1/omp/repro-full/newton] jac               EQUAL  1f6d700b12965b14e2207e689600db96a6c0c6067dd8e83bb2da068488dd85e3
+[AC1/omp/repro-full/newton] jaci              EQUAL  89d1d14f7b135607058550a5a1e26bc03db106508f3a55623e339452ad2531ec
+[AC1/omp/repro-full/newton] jacj              EQUAL  87837d99b57d117aa994b08da5e2a597e05dcaa66a7dd9a85e7a572cdb93d66a
+[AC1/omp/repro-full/newton] neq               EQUAL  44352
+[AC1/omp/repro-full/newton] nnz               EQUAL  3190290
+[AC1/omp/repro-full/newton] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC1/omp/repro-full/newton] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC1/omp/repro-full/newton] yldot             EQUAL  f5c858b4fef3ca3ad2dc2ce4249f0722387fa58890d597344a8dbe56df068a3a
+[AC1/omp/repro-full/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/repro-full/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DONLY/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DONLY/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DONLY/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DONLY/newton] fnrm              EQUAL  0x1.f0c7a5964c17fp-5
+[AC1/omp/DONLY/newton] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8379428362662000E-01 0.6064207402448839E-01
+[AC1/omp/DONLY/newton] ijactot           EQUAL  2
+[AC1/omp/DONLY/newton] jac               EQUAL  cbc3a9a48740c490a387f4e3d189bd6d87aa0f5711632022316c4274033474c4
+[AC1/omp/DONLY/newton] jaci              EQUAL  b8da69465fcd511978da8fc23328af4eecaa2d37216ff30ade72d98efd98ace2
+[AC1/omp/DONLY/newton] jacj              EQUAL  e45147f3785bfabc26a188b166d3fdb7706fd5dfa9432f857e323c7eb0e905dd
+[AC1/omp/DONLY/newton] neq               EQUAL  420
+[AC1/omp/DONLY/newton] nnz               EQUAL  8194
+[AC1/omp/DONLY/newton] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC1/omp/DONLY/newton] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC1/omp/DONLY/newton] yldot             EQUAL  5416b8fa4e2d1c64e5a58a41e232910f040c7a4416a91c238d6178dbc286f1e2
+[AC1/omp/DONLY/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DONLY/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DC/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DC/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DC/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DC/newton] fnrm              EQUAL  0x1.9691439974bd0p-14
+[AC1/omp/DC/newton] fnrm_printed_seq  EQUAL  n=4 0.2021509332619129 0.1597211321036661E-01 0.3408902822966514E-02 0.9693323081387474E-04
+[AC1/omp/DC/newton] ijactot           EQUAL  2
+[AC1/omp/DC/newton] jac               EQUAL  eb95ed7e889e0a661a7d2df5518f5699076f8de32968b76eba763c3cc6a76330
+[AC1/omp/DC/newton] jaci              EQUAL  fd34e8bea52fa0af27949bef1f689dcd8b67a594cdfe7b0acd708759fd53881f
+[AC1/omp/DC/newton] jacj              EQUAL  0e9d20d91697b3c9baa8c5de730c4cfd9ac86a0e42485a1ff65633d3c630b391
+[AC1/omp/DC/newton] neq               EQUAL  780
+[AC1/omp/DC/newton] nnz               EQUAL  21500
+[AC1/omp/DC/newton] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC1/omp/DC/newton] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC1/omp/DC/newton] yldot             EQUAL  66f9560d6a48c0c8b8a2d8171e4580992ffc9a8fc9a9640071b74d4a2d27bcde
+[AC1/omp/DC/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DC/newton: PASS (bitwise equal)
+(exit 0)
+
+[AC1/omp/DMOL/newton] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=[]
+[AC1/omp/DMOL/newton] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC1/omp/DMOL/newton] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python 
+[AC1/omp/DMOL/newton] fnrm              EQUAL  0x1.64b808dba975ap+1
+[AC1/omp/DMOL/newton] fnrm_printed_seq  EQUAL  n=4 2.416585658151754 2.646015782824272 2.896975891201152 2.786866290337383
+[AC1/omp/DMOL/newton] ijactot           EQUAL  2
+[AC1/omp/DMOL/newton] jac               EQUAL  1801d2a9f7162b7952991280022c87e34493bd98ff42cb78bee2f30a9d8e1745
+[AC1/omp/DMOL/newton] jaci              EQUAL  c6d600f32d607cc44a9c9a5f3c1bfce04b7a59895df13292f2c03bb1a57d14df
+[AC1/omp/DMOL/newton] jacj              EQUAL  a2af7c1b64577aac9ad9b5a44f27e94900fdd0ac9fd6199689a82aa1c1933584
+[AC1/omp/DMOL/newton] neq               EQUAL  480
+[AC1/omp/DMOL/newton] nnz               EQUAL  9566
+[AC1/omp/DMOL/newton] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC1/omp/DMOL/newton] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC1/omp/DMOL/newton] yldot             EQUAL  34ac46faca46a085ab8c133ca15f5bf67ecc58be948a0ab487825629ce653732
+[AC1/omp/DMOL/newton] new build capture state: jaccapture=0 jaccapcount=0 jaccapn=0
+RESULT AC1/omp/DMOL/newton: PASS (bitwise equal)
+(exit 0)
+
+=== AC1b + AC2 serial path, omp build: hook ON in AIUE-47 only (results must still equal base)
+[AC2/omp/repro-full/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC2/omp/repro-full/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC2/omp/repro-full/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 4
+[AC2/omp/repro-full/ftol/capture4] fnrm              EQUAL  0x1.eb37d428ec4f0p+0
+[AC2/omp/repro-full/ftol/capture4] fnrm_printed_seq  EQUAL  n=2 271985200.1005400 1.918820629111277
+[AC2/omp/repro-full/ftol/capture4] ijactot           EQUAL  1
+[AC2/omp/repro-full/ftol/capture4] jac               EQUAL  b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f
+[AC2/omp/repro-full/ftol/capture4] jaci              EQUAL  1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206
+[AC2/omp/repro-full/ftol/capture4] jacj              EQUAL  2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db
+[AC2/omp/repro-full/ftol/capture4] neq               EQUAL  44352
+[AC2/omp/repro-full/ftol/capture4] nnz               EQUAL  3190290
+[AC2/omp/repro-full/ftol/capture4] sfscal            EQUAL  f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd
+[AC2/omp/repro-full/ftol/capture4] suscal            EQUAL  9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79
+[AC2/omp/repro-full/ftol/capture4] yldot             EQUAL  64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba
+[AC2/omp/repro-full/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/omp/repro-full/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=44352 nnz=3190290 ia_last_ok=True sha256(v,j,i)=711d3536cf1dfd76 2eae17debdcbe582 1a8dfbb156e44570
+[AC2/omp/repro-full/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[AC2/omp/repro-full/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/repro-full/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/repro-full/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/omp/DONLY/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC2/omp/DONLY/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC2/omp/DONLY/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 4
+[AC2/omp/DONLY/ftol/capture4] fnrm              EQUAL  0x1.04ceff2339405p-3
+[AC2/omp/DONLY/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 0.1273479397415544
+[AC2/omp/DONLY/ftol/capture4] ijactot           EQUAL  1
+[AC2/omp/DONLY/ftol/capture4] jac               EQUAL  0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c
+[AC2/omp/DONLY/ftol/capture4] jaci              EQUAL  1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299
+[AC2/omp/DONLY/ftol/capture4] jacj              EQUAL  ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900
+[AC2/omp/DONLY/ftol/capture4] neq               EQUAL  420
+[AC2/omp/DONLY/ftol/capture4] nnz               EQUAL  8194
+[AC2/omp/DONLY/ftol/capture4] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC2/omp/DONLY/ftol/capture4] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC2/omp/DONLY/ftol/capture4] yldot             EQUAL  818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a
+[AC2/omp/DONLY/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/omp/DONLY/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/omp/DONLY/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[AC2/omp/DONLY/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/DONLY/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/DONLY/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/omp/DC/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D+C/nonog_carbon/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC2/omp/DC/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC2/omp/DC/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 4
+[AC2/omp/DC/ftol/capture4] fnrm              EQUAL  0x1.9e014ef9b9f29p-3
+[AC2/omp/DC/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 0.2021509332619129
+[AC2/omp/DC/ftol/capture4] ijactot           EQUAL  1
+[AC2/omp/DC/ftol/capture4] jac               EQUAL  11bbeea4f21ac8bb7a7c3e66fc0945e4315a2e4227104d0fc35cb52111120520
+[AC2/omp/DC/ftol/capture4] jaci              EQUAL  9d870c44e7877558ed6f815246c1964fd1ce594120b322a5e6308168046a8f7c
+[AC2/omp/DC/ftol/capture4] jacj              EQUAL  a9331f91b84e170cf559ec4f935d21e742157b109e225a74ae05d8accb71a029
+[AC2/omp/DC/ftol/capture4] neq               EQUAL  780
+[AC2/omp/DC/ftol/capture4] nnz               EQUAL  21500
+[AC2/omp/DC/ftol/capture4] sfscal            EQUAL  66863aee5b82a04c94dbb23713e0a145a40ebaa801f47ce39f926b0327ffdd0d
+[AC2/omp/DC/ftol/capture4] suscal            EQUAL  3729d939390a2acbca037c144fa2064ae5bd718472f61b9420ecb049324c860c
+[AC2/omp/DC/ftol/capture4] yldot             EQUAL  08cd4118e0a08234ab04f72a62ad5a50c18b8a0f75b3ad046f5b698193c1d043
+[AC2/omp/DC/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/omp/DC/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=780 nnz=21500 ia_last_ok=True sha256(v,j,i)=c10ce1b30a62e596 a9331f91b84e170c 9d870c44e7877558
+[AC2/omp/DC/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2172567873898888e-16
+[AC2/omp/DC/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/DC/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/DC/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/omp/DMOL/ftol/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_mols/nonog_mols/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 OMP_NUM_THREADS=4 env=[]
+[AC2/omp/DMOL/ftol/capture4] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC2/omp/DMOL/ftol/capture4] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 4
+[AC2/omp/DMOL/ftol/capture4] fnrm              EQUAL  0x1.3552adc8df492p+1
+[AC2/omp/DMOL/ftol/capture4] fnrm_printed_seq  EQUAL  n=1 2.416585658151754
+[AC2/omp/DMOL/ftol/capture4] ijactot           EQUAL  1
+[AC2/omp/DMOL/ftol/capture4] jac               EQUAL  928d71179b81a4feaa5859aaa15050043431930e5cb4b8619c4ec9721c98b43a
+[AC2/omp/DMOL/ftol/capture4] jaci              EQUAL  1925477eaba3108d3863e310c416729c34098bfc0310dbe9d45add6125f6d7d9
+[AC2/omp/DMOL/ftol/capture4] jacj              EQUAL  59b9e731bd15eaeb11288543019b1fc75bffdc4b0d903f74fbe51017f0a3efa2
+[AC2/omp/DMOL/ftol/capture4] neq               EQUAL  480
+[AC2/omp/DMOL/ftol/capture4] nnz               EQUAL  9566
+[AC2/omp/DMOL/ftol/capture4] sfscal            EQUAL  0433fa1e1f73b7940151b1c0547a74d4d613ce5d2bdcb1a165a5ff66a9f96fcc
+[AC2/omp/DMOL/ftol/capture4] suscal            EQUAL  889b8156ec887e43b38d009c5500f852d5c753515ebdf99d17fc101c31be5a0f
+[AC2/omp/DMOL/ftol/capture4] yldot             EQUAL  22c98d1e4adf8a1c4de9865aa717a6a3c64fd96cadd2e77029aba8a3e627528a
+[AC2/omp/DMOL/ftol/capture4] new build capture state: jaccapture=4 jaccapcount=1 jaccapn=1
+[AC2/omp/DMOL/ftol/capture4:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=480 nnz=9566 ia_last_ok=True sha256(v,j,i)=a7c5603b68ec4d2f 59b9e731bd15eaeb 1925477eaba3108d
+[AC2/omp/DMOL/ftol/capture4:new] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2156928148379877e-16
+[AC2/omp/DMOL/ftol/capture4:new] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/DMOL/ftol/capture4:new] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/DMOL/ftol/capture4: PASS (bitwise equal)
+(exit 0)
+
+[AC2/omp/DONLY/newton3-incpset1/capture8] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set bbb.incpset=1 --set ppp.OMPParallelJac=0 --set ppp.OMPParallelPandf1=0 --newton 3 OMP_NUM_THREADS=4 env=[]
+[AC2/omp/DONLY/newton3-incpset1/capture8] base=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-omp/bin/python
+[AC2/omp/DONLY/newton3-incpset1/capture8] new =/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python --capture 8
+[AC2/omp/DONLY/newton3-incpset1/capture8] fnrm              EQUAL  0x1.f11ff5a8391b9p-5
+[AC2/omp/DONLY/newton3-incpset1/capture8] fnrm_printed_seq  EQUAL  n=4 0.1273479397415544 0.9719336265386791E-01 0.8401859174210745E-01 0.6068418483644984E-01
+[AC2/omp/DONLY/newton3-incpset1/capture8] ijactot           EQUAL  4
+[AC2/omp/DONLY/newton3-incpset1/capture8] jac               EQUAL  02a05aa6e5b7325c8e827e33c7670bc8506cb0abeb2efdebbbd7903a19a044e0
+[AC2/omp/DONLY/newton3-incpset1/capture8] jaci              EQUAL  ccd1ce93fe6a3e2693b5d75001a108f15a1635cdd0f17390f83f4b276dfab678
+[AC2/omp/DONLY/newton3-incpset1/capture8] jacj              EQUAL  7683797df13351831fa196589c11375dc8e4b566f4b6da1851e7199e9da843f3
+[AC2/omp/DONLY/newton3-incpset1/capture8] neq               EQUAL  420
+[AC2/omp/DONLY/newton3-incpset1/capture8] nnz               EQUAL  8194
+[AC2/omp/DONLY/newton3-incpset1/capture8] sfscal            EQUAL  ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8
+[AC2/omp/DONLY/newton3-incpset1/capture8] suscal            EQUAL  739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80
+[AC2/omp/DONLY/newton3-incpset1/capture8] yldot             EQUAL  c9b56473873e2a9b36e5fe8736cc8878fba6bdaa7672e44b9fb04a11108415cc
+[AC2/omp/DONLY/newton3-incpset1/capture8] new build capture state: jaccapture=8 jaccapcount=4 jaccapn=4
+[AC2/omp/DONLY/newton3-incpset1/capture8:new] slot 1: seq=1 src=jac_calc from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/omp/DONLY/newton3-incpset1/capture8:new] slot 2: seq=2 src=jac_calc from=psetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/omp/DONLY/newton3-incpset1/capture8:new] slot 3: seq=3 src=jac_calc from=psetnk neq=420 nnz=8201 ia_last_ok=True sha256(v,j,i)=0137d421ff82f823 a6c71cd794039caa a681829a4304cc78
+[AC2/omp/DONLY/newton3-incpset1/capture8:new] slot 4: seq=4 src=jac_calc from=psetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=dc49aaac387b2deb 9f277eca7b97682f 9e9dd9d86cdae34c
+RESULT AC2/omp/DONLY/newton3-incpset1/capture8: PASS (bitwise equal)
+(exit 0)
+
+=== AC2 parallel path, OpenMP build, ppp.OMPParallelJac=1 (capture must be jac_calc_parallel and equal bbb.jac*suscal)
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] FINGERPRINT {"fnrm": "0x1.893bb0d6d2b45p+0", "fnrm_printed_seq": ["271985200.1005400", "1.536067058989560"], "ijactot": 1, "jac": "a1523f72cdd476b980db63a5b13284b75f76b472e3d3411767ab3e89bf3ba359", "jaccapcount": 1, "jaccapn": 1, "jaccapture": 4, "jaci": "c59f73787c492a20f8accbef0123e899b0f006248af8d8c38c150f969c395dc9", "jacj": "263871c5e14a59461ade023541987b61206b5bfee999822b8c3b19b8c5635fe8", "neq": 44352, "nnz": 3621751, "sfscal": "78760aaafd38a0f92c1354a8942ce7fbec3dae10d4d2035aabc0bdcbee7e759c", "slots": [{"check_bbb_jac_times_suscal_max_reldiff": 2.220442402426965e-16, "check_pattern_equal_bbb_jacj_jaci": true, "check_raw_times_inv_suscal_bitwise_eq_bbb_jac": true, "from": "sfsetnk", "i": "c59f73787c492a20f8accbef0123e899b0f006248af8d8c38c150f969c395dc9", "ia_last_ok": true, "j": "263871c5e14a59461ade023541987b61206b5bfee999822b8c3b19b8c5635fe8", "neq": 44352, "nnz": 3621751, "seq": 1, "slot": 1, "src": "jac_calc_parallel", "v": "41575c3da9c21a5db7b43ca80996db0df1f2c06f64ddcca34f989359878fc014"}], "suscal": "9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79", "yldot": "64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba"}
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: seq=1 src=jac_calc_parallel from=sfsetnk neq=44352 nnz=3621751 ia_last_ok=True sha256(v,j,i)=41575c3da9c21a5d 263871c5e14a5946 c59f73787c492a20
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: bbb_jac_times_suscal_max_reldiff = 2.220442402426965e-16
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/repro-full/ftol/OMPParallelJac=1/capture4: PASS
+(exit 0)
+
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --set bbb.incpset=1 --newton 3 --capture 8 OMP_NUM_THREADS=4 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] FINGERPRINT {"fnrm": "0x1.7a0d5fc8df587p-35", "fnrm_printed_seq": ["271985200.1005400", "0.1263474205861252", "0.6570270038938178E-02", "0.8040253903761654E-05", "0.4297956397839375E-10"], "ijactot": 4, "jac": "41665d88d267795ac89aaaa837ad471c65cf33e796333c6f8641d52e8c9de381", "jaccapcount": 4, "jaccapn": 4, "jaccapture": 8, "jaci": "5e54599e600f1685fc6a33af24726773438f3c37b4ca10ed1c70e0853a72240c", "jacj": "f36758bf224dd1b1dacd088535ce5becf592c219652e02b5df7e5b8225437e27", "neq": 25, "nnz": 173, "sfscal": "d94d84305c73a99dec279c8ea32d70c86f669656dcbbf60c2d3bd4cfa2e4aee8", "slots": [{"from": "sfsetnk", "i": "2564850752f4b864cf91889bf8a5d72ea4bd73abc527ce47ac752e7ccf3eb4d8", "ia_last_ok": true, "j": "767e3e47dda0b2c74ece2e2467624f2d97f0b2b1b6ab29f67e157d70d927c984", "neq": 25, "nnz": 189, "seq": 1, "slot": 1, "src": "jac_calc_parallel", "v": "7f6e14b028d36877d7246d3789ec23bd2a6615c1dfef283bd11a7ccc740d5972"}, {"from": "psetnk", "i": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "ia_last_ok": true, "j": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "seq": 2, "slot": 2, "src": "jac_calc_parallel", "v": "2c614e91c4c920dab4c4564e7375566240c431a1f03f6efc226fed63144ee328"}, {"from": "psetnk", "i": "8eac5dc8914f8e13eee29ca402a4c70767e50d88735b5bf67ca5984b46cf896c", "ia_last_ok": true, "j": "b1a81109387218fd93d81aaa49db5cc74b41a5faaf5c5b65de3b9df0fae0aa25", "neq": 25, "nnz": 171, "seq": 3, "slot": 3, "src": "jac_calc_parallel", "v": "a2d7147a78cac04ec190130bdc2bd89bab00df1692474caeb87f23bac283a936"}, {"from": "psetnk", "i": "e13c41fdd5eaf5e58dd0ada3e49b29791ce0d125d0f9249783d0a124f7356cdc", "ia_last_ok": true, "j": "048f2c61ea5bd62be6d45ab8cf8fe46a0e8505243db0c8b2f4e8312a9273a03d", "neq": 25, "nnz": 173, "seq": 4, "slot": 4, "src": "jac_calc_parallel", "v": "e2289786deb9ad947396e28c21916a7d4126e84c35187b0a5b51749698323b1a"}], "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "3ea5fb76445c6546ab2075b66a4865c0bba522c752e1b5aa3ed47ea58c5955d9"}
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] slot 1: seq=1 src=jac_calc_parallel from=sfsetnk neq=25 nnz=189 ia_last_ok=True sha256(v,j,i)=7f6e14b028d36877 767e3e47dda0b2c7 2564850752f4b864
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] slot 2: seq=2 src=jac_calc_parallel from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=2c614e91c4c920da 47a3c6d78fa85b06 995b8308b7504948
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] slot 3: seq=3 src=jac_calc_parallel from=psetnk neq=25 nnz=171 ia_last_ok=True sha256(v,j,i)=a2d7147a78cac04e b1a81109387218fd 8eac5dc8914f8e13
+[AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8] slot 4: seq=4 src=jac_calc_parallel from=psetnk neq=25 nnz=173 ia_last_ok=True sha256(v,j,i)=e2289786deb9ad94 048f2c61ea5bd62b e13c41fdd5eaf5e5
+RESULT AC2/omp/repro-tebox/newton3-incpset1/OMPParallelJac=1/capture8: PASS
+(exit 0)
+
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] case=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default deck=input.py child_args=--set bbb.issfon=1 --set ppp.OMPParallelJac=1 --set ppp.OMPlenpfac=20 --capture 4 OMP_NUM_THREADS=4 env=[]
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-omp/bin/python
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] FINGERPRINT {"fnrm": "0x1.04ceff2339405p-3", "fnrm_printed_seq": ["0.1273479397415544"], "ijactot": 1, "jac": "0324c6b5b5acc7941914bff1a9719cca7122400f653fcd60480f7714ae86790c", "jaccapcount": 1, "jaccapn": 1, "jaccapture": 4, "jaci": "1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299", "jacj": "ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900", "neq": 420, "nnz": 8194, "sfscal": "ab2c2fadfdaa7e2a5be1772b8fa2d3ac8b078ef4e1b1764c47c79612536db3d8", "slots": [{"check_bbb_jac_times_suscal_max_reldiff": 2.2194176266555503e-16, "check_pattern_equal_bbb_jacj_jaci": true, "check_raw_times_inv_suscal_bitwise_eq_bbb_jac": true, "from": "sfsetnk", "i": "1118de083d5417890cb3a879665f4cce7b5eca078413f8883312cd0c6fa68299", "ia_last_ok": true, "j": "ce35cef33d3183861883eddc06173815a6e26efb72f513ced339ef42e1f84900", "neq": 420, "nnz": 8194, "seq": 1, "slot": 1, "src": "jac_calc_parallel", "v": "ab3f439b14730c5a95b0134eed814614872a67362ba353c4d493ba6d915e054c"}], "suscal": "739c97c9b6e60a06ca2d539e8f37cbe35ba36f0a826f9958e949e5e4aa386a80", "yldot": "818c94c8c62adfe8490797afb5910306832ba40d900284d8c99276782bddae6a"}
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] slot 1: seq=1 src=jac_calc_parallel from=sfsetnk neq=420 nnz=8194 ia_last_ok=True sha256(v,j,i)=ab3f439b14730c5a ce35cef33d318386 1118de083d541789
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] slot 1: bbb_jac_times_suscal_max_reldiff = 2.2194176266555503e-16
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] slot 1: pattern_equal_bbb_jacj_jaci = True
+[AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4] slot 1: raw_times_inv_suscal_bitwise_eq_bbb_jac = True
+RESULT AC2/omp/DONLY/ftol/OMPParallelJac=1/capture4: PASS
+(exit 0)
+
+=== AC2 capture bookkeeping (serial build, Te box, 4 Jacobians): slot k of capture-all == only slot of skip=k-1
+[bookkeeping/tebox/newton3-incpset1 --capture 8] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 8 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 8] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 8] slot 1: seq=1 src=jac_calc from=sfsetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[bookkeeping/tebox/newton3-incpset1 --capture 8] slot 2: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[bookkeeping/tebox/newton3-incpset1 --capture 8] slot 3: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+[bookkeeping/tebox/newton3-incpset1 --capture 8] slot 4: seq=4 src=jac_calc from=psetnk neq=25 nnz=172 ia_last_ok=True sha256(v,j,i)=eaa13ff6a3e95fd6 dc2cde82fa1343d4 21860e3b06f6f7a0
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 8: PASS
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 0 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0] slot 1: seq=1 src=jac_calc from=sfsetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 0: PASS
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 1 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1] slot 1: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 1: PASS
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 2 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2] slot 1: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 2: PASS
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 1 --skip 3 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3] slot 1: seq=4 src=jac_calc from=psetnk neq=25 nnz=172 ia_last_ok=True sha256(v,j,i)=eaa13ff6a3e95fd6 dc2cde82fa1343d4 21860e3b06f6f7a0
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 1 --skip 3: PASS
+[bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] case=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/case deck=input_mod4.py child_args=--tebox --set bbb.incpset=1 --newton 3 --capture 2 --skip 1 OMP_NUM_THREADS=1 env=['UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5']
+[bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] python=/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-47-serial/bin/python
+[bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] slot 1: seq=2 src=jac_calc from=psetnk neq=25 nnz=169 ia_last_ok=True sha256(v,j,i)=7fa63967f099cff2 47a3c6d78fa85b06 995b8308b7504948
+[bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1] slot 2: seq=3 src=jac_calc from=psetnk neq=25 nnz=170 ia_last_ok=True sha256(v,j,i)=2eba77424dff3f11 2ebe426a204ddec4 081d33fb23bc7053
+RESULT bookkeeping/tebox/newton3-incpset1 --capture 2 --skip 1: PASS
+
+=== AC3 MPPL hazards in lines added to .m/.v (setup.py M2F rules: '#' in strings, float, break, while (, do i1=, (Size4), elseif)
+added lines:      102
+string literals in added lines:
++      call gchange("Jacobian_capture",0)
+hazard hits (float|break|while (|do i1=|Size4|elseif|#.*"):
+  none
+added .m code lines longer than 72 columns:
+generated OpenMP .F for the c!omp line (AIUE-47 omp tree):
+4701:      integer jcsrc       ! producer tag for jac_capture
+4717:         jcsrc = 1
+4718:         if (ParallelJac.eq.1) jcsrc = 2
+4719:         call jac_capture (neq, jac, ja, ia, jcsrc)
+generated serial .F for the c!omp line (AIUE-47-serial tree):
+4701:      integer jcsrc       ! producer tag for jac_capture
+4717:         jcsrc = 1
+4718:c!omp    if (ParallelJac.eq.1) jcsrc = 2
+4719:         call jac_capture (neq, jac, ja, ia, jcsrc)
+compiler diagnostics mentioning the new code (both build logs):
+  none
+
+TOTAL FAILURES: 0
+driver exit 0
