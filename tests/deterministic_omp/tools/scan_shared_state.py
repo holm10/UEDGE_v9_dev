@@ -26,6 +26,10 @@ Usage (from a copy of tests/deterministic_omp/case, environment as in the README
     --cols   columns to perturb: "all" (default for --tebox), N evenly spaced columns (default 12 for the full
              problem), or an explicit comma-separated list of 1-based iv
     --src    source tree for the +threadprivate lists (default: three levels up from this file)
+    --nksol-mode  evaluate with yl(neq+1)=-1 (nksol residual mode) instead of the Jacobian mode yl(neq+1)=+1
+             that jac_calc and OMPJacBuilder use (default)
+    Run from a copy of the case with UEDGE_OMP_RATES_DIR set (see the README), because the deck finds the rate
+    files relative to its own location.
 
 Writes the JSON report (default ./shared_state.json) and prints a summary. Exit status 0.
 """
@@ -110,6 +114,9 @@ def main(argv):
 
     names = [(p, n) for p, m in mods.items() for n in m.varlist() if (p, n) not in tp]
     yl = np.array(bbb.yl, copy=True)
+    # Jacobian mode: sfsetnk sets yl(neq+1)=1 before rhsnk/jac_calc (bbb/oderhs.m:2325) and pandf branches on it
+    # (timing, add_timestep, ishosor, ismcnon). --nksol-mode keeps the post-exmain value (-1) instead.
+    yl[neq] = -1.0 if "--nksol-mode" in argv else 1.0
     yldot0 = np.zeros_like(yl)
     bbb.pandf(-1, -1, neq, 0.0, yl, yldot0)
     base = snapshot(mods, names)
@@ -126,7 +133,7 @@ def main(argv):
         bbb.pandf(xc, yc, neq, 0.0, yl, wk)
         return xc, yc, mid
 
-    report = {"neq": neq, "columns": ivs, "tebox": "--tebox" in argv, "n_vars_scanned": len(base),
+    report = {"neq": neq, "columns": ivs, "tebox": "--tebox" in argv, "yl_neq_plus_1": float(yl[neq]), "n_vars_scanned": len(base),
               "n_threadprivate_skipped": len(tp), "changed_mid": {}, "changed_after": {}, "sentinel": {}}
     for iv in ivs:
         xc, yc, mid = column(iv)

@@ -20,8 +20,9 @@ Usage:
     --build  directory holding the generated <pkg>_p.F90 (default: the first <src>/build/temp.* found)
     --emit-checker  also write a free-form Fortran file with `subroutine OMPCheckThreadprivateCopy(tag)`, which
              compares every worker thread's copy of every threadprivate variable bit for bit with the master's
-             copy and prints the mismatches. It is meant for scratch builds only (see run_tpcheck.md in the RCA):
-             append it to ppp/omp_parallel.F90 in a scratch tree and call it from OMPJacBuilder.
+             copy and prints the mismatches. It is meant for scratch builds only (procedure: "How to reproduce" in
+             docs/rca/AIUE-8-omp-jacobian-nondeterminism.md): append it to ppp/omp_parallel.F90 in a scratch tree
+             and call it from OMPJacBuilder.
 
 Exit status 0. The table goes to stdout unless --md is given.
 """
@@ -106,7 +107,8 @@ def parse_generated(path):
             if name == m.group(1):
                 called = set(c.lower() for c in re.findall(r"^call OmpCopyPointer(\w+)", sub, re.M))
                 continue
-            guard = re.search(r"^if \((.*)\) then\s*$", sub, re.M)
+            # only the size guard (".le.size(var)"); fixed-size arrays have none, and "if (tid.gt.0) then" is not one
+            guard = re.search(r"^if \((.*\.le\.size\(\w+\))\) then\s*$", sub, re.M)
             dtype = re.search(r"^\s*(\w+\(kind=\d+\))::\w+copy(\([^)]*\))", sub, re.M)
             uses = re.findall(r"^\s*use (\w+)", sub, re.M)
             copy_ptr[name.lower()] = {

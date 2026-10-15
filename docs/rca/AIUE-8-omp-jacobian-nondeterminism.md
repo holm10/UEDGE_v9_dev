@@ -19,19 +19,36 @@ spline tables mostly zero on the first OpenMP Jacobian.** `OMPJacBuilder` copies
 (`OmpCopyPointer<pkg>`, `ppp/omp_parallel.F90:681-686`) before threadprivate scalars (`OmpCopyScalar<pkg>`,
 `ppp/omp_parallel.F90:688-693`). Each generated `OmpCopyPointer<var>` sizes the section it writes on a worker
 with that worker's own copy of the bounds. For the twelve `Imslwrk` arrays in `api` those bounds are themselves
-threadprivate scalars (`nxdata_api`, `nydata_api`, `nzdata`, `nwork2`, `nwork3`, `k?ords*`), whose DATA default is
-`/1/` (`api/api.v:145-147,155,157`). `readpost` sets them on the master thread only (`api/apip93.m:102-108`). So on
-the first Jacobian each worker copies just element 1 of `xdata_api`, `ydata_api`, `zdata`, the knot vectors, and so
-on, and keeps zeros everywhere else. `emissbs` (`api/apip93.m:189-225`) then evaluates the B-spline `B3VAL` on
-zero knots and data. That is the `isimpon=7` fixed-fraction radiation term
+threadprivate scalars: `nxdata_api`, `nydata_api`, `nzdata`, `nwork2`, `nwork3` with DATA default `/1/`
+(`api/api.v:145-147,155,157`), and `kxords_api`, `kyords_api`, `kzords` with default `/4/` (`api/api.v:161-165`).
+`splinem` (`api/apip93.m:101-107`, called from `ueinit` at `bbb/odesetup.m:1130,1150` after `readpost`) sets the
+first five on the master thread only. So on the first Jacobian each worker copies just element 1 of `xdata_api`,
+`ydata_api`, `zdata`, `fdata_api`, `work2`, `work3`, `emcoef`, `z1coef`, `z2coef`, and elements 1:5 of the knot
+vectors (bounds `n+k` = 1+4), and keeps zeros everywhere else. `emissbs` (`api/apip93.m:189-225`) then clips its
+arguments to the zeroed data range. `B3VAL` fails its range test and returns 0, so `emissbs = 10**0 = 1.0` exactly,
+against a true value of about 1.9e-35 at te(4,20). That is the `isimpon=7` fixed-fraction radiation term
 (`bbb/pandf_plasma_energy.m:819-824`), which enters only the electron-energy residual (`cnimp*pwrze`,
 `bbb/pandf_plasma_energy.m:1117`). So the corruption is limited to Te rows and to columns computed on worker
 threads, and it vanishes with 1 thread or `afracs=0`. Only after the first copy do the workers hold the right
 scalars, so later Jacobians in the same process are clean.
 
+**C1 also corrupts the parallel RHS (`OMPParallelPandf1=1`), and through it the solution.** `OMPPandf1Rhs`
+(`ppp/omp_parallel.F90:900-997`) calls no `OmpCopy*` routine, so its workers run on whatever threadprivate state the
+last `OMPJacBuilder` copy left. Between the first and the second Jacobian the workers have the right `Imslwrk`
+bounds but tables that are still mostly zero. (`emcoef` is the exception: `copyin` points it at the master's
+array.) So every parallel-RHS evaluation in that window gets `emissbs = 1` on the worker chunks. Reviewer's
+evidence (harness `--arm jacrhs`, Te box, 4 threads, unmodified build): `yldot` is wrong in all 25 Te rows and
+`sfscal` in 18. The log shows `OMP iter= 0 fnrm= 0.87e31`. With `ftol=1e20` serial takes no Newton step, but this
+run takes one, and `fnrm_final` differs (`0x1.9c7df3d50ba02p-3` against serial `0x1.49db83f93d961p-2`). With
+`OMPParallelPandf1=1` the defect therefore changes the result, not only the preconditioner. The swap build matches
+serial on this arm, apart from the M2 entries. **AIUE-56 must validate the `jacrhs` arm as well as `jac`.**
+
 Fixing the copy order on a scratch build makes the Te-box OpenMP Jacobian match serial in sparsity and `fnrm`, bitwise,
-in 3 of 3 runs, and the full-problem Jacobian bitwise equal to serial in 1 of 2 runs. The remaining differences are
-round-off-level entries in a few Te rows (mechanism M2, below). They are a separate, much smaller effect.
+in 3 of 3 runs, and the full-problem Jacobian bitwise equal to serial in 1 of 2 of my runs. The remaining
+differences are round-off-level entries in Te rows (mechanism M2, below). They are a separate, much smaller effect.
+On the full problem their count varies widely from run to run: 0 and 472 entries (7 rows) in my two runs, 860-1037
+per run in the main session's harness, and 1217 entries in 26 Te rows in the reviewer's run. All are at noise level
+(|Δ|·sfscal ≤ 4.6e-9), with `fnrm` and `yldot` equal. 472 is not a bound.
 
 No other shared-state defect that could produce M1 was found. Secondary findings: one real race on physics state
 in the plate boundary conditions (`areapl`, F16; full problem only, not seen to change results), benign races on
@@ -43,7 +60,7 @@ timers, flags and `nfsp` (F5-F7), and SAVE arrays in `api/fmombal.m` (F9-F10).
 |---|---|---|
 | OmpCopy coverage, static | `tests/deterministic_omp/tools/scan_ompcopy.py` | Every `+threadprivate` variable in every `.v`. Does the generated `<pkg>_p.F90` have the `!$omp threadprivate` directive? Is the variable copied by `OmpCopyPointer<var>`/`OmpCopyScalar<pkg>`, is that package's copy called by `OMPJacBuilder`, which size guard can skip the copy, is it in `copyin`, and does the copied section depend on threadprivate scalars that are copied later (copy-order hazard)? |
 | OmpCopy coverage, dynamic | `scan_ompcopy.py --emit-checker` + scratch build | Generated `OMPCheckThreadprivateCopy(tag)`: compares every worker's copy of all 547 threadprivate variables (bbb 522, api 25), bit for bit, with the master's copy, right after the copy and after the loop. |
-| Shared state written by a local `pandf`, before/after | `tests/deterministic_omp/tools/scan_shared_state.py` | All 3480 non-threadprivate variables of bbb, com, api, aph, ppp, flx, grd, svr, wdf, ncl, of every type (real, integer, logical, character; scalars and arrays). Snapshots after `pandf(-1,-1)`, after the perturbed local `pandf(xc,yc)` and after the restoring one, for all 25 Te-box columns and 12 full-problem columns. |
+| Shared state written by a local `pandf`, before/after | `tests/deterministic_omp/tools/scan_shared_state.py` | All 3480 non-threadprivate variables of bbb, com, api, aph, ppp, flx, grd, svr, wdf, ncl, of every type (real, integer, logical, character; scalars and arrays). Snapshots after `pandf(-1,-1)`, after the perturbed local `pandf(xc,yc)` and after the restoring one, for all 25 Te-box columns and 12 full-problem columns. Evaluated in Jacobian mode, `yl(neq+1)=1`. The first version used nksol mode (`-1`). After review, both the Te box (diff + sentinel) and the full-problem diff were re-run in Jacobian mode, giving the same findings except for the `PandfTiming` accumulators (F6). |
 | Same, sentinel | `scan_shared_state.py --sentinel` | Catches value-preserving writes and set/reset toggles. Each variable is set to a sentinel (next float up, int+1, negated logical), one column is run, and any variable no longer holding the sentinel is reported. Each test runs in a forked child, so a crash marks only that variable. |
 | Saved locals, DATA, COMMON | `tests/deterministic_omp/tools/scan_saved_locals.py` | 865 program units in `*/*.m`, `ppp/*.F90`, tracked `*.f`. Call graph from `pandf` (145 reachable units); SAVE, DATA, F90-initialised locals and COMMON variables, and whether the unit assigns them or passes them to a CALL. |
 | Automatic arrays in `LocalJacBuilder` | Code reading (`ppp/parallel.F90:195-196,229-345`) | Is `wk`/`yl_check` read before it is written? |
@@ -56,26 +73,27 @@ timers, flags and `nfsp` (F5-F7), and SAVE arrays in `api/fmombal.m` (F9-F10).
 | # | Variable | file:line | Kind | Written where | Threadprivate | Copied | Verdict |
 |---|---|---|---|---|---|---|---|
 | F1 | `xdata_api`, `ydata_api`, `zdata`, `fdata_api`, `work2`, `work3`, `xknots_api`, `yknots_api`, `zknots`, `emcoef`, `z1coef`, `z2coef` (`Imslwrk`) | `api/api.v:148-151,156,158,167-172` | dynamic real arrays, bounds = threadprivate scalars | filled by `splinem1` after `gallot("Imslwrk")` on the master (`api/apip93.m:108-185`); `work2` written by `B3VAL` in `emissbs` inside `pandf` | yes | **partially**: only element 1 on the first Jacobian, because `OmpCopyPointerapi` (`ppp/omp_parallel.F90:685`) runs before `OmpCopyScalarapi` (`:692`) and sizes the section with the worker's `nxdata_api` etc. (still `/1/`); `emcoef` is also in `copyin` (`:715`), so in the loop the workers' `emcoef` points at the master's array | **Candidate root cause C1 of M1** (evidence E1-E4) |
-| F2 | `nxdata_api`, `nydata_api`, `nzdata`, `nwork2`, `nwork3`, `kxords_api`, `kyords_api`, `kzords`, `ldf_api`, `mdf` | `api/api.v:145-147,152-153,155,157,161-165` | integer scalars, DATA `/1/` or `/4/` | `readpost1`/`splinem1` on the master (`api/apip93.m:102-106,142-143`) | yes | yes, but after the arrays that depend on them (see F1); workers hold the DATA defaults until the first `OmpCopyScalarapi` | Part of C1 |
+| F2 | `nxdata_api`, `nydata_api`, `nzdata`, `nwork2`, `nwork3`, `kxords_api`, `kyords_api`, `kzords`, `ldf_api`, `mdf` | `api/api.v:145-147,152-153,155,157,161-165` | integer scalars, DATA `/1/` or `/4/` | `splinem`/`splinem1` on the master (`api/apip93.m:101-106,142-143`) | yes | yes, but after the arrays that depend on them (see F1); workers hold the DATA defaults until the first `OmpCopyScalarapi` | Part of C1 |
 | F3 | `icont`, `iflagi`, `iworki` | `api/api.v:154,159-160` | int scalars / fixed int array | `emissbs` sets `icont=0` (`api/apip93.m:215`); `B3VAL` writes `iflagi`, `iworki` | yes | yes | Correct (per-thread work state) |
 | F4 | `impradloc(0)` | `bbb/bbb.v:3898` | element of a threadprivate work array | never written by `radimpmc` (`api/inelrates.m:397-414` loops `kk=1,nzarg`), but read into `pradzc(..,0,..)`/`pradc` (`bbb/pandf_plasma_energy.m:812-815`) | yes | yes | Stale/uninitialised read, but only for `ismctab=1` (this case uses `ismctab=2`/`radmc`), and `pradc`/`prad` are diagnostics, not the Te residual (`pwrze`). Not a cause; report to the fix ticket |
 | F5 | `TimingPandfOn` | `bbb/bbb.v:4136` | integer scalar | set and reset on every `pandf` call (`bbb/pandf.m:573-579`) | **no** | n/a | Data race between threads (sentinel: WRITTEN). It only gates timing, so it does not affect results. Should be threadprivate or not written in the Jacobian |
-| F6 | `TimePandf`, `TotTimePandf`, `TimeConvert0/1`, `TotTimeConvert0/1`, `Timefd2tra` (`PandfTiming`); `com.ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv` (`Timing`) | `bbb/bbb.v:4136-4170`, `com/com.v:503-567` | real scalars | accumulated in `pandf` (`bbb/pandf.m:580-760`), `oderhs.m:88,532`, `com/comutil.m:3654` (`istimingon=1` by default, `com/com.v:503`) | **no** | n/a | Benign data races on timers (lost updates only) |
+| F6 | `com.ttimpjf`, `ttimpfe`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv` (`Timing`, `TimeSpl`) | `com/com.v:503-567` | real scalars | accumulated in `pandf` (`bbb/pandf.m:760`), `neudifpg` (`bbb/pandf_gas_continuity.m`), `B1VAhL` (`com/comutil.m:3654`) (`istimingon=1` by default, `com/com.v:503`) | **no** | n/a | Benign data races on timers (lost updates only). The `PandfTiming` accumulators (`TimePandf`, `TotTimePandf`, `TimeConvert*`, `Timefd2tra`) were reported by the first scan only because it ran `pandf` in nksol mode (`yl(neq+1)=-1`). In Jacobian mode (`yl(neq+1)=1`, the default of the fixed scan) `TimingPandfOn=0` and they are not written, which agrees with TSan |
 | F7 | `com.nfsp` | `com/com.v:28` (`Dim`) | integer scalar | `nfsp = nisp` / `= nhsp` on every `pandf` (`bbb/pandf.m:50-51`) | **no** | n/a | Race, but every thread writes the same value (it depends only on `isimpon`, `nisp`, `nhsp`). Benign |
 | F16 | `areapl` (`Rccoef`) | `bbb/bbb.v:951` | real scalar, `+work` | written and immediately read in the plate recycling/albedo boundary conditions, `left_boundary`/`right_boundary` (`bbb/pandf_boundary.m:3091,3166,3446,3544,3797,3882,4180,4277`) | **no** | n/a | **Real data race on physics state**, found by the full-problem diff scan (changed in every sampled column whose box touches a plate: 11 of 12). Two threads at plate cells can overwrite each other's value between the write and the read on the next line. Not observed to change results (the full-problem OpenMP Jacobian with C1 fixed differs from serial only in Te rows, and is bitwise equal in 1 of 2 runs), probably because the compiler keeps the value in a register. Still, it must become a local or `+threadprivate` (fix ticket). Not involved in the Te box |
-| F8 | all other 3480 − 17 non-threadprivate variables, every type | all `.v` | — | not written by a local `pandf` (diff on 25 Te-box + 12 full-problem columns; sentinel on one Te-box column only, since the full-problem sentinel run did not finish within the time box) | no | n/a | Clean. With F5-F7 and F16 this closes H2 for scalars and integer arrays on the sampled columns |
+| F8 | all other non-threadprivate variables (3480 scanned), every type | all `.v` | — | not written by a local `pandf` (diff on 25 Te-box + 12 full-problem columns; sentinel on one Te-box column only, since the full-problem sentinel run did not finish within the time box) | no | n/a | Clean. With F5-F7 and F16 this closes H2 for scalars and integer arrays on the sampled columns |
 | F9 | `uresp`, `usave`, `caplams` | `api/fmombal.m:70` | SAVE local arrays | passed to `zrespond`/`mrespond`/`mzrespond`, which write them (`api/fmombal.m:223-238`) | no | n/a | **Race when `fmombal` runs on several threads** (called from `mombal` for `isimpon` 6/7 parallel force balance, `bbb/pandf_plasma_momentum.m:671,703`, `:1018`). Not involved in the Te box (`isupon=0`); a candidate for non-Te round-off in the full problem, not for M1 |
 | F10 | `nrow`, `bmat`, `sbar0`, `ubar0` (`mrespond`); `zmat`, `source`, `scaz`, `lsz`, `msz`, `nrowz` (`zrespond`) | `api/fmombal.m:368`, `api/fmombal.m:1064` | SAVE locals | passed to CALLs in the same routines (`:466-480`, `:1199-1213`) | no | n/a | Same as F9 (H3 confirmed as a hazard, not as the M1 cause) |
 | F11 | `lunit`, `mesflg` (`parmsetget`), `args` (`ijmgetmr`), COMMON `/iotable/` (`freeus`) | `com/error.f:144`, `com/getmsg.f:11`, `com/dummy_py.f:66` | SAVE/DATA/COMMON | error-message and interrupt paths (`xermshg`, `check_kaboom`) | no | n/a | Only on error or interrupt paths. Benign for the Jacobian |
 | F12 | DATA tables in `rcxr_zn6`, `rcxr_zn6b` (`api/fimp.m:219-252`), `yhaasz*` (`api/sputt.m:501-765`), F90 initialisers in `run_uedge`/`run_degas2` (`bbb/ext_neutrals.m:118-162`, duplicated in `bbb/s.m`) | as listed | DATA/initialised locals | never assigned | no | n/a | Read-only constants. Safe |
 | F13 | `wk(neq)`, `yl_check(neq)` (`LocalJacBuilder`) | `ppp/parallel.F90:195-196` | automatic arrays (per call, per thread) | `wk(ii1:ii2)=yldot00` before every `pandf` (`:237-239`); `pandf` rescales `yldot(iv)` in place (`bbb/pandf.m:436-504`) over its own loop range; `yl_check(1:neq)=wk(1:neq)` (`:321`) | n/a (stack) | n/a | No read-before-write reaches the Jacobian: `jacelem` and the `isjacreset` check read only `ii1:ii2`, which is always initialised. Entries outside `ii1:ii2` may hold garbage but are never used. On the Te box `ii1:ii2` covers all 25 equations. Ruled out (H6 part 2) |
 | F14 | `ppp` module state written in the loop: `iJacCol(:,ichunk)`, `rJacElem(:,ichunk)`, `iJacRow(ivmin:ivmax)`, `OMPTimeJacRow(ivmin:ivmax)`, `nnz(ichunk)`, `OMPTimeLocalJac(tid+1)` | `ppp/omp_parallel.F90:728-735` | shared arrays | inside `!$omp parallel do`, indexed by `ichunk`/`tid` | no | n/a | Disjoint per chunk/thread. No race. `ppp` has no threadprivate variables (`ppp/ppp.v`); `OmpCopyppp` is empty. Clean |
-| F15 | `yinc`, `xlinc`, `xrinc` (`Selec`), `emcoef` | `ppp/omp_parallel.F90:715` | threadprivate | `copyin` | yes | yes (twice: OmpCopy and copyin) | Correct |
+| F15 | `yinc`, `xlinc`, `xrinc` (`Selec`), `emcoef` | `ppp/omp_parallel.F90:715` | threadprivate | `copyin` | yes | yes (twice: OmpCopy and copyin) | Correct for the `Selec` scalars. **`emcoef` is a Forthon pointer**, so `copyin` pointer-assigns each worker's `emcoef` to the master's target, and the association persists after the loop. From the second Jacobian on, every worker's `OmpCopyPointeremcoef` writes `emcoef(1:n)` into the master's array at the same time: a formal data race, harmless because the values are identical, and the workers' own copies are leaked. AIUE-56 should decide whether `emcoef` stays in `copyin`; see also fix direction 3. My TSan run covered only one Jacobian, so it could not see this |
 
 The full coverage table, with one row per threadprivate variable (547 rows), is regenerated with
 `scan_ompcopy.py --md`. Its summary for `0fac655` is: bbb 522 threadprivate, 522 copied; api 25 threadprivate, 25
-copied; no threadprivate variable lacks the directive or a copy routine; 446 copies are behind a
-`size >= declared` guard, and none of those guards fails for this case (the checker found 0 mismatches outside
+copied; no threadprivate variable lacks the directive or a copy routine; 442 copies (bbb 430 of 433, api 12 of 13)
+are behind a `size >= declared` guard, while the 4 fixed-size arrays (`cftgtipltl`, `cftgtipltr`, `psordisold`,
+`iworki`) have none, and none of those guards fails for this case (the checker found 0 mismatches outside
 `Imslwrk`); **12 copy-order hazards, all in `api` `Imslwrk`** (F1).
 
 ### Candidate root cause C1: evidence
@@ -161,8 +179,10 @@ Patch used (scratch only, not committed as product code):
 * *Off-diagonal entries equal another column's diagonal.* Every column whose stencil contains cell r recomputes
   `emissbs` at r with the same zeroed tables. That gives the same wrong `wk(r)` divided by an almost equal `dyl`
   (the values agree to the last 1-2 ulp).
-* *Run-to-run variation.* `B3VAL` on all-zero knot vectors works with degenerate intervals, and its result depends
-  on which columns land on workers under `schedule(dynamic)`.
+* *Run-to-run variation.* On a worker, `emissbs` clips its arguments into the zeroed data range. `B3VAL` then fails
+  its range test and returns 0, so `emissbs = 1.0` exactly (reviewer's emulation: 1.90e-35 → 1.0 at te(4,20),
+  2.77e-34 → 1.0 at te(5,20)). The wrong value is deterministic per cell. The variation comes only from which
+  columns `schedule(dynamic)` puts on worker threads.
 * *`afracs=0` cures it* (main-session experiment). `pradcff = na*ne*emissbs` with `na=afrac*ne=0`.
 * *Full problem: stable `fnrm`, unstable Jacobian.* The iteration-0 `fnrm` comes from the master's RHS.
 
@@ -175,7 +195,8 @@ Suggested fix directions for AIUE-56 (not implemented here):
 3. Independently, consider making the `Imslwrk` tables (read-only after `splinem1`) non-threadprivate shared data,
    leaving only the B3VAL work arrays (`work2`, `iworki`, `icont`, `iflagi`) threadprivate.
 
-`scan_ompcopy.py` flags the order hazard statically, so it can serve as a regression check.
+`scan_ompcopy.py` flags the order hazard statically, so it can serve as a regression check. Validation for AIUE-56
+must include the `jacrhs` arm (`OMPParallelPandf1=1`), not only `jac`, and one `--checkbounds` OpenMP Te-box run.
 
 ### Mechanism M2 (round-off-level, history dependent), not resolved here
 
@@ -223,15 +244,21 @@ The serial reference and the unpatched code were not run under TSan.
 * The sentinel test runs one column (Te box: column 13).
   A variable written only for other cells or boundary columns would be missed by the sentinel, but would still
   show in the diff test if its value changes.
-* `OMPParallelPandf1=1` (parallel RHS) was not scanned. It has its own copy and chunking path, and it writes the
-  shared `com.nfsp` in `OMPinitialize_ranges2D` (`ppp/omp_parallel.F90`).
+* `OMPParallelPandf1=1` (parallel RHS) was not scanned for shared state of its own. It has its own chunking path,
+  and it writes the shared `com.nfsp` in `OMPinitialize_ranges2D` (`ppp/omp_parallel.F90`). It is **not** unaffected
+  by C1, though: it inherits the workers' state from the last Jacobian copy (see Summary).
+* Follow-up for the sentinel on the full problem: run it on a restricted variable list, or with batched children,
+  on a few plate-adjacent columns. The `areapl` race (F16) is the kind of value-preserving write the sentinel is
+  meant to catch.
 * Other platforms and runtimes (Linux/libgomp) were not tried. C1 does not depend on the platform.
 * M2 is characterised only as far as above.
 
 ### How to reproduce
 
-From the AIUE-50 worktree, with the case copied as in `tests/deterministic_omp/README.md` (rates directory,
-`OMP_STACKSIZE=512M`, empty `HOME`, `python -I`):
+From the AIUE-50 worktree, with the case copied as in `tests/deterministic_omp/README.md`. Set
+`UEDGE_OMP_RATES_DIR=<repo>/builder/test/Forthon_cases/Forthon_case5` whenever the case runs outside the repository
+(the deck finds the rate files relative to itself). Also set `OMP_STACKSIZE=512M`, use an empty `HOME`, and run
+`python -I`:
 
 ```bash
 T=tests/deterministic_omp/tools
