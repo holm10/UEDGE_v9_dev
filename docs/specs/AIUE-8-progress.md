@@ -173,3 +173,7 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   comment): F with round-robin fixed chunks +4-6 % vs default, reproducible; F with one chunk per thread +70-108 %;
   E +27-154 % (+44 % at best), bitwise = serial; auto-balancing is inactive in the default by code. AI layer
   consolidated onto local v9-develop (4faed39, 7 commits, not pushed); AI branches and worktrees deleted.
+- **Owner decision 9 (13:30):** option F, static partition of many fixed contiguous chunks dealt round-robin (~5 %),
+  as the new default OpenMP Jacobian behaviour; the owner confirmed this as an exception to the no-default-change rule.
+  Implementation: AIUE-61 (rewritten). Started AIUE-61, AIUE-64 (Linux link), AIUE-60 (races) to plan review, and
+  AIUE-58 (RHS RCA) to completion.
