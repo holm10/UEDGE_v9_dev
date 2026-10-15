@@ -42,8 +42,9 @@ ppp.CheckJac = 1      # compares parallel vs serial Jacobian (ppp/ppp.v:9)
 bbb.exmain()
 ```
 
-`CheckJac` uses an absolute tolerance of 1e-14 and aborts on the first mismatching Jacobian entry (`ForceSerialCheck`
-replaces the solver's Jacobian with the serial one); `CheckPandf1` applies an absolute then a relative 1e-14 test
+`CheckJac` uses an absolute tolerance of 1e-14 and aborts on the first mismatching Jacobian entry; `ForceSerialCheck`
+is a separate serial-vs-serial reproducibility check (two serial evaluations of the Jacobian, the second replacing
+the solver's); `CheckPandf1` applies an absolute then a relative 1e-14 test
 and aborts after scanning all entries. They change solver state, so they are diagnostics, not a baseline. The bitwise check against serial is the harness below.
 
 Test with a double-null / snowflake case too: X-point chunks are where regressions hide.
