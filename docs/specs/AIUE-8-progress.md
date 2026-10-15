@@ -6,34 +6,40 @@ depends on an unmerged ticket. Each ticket gets a fresh `uedge-reviewer` adversa
 (reports in that ticket's `docs/reviews/`). Jira: In Progress while worked on, **In Review** once the adversarial
 review approves (awaiting the owner's review / PR). Owner decisions are prepared, never taken.
 
-## Status board (updated 05:45)
+## Status board (final, 06:05)
 
 **Bottom line.** Root cause C1 is found and fixed (AIUE-56): defaults bitwise unchanged, no slowdown, the C1 gate
-passes everywhere, and the RHS arm is fixed too. The remaining round-off residual C2 is explained: history inside the
-serial Jacobian loop. A threaded prototype of an **OpenMP-only replay** makes the OpenMP Jacobian bitwise equal to
-serial and deterministic, with serial unchanged, at about +18 % Jacobian cost. **Decision 9 is yours:** replay (E,
-recommended), `-ffp-contract=off` (changes serial), or a tolerance gate (interim CI only).
+passes everywhere, and the RHS arm is fixed too. The remaining residual C2 (≈1–2 ulp(yldot)/dyl, Te rows, mostly
+divertor legs) is explained: history inside the serial Jacobian loop. A threaded prototype of an **OpenMP-only replay**
+makes the OpenMP Jacobian bitwise equal to serial and deterministic, with serial unchanged (estimated ≈ 4.4 % × T
+Jacobian cost, not measured). **Decision 9 is yours** (AIUE-55 §Exit decision): E replay, F static partition +
+tolerance, A `-ffp-contract=off` (changes serial), B tolerance gate (interim CI only), D Linux without FMA.
 
-| Ticket | Branch (local, not pushed) | State | Jira |
-|---|---|---|---|
-| AI layer | `feature/v9-ai-adversarial-ticket-review` | **APPROVED** r2 | — |
-| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | **APPROVED** r1 | In Review |
-| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | **APPROVED** r2 | In Review |
-| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` | **APPROVED** r3 | In Review |
-| AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` | **APPROVED** r2 (found C1) | In Review |
-| AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` | **APPROVED** r3 | In Review |
-| AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` | **APPROVED** r3 | In Review |
-| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` | r2 REVISE on **one owner decision** (Linux → AIUE-62?) | In Progress |
-| AIUE-55 RCA + decision 9 | `feature/v9-AIUE-55-omp-jacobian-rca` | r1 REVISE (blocker: replay remedy) → revised with the prototype; r2 running | In Progress |
-| AIUE-56 C1 fix | `bugfix/v9-AIUE-56-omp-jacobian-fix` | plan escalated (round cap); implementation r1, r2 REVISE (validation-record items) → fixed; r3 running | In Progress |
-| AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | **APPROVED** r2. **Don't merge** until AIUE-56 is in and the gate can be green (decision 9 / AIUE-61) | In Review |
-| AIUE-60 races (filed) | — | not started | To Do |
-| AIUE-61 C2 replay (filed) | scratch `uedge-wt/AIUE-61-replay` | prototype works; production fix awaits your choice | To Do |
-| AIUE-62 Linux (filed) | — | proposed, awaiting your decision | To Do |
-| AIUE-51 / 58 / 59 / 48 | — | not started (optional / bonus / owner task) | To Do |
+| Ticket | Branch (local, not pushed) | Tip | Review | Jira |
+|---|---|---|---|---|
+| AI layer | `feature/v9-ai-adversarial-ticket-review` | 7303742 | **APPROVED** r2 | — |
+| AIUE-46 case | `feature/v9-AIUE-46-omp-reproducer-case` | f5fee63 | **APPROVED** r1 | In Review |
+| AIUE-47 capture hook | `feature/v9-AIUE-47-raw-jacobian-capture` | e71fafc | **APPROVED** r2 | In Review |
+| AIUE-49 harness core | `feature/v9-AIUE-49-omp-harness-core` | c02dd42 | **APPROVED** r3 | In Review |
+| AIUE-50 shared-state scan | `feature/v9-AIUE-50-shared-state-scan` | 32ac1af | **APPROVED** r2 (found C1) | In Review |
+| AIUE-52 test flow | `feature/v9-AIUE-52-omp-test-flow` | 3c03d1c | **APPROVED** r3 | In Review |
+| AIUE-53 serial check | `feature/v9-AIUE-53-serial-bitwise-check` | 15ae327 | **APPROVED** r3 | In Review |
+| AIUE-54 characterisation | `feature/v9-AIUE-54-omp-characterisation` | c4cc9ff | r2 REVISE on **one owner decision** (Linux deferral to AIUE-62) | In Progress |
+| AIUE-55 RCA + decision 9 | `feature/v9-AIUE-55-omp-jacobian-rca` | 9599d77 | **ESCALATED** (round cap; r3 findings applied: wording) | In Review |
+| AIUE-56 C1 fix | `bugfix/v9-AIUE-56-omp-jacobian-fix` | 35974c9 | implementation **APPROVED** r3; plan **ESCALATED** (round cap) | In Review |
+| AIUE-57 CI job | `feature/v9-AIUE-57-omp-ci-job` | 8ee189d | **APPROVED** r2. **Don't merge** before AIUE-56 and a gate that can be green | In Review |
+| AIUE-60 races | — | — | filed, not started | To Do |
+| AIUE-61 C2 replay + stack crash | scratch `uedge-wt/AIUE-61-replay` | — | prototype; production awaits decision 9 | To Do |
+| AIUE-62 Linux | — | — | proposed; awaiting your decision | To Do |
+| AIUE-51 / 58 / 59 / 48 | — | — | not started (optional / bonus / owner task) | To Do |
 
-Stack (merge order): v9-develop ← 46 ← {47 (own base), 49 (on 46) ← {52 ← 57, 53}, 50 (on 46) ← 54 ← 55}; 56 on
-v9-develop. 49 needs 47 merged first to exercise the capture path.
+Stack, restacked after the review fixes (each child contains its parent's tip): v9-develop ← 46 ← {49 ← {52 ← 57,
+53}, 50 ← 54 ← 55}; 47 and 56 on v9-develop. Merge order: 46 → 47 → 49 → 52, 53 → 50 → 54 → 55 → 56 → 57.
+Harness unit tests after restacking: AIUE-57 tree 117 passed, AIUE-53 tree 57 passed.
+
+**Your decisions:** (1) decision 9 (path for C2); (2) accept the escalated AIUE-56 plan and AIUE-55 RCA; (3) AIUE-54's
+Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` only; phi can't be isolated without Te);
+(5) deferred minors: AIUE-52/53 I3-m1 tests, AIUE-56 I1-m2 bounds-checked run.
 
 ## Log
 
@@ -146,3 +152,7 @@ v9-develop. 49 needs 47 merged first to exercise the capture path.
   → bitwise + deterministic (Te box 3/3, full 3/3 with 16 chunks), serial unchanged; cost ≈ +18 % (one chunk per
   thread, estimate) to +70 % (16 chunks, measured); also found a pre-existing crash for any `OMPJacNchunks≠0`
   (firstprivate arrays on the 8 MB main stack) → AIUE-61 scope. Filed AIUE-62 (Linux).
+- **05:45–06:05** AIUE-56 implementation r3 APPROVE (wording minors fixed). AIUE-55 r2 REVISE (static partition
+  is reproducible run to run → option F; cost labelled as estimate), r3 REVISE (F's reproducibility is empirical under
+  dynamic scheduling; wording) → applied, escalated at the round cap. Restacked 49/52/53/57 and 50/54/55 onto the
+  reviewed parents (clean rebases). Jira: AIUE-55, AIUE-56 → In Review; AIUE-61 rewritten around the replay.
