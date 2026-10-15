@@ -150,8 +150,8 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    name the key). With `gh`: `gh pr list --state merged --search '<KEY>' --json number,headRefName,mergeCommit,mergedAt`.
    A PR whose state is MERGED counts as merged even when the branch tip is not an ancestor (squash, rebase).
    **Without `gh`**, also try, in order:
-   - the key in GitHub's humanised squash title or in a commit body: `git log --first-parent --format='%H %s%n%b'
-     origin/v9-develop | grep -E '<PROJ>[- ]<N>([^0-9]|$)'`, and a PR number or branch name the progress log or a
+   - the key in GitHub's humanised squash title or in a commit body: `git log --first-parent -E
+     --grep='<PROJ>[- ]<N>([^0-9]|$)' --format='%H %s' origin/v9-develop` (searches subject and body, keeps the hash), and a PR number or branch name the progress log or a
      Jira comment gives;
    - patch identity, when the branch still exists: `git cherry origin/v9-develop <branch>` (every line `-` means each
      commit landed, as in a rebase merge); for a squash, compare
@@ -318,7 +318,7 @@ An epic the owner keeps open stays at `Close-out draft`.
    One subsection per child in merge order: summary; merged (commit, PR, date) or branch, actual base, tip, "local,
    not merged"; files and areas; **"What it delivered"** for merged work, **"What the branch contains"** for unmerged
    work; default results (changed or not, which reference cases moved, source); review verdict, rounds, open
-   findings, post-APPROVE commits (text only, or unreviewed change).
+   findings, post-APPROVE commits (text only, requested fix, or unreviewed change).
 ## 4. Results
    The key measurements (before/after, rates, timings, gates), each with its source. Quote numbers exactly as the
    record gives them, with units and conditions (case, threads, build, machine load if the record notes it).
@@ -368,7 +368,8 @@ Then loop as `create-prd` Step 5 does: wait for the completion notification; rea
 **REJECT** → stop and show the owner; after round 3 without APPROVE, stop and ask the owner whether to keep revising
 or publish anyway (then add `- review open (N findings)` to the status line and a "## Open review findings"
 section). Record each round in section 10 (round, verdict, counts, report path). A text-only change after APPROVE
-needs no new round; any change to a claim, a class, a status or an item does.
+needs no new round; any change to a claim, a class, a status or an item does, except recording the owner's Step 6
+answers, which is covered by the mechanical self-check in Step 7.
 
 ### Step 6 — Owner checkpoint
 
@@ -392,7 +393,10 @@ closed, which would leave a Done epic with an open child). Skip any that a `summ
 
 ### Step 7 — Publish, link, close (only what the owner approved in Step 6)
 
-**Preconditions:** Step 5 returned APPROVE for the text being published, or the owner overrode it (Step 5). And the
+**Preconditions:** Step 5 returned APPROVE for the text being published, or the owner overrode it (Step 5). The
+recorded owner answers pass a self-check: every open item in section 8 has an answer (close anyway, defer to <KEY>,
+or keep open); for "Closed by the owner", accepted + deferred = n and no item is kept open; every decision credited to
+the owner was confirmed in Step 6. If the check fails, fix the record or go back to Step 6. And the
 sources haven't moved: compare the planning tip, the ticket tips, the prototype worktrees, each Jira issue's
 `updated` and each page's version with the snapshot. This is the only freshness check on Jira and Confluence: the
 reviewer can't query them. If anything changed, re-gather what moved, update the record and the snapshot, and go
