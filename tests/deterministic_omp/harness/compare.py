@@ -41,6 +41,10 @@ def vector_mismatch(a, b, signed_zero_equal=False):
 def csr_entries(values, cols, rowptr):
     """(row, col, value) arrays, 0-based, from 1-based CSR (jac, jacj, jaci)."""
     rowptr = np.asarray(rowptr, dtype=np.int64)
+    if rowptr.ndim != 1 or len(rowptr) < 1 or rowptr[0] != 1 or np.any(np.diff(rowptr) < 0) \
+            or rowptr[-1] - 1 != len(values) or len(values) != len(cols):
+        raise IndexError("inconsistent CSR arrays: rowptr[0]={}, rowptr[-1]-1={}, {} values, {} columns".format(
+            rowptr[0] if len(rowptr) else None, rowptr[-1] - 1 if len(rowptr) else None, len(values), len(cols)))
     counts = np.diff(rowptr)
     rows = np.repeat(np.arange(len(counts), dtype=np.int64), counts)
     return rows, np.asarray(cols, dtype=np.int64) - 1, np.asarray(values, dtype=np.float64)
@@ -78,7 +82,10 @@ def matrix_mismatch(a, b, neq):
 
 
 def describe_iv(iv, eq, species, igyl):
-    """'te(ix=3,iy=18)' or 'ni[1](ix=..)' for 0-based equation index iv."""
+    """'te(ix=3,iy=18)' or 'ni[1](ix=..)' for 0-based equation index iv; 'position 12' when no map
+    applies (igyl is None, e.g. a permuted matrix)."""
+    if igyl is None:
+        return "position {}".format(int(iv) + 1)
     code = int(eq[iv])
     name = EQ_CODES[code] if code >= 0 else ("?" if code == -1 else "ambiguous")
     sp = int(species[iv])
@@ -241,14 +248,13 @@ def compare_records(a, b, rhs_signed_zero_equal=None):
     for (name, ma, loc), (_, mb, _) in zip(ja, jb):
         try:
             mm = matrix_mismatch(ma, mb, neq)
-        except IndexError as err:
+        except IndexError as err:  # out-of-range index or inconsistent CSR arrays
             error("jacobian {}: {}".format(name, err))
             continue
         if loc:
             add("jacobian:" + name, summarize_matrix(mm, eq, species, igyl))
         else:
-            ident = np.arange(neq)
-            sec = summarize_matrix(mm, np.full(neq, -1), np.full(neq, -1), np.stack([ident, ident], axis=1))
+            sec = summarize_matrix(mm, np.full(neq, -1), np.full(neq, -1), None)
             sec["note"] = "permuted indices: positions compared, not mapped to cells"
             add("jacobian:" + name, sec)
 

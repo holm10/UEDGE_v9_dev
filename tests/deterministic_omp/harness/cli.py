@@ -42,8 +42,9 @@ def cmd_run(args):
 
 
 def exit_code(reports):
-    """2 if any report has errors (the comparison can't be trusted), 1 if any mismatch, else 0."""
-    if any(r.get("errors") for r in reports):
+    """2 if there is nothing to judge or any report has errors (the comparison can't be trusted),
+    1 if any mismatch, else 0."""
+    if not reports or any(r.get("errors") for r in reports):
         return 2
     return 0 if all(r["agree"] for r in reports) else 1
 

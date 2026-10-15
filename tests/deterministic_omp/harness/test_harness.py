@@ -364,3 +364,23 @@ def test_spec_rejects_diagnostics_and_repeats_zero(tmp_path):
         RunSpec(arm="jac", threads=4, ppp={"Nthreads": 8}).validate()
     assert cli.main(["check", "--preset", "tebox", "--arm", "jac", "--repeats", "0",
                      "--out", str(tmp_path / "x")]) == 2
+
+
+# ---------------------------------------------------------------- review round 2 (I2-m1..m3)
+def test_exit_code_of_nothing_is_an_error():
+    assert cli.exit_code([]) == 2
+
+
+def test_inconsistent_csr_is_an_error():
+    a = FakeRecord("a", _m(), [0.0, 1.0])
+    bad = (np.array([1.0]), np.array([1]), np.array([1, 2, 3]))  # rowptr says 2 entries, 1 value given
+    assert any("inconsistent CSR" in e for e in compare_records(a, FakeRecord("b", bad, [0.0, 1.0]))["errors"])
+
+
+def test_permuted_section_has_no_cell_coordinates():
+    a = FakeRecord("a", _m(), [0.0, 1.0])
+    b = FakeRecord("b", csr([[1.5, None], [None, 2.0]]), [0.0, 1.0])
+    for rec in (a, b):
+        rec.meta["post_exmain_permuted"] = True
+    sec = compare_records(a, b)["sections"]["jacobian:post_exmain (permuted indices)"]
+    assert sec["first"][0]["row"] == "position 1" and "ix=" not in sec["first"][0]["col"]

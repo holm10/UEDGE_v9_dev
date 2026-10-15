@@ -132,7 +132,8 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   `psetnk` is RCM-permuted (`ireorder=1`): it is compared by position and labelled "permuted indices", not mapped to
   cells; the raw captured Jacobians are always in natural order.
 - **Provenance:** the build under test (the installed uedge's source tree from pip's `direct_url.json`, its git HEAD
-  and dirty state, a SHA-256 over the extension modules, whether they link an OpenMP runtime), the harness commit and
+  and dirty state read at run time, a SHA-256 over the extension modules, whether they link an OpenMP runtime, and
+  the compiler string where the binaries keep one — Linux/ELF; empty on macOS), the harness commit and
   dirty state, Python and platform, and every OpenMP and chunking switch.
 - **Exit codes:** 0 everything agrees, 1 at least one mismatch, 2 harness error (missing or corrupt file, failed run,
   wrong arm, any unexpected exception).

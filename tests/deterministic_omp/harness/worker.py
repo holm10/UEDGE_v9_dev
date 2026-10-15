@@ -25,6 +25,17 @@ from harness.config import ARMS, DIAGNOSTIC_SWITCHES, RunSpec, apply_preset  # n
 EQ_CODES = ["ni", "up", "te", "ti", "ng", "tg", "phi"]
 
 
+def _text(value):
+    """A Forthon character variable (bytes, numpy bytes array, or str) as a stripped str."""
+    import numpy as np
+
+    if isinstance(value, np.ndarray):
+        value = value.ravel()[0] if value.size else b""
+    if isinstance(value, (bytes, bytearray, np.bytes_)):
+        value = bytes(value).decode(errors="replace")
+    return str(value).strip()
+
+
 def git_state(path):
     """(HEAD, dirty) of the git checkout holding path, or ("unknown", None)."""
     try:
@@ -41,7 +52,10 @@ def build_identity():
     """Which build this process runs: the installed uedge's source tree (pip's direct_url.json),
     that tree's git HEAD and dirty state, a SHA-256 over the compiled extension modules, whether
     they link an OpenMP runtime, and the compiler they were built with (from the .comment
-    strings). The compile flags are not recorded in the binaries, so they can't be recovered."""
+    strings, found on Linux/ELF builds; macOS Mach-O builds keep none, so the list is empty there).
+    The compile flags are not recorded in the binaries, so they can't be recovered. The source
+    tree's HEAD and dirty state are read at run time; together with extensions_sha256 they
+    identify the build, but a tree changed after the build would show its current state."""
     import glob
     import hashlib
     import importlib.metadata
@@ -234,8 +248,7 @@ def run(spec):
         "OMPLoopJacNchunk": int(ppp.OMPLoopJacNchunk),
         "OMPlenpfac": int(ppp.OMPlenpfac),
         "ireorder": int(bbb.ireorder),
-        "premeth": bytes(bbb.premeth).decode(errors="replace").strip()
-        if isinstance(bbb.premeth, (bytes, bytearray)) else str(bbb.premeth).strip(),
+        "premeth": _text(bbb.premeth),
     }
     for name in DIAGNOSTIC_SWITCHES:
         meta["provenance"][name] = int(getattr(ppp, name))

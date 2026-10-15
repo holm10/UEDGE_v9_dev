@@ -182,3 +182,8 @@ CHECK tebox_jac_t4_it0: MISMATCH
 CHECK tebox_jacrhs_t4_it0: MISMATCH
 ### tephi
 te_phi_serial_t1_it0: neq 6336, fnrm ['1.890747266414930'], 27.53 s
+
+# Part 4: after review round 2 minors
+unit tests: 32 passed in 0.72s
+tebox serial check: CHECK tebox_serial_t1_it0: AGREE (exit 0)
+tebox jac check, base-omp: CHECK tebox_jac_t4_it0: MISMATCH (exit 1)
