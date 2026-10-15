@@ -44,15 +44,22 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 
 1. Any module variable **assigned** during RHS evaluation must be `+threadprivate`. Missing it = data race that
    shows up only with `Nthreads > 1`. Exception: a shared scalar that every call recomputes to one value may instead
-   be written only when it changes, so threads only read it in the loop (`nfsp`, `bbb/pandf.m:48-51`). Threadprivate
-   timers (`com.ttimpjf`, …) report the master thread only. **Don't** make a value that is set outside `pandf`
-   (geometry, user inputs) threadprivate to silence a write in `pandf`: workers would see it only through the
+   be written only when it changes, so threads only read it in the loop (`nfsp`, `bbb/pandf.m:48-51`). The `com`
+   timers (`com.ttimpjf`, …) stay shared and are updated through `acctim` (`com/misc.m`), whose `c$omp atomic` makes
+   the update atomic in the OpenMP build: under OpenMP they report thread-seconds summed over threads. **Don't**
+   make a value that is set outside `pandf` (geometry, user inputs) threadprivate to silence a write in `pandf`: workers would see it only through the
    `OMPJacBuilder` copy, and the parallel RHS never copies (stale values, see above). Compute it into a local instead.
 2. Use `ixm1/ixp1` and the `Selec` ranges; padding around chunk edges and X-point cuts depends on the stencil width.
    A new term with a wider stencil (e.g. second neighbours) requires increasing the padding/`xlinc`/`yinc`.
 3. No `save`d locals or accumulation into module arrays across calls.
 4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:959-961`) — similar global
    accumulators need the same treatment.
+5. **Threadprivate scalars only in `bbb`.** Forthon's `--omp` copy routines give every package the same common block
+   `/ompcommonscalarcopy/`, sized by that package's threadprivate *scalars* (arrays are not affected). The extensions
+   are imported `RTLD_GLOBAL` (`src/uedge/__init__.py`), so the first definition loaded serves every package: a
+   package loaded before `bbb` (`com`, `grd`, `flx`) must not have threadprivate scalars, and no later package's block
+   (`api`, `aph`, `ppp`, …) may be larger than `bbb`'s, or a copy writes past the block (AIUE-60: `com` timers made
+   `bbb`'s copy overwrite `com`'s `/iotable/`). Check: `docs/reviews/AIUE-60-common-check.py`. Upstream: AIUE-71.
 
 ## Known OpenMP-unsafe paths
 
