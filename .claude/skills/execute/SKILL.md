@@ -93,6 +93,12 @@ Before completing:
 - ✅ Documentation added/updated as needed
 - ✅ AI-layer facts updated and the drift check is clean (step 3b)
 
+### 6. Adversarial review
+
+The work is not done until a fresh `uedge-reviewer` has approved it: run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`
+(`end-to-end-feature` does this as its Step 3b). If you can't spawn a reviewer, say so in the report and hand the
+caller the ready-to-use reviewer prompt that loop describes.
+
 ## Output Report
 
 Provide summary:
@@ -115,7 +121,7 @@ Provide summary:
 ### Ready for Commit
 - Confirm all changes are complete
 - Confirm all validations pass
-- Ready for the `commit` skill
+- Ready for the `commit` skill (and for the adversarial review, step 6, if it hasn't run)
 
 ## Notes
 

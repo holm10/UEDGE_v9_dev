@@ -64,8 +64,8 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 |---|---|
 | Start of session | `prime` |
 | New physics | agents `uedge-physics` (spec in `docs/physics_specs/`) → `uedge-reviewer` → `uedge-implementer` → `uedge-reviewer` |
-| Refactor, numerics, OpenMP, Python, build | `plan-feature` → (`uedge-reviewer` on the plan if it touches `pandf*`/`ppp/`/`.v`/build) → `execute` → `validate` → `code-review` → `uedge-reviewer` on the implementation → `commit` (or `end-to-end-feature`, which runs both review gates) |
-| Bug from a GitHub issue | `rca` → `implement-fix` → `commit` |
+| Refactor, numerics, OpenMP, Python, build | `plan-feature` → (`uedge-reviewer` on the plan if it touches the `pandf` tree, `ppp/`, Jacobian code, `.v` or the build) → `execute` → `validate` → `code-review` → `uedge-reviewer` on the implementation → `commit` (or `end-to-end-feature`, which runs both review gates; loop in its SKILL.md) |
+| Bug from a GitHub issue | `rca` → `implement-fix` (with its `uedge-reviewer` gate) → `commit` |
 | Large epics | `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional) |
 | Process retrospective | `execution-report` → `system-review` (files `ai-layer` Jira issues; runs at the end of `end-to-end-feature` and `implement-fix`) |
 | Fresh machine | `init-project` |

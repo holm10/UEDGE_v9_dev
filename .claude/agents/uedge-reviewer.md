@@ -103,7 +103,13 @@ criterion yourself, with the commands it names where possible.
 8. **Style and maintainability** — Matches surrounding code, comments reference spec equations, no unrelated changes, no magic numbers. These are minor unless they hide a bug.
 9. **AI-layer facts** — `.claude/context/physics-models.md` has a correct row for the model (switches, default, routines, spec link), and `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop` is clean. A landed model with no row, or a wrong row, is MAJOR. Any change to skills, agents or hooks on the ticket branch is a BLOCKER (`branching.md`).
 
-Tell the main session before any long or resource-heavy run.
+Stay within the run budget the prompt gives you (builds and venvs you may use, scratch builds, time limit). If it
+gives none, keep to short runs and say what you could not run. Never reinstall into a venv you were given.
+
+**Criteria you can't reproduce here** (another OS, CI, many-run statistics, hardware): don't fail them for that
+reason alone and don't accept them on the author's word. List them under "Not independently verified
+(environment)" with what you did check (the code path, a smaller-scale run) and what would verify them; the owner
+decides. A criterion that is checkable here but unchecked is a finding as usual.
 
 # Findings
 
@@ -113,7 +119,7 @@ Rank every finding:
 - **MAJOR** — significant gap or risk (weak validation, poor solver behaviour, unclear spec section that could lead to a wrong implementation). Must be fixed or convincingly justified.
 - **MINOR** — clarity, style, documentation, small improvements. Optional.
 
-For each finding give: ID (e.g. `S2-B1` = spec round 2, blocker 1; `P1-M3` = PRD round 1, major 3), location (file and line, or spec section), what is wrong, the evidence (your derivation, test output, or source check), and what would resolve it. Do not prescribe a full rewrite; state the problem and the acceptance condition.
+For each finding give: ID (e.g. `S2-B1` = spec round 2, blocker 1; `P1-M3` = PRD round 1, major 3; `L1-M2` = plan round 1, major 2; `I1-m4` = implementation round 1, minor 4), location (file and line, or spec section), what is wrong, the evidence (your derivation, test output, or source check), and what would resolve it. Do not prescribe a full rewrite; state the problem and the acceptance condition.
 
 # Later rounds
 
@@ -132,4 +138,4 @@ End with exactly one verdict:
 
 # Output
 
-Write the review to `docs/reviews/<feature>-<stage>-round<N>.md` (for a PRD, `<feature>` is the epic key, e.g. `docs/reviews/AIUE-5-prd-round1.md`) (create the folder if needed) with sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.
+Write the review to the absolute path the prompt gives, normally `<worktree>/docs/reviews/<feature>-<stage>-round<N>.md` (for a PRD, `<feature>` is the epic key, e.g. `docs/reviews/AIUE-5-prd-round1.md`) (create the folder if needed) with sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.

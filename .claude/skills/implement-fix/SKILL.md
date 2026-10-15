@@ -53,6 +53,13 @@ Run `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`. If
 listed in `.claude/context/physics-models.md`, update those facts (as in `execute` step 3b). Commit them with the
 trailer `AI-layer: code-facts`.
 
+## 4c. Adversarial review
+
+Run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`. The reference is the RCA document (root cause, the fix it proposes, the
+reproduction) and, for a Jira ticket, its acceptance criteria. If the fix touches the `pandf` tree, `ppp/`, the
+Jacobian or a `.v` file, also run a `stage: plan` round on the intended change (the RCA's fix section, or a short
+plan) before writing code. The fix is done only after APPROVE on the final diff.
+
 ## 5. Regression coverage
 
 The regression suite lives on the `pytests` branch and is being redesigned. Do not add tests to this repo.
@@ -86,7 +93,7 @@ Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
 
 ## 6. Process lessons
 
-After the fix is committed, run `execution-report` and then `system-review`. Its recommendations become `ai-layer`
+After the fix is approved and committed, run `execution-report` and then `system-review`. Its recommendations become `ai-layer`
 issues (see `system-review`), never edits on this branch.
 
 ## Notes

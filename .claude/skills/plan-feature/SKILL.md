@@ -153,6 +153,11 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 - Every task has a runnable validation step.
 - No generic placeholders left; no physics invented in a non-physics plan.
 
+## Adversarial plan review
+
+If the plan touches the `pandf` tree, `ppp/`, Jacobian or preconditioner code, a `.v` file, or the build
+(`setup.py`, `Makefile.Forthon`), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` before any code is written.
+
 ## Report
 
 Plan path, type and complexity, whether defaults change, key risks, and a confidence score (#/10) for
