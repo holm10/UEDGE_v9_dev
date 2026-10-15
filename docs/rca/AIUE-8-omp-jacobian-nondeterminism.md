@@ -2,7 +2,8 @@
 
 Status: shared-state scan (AIUE-50), characterisation (AIUE-54) and the Jacobian RCA (AIUE-55) done; the Phase 2
 exit decision is **open for the owner** (decision 9, §Jacobian RCA → Exit decision: bitwise is reachable without
-changing serial via an OpenMP-only replay, at ≈ +18 % Jacobian cost). RHS section (AIUE-58) to follow.
+changing serial via an OpenMP-only replay, at an estimated +18–35 % Jacobian cost; a static partition gives
+run-to-run reproducibility without replay). RHS section (AIUE-58) to follow.
 
 Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
@@ -33,7 +34,7 @@ AIUE-56 gate script (`docs/reviews/AIUE-56-c1-gate.py` on the AIUE-56 branch) on
 | Case | Mismatches vs serial per run | Where | Size | Varies run to run | C1 gate |
 |---|---|---|---|---|---|
 | Te box (25 eq), K=3, dynamic chunks | 1–2 | row te(ix=4,iy=20), cols te(3,21)/te(4,21) | ≤ 5.6e-10 × serial row max | yes (one run bitwise equal to serial) | PASS |
-| Te box, one contiguous chunk per thread (`OMPJacNchunks=-1`, `OMPAutoBalance=0`) | 0–2 | same | same | yes | — |
+| Te box, one contiguous chunk per thread (`OMPJacNchunks=-1`, `OMPAutoBalance=0`), no replay | 2 | same | same | **no: the runs are bitwise identical to each other** (replay control `te_contig_R0`, 3/3; `m2/tebox_static.txt`) | — |
 | Full problem, K=3 | 860–1040 (reviewer saw up to 1217 in 26 Te rows) | Te rows only, every column equation (te/ni most); ~600–800 are entries serial has and OpenMP lacks | ≤ 4.6e-9 × serial row max (e.g. 110.015618 vs 110.015617) | yes (1600–1800 between two OpenMP runs) | PASS |
 
 `sfscal`, `suscal`, the iteration-0 `fnrm` and `get_fnrm` are bitwise equal to serial in all these runs (the row
@@ -50,7 +51,7 @@ change, not noise), so "fresh vs second" is not a history test.
 **M2 mechanism: history inside the serial column loop, from FMA contraction (C2).** (AIUE-50 follow-up
 investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
 
-1. *Emulation.* A Python re-implementation of `jac_calc` (`bbb/oderhs.m:1012-1241`, column loop `:1100-1226`) around `bbb.pandf`, in serial
+1. *Emulation.* A Python re-implementation of `jac_calc` (`bbb/oderhs.m:1012-1241`, column loop `:1095-1226`) around `bbb.pandf`, in serial
    column order, reproduces the `exmain` Jacobian bitwise (169/169 entries, Te box). Inserting a fresh `pandf(-1,-1)`
    at the start of each of 2 or 4 chunks — what an OpenMP worker effectively does — reproduces exactly the OpenMP
    residual (2 entries in row te(4,20)), with no threads involved. The extra `isjacreset` call of `LocalJacBuilder`
@@ -82,14 +83,24 @@ investigation; scratch scripts and outputs in the session scratchpad `m2/`.)
      with 16 contiguous chunks (`OMPAutoBalance=0`) R=3920 **AGREE 3/3** (Jacobian, `sfscal`, `fnrm`), deterministic.
      Controls without replay fail. The build's serial equals `base-serial` bitwise (Te box, full problem): serial
      unchanged by construction.
-   - Cost: R extra local evaluations per chunk start: one chunk per thread at 4 threads ≈ 4·3920 ≈ 16k against ~89k
-     in the Jacobian (≈ +18 %); 16 chunks measured +16–19 s per full-problem run (≈ +70 % Jacobian work); the default
-     one column per chunk (`OMPJacNchunks=0`) would be ≈ 2000× — unusable, so a production fix needs OpenMP-only
-     chunk construction with few contiguous chunks.
-   - **Pre-existing crash found on the way:** any `OMPJacNchunks≠0` segfaults at the start of the parallel loop
-     (master thread's `firstprivate(iJacColCopy, rJacElemCopy)` of size `nnzmxperchunk` overflow the 8 MB main-thread
-     stack, which `OMP_STACKSIZE` doesn't size; `ppp/omp_parallel.F90:321`); worked around for the prototype with
-     `ulimit -s 65520`, `OMPlenpfac=2`. A production fix moves these to the heap.
+   - Cost (**estimates**, except where marked measured): R extra local evaluations per chunk start, i.e. about
+     T·`ubw` extra against ~2·neq ≈ 89k in the Jacobian for T chunks: ≈ +18 % at one chunk per thread on 4 threads,
+     ≈ +35 % on 8 threads (≈ 4.4 % × T). This configuration was **not run** (the full problem with one chunk per
+     thread segfaults, below), nor emulated at R=`ubw` with 4 chunks; the cost of leaving the default dynamic,
+     auto-balanced schedule is not included. *Measured:* 16 chunks, +16–19 s per full-problem run, from two
+     whole-process timings per arm (repeats vary by ~9 s). The default one column per chunk (`OMPJacNchunks=0`) would be
+     ≈ 2000× (estimate), which is unusable, so a production fix needs OpenMP-only chunk construction with few
+     contiguous chunks. The measured Jacobian times PRD §9 asks for are pending (AIUE-61).
+   - Scope of the evidence: one Jacobian evaluation per run, 3 runs, 4 threads, Te box and full problem only (scratch
+     commits: Te-box rows at `918bdb6`, re-run by the reviewer at `db6a8ea`; full-problem rows at `db6a8ea`). The
+     epic's ≥ 3 Newton iterations at 2/4/8 threads are not shown. The worker loop still makes `LocalJacBuilder`'s
+     extra `isjacreset` call, which serial doesn't; AIUE-61 decides that deliberately.
+   - **Pre-existing crash found on the way:** on the full problem, `OMPJacNchunks≠0` segfaults at the start of the
+     parallel loop. The Te box runs fine with `OMPJacNchunks=-1`, so the crash depends on problem size. Inferred cause
+     (from the `ulimit` workaround; no backtrace kept): the automatic arrays `iJacColCopy` and `rJacElemCopy`
+     (`ppp/omp_parallel.F90:672,675`) are made `firstprivate` at `:713-714` and sized `nnzmxperchunk` at `:321`; the
+     master thread's private copies live on the 8 MB main-thread stack, which `OMP_STACKSIZE` doesn't size. Worked
+     around for the prototype with `ulimit -s 65520`, `OMPlenpfac=2`. A production fix moves these to the heap.
 
 So: **the serial Jacobian depends on the history inside its column loop, and bitwise OpenMP = serial is reachable
 without changing serial results** — by reproducing that history on the workers (replay), an OpenMP-only change
@@ -120,21 +131,21 @@ fix), the `isjacreset` call, the `emissbs`/`B3VAL` work arrays and `emcoef`, non
 ### Exit decision (decision 9) — for the owner
 
 Question (PRD §9(b), decision 9): is bitwise equality with serial reachable for every tested configuration? **Yes for
-the configurations tested so far, without changing serial — by the OpenMP-only replay remedy (prototype), at a cost
-above the 10 % report threshold.** No §9(a) escalation is needed for that path. What the owner decides is which path
+the configurations tested so far (one evaluation, 4 threads, Te box and full problem), without changing serial — by the
+OpenMP-only replay remedy (prototype), at an estimated cost above the 10 % report threshold.** No §9(a) escalation is needed for that path. What the owner decides is which path
 to take and whether the cost is acceptable; the evidence per option:
 
 **Per configuration, thread count and arm (macOS):**
 
-| Configuration | Arm | Threads | C1 fix alone (AIUE-56) | + replay R=ubw (prototype) | `-ffp-contract=off` (+ C1) |
-|---|---|---|---|---|---|
-| `ti`, `ni`, `up`, `ng` | jac | 4 | **bitwise 5/5** (AIUE-56) | not run (no residual to remove) | not run |
-| `tebox` | jac | 2 / 4 / 8 | 1/5 / 1/30 / 0/5 bitwise; C1 gate PASS | 4 threads: **3/3** (contiguous and default chunks) | 4 threads: **3/3** |
-| `full` | jac | 2 / 4 / 8 | 2/5 / 0/30 / 0/5; C1 gate PASS | 4 threads, 16 chunks: **3/3** | 4 threads: **3/3** |
-| `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | not run | not run |
-| `tebox`, `full` | jacrhs | 4 | yldot/fnrm equal serial; Jacobian residual only | not run | not run |
-| any | any | 2 / 8 | — | not run | not run |
-| any | any | Linux | not run (AIUE-62) | not run | not run |
+| Configuration | Arm | Threads | C1 fix alone (AIUE-56) | + replay R=ubw (prototype) | `-ffp-contract=off` (+ C1) || static partition, no replay (F) |
+|---|---|---|---|---|---|---|
+| `ti`, `ni`, `up`, `ng` | jac | 4 | **bitwise 5/5** (AIUE-56) | not run (no residual to remove) | not run | not run |
+| `tebox` | jac | 2 / 4 / 8 | 1/5 / 1/30 / 0/5 bitwise; C1 gate PASS | 4 threads: **3/3** (contiguous and default chunks) | 4 threads: **3/3** | 4 threads: 0/3 bitwise vs serial, runs identical to each other 3/3 |
+| `full` | jac | 2 / 4 / 8 | 2/5 / 0/30 / 0/5; C1 gate PASS | 4 threads, 16 chunks: **3/3** | 4 threads: **3/3** | 4 threads, 16 chunks: 0/2 vs serial, 2 runs identical |
+| `te`, `te_phi` | jac | 4 | 0/5; C1 gate PASS | not run | not run | not run |
+| `tebox`, `full` | jacrhs | 4 | yldot/fnrm equal serial; Jacobian residual only | not run | not run | not run |
+| any | any | 2 / 8 | — | not run | not run | not run |
+| any | any | Linux | not run (AIUE-62) | not run | not run | not run |
 
 | Option | What | OpenMP vs serial | Serial results | Cost / risk |
 |---|---|---|---|---|
@@ -142,13 +153,15 @@ to take and whether the cost is acceptable; the evidence per option:
 | A. `-ffp-contract=off` for the Fortran build | removes the trigger | bitwise and deterministic where tested | **changes** (fnrm 3.4e-9 relative; every Te-box yldot) → declared change of defaults, references re-blessed; pytests effect not measured | speed effect not measured |
 | A′. the flag only on the `pandf` tree | narrower A | expected same (not shown) | changes in those files | per-file build rules |
 | C. History-free columns (restore from a saved full-RHS state) | removes the history in both loops | bitwise expected | changes at round-off | larger change in `jac_calc` + `LocalJacBuilder` |
-| B. **Tolerance gate** (keep the C1 build) | none | not bitwise, **not deterministic** (Te box contiguous chunks without replay: 2 mismatches in 2/3 runs in the replay controls) — so it does **not** meet PRD §11's fallback (which keeps bitwise reproducibility across sessions); usable only as an interim CI gate | unchanged | gate: AIUE-56's bounds; measured serial-history spread ≤ 5.6e-10 × row max (Te box) and ≤ 4.6e-9 (full) — the 1e-6 bound is a margin over that, not derived from it |
+| B. **Tolerance gate** (keep the C1 build, default dynamic chunks) | none | not bitwise, **not deterministic** with the default dynamic, auto-balanced chunks (full problem: two runs differ in 70 entries, `replay/t_c1_dflt_1` vs `_2`) — so it does **not** meet PRD §11's fallback; usable only as an interim CI gate | unchanged | gate: AIUE-56's bounds; measured serial-history spread ≤ 5.6e-10 × row max (Te box) and ≤ 4.6e-9 (full) — the 1e-6 bound is a margin over that, not derived from it |
+| F. **Static partition + tolerance** (§11 fallback): contiguous chunks fixed per thread (no auto-balance), no replay; heap per-chunk arrays (crash fix as in E) | removes the run-to-run variation, not the residual | not bitwise vs serial (Te box: the same 2 entries every run; full, 16 static chunks: 5698 entries vs serial) but **bitwise reproducible across runs** (Te box 3/3; full `t_c1_n16_1` vs `_2` identical) — meets PRD §11's fallback as written, on this evidence | unchanged | tolerance as in B; the cost of leaving dynamic/auto-balanced scheduling (load balance) not measured; determinism at 2/8 threads, across fresh sessions in CI and over Newton iterations not shown |
 | D. Bitwise gate only where the platform has no FMA (x86-64 without `-march`) | none | to be measured (AIUE-62) | unchanged | platform-dependent |
 
-**Recommendation (owner to accept or reject):** E as the production fix (AIUE-61: OpenMP-only, serial untouched,
-≈ +18 % Jacobian cost reported here per §9), with B as the interim CI gate until E lands (AIUE-57's
-`OMP_CI_JAC_TOLERANCE` switch), and D/AIUE-62 measured on Linux first. A only if the owner prefers changing the build
-over the replay cost.
+**Recommendation (owner to accept or reject):** E if bitwise agreement with serial is wanted (AIUE-61: OpenMP-only,
+serial untouched; cost estimated at ≈ +18 % on 4 threads and ≈ +35 % on 8, to be measured). F if the PRD §11 fallback
+(bitwise reproducibility plus a tolerance against serial) is enough: cheaper, also OpenMP-only, also needs the crash
+fix. B only as the interim CI gate until E or F lands (AIUE-57's `OMP_CI_JAC_TOLERANCE` switch). D/AIUE-62 measured on
+Linux first. A only if the owner prefers changing the build over the replay cost.
 
 ### Fix tickets
 
@@ -428,7 +441,7 @@ timers, flags and `nfsp` (F5-F7), and SAVE arrays in `api/fmombal.m` (F9-F10).
 | F7 | `com.nfsp` | `com/com.v:28` (`Dim`) | integer scalar | `nfsp = nisp` / `= nhsp` on every `pandf` (`bbb/pandf.m:50-51`) | **no** | n/a | Race, but every thread writes the same value (it depends only on `isimpon`, `nisp`, `nhsp`). Benign |
 | F16 | `areapl` (`Rccoef`) | `bbb/bbb.v:951` | real scalar, `+work` | written and immediately read in the plate recycling/albedo boundary conditions, `left_boundary`/`right_boundary` (`bbb/pandf_boundary.m:3091,3166,3446,3544,3797,3882,4180,4277`) | **no** | n/a | **Real data race on physics state**, found by the full-problem diff scan (changed in every sampled column whose box touches a plate: 11 of 12). Two threads at plate cells can overwrite each other's value between the write and the read on the next line. Not observed to change results (the full-problem OpenMP Jacobian with C1 fixed differs from serial only in Te rows, and is bitwise equal in 1 of 2 runs), probably because the compiler keeps the value in a register. Still, it must become a local or `+threadprivate` (fix ticket). Not involved in the Te box |
 | F8 | all other non-threadprivate variables (3480 scanned), every type | all `.v` | — | not written by a local `pandf` (diff on 25 Te-box + 12 full-problem columns; sentinel on one Te-box column only, since the full-problem sentinel run did not finish within the time box) | no | n/a | Clean. With F5-F7 and F16 this closes H2 for scalars and integer arrays on the sampled columns |
-| F9 | `uresp`, `usave`, `caplams` | `api/fmombal.m:70` | SAVE local arrays | passed to `zrespond`/`mrespond`/`mzrespond`, which write them (`api/fmombal.m:223-238`) | no | n/a | **Race when `fmombal` runs on several threads** (called from `mombal` for `isimpon` 6/7 parallel force balance, `bbb/pandf_plasma_momentum.m:671,703`, `:1018`). Not involved in the Te box (`isupon=0`); a candidate for non-Te round-off in the full problem, not for M1 |
+| F9 | `uresp`, `usave`, `caplams` | `api/fmombal.m:70` | SAVE local arrays | passed to `zrespond`/`mrespond`/`mzrespond`, which write them (`api/fmombal.m:223-238`) | no | n/a | **Race when `fmombal` runs on several threads** (called from `mombal`, which runs only for `isimpon=5`, `bbb/pandf_plasma_momentum.m:669-671,701-703`, `:1018`; `isimpon` 6/7 call `mombalni` instead). Not exercised by this deck (`isimpon` 6/7); a hazard for `isimpon=5` (AIUE-60), not for M1 or M2 |
 | F10 | `nrow`, `bmat`, `sbar0`, `ubar0` (`mrespond`); `zmat`, `source`, `scaz`, `lsz`, `msz`, `nrowz` (`zrespond`) | `api/fmombal.m:368`, `api/fmombal.m:1064` | SAVE locals | passed to CALLs in the same routines (`:466-480`, `:1199-1213`) | no | n/a | Same as F9 (H3 confirmed as a hazard, not as the M1 cause) |
 | F11 | `lunit`, `mesflg` (`parmsetget`), `args` (`ijmgetmr`), COMMON `/iotable/` (`freeus`) | `com/error.f:144`, `com/getmsg.f:11`, `com/dummy_py.f:66` | SAVE/DATA/COMMON | error-message and interrupt paths (`xermshg`, `check_kaboom`) | no | n/a | Only on error or interrupt paths. Benign for the Jacobian |
 | F12 | DATA tables in `rcxr_zn6`, `rcxr_zn6b` (`api/fimp.m:219-252`), `yhaasz*` (`api/sputt.m:501-765`), F90 initialisers in `run_uedge`/`run_degas2` (`bbb/ext_neutrals.m:118-162`, duplicated in `bbb/s.m`) | as listed | DATA/initialised locals | never assigned | no | n/a | Read-only constants. Safe |
