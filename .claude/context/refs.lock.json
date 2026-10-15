@@ -55,8 +55,6 @@
  "bbb/bbb.v:41": "isgxvon integer /0/ +input #=0 uses gx in fmix; =1 for harmonic ave of gxf",
  "bbb/bbb.v:419": "***** Bcond restart:",
  "bbb/bbb.v:4221": "***** Jacobian_capture:",
- "bbb/bbb.v:4249": "jaccapsrc(jaccapnslot) _integer [ ] # Routine that produced slot k: 1 = jac_calc",
- "bbb/bbb.v:4252": "jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk",
  "bbb/bbb.v:4260": "jaccapsrc(jaccapnslot) _integer [ ] # Routine that produced slot k: 1 = jac_calc",
  "bbb/bbb.v:4263": "jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk",
  "bbb/bbb.v:62": "isrecmon integer /0/ +input",
