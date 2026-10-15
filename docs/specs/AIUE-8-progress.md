@@ -205,3 +205,11 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   AIUE-60 plan round 2 REVISE (L2-M1 no-regression gates unsound under C2), revision round 3. AIUE-58 APPROVED
   (`3aa0357`), In Review. Follow-up tickets: AIUE-67 (serial uedgeC link), AIUE-68 (isjacreset, epic AIUE-63),
   AIUE-69 (non-default-path races, PETSc clip index).
+- **15:35 Owner decisions:** (1) the 5 D_only pytest failures (stale pytests references vs v9-develop, identical on base)
+  are not a concern for this work; no ticket. (2) The Jacobian is the priority; RHS work is split into the new epic
+  **AIUE-70** ("OpenMP parallel RHS (OMPParallelPandf1) correctness"); AIUE-58 and AIUE-59 were moved there, with the
+  CheckPandf1 self-check on the D+C 16x8 case added as a suggested AIUE-59 acceptance. AIUE-64 APPROVED r2, In Review.
+  Code analysis of default-on checks: CheckJac/CheckPandf1/ForceSerialCheck/OMPCheckNaN/DebugJac all default 0 (off);
+  `isjacreset=1` (default) makes the OpenMP path do an O(neq) copy per column (O(neq^2) per Jacobian), an extra
+  pandf per cell and a local self-check that serial skips. Measured about 5 %, added to AIUE-68. `com.istimingon=1`
+  (default) adds tick() timer calls in pandf (minor; also a race source fixed by AIUE-60).
