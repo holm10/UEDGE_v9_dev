@@ -4,9 +4,11 @@ For every configuration (an equation preset), the flow runs ONE serial reference
 under test and, for every OpenMP arm and thread count, K fresh-process repeats. Each group
 (configuration, arm, threads) is compared with the shared serial reference (agreement) and run 0
 with run k (determinism). A group passes when all K runs agree with serial AND with each other.
-An arm passes when every group of that arm passes. An OpenMP run that fails (crash, solver error)
-while the serial reference of the same configuration ran counts as a FAIL of its group; a failed
-serial reference or an unreadable record is a harness ERROR.
+An arm passes when every group of that arm passes. An OpenMP run that fails in the build (crash,
+solver error, timeout) while the serial reference of the same configuration ran counts as a FAIL of
+its group. A harness ERROR (cannot judge) is: a failed serial reference, a run whose record shows the
+arm did not take effect (check_arm: e.g. ParallelJac=0 on a serial build), a record that cannot be
+read, or a harness-side failure (existing run directory, OSError, a bug in the harness).
 
     python cli.py flow --python PY --out DIR                    # quick set: tebox, full at 2, 4 threads
     python cli.py flow --configs tebox --python PY --out DIR    # Te box only (< 1 min)
@@ -25,16 +27,45 @@ import json
 import os
 import platform
 import re
+import signal
+import subprocess
 import threading
 import time
 
 from harness.compare import compare_records
-from harness.config import PRESETS, RunSpec
+from harness.config import ARMS, PRESETS, RunSpec
 from harness.runner import HarnessError, Record, run_spec
 
-# The harness preset used for the phi isolation. On v9-develop full_note (full problem with isteon=0)
-# fails in serial ("Jacobian row = 0" for phi(ix=11,iy=1)); the preset is being revised in AIUE-49.
-PHI_PRESET = "full_note"
+try:  # the harness core provides check_arm (AIUE-49); until then the same checks are made here
+    from harness.compare import check_arm
+except ImportError:
+    def check_arm(record, spec):
+        """Problems showing that the run's arm did not take effect (empty list: it did)."""
+        prov = record.meta.get("provenance") or {}
+        if not prov:
+            return ["no provenance in the record"]
+        problems = []
+
+        def expect(name, ok, want):
+            if name not in prov:
+                problems.append("{} missing from provenance".format(name))
+            elif not ok(prov[name]):
+                problems.append("{}={} (expected {})".format(name, prov[name], want))
+
+        for name, value in ARMS[spec.arm].items():
+            expect(name, lambda v, value=value: int(v) == value, value)
+        par_jac, par_rhs = ARMS[spec.arm]["OMPParallelJac"], ARMS[spec.arm]["OMPParallelPandf1"]
+        expect("ParallelJac", lambda v: (int(v) > 0) == bool(par_jac), ">0" if par_jac else 0)
+        expect("ParallelPandf1", lambda v: (int(v) > 0) == bool(par_rhs), ">0" if par_rhs else 0)
+        expect("Nthreads", lambda v: int(v) == spec.threads, spec.threads)
+        expect("OMP_NUM_THREADS", lambda v: str(v) == str(spec.threads), spec.threads)
+        return problems
+
+# The harness preset used for the phi isolation (named only here). phi alone and full_note (the full
+# problem with isteon=0) fail in serial on this case ("Jacobian row = 0" for phi(ix=11,iy=1)); Te and phi
+# together run. While the Te Jacobian bug exists this group FAILs on its Te rows, so phi has no verdict of
+# its own: read the "mismatch rows" column (an owner decision, review I1-m4).
+PHI_PRESET = "te_phi"
 
 # name -> preset, what it isolates, and a relative cost (used only to start expensive runs first)
 CONFIGS = {
@@ -47,8 +78,8 @@ CONFIGS = {
     "ng": {"preset": "ng", "what": "ng (all gas species) alone on the whole grid", "cost": 20},
     # The potential: phi alone fails in serial, so phi is isolated with other equations. The preset is
     # named once, in PHI_PRESET; a configuration whose serial reference fails is a harness ERROR.
-    "phi": {"preset": PHI_PRESET, "what": "phi isolation (preset {}; phi alone fails in serial)".format(PHI_PRESET),
-            "cost": 80},
+    "phi": {"preset": PHI_PRESET, "what": "phi isolation (preset {}; phi without Te fails in serial)".format(
+        PHI_PRESET), "cost": 30},
 }
 OMP_ARMS = ["jac", "jacrhs"]
 QUICK_CONFIGS = ["tebox", "full"]
@@ -66,8 +97,8 @@ def _print(*args):
 # ------------------------------------------------------------------------ verdicts (no UEDGE needed)
 def group_verdict(group):
     """Fill in the verdict of one group dict, from its "reports" (each with "kind" and "agree"),
-    "run_failures" (OpenMP runs that failed while the serial reference ran: a FAIL) and "errors"
-    (harness errors: ERROR). Returns the verdict."""
+    "run_failures" (OpenMP runs that failed in the build while the serial reference ran: a FAIL) and
+    "errors" (harness errors: ERROR). Returns the verdict."""
     reports = group.get("reports", [])
     failures = group.get("run_failures", [])
     agreement = [r for r in reports if r["kind"].startswith("agreement")]
@@ -199,8 +230,20 @@ def summary_table(groups, verdicts, gate):
 
 
 # ------------------------------------------------------------------------ plan and run
+def _unique(values, what):
+    """values without duplicates (first occurrence kept); an empty list is an error."""
+    out = []
+    for v in values:
+        if v not in out:
+            out.append(v)
+    if not out:
+        raise ValueError("no {} given".format(what))
+    return out
+
+
 def plan(configs, arms, threads, repeats):
-    """The groups of a flow, in summary order."""
+    """The groups of a flow, in summary order. Duplicates are dropped; empty lists are errors."""
+    configs, arms, threads = _unique(configs, "configurations"), _unique(arms, "arms"), _unique(threads, "threads")
     for c in configs:
         if c not in CONFIGS:
             raise ValueError("unknown configuration {!r}; known: {}".format(c, list(CONFIGS)))
@@ -223,13 +266,53 @@ class Job:
         self.name = name or rundir
         self.cores = spec.threads
         self.error = None
+        self.harness_error = False  # True: the failure is on the harness side (ERROR), not in the build
         self.elapsed = None
+
+
+# HarnessError messages from runner.py that are about the harness, not the build under test
+HARNESS_SIDE = ("already exists", "case file missing", "expected the deck's and the caller's nksol output")
+
+
+def classify_failure(err):
+    """True if an exception from run_spec is a harness-side failure (ERROR): an OSError, an unreadable
+    record (ValueError, e.g. truncated JSON), a bug in the harness, or a HarnessError about the run
+    directory, the case files or the log, or a worker traceback that is not a UEDGE RuntimeError.
+    False for failures of the build under test (FAIL): UEDGE stopped with an error (RuntimeError from
+    xerrab or the solver), the worker exited with a signal or status, or it timed out."""
+    if isinstance(err, HarnessError):
+        text = str(err)
+        if any(t in text for t in HARNESS_SIDE):
+            return True
+        if " failed:" in text:  # the worker's traceback: UEDGE errors surface as RuntimeError (xerrab)
+            lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
+            return not lines[-1].startswith("RuntimeError")
+        return False
+    return True
+
+
+def _terminate_children():
+    """SIGTERM every child process of this process (UEDGE workers of interrupted runs)."""
+    try:
+        pids = subprocess.run(["pgrep", "-P", str(os.getpid())], capture_output=True, text=True,
+                              timeout=10).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return
+    for pid in pids:
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
 
 
 def run_jobs(jobs, cores, python, max_jobs=None, log=_print):
     """Run jobs concurrently within a budget of `cores` (a job of t threads takes t cores; a job
     wider than the budget runs alone) and at most `max_jobs` at a time (memory: a full-problem
     run peaks at ~1.4 GB). Jobs start in list order, smaller ones backfilling."""
+    if max_jobs is not None and max_jobs < 1:
+        raise ValueError("max_jobs must be >= 1")
+    if cores < 1:
+        raise ValueError("cores must be >= 1")
     max_jobs = max_jobs or len(jobs) or 1
     lock = threading.Condition()
     state = {"free": cores, "running": 0}
@@ -238,20 +321,35 @@ def run_jobs(jobs, cores, python, max_jobs=None, log=_print):
     def work(job):
         start = time.time()
         try:
-            run_spec(job.spec, job.rundir, python=python)
-        except (HarnessError, OSError, ValueError) as err:
-            job.error = str(err)
-        except Exception as err:  # noqa: B902  a bug in the harness must not hang the scheduler
-            job.error = "{}: {}".format(type(err).__name__, err)
-        job.elapsed = round(time.time() - start, 2)
-        log("  {:<36s} {:7.1f} s  {}".format(job.name, job.elapsed,
-                                             "FAILED " + failure_reason(job.error, job.rundir) if job.error else "ok"))
-        with lock:
-            state["free"] += job.cores
-            state["running"] -= 1
-            lock.notify_all()
+            try:
+                run_spec(job.spec, job.rundir, python=python)
+            except (HarnessError, OSError, ValueError) as err:
+                job.error, job.harness_error = str(err), classify_failure(err)
+            except Exception as err:  # noqa: B902  a bug in the harness must not hang the scheduler
+                job.error, job.harness_error = "{}: {}".format(type(err).__name__, err), True
+            job.elapsed = round(time.time() - start, 2)
+            log("  {:<36s} {:7.1f} s  {}".format(
+                job.name, job.elapsed, "FAILED " + failure_reason(job.error, job.rundir) if job.error else "ok"))
+        except Exception as err:  # noqa: B902  (logging failed): record it, never lose the slot
+            job.error = job.error or "{}: {}".format(type(err).__name__, err)
+            job.harness_error = True
+        finally:
+            with lock:
+                state["free"] += job.cores
+                state["running"] -= 1
+                lock.notify_all()
 
     threads = []
+    try:
+        _schedule(pending, state, lock, threads, work, cores, max_jobs)
+    except KeyboardInterrupt:
+        _terminate_children()
+        raise
+    for t in threads:
+        t.join()
+
+
+def _schedule(pending, state, lock, threads, work, cores, max_jobs):
     with lock:
         while pending or state["running"]:
             started = True
@@ -270,9 +368,7 @@ def run_jobs(jobs, cores, python, max_jobs=None, log=_print):
                         started = True
                         break
             if pending or state["running"]:
-                lock.wait()
-    for t in threads:
-        t.join()
+                lock.wait(timeout=1.0)  # a timeout so that Ctrl-C is seen promptly
 
 
 def _load(rundir):
@@ -283,17 +379,19 @@ def _load(rundir):
 
 
 def compare_group(group, serial_record, serial_error, run_dirs, run_errors, rhs_signed_zero_equal,
-                  serial_dir=None):
+                  serial_dir=None, spec=None, harness_errors=None):
     """Fill group["reports"]: agreement of every run with serial, and determinism (the first run that
-    succeeded vs every later one). An OpenMP run that fails while the serial reference of the same
-    build and configuration ran is a finding (run_failures, FAIL); a failed serial reference or an
-    unreadable record is a harness error (errors, ERROR)."""
+    succeeded vs every later one). An OpenMP run that fails in the build while the serial reference of
+    the same build and configuration ran is a finding (run_failures, FAIL). A failed serial reference,
+    a harness-side failure (harness_errors[k]), an unreadable record, or a record whose arm did not take
+    effect (check_arm against `spec`) is a harness error (errors, ERROR)."""
     group["reports"], group["errors"], group["run_failures"] = [], [], []
+    harness_errors = harness_errors or [False] * len(run_dirs)
     if serial_error:
         group["errors"].append("serial reference failed: " + failure_reason(serial_error, serial_dir))
     for k, e in enumerate(run_errors):
         if e:
-            (group["errors"] if serial_error else group["run_failures"]).append(
+            (group["errors"] if serial_error or harness_errors[k] else group["run_failures"]).append(
                 "run{}: {}".format(k, failure_reason(e, run_dirs[k])))
     first = None
     for k, d in enumerate(run_dirs):
@@ -302,6 +400,10 @@ def compare_group(group, serial_record, serial_error, run_dirs, run_errors, rhs_
         rec, err = _load(d)
         if err:
             group["errors"].append("run{}: {}".format(k, failure_reason(err)))
+            continue
+        problems = check_arm(rec, spec) if spec is not None else []
+        if problems:
+            group["errors"].append("run{}: arm did not take effect: {}".format(k, "; ".join(problems)))
             continue
         try:
             rep = compare_records(serial_record, rec, rhs_signed_zero_equal)
@@ -326,6 +428,11 @@ def run_flow(out, configs, arms, threads, repeats, python=None, cores=None, max_
     if gate not in GATES:
         raise ValueError("unknown gate {!r}; known: {}".format(gate, GATES))
     groups = plan(configs, arms, threads, repeats)
+    configs, arms, threads = _unique(configs, "configurations"), _unique(arms, "arms"), _unique(threads, "threads")
+    if max_jobs is not None and max_jobs < 1:
+        raise ValueError("max_jobs must be >= 1")
+    if cores is not None and cores < 1:
+        raise ValueError("cores must be >= 1")
     cores = cores or os.cpu_count() or 1
     os.makedirs(out, exist_ok=False)
     ppp = ppp or {}
@@ -357,14 +464,19 @@ def run_flow(out, configs, arms, threads, repeats, python=None, cores=None, max_
     for c in configs:
         sj = serial_jobs[c]
         serial_record, serial_error = (None, sj.error) if sj.error else _load(sj.rundir)
+        if serial_record is not None:
+            problems = check_arm(serial_record, sj.spec)
+            if problems:
+                serial_record, serial_error = None, "serial arm did not take effect: " + "; ".join(problems)
         for g in groups:
             if g["config"] != c:
                 continue
             js = omp_jobs[id(g)]
             compare_group(g, serial_record, serial_error, [j.rundir for j in js], [j.error for j in js],
-                          rhs_signed_zero_equal, serial_dir=sj.rundir)
-            g["runs"] = [{"rundir": os.path.relpath(j.rundir, out), "elapsed_s": j.elapsed, "error": j.error}
-                         for j in js]
+                          rhs_signed_zero_equal, serial_dir=sj.rundir, spec=js[0].spec,
+                          harness_errors=[j.harness_error for j in js])
+            g["runs"] = [{"rundir": os.path.relpath(j.rundir, out), "elapsed_s": j.elapsed, "error": j.error,
+                          "harness_error": j.harness_error} for j in js]
             g["serial"] = {"rundir": os.path.relpath(sj.rundir, out), "elapsed_s": sj.elapsed, "error": sj.error}
         del serial_record
 

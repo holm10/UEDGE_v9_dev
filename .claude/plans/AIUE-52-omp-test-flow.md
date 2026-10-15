@@ -18,10 +18,10 @@ and gives one verdict per arm, so CI can gate on the Jacobian arm and only repor
   `cli.py`. It reuses `runner.run_spec`, `runner.Record` and `compare.compare_records` unchanged; `worker.py` and
   `compare.jacobians()` are not touched (AIUE-47 integration happens there concurrently).
 - **Configuration table** `flow.CONFIGS`: `tebox`, `full`, `te`, `ti`, `ni`, `up`, `ng`, `phi`. The phi isolation's
-  preset is named once (`flow.PHI_PRESET`, currently `full_note`). `full_note` fails in serial on this case
-  (`Jacobian row = 0` for phi(ix=11,iy=1)); so does phi with ni and up (tested with a temporary preset). The preset is
-  being revised on the AIUE-49 branch, so `config.py` presets are not changed here, and the `phi` configuration
-  reports ERROR (serial reference failed) until then. Arms: `jac`, `jacrhs`. `flow --list` prints the table.
+  preset is named once (`flow.PHI_PRESET` = `te_phi`, added to `config.py` in review round 1). `full_note` and phi
+  with ni and up fail in serial on this case (`Jacobian row = 0` for phi(ix=11,iy=1)). While the Te bug exists the
+  `phi` group fails on its Te rows, so phi has no verdict of its own (owner decision, review I1-m4). Arms: `jac`,
+  `jacrhs`. `flow --list` prints the table.
 - **Sets:** default (quick) = `tebox,full` at threads 2,4; `--all` = every configuration at 2,4,8; `--configs` and
   `--threads` override either. K = `--repeats` (default 2).
 - **One serial reference per configuration**, shared by both arms and all thread counts.
@@ -30,8 +30,9 @@ and gives one verdict per arm, so CI can gate on the Jacobian arm and only repor
   **Arm verdict:** ERROR > FAIL > PASS over its groups.
 - **Exit code:** `--gate jac` (default) | `jacrhs` | `all` | `none`. 2 if a gated arm is ERROR, else 1 if a gated arm
   FAILs, else 0. Ungated arms are reported only. An OpenMP run that crashes or stops with a solver error while the
-  serial reference ran is a FAIL of its group (a finding about the build); ERROR is kept for "cannot judge" (serial
-  reference failed, unreadable record). `--gate none` always returns 0 once the flow ran. Setup errors
+  serial reference ran is a FAIL of its group (a finding about the build); ERROR is kept for "cannot judge": serial
+  reference failed, the arm did not take effect (`check_arm` on every record, review I1-B1), unreadable record,
+  harness-side failure (review I1-m2). `--gate none` always returns 0 once the flow ran. Setup errors
   (unknown configuration, existing `--out`, gate on an arm not run) return 2.
 - **Concurrency:** a core budget (`--cores`, default all cores) where a run takes `threads` cores (serial: 1; a run
   wider than the budget runs alone) and `--max-jobs` (default 8; a full-problem run peaks at ~1.4 GB RSS). Serial

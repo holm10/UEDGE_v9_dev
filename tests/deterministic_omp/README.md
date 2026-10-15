@@ -164,19 +164,29 @@ $PY $H flow --list                                                           # t
 ```
 
 - **Configurations** (`flow.CONFIGS`): `tebox`, `full`, `te`, `ti`, `ni`, `up`, `ng`, `phi`. `phi` is the potential
-  isolation; its preset is named once, in `flow.PHI_PRESET` (currently `full_note`, whose serial reference fails on
-  this case, so `phi` reports ERROR until the preset is revised). `--configs`, `--threads`, `--arms jac,jacrhs` and
-  `--repeats K` (default 2) select the matrix.
+  isolation; its preset is named once, in `flow.PHI_PRESET` (`te_phi`). `--configs`, `--threads`,
+  `--arms jac,jacrhs` and `--repeats K` (default 2) select the matrix; duplicates are dropped, and empty lists or
+  values below 1 (`--threads`, `--repeats`, `--cores`, `--max-jobs`) are rejected before anything runs (exit 2).
+- **phi has no verdict of its own while the Te Jacobian bug exists.** phi cannot be isolated from Te on this case,
+  so the `phi` group fails on its Te rows whatever phi does. Read phi from the "mismatch rows" column: `te` alone
+  means the phi rows agreed. Whether phi should get its own verdict (a Te-restricted preset, or a verdict per row
+  equation) is open for the owner (review AIUE-52 round 1, I1-m4).
 - **Group verdict** (configuration, arm, threads): PASS when all K runs agree bitwise with serial **and** with each
-  other (the first successful run vs every later one). An OpenMP run that crashes or stops with a solver error while
-  the serial reference ran is a FAIL; a failed serial reference or an unreadable record is an ERROR (harness).
-  **Arm verdict:** ERROR if any group is ERROR, else FAIL if any group fails, else PASS.
+  other (the first successful run vs every later one). An OpenMP run that fails in the build while the serial
+  reference ran (UEDGE error or solver stop, crash by signal, non-zero exit, timeout) is a FAIL. ERROR (harness,
+  cannot judge) is: a failed serial reference; a run whose record shows the arm did not take effect (`check_arm`:
+  the serial reference must have `OMPParallelJac`, `OMPParallelPandf1`, `ParallelJac`, `ParallelPandf1` all 0; an
+  OpenMP run must have `ParallelJac` > 0, plus `ParallelPandf1` > 0 on `jacrhs`, and `Nthreads` and
+  `OMP_NUM_THREADS` equal to the requested threads; so a serial build gives ERROR, never PASS); an unreadable or
+  truncated record; a harness-side failure (existing run directory, `OSError`, a Python error in the worker or
+  driver). **Arm verdict:** ERROR if any group is ERROR, else FAIL if any group fails, else PASS.
 - **Exit code** (`--gate`, default `jac`): 2 if a gated arm is ERROR, 1 if a gated arm FAILs, 0 otherwise; the other
   arm is still run and reported. `--gate jacrhs` and `--gate all` gate on that arm or on both, `--gate none` only
   reports (0). Bad arguments or an existing `--out` give 2.
 - **Concurrency:** runs share a core budget (`--cores`, default all cores; a run takes `threads` cores, serial 1)
   and at most `--max-jobs` (default 8; a full-problem run peaks at ~1.4 GB) run at a time. Serial references and the
-  expensive configurations start first. `--max-jobs 1` runs everything one after the other.
+  expensive configurations start first. `--max-jobs 1` runs everything one after the other. Ctrl-C sends SIGTERM to
+  the running workers and exits with 130.
 - **Output** in `--out`: `summary.md` (also printed: configuration, arm, threads, verdict, runs agreeing with serial,
   deterministic, row equations with mismatches, failing sections, first mismatch with equation and cell),
   `flow.json` (settings, provenance, timings, verdicts, every comparison report), and the run directories
@@ -184,8 +194,9 @@ $PY $H flow --list                                                           # t
 
 On `v9-develop` (`0fac655`, macOS arm64, gfortran 15, K=2, 2/4/8 threads) the Jacobian arm fails for `tebox`,
 `full` and `te` with mismatches only in Te rows that also differ between repeats, and passes for `ti`, `ni`, `up`,
-`ng`. The Jacobian + RHS arm passes for `ti`, `ni`, `up`, `ng`, fails for `tebox` and `full` (also in the Te rows of
-`yldot`), and crashes for `te`. See `docs/reviews/AIUE-52-validation.txt`.
+`ng`; with Te and phi, only Te rows differ. The Jacobian + RHS arm passes for `ti`, `ni`, `up`, `ng`, fails for `tebox`
+and `full` (also in the Te rows of `yldot`), and crashes for `te` and Te + phi. See
+`docs/reviews/AIUE-52-validation.txt`.
 
 The owner's original check, from inside a copy of `case/` (with the environment above):
 

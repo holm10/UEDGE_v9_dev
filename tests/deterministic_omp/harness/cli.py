@@ -168,6 +168,9 @@ def main(argv=None):
     except (HarnessError, ValueError, OSError, KeyError) as err:
         print("HARNESS ERROR: {}".format(err), file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("INTERRUPTED (child runs were sent SIGTERM)", file=sys.stderr)
+        return 130
     except Exception:  # anything unexpected is a harness error, never a "mismatch"
         import traceback
 
