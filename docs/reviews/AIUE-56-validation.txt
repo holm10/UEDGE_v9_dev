@@ -1,0 +1,56 @@
+AIUE-56 validation (macOS arm64, gfortran 15; harness core AIUE-49 cf23ddf; serial check AIUE-53 0f5190e; fix 4fae2f9)
+
+## Static: scan_ompcopy.py copy-order hazards: base-omp 12 -> AIUE-56 0
+
+## Defaults unchanged (AIUE-53 serial check, base vs AIUE-56, both builds, 42 cases)
+RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (2000.2 s)
+
+## C1 gate (one-evaluation runs) and bitwise agreement
+new_tebox_t4_k30: GATE PASS pass=30 fail=0 worst=5.62e-10 bitwise=1 / 30
+new_full_t4_k30: GATE PASS pass=30 fail=0 worst=4.59e-09 bitwise=0 / 30
+new_tebox_t2_k5: GATE PASS pass=5 fail=0 worst=5.62e-10 bitwise=1 / 5
+new_tebox_t8_k5: GATE PASS pass=5 fail=0 worst=5.62e-10 bitwise=0 / 5
+new_full_t2_k5: GATE PASS pass=5 fail=0 worst=1.52e-12 bitwise=2 / 5
+new_full_t8_k5: GATE PASS pass=5 fail=0 worst=4.59e-09 bitwise=0 / 5
+new_te_t4_k5: GATE PASS pass=5 fail=0 worst=4.61e-09 bitwise=0 / 5
+new_te_phi_t4_k5: GATE PASS pass=5 fail=0 worst=7.15e-09 bitwise=0 / 5
+new_ti_t4_k5: GATE PASS pass=5 fail=0 worst=0 bitwise=5 / 5
+new_ni_t4_k5: GATE PASS pass=5 fail=0 worst=0 bitwise=5 / 5
+new_up_t4_k5: GATE PASS pass=5 fail=0 worst=0 bitwise=5 / 5
+new_ng_t4_k5: GATE PASS pass=5 fail=0 worst=0 bitwise=5 / 5
+base_tebox_t4_k3: GATE FAIL pass=0 fail=3 worst=2.58e+38 bitwise=0 / 3
+base_full_t4_k3: GATE FAIL pass=0 fail=3 worst=6.85e+38 bitwise=0 / 3
+base_te_t4_k3: GATE FAIL pass=0 fail=3 worst=3.44e+38 bitwise=0 / 3
+base_te_phi_t4_k3: GATE FAIL pass=0 fail=3 worst=6.871e+38 bitwise=0 / 3
+base_ti_t4_k3: GATE PASS pass=3 fail=0 worst=0 bitwise=3 / 3
+base_ni_t4_k3: GATE PASS pass=3 fail=0 worst=0 bitwise=3 / 3
+base_up_t4_k3: GATE PASS pass=3 fail=0 worst=0 bitwise=3 / 3
+base_ng_t4_k3: GATE PASS pass=3 fail=0 worst=0 bitwise=3 / 3
+
+## Raw check exit codes
+start Thu Oct 15 02:34:39 PDT 2026
+new_tebox_t2_k5 exit 1 :: CHECK tebox_jac_t2_it0: MISMATCH
+new_te_t4_k5 exit 1 :: CHECK te_jac_t4_it0: MISMATCH
+new_tebox_t8_k5 exit 1 :: CHECK tebox_jac_t8_it0: MISMATCH
+new_ti_t4_k5 exit 0 :: CHECK ti_jac_t4_it0: AGREE
+new_tebox_t4_k30 exit 1 :: CHECK tebox_jac_t4_it0: MISMATCH
+new_ni_t4_k5 exit 0 :: CHECK ni_jac_t4_it0: AGREE
+new_up_t4_k5 exit 0 :: CHECK up_jac_t4_it0: AGREE
+new_ng_t4_k5 exit 0 :: CHECK ng_jac_t4_it0: AGREE
+new_te_phi_t4_k5 exit 1 :: CHECK te_phi_jac_t4_it0: MISMATCH
+base_tebox_t4_k3 exit 1 :: CHECK tebox_jac_t4_it0: MISMATCH
+new_full_t2_k5 exit 1 :: CHECK full_jac_t2_it0: MISMATCH
+base_full_t4_k3 exit 1 :: CHECK full_jac_t4_it0: MISMATCH
+base_te_t4_k3 exit 1 :: CHECK te_jac_t4_it0: MISMATCH
+base_te_phi_t4_k3 exit 1 :: CHECK te_phi_jac_t4_it0: MISMATCH
+base_ti_t4_k3 exit 0 :: CHECK ti_jac_t4_it0: AGREE
+new_full_t8_k5 exit 1 :: CHECK full_jac_t8_it0: MISMATCH
+new_tebox_t4_it3_k5 exit 1 :: CHECK tebox_jac_t4_it3: MISMATCH
+base_ni_t4_k3 exit 0 :: CHECK ni_jac_t4_it0: AGREE
+base_up_t4_k3 exit 0 :: CHECK up_jac_t4_it0: AGREE
+base_ng_t4_k3 exit 0 :: CHECK ng_jac_t4_it0: AGREE
+new_tebox_rhs_t4_k5 exit 1 :: CHECK tebox_jacrhs_t4_it0: MISMATCH
+new_full_rhs_t4_k5 exit 1 :: CHECK full_jacrhs_t4_it0: MISMATCH
+new_full_t4_k30 exit 1 :: CHECK full_jac_t4_it0: MISMATCH
+new_full_t4_it3_k5 exit 1 :: CHECK full_jac_t4_it3: MISMATCH
+end Thu Oct 15 03:56:46 PDT 2026
