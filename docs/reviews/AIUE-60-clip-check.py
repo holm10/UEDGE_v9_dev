@@ -18,13 +18,17 @@ sfscal and suscal.
 `check` runs, per build, a serial reference, a serial run with clip 0 (for the prediction) and K OpenMP-Jacobian
 runs, one at a time, and reports:
   predicted   from the serial clip-0 Jacobian: entries the row rule and the column rule keep differently at L
-  G1 (new)    every OpenMP entry present on one side only is a threshold flip: |v/L - 1| <= 1e-8/L with
-              v = |J(r,c)| * suscal(c) (the value the row-rule clip test saw); the tolerance covers the round-off
-              residual C2 (<= 7.2e-9 x row max, AIUE-56). Value differences of common entries: reported only.
-  G2          sfscal is bitwise equal in serial and OpenMP (else the clip inputs differ: exit 2)
+  G1 (new)    every OpenMP entry present on one side only is a threshold flip: | |J(r,c)| - L/suscal(c) | <=
+              TAU * max_c'|J(r,c')| (TAU = 1e-8, row max of that side's J; the row rule keeps |J(r,c)| > L/suscal(c)),
+              i.e. the band is in the scale of the C2 round-off residual (<= 7.2e-9 x row max, AIUE-56). If a run's
+              common values and sfscal are bitwise equal to serial, it must have no one-sided entry at all.
+              Reported per run: entries in the band (serial), value differences of common entries.
+  G2          report only: sfscal differences serial vs OpenMP (count, max relative). sfscal comes from the
+              sfsetnk Jacobian, which round-off (C2) may change; each side's J is scaled by its own sfscal, so the
+              band test above stays self-consistent. suscal must be bitwise equal (else exit 2: not comparable).
   G3 (base)   negative control: every base OpenMP run has non-flip pattern differences (the case is sensitive)
   G4          the serial Jacobians of base and new are bitwise equal (pattern and values; serial unchanged)
-Exit: 0 all gates pass, 1 a gate fails, 2 harness error / precondition (sfscal not bitwise, run failed).
+Exit: 0 all gates pass, 1 a gate fails, 2 harness error / precondition (suscal not bitwise, run failed).
 The harness core (presets, case files, rates) is read from --harness (AIUE-57 reviewed core by default).
 """
 import argparse
@@ -119,25 +123,51 @@ def predicted(ser0, clip):
     return {"row_rule_keeps": int(n_row), "col_rule_keeps": int(n_col), "rules_differ": int(n_xor)}
 
 
+TAU = 1e-8  # band half-width in units of the row max (C2 residual <= 7.2e-9 x row max, AIUE-56)
+
+
+def row_max(d):
+    import numpy as np
+    ia, a = d["jaci"], np.abs(d["jac"])
+    return np.array([a[ia[i] - 1:ia[i + 1] - 1].max() if ia[i + 1] > ia[i] else 0.0 for i in range(len(ia) - 1)])
+
+
+def in_band(v, r, c, su, rmax, clip):
+    """bbb.jac = raw*sf(r)/su(c) and the row rule keeps |raw*sf(r)| > clip, i.e. |J(r,c)| > clip/su(c). An entry is
+    a threshold flip when |J(r,c)| lies within TAU x (row max of J) of that threshold: the C2 scale."""
+    return abs(abs(v) - clip / su[c - 1]) <= TAU * rmax[r - 1]
+
+
 def pattern_diff(ser, omp, clip):
     s, o = entries(ser), entries(omp)
     su = ser["suscal"]
-    tol = 1e-8 / clip
+    rmax_s, rmax_o = row_max(ser), row_max(omp)
     only = [(rc, v, "serial") for rc, v in s.items() if rc not in o] + \
            [(rc, v, "omp") for rc, v in o.items() if rc not in s]
     flips = nonflips = 0
     worst = 0.0
     for (r, c), v, side in only:
-        dist = abs(abs(v * su[c - 1]) / clip - 1.0)
-        if dist <= tol:
+        rmax = rmax_s if side == "serial" else rmax_o  # each side's own J and row scale (its own sfscal)
+        if in_band(v, r, c, su, rmax, clip):
             flips += 1
         else:
             nonflips += 1
-            worst = max(worst, dist)
+            worst = max(worst, abs(abs(v) - clip / su[c - 1]) / max(rmax[r - 1], 1e-300))
     vdiff = sum(1 for rc in s if rc in o and s[rc] != o[rc])
+    band = sum(1 for (r, c), v in s.items() if in_band(v, r, c, su, rmax_s, clip))
+    sf_diff = int((ser["sfscal"] != omp["sfscal"]).sum())
+    sf_rel = float(abs(omp["sfscal"] / ser["sfscal"] - 1).max())
     return {"nnz_serial": len(s), "nnz_omp": len(o), "only_serial": sum(1 for x in only if x[2] == "serial"),
             "only_omp": sum(1 for x in only if x[2] == "omp"), "threshold_flips": flips, "non_flips": nonflips,
-            "worst_nonflip_dist": float(worst), "value_diffs_common": vdiff}
+            "worst_nonflip_dist_rowmax": float(worst), "value_diffs_common": vdiff,
+            "serial_entries_in_band": band, "sfscal_diffs": sf_diff, "sfscal_max_rel_diff": sf_rel}
+
+
+def g1_pass(d):
+    """No non-flip one-sided entry; and if the common values and sfscal are bitwise equal to serial (no round-off
+    residual in this run), no one-sided entry at all."""
+    one_sided = d["only_serial"] + d["only_omp"]
+    return d["non_flips"] == 0 and (d["value_diffs_common"] > 0 or d["sfscal_diffs"] > 0 or one_sided == 0)
 
 
 def check(a):
@@ -159,8 +189,8 @@ def check(a):
             odir = os.path.join(a.out, label, "jac_t%d_run%d" % (a.threads, k))
             meta = launch(py, a.harness, a.preset, "jac", a.threads, a.clip, a.ppp, odir)
             omp = load(odir)
-            if not np.array_equal(omp["sfscal"].view(np.int64), ser["sfscal"].view(np.int64)):
-                print("ERROR G2: sfscal differs from serial in", odir)
+            if not np.array_equal(omp["suscal"].view(np.int64), ser["suscal"].view(np.int64)):
+                print("ERROR: suscal differs from serial in", odir, "(runs not comparable)")
                 rc = 2
             d = pattern_diff(ser, omp, a.clip)
             d["run"] = odir
@@ -168,7 +198,7 @@ def check(a):
             b["runs"].append(d)
             print(label, "run%d" % k, json.dumps({x: d[x] for x in d if x != "run"}), flush=True)
         if label == "new":
-            b["G1"] = "PASS" if all(r["non_flips"] == 0 for r in b["runs"]) else "FAIL"
+            b["G1"] = "PASS" if all(g1_pass(r) for r in b["runs"]) else "FAIL"
         else:
             b["G3"] = "PASS" if all(r["non_flips"] > 0 for r in b["runs"]) else "FAIL (case not sensitive)"
     if a.base_python:
