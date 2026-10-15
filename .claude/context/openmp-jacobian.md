@@ -14,11 +14,11 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 ## OpenMP parallelism (`ppp/`)
 
 - Switches in `ppp/ppp.v`: `OMPParallelPandf1` (RHS, `ppp/ppp.v:6`), `OMPParallelJac` (Jacobian, `ppp/ppp.v:7`), `Nthreads` (`ppp/ppp.v:14`).
-- RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:948`) splits the grid into bulk chunks plus special **X-point
+- RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:957`) splits the grid into bulk chunks plus special **X-point
   chunks** (`Make2DChunks`, `ppp/omp_parallel.F90:3`), runs `OMPPandf`/`OMPPandf_XPT` per chunk with `FIRSTPRIVATE(ylcopy,yldotcopy)`,
   and sums only the `iv` indices each chunk owns (`REDUCTION(+:yldottot)`).
-- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`ppp/omp_parallel.F90:501`, `ppp/omp_parallel.F90:656`) — each thread builds columns with its own copy of
-  module state; `Selec` ranges are `copyin`'d (`ppp/omp_parallel.F90:660`, `ppp/omp_parallel.F90:733`).
+- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`ppp/omp_parallel.F90:501`, `ppp/omp_parallel.F90:665`) — each thread builds columns with its own copy of
+  module state; `Selec` ranges are `copyin`'d (`ppp/omp_parallel.F90:669`, `ppp/omp_parallel.F90:742`).
 - Per-thread copies of module variables come from `+threadprivate` in `.v`. The `OmpCopy<pkg>` modules used by
   `ppp` are generated at build time (Forthon `--omp`, `setup.py` `OMPargs`), not stored in the repo.
 - **Copy order matters.** `OMPJacBuilder` copies the master's threadprivate state to the workers before the column
@@ -42,7 +42,7 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 - **Fixed partition (default since AIUE-61, `OMPJacFixedChunks=1`, `ppp/ppp.v:60`).** The columns are split into
   `NchunksJac = min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen))` contiguous chunks (defaults 64 and 300;
   `ppp/omp_parallel.F90:317`), with boundaries from `neq` and the count only (`OMPFixedSplitIndex`,
-  `ppp/omp_parallel.F90:784`). No load weights are used. Each chunk starts with a full `pandf(-1,-1)` on its thread
+  `ppp/omp_parallel.F90:793`). No load weights are used. Each chunk starts with a full `pandf(-1,-1)` on its thread
   (`LocalJacBuilder`, `ppp/parallel.F90:214`). The serial column loop depends on its own history: a local `pandf`
   leaves last-bit differences, e.g. in `vsoree`, that later columns read (AIUE-8 root cause C2). The reset makes
   every chunk independent of what its thread evaluated before. So the Jacobian is bitwise reproducible and the same
@@ -72,7 +72,7 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 2. Use `ixm1/ixp1` and the `Selec` ranges; padding around chunk edges and X-point cuts depends on the stencil width.
    A new term with a wider stencil (e.g. second neighbours) requires increasing the padding/`xlinc`/`yinc`.
 3. No `save`d locals or accumulation into module arrays across calls.
-4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:999-1001`) — similar global
+4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:1008-1010`) — similar global
    accumulators need the same treatment.
 5. **No threadprivate scalars before `bbb`; no later block larger than `bbb`'s.** Forthon's `--omp` copy routines give every package the same common block
    `/ompcommonscalarcopy/`, sized by that package's threadprivate *scalars* (arrays are not affected). The extensions
