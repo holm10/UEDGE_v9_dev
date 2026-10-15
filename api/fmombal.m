@@ -245,7 +245,7 @@ c
 
 c ... End timing impurity calculations.
         if (istimingon .eq. 1 .and. misotope .gt. 1)
-     .     ttimpc = ttimpc + tock(tsval)
+     .     call acctim(ttimpc, tock(tsval))
 
 	return
 	end

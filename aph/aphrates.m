@@ -430,7 +430,7 @@ c     local variables --
       real rlne,rlte,fxne,fxte,t0,t1
       integer je,jd,jr
       real zloge,zlogd,rle,rld,fje,fjd,w11,w12,w21,w22,w1,w2,w,vlogw
-      integer nxcoef,nycoef
+      integer nxcoef,nycoef,iflagl
       real xuse,yuse
 
 c     Compute electron energy loss rate parameter for processes
@@ -567,7 +567,7 @@ c     compute abscissae --
       nycoef=nydata_aph
 
       vlogw = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef,
-     .          nycoef, kxords_aph, kyords_aph, rqacoef, ldf_aph, workh, iflag_aph)
+     .          nycoef, kxords_aph, kyords_aph, rqacoef, ldf_aph, workh, iflagl)
       w=10**vlogw
 c     electron energy loss rate parameter --
          rqa = w + 13.6 * ev_aph * rsa(te,ne,0.,k)
@@ -592,8 +592,8 @@ c     compute abscissae --
 
       tsval = tick()
       w = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef, nycoef,
-     .          kxords_aph, kyords_aph, rqacoef, ldf_aph, workh, iflag_aph)
-      totb2val = totb2val + tock(tsval)
+     .          kxords_aph, kyords_aph, rqacoef, ldf_aph, workh, iflagl)
+      call acctim(totb2val, tock(tsval))
 c     electron energy loss rate parameter --
          rqa = w + 13.6 * ev_aph * rsa(te,ne,0.,k)
 
@@ -638,7 +638,7 @@ c     local variables --
       integer je,jd,jr
       real zloge,zlogd,zlogr,rle,rld,fje,fjd,fjr,
      .     rra11,rra12,rra21,rra22,rra1,rra2
-      integer nxcoef,nycoef
+      integer nxcoef,nycoef,iflagl
       real xuse,yuse,vlog10rra
       real kdum
       integer zn,za,zamax
@@ -746,7 +746,7 @@ c     compute abscissae --
       nycoef=nydata_aph
 
       vlog10rra = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef,
-     .          nycoef, kxords_aph, kyords_aph, rracoef, ldf_aph, workh, iflag_aph)
+     .          nycoef, kxords_aph, kyords_aph, rracoef, ldf_aph, workh, iflagl)
       rra=10**vlog10rra
 
 c----------------------------------------------------------------------c
@@ -769,8 +769,8 @@ c     compute abscissae --
 
       tsval = tick()
       rra = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef, nycoef,
-     .          kxords_aph, kyords_aph, rracoef, ldf_aph, workh, iflag_aph)
-      totb2val = totb2val + tock(tsval)
+     .          kxords_aph, kyords_aph, rracoef, ldf_aph, workh, iflagl)
+      call acctim(totb2val, tock(tsval))
 c----------------------------------------------------------------------c
       elseif (istabon .eq. 7) then
 c                       use polynomial fit from Bob Campbell -  8/93
@@ -894,7 +894,7 @@ c     local variables --
       integer je,jd,jr
       real zloge,zlogd,zlogr,rle,rld,fje,fjd,fjr,
      .     rsa11,rsa12,rsa21,rsa22,rsa1,rsa2
-      integer nxcoef,nycoef
+      integer nxcoef,nycoef,iflagl
       real xuse,yuse,vlog10rsa
       real kdum
       integer zn,za,zamax
@@ -1004,7 +1004,7 @@ c     compute abscissae --
       nycoef=nydata_aph
 
       vlog10rsa = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef,
-     .          nycoef, kxords_aph, kyords_aph, rsacoef, ldf_aph, workh, iflag_aph)
+     .          nycoef, kxords_aph, kyords_aph, rsacoef, ldf_aph, workh, iflagl)
       rsa=10**vlog10rsa
 
 c----------------------------------------------------------------------c
@@ -1027,8 +1027,8 @@ c     compute abscissae --
 
       tsval = tick()
       rsa = B2VAhL(xuse, yuse, 0, 0, xknots_aph, yknots_aph, nxcoef, nycoef,
-     .          kxords_aph, kyords_aph, rsacoef, ldf_aph, workh, iflag_aph)
-      totb2val = totb2val + tock(tsval)
+     .          kxords_aph, kyords_aph, rsacoef, ldf_aph, workh, iflagl)
+      call acctim(totb2val, tock(tsval))
 c----------------------------------------------------------------------c
       elseif (istabon .eq. 7) then
 c                       use polynomial fit from Bob Campbell -  8/93

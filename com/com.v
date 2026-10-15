@@ -503,22 +503,22 @@ redopltvtag  integer       /0/    #if=1, redo plate vtag if numerically inaccur
 istimingon integer         /1/    # =1 calcs timing data; call wtottim to output
 iprinttim  integer         /0/    # =1 to write timing report to terminal
 ttotfe     real            /0./   # time spent in full f evaluation (pandf)
-ttimpfe    real            /0./ +threadprivate   # time spent in full f eval. for impurities; OpenMP: master thread only
+ttimpfe    real            /0./   # time spent in full f eval. for impurities
 ttotjf     real            /0./   # time spent in Jacobian f evaluation (pandf)
-ttimpjf    real            /0./ +threadprivate   # time spent in Jac. eval. for impurities; OpenMP: master thread only
+ttimpjf    real            /0./   # time spent in Jac. eval. for impurities
 ttmatfac   real            /0./   # time spent in factoring Jacobian
 ttmatsol   real            /0./   # time spent in backsolve for using Jacobian
 ttjstor    real            /0./   # time spent in storing Jacobian
 ttjrnorm   real            /0./   # time spent in row normalization
 ttjreorder real            /0./   # time spent in row and column reordering
-ttimpc     real	           /0./ +threadprivate   # time spent in impurity calculations; OpenMP: master thread only
+ttimpc     real	           /0./	  # time spent in impurity calculations
 tstart     real            /0./   # initial time from function second
 tend       real            /0./   # final time from function second
-ttnpg      real            /0./ +threadprivate   # time spent in neudifpg; OpenMP: master thread only
-ttngxlog   real            /0./ +threadprivate   # time spent for fngx in neudifpg; OpenMP: master thread only
-ttngylog   real            /0./ +threadprivate   # time spent for fngy in neudifpg; OpenMP: master thread only
-ttngfd2    real            /0./ +threadprivate   # time spent in fd2tra for neudifpg; OpenMP: master thread only
-ttngfxy    real            /0./ +threadprivate   # time spent for fngxy in neudifpg; OpenMP: master thread only
+ttnpg      real            /0./   # time spent in neudifpg
+ttngxlog   real            /0./   # time spent for fngx in neudifpg
+ttngylog   real            /0./   # time spent for fngy in neudifpg
+ttngfd2    real            /0./   # time spent in fd2tra for neudifpg
+ttngfxy    real            /0./   # time spent for fngxy in neudifpg
 
 ***** Linkbbb:
 # information shared by bbb and wdf packages
@@ -563,8 +563,8 @@ fngysobbb(0:nx+1)	_real
 
 ***** Timespl:
 # Timing data for splines
-totb2val   real            /0./ +threadprivate   # time spent in spline b2val routine; OpenMP: master thread only
-totintrv   real            /0./ +threadprivate   # time spent in spline intrv routine; OpenMP: master thread only
+totb2val   real            /0./   # time spent in spline b2val routine
+totintrv   real            /0./   # time spent in spline intrv routine
 
 ***** Limiter:
 # variables that define a limiter surface

@@ -200,7 +200,7 @@ xdata_aph(1:nxdata_aph)             _real
 ydata_aph(1:nydata_aph)             _real
 fdata_aph(1:nxdata_aph,1:nydata_aph)    _real
 ldf_aph                          integer
-iflag_aph                        integer +threadprivate # B2VAhL status flag
+iflag_aph                        integer
 kxords_aph  integer /4/               # order of spline fit versus log(te)
                                   # kxords_aph=4 (default) is cubic interpolation
 kyords_aph  integer /4/               # order of spline fit versus log10(ne)

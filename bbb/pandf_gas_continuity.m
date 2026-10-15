@@ -661,7 +661,7 @@ c...  For one impurity, add convect vel for elastic scattering with ions
   888 continue
 
 c ..Timing; add info if timing is on
-      if(istimingon==1) ttngxlog = ttngxlog + tock(tsngxlog)
+      if(istimingon==1) call acctim(ttngxlog, tock(tsngxlog))
 
 c *******************************************************
 c.... Now the flux in the y-direction
@@ -762,7 +762,7 @@ c...  For impurities, add convect vel for elastic scattering with ions
       end do
 
 c ..Timing; add increment if timing is on
-      if(istimingon==1) ttngylog = ttngylog + tock(tsngylog)
+      if(istimingon==1) call acctim(ttngylog, tock(tsngylog))
 
 *  --------------------------------------------------------------------
 *  compute the neutral particle flow
@@ -774,7 +774,7 @@ c ..Timing
      .             pg(0:nx+1,0:ny+1,igsp),fngx(0:nx+1,0:ny+1,igsp),
      .             fngy(0:nx+1,0:ny+1,igsp),0,methg)
 c ..Timing
-      if(istimingon==1) ttngfd2 = ttngfd2 + tock(tsngfd2)
+      if(istimingon==1) call acctim(ttngfd2, tock(tsngfd2))
 
 c...  Addition for nonorthogonal mesh
       if (isnonog .eq. 1) then
@@ -873,7 +873,7 @@ ccc   MER NOTE:  no xy flux limit for ix=0 or ix=nx in original code
             end do
         end do
 c ..Timing
-      if(istimingon==1) ttngfxy = ttngfxy + tock(tsngfxy)
+      if(istimingon==1) call acctim(ttngfxy, tock(tsngfxy))
 
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Flux-limit the total poloidal flux here

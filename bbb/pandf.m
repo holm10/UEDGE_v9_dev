@@ -633,7 +633,7 @@ c ..Timing
       if(istimingon==1) tsnpg=tick()
          call neudifpg
 c ..Timing
-      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
+      if(istimingon==1) call acctim(ttnpg, tock(tsnpg))
       elseif (ineudif .eq. 3) then
          call neudifl
       else
@@ -755,9 +755,9 @@ c-----------------------------------------------------------------------
       Use(Timing)   # ttimpfe,ttimpjf
 
       if (xc .lt. 0) then
-         ttimpfe = ttimpfe + tock(tick)
+         call acctim(ttimpfe, tock(tick))
       else
-         ttimpjf = ttimpjf + tock(tick)
+         call acctim(ttimpjf, tock(tick))
       endif
 
       return
