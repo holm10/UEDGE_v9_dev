@@ -376,7 +376,7 @@ appends it to `$GITHUB_STEP_SUMMARY`, and annotates the run. The rate files are 
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`, `record.json`,
   `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded; rerun locally.
-- **Budget.** The PR job is estimated at 10–17 min on `ubuntu-latest` (derivation in
+- **Budget.** The PR job is estimated at 14–21 min (central ~17) on `ubuntu-latest` (derivation in
   `docs/reviews/AIUE-57-validation.txt`); the `Wall time` step writes the measured job and build time to the step
   summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` (first `tebox` K=5 → 3, then `full` to
   4 threads only); the nightly set keeps the full matrix.

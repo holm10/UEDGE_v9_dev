@@ -1,0 +1,177 @@
+AIUE-57 — OpenMP CI job build-test-omp.yml — validation record
+================================================================
+
+Branch feature/v9-AIUE-57-omp-ci-job (stacked on feature/v9-AIUE-52-omp-test-flow @ f3799f7).
+Machine: macOS 26.5.1 arm64, 14 cores, Homebrew gfortran 15.2.0, CC = Homebrew LLVM clang. The machine was
+heavily loaded throughout (load average 60-180 during most runs, ~15-25 at the end), so every local time below is
+an upper bound, not a CI prediction. Local runs used --cores 4 and --max-jobs 1-2 (at most 3 UEDGE processes).
+Output directories are in the session scratchpad (not committed); the numbers below are copied from their
+flow.json / summary.md.
+
+**The workflow must not be merged before AIUE-56 (the OpenMP Jacobian fix) and decision 9 (see section 4).**
+
+
+1. Static checks
+----------------
+bash -n tests/deterministic_omp/ci/run_omp_ci.sh                         OK
+shellcheck tests/deterministic_omp/ci/run_omp_ci.sh                      OK (no findings)
+uvx --from actionlint-py actionlint .github/workflows/build-test-omp.yml OK (exit 0; also shellchecks the run: blocks)
+yaml.safe_load(.github/workflows/build-test-omp.yml)                     OK
+python -m pytest tests/deterministic_omp/harness tests/deterministic_omp/ci   95 passed (89 harness + 6 ci/report)
+uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop  OK (exit 0)
+bash 3.2 (/bin/bash on macOS): empty-array expansions under set -u checked; the script runs under it.
+
+Error paths of run_omp_ci.sh (base-omp build):
+  OMP_CI_JAC_TOLERANCE=1e-7 ... pr     exit 2  "OMP_CI_JAC_TOLERANCE=1e-7 is set, but harness/cli.py flow has no
+                                               --jac-tolerance option yet (decision 9 ...)"  (after unit + smoke)
+  run_omp_ci.sh weekly                 exit 2  "unknown set 'weekly' (pr, nightly)"
+  existing OMP_CI_OUT                  exit 2  "output directory ... exists; remove it or set OMP_CI_OUT"
+
+
+2. Builds used
+--------------
+base-omp        v9-develop 0fac655, default OpenMP build (pre-fix: C1 and M2 present)          [existing venv]
+AIUE-57-race    origin/v9-develop 3865c79 + seeded race: `+threadprivate` removed from
+                `resee(0:nx+1,0:ny+1)` (bbb/bbb.v:2310). resee is the electron-energy residual, written in
+                bbb/pandf_plasma_energy.m (lines 1009-1163) and read in bbb/pandf.m:295. Generated bbb_p.F90 checked:
+                no `!$omp threadprivate(resee)`, no OmpCopyPointerresee (base-omp has both).
+                Built with build_uedge.sh ... omp, exit 0 (logs/AIUE-57-race-omp-build.log).
+AIUE-57-race-swap  as AIUE-57-race plus the C1 copy-order swap in OMPJacBuilder (OmpCopyScalar* before
+                OmpCopyPointer*, the RCA's scratch patch). Shows the seeded race is caught independently of C1.
+                exit 0 (logs/AIUE-57-race-swap-omp-build.log).
+AIUE-57-swap    origin/v9-develop + the C1 swap only: a proxy for "C1 fixed" (NOT the AIUE-56 fix, which is not
+                implemented). exit 0 (logs/AIUE-57-swap-omp-build.log).
+AIUE-50-swap    the AIUE-50/54 scratch build with the C1 swap (source tree since reused; listed for comparison).
+
+
+3. Local runs of tests/deterministic_omp/ci/run_omp_ci.sh
+---------------------------------------------------------
+All with PYTHON=<venv>/bin/python OMP_CI_CORES=4; default gate jac, bitwise; --itermx 3 unless noted.
+
+3a. PRE-FIX, the full PR set (tebox 2,4 K=5 both arms; full 2,4 K=2) — base-omp, OMP_CI_MAX_JOBS=2
+    Flows: tebox exit 1 (219 s), full exit 1 (3494 s at load ~130-180).
+    This run was started before the PR set dropped the full-problem jacrhs arm, so `full` also ran jacrhs.
+    The script's last step (report) did not run: I edited run_omp_ci.sh while it was running, and bash read the
+    changed file ("syntax error near unexpected token `fi'"). report.py was then run on the two flow directories
+    (it only reads flow.json): exit 1, output:
+
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [agreement (serial vs run0)]
+GATED [full] configuration full, arm jac, threads 2: FAIL: first mismatch in equation ni[6], cell (ix=10,iy=0); 0/2 runs agree with serial; jacobian:post_exmain value row ni[6](ix=10,iy=0) col ni[0](ix=15,iy=1) [agreement (serial vs run0)]
+GATED [full] configuration full, arm jac, threads 4: FAIL: first mismatch in equation ni[5], cell (ix=2,iy=0); 0/2 runs agree with serial; jacobian:post_exmain value row ni[5](ix=2,iy=0) col ni[5](ix=2,iy=0) [agreement (serial vs run0)]
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; ...
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 4: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; ...
+REPORT-ONLY [full] configuration full, arm jacrhs, threads 2: FAIL: no comparable mismatch, the OpenMP run(s) failed; 0/2 runs agree with serial; failed run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40
+REPORT-ONLY [full] configuration full, arm jacrhs, threads 4: FAIL: no comparable mismatch, the OpenMP run(s) failed; 0/2 runs agree with serial; failed run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40
+OMP CI RESULT: FAIL (exit 1)
+
+    Note: with --itermx 3 the corrupt Te Jacobian changes the Newton path, so on the full problem every
+    equation differs after the first iteration (mismatch rows ng,ni,phi,te,ti,up) and the first mismatch in row
+    order is an ni row. The Te box localises it to Te rows (README CI section says so).
+
+3b. PRE-FIX, clean end-to-end run with the final script — base-omp, OMP_CI_MAX_JOBS=2,
+    OMP_CI_FLOWS="tebox|tebox|2,4|5|jac,jacrhs" (the Te-box half of the PR set; the full half is 3a)
+    harness unit tests 95 passed; smoke test OK; flow tebox exit 1, 110 s; run_omp_ci.sh EXIT 1, wall 115 s.
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [agreement (serial vs run0)]
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 2: FAIL: first mismatch in equation te, cell (ix=6,iy=18); 0/5 ...
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 4: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 ...
+OMP CI RESULT: FAIL (exit 1)
+
+    Pre-fix: 0 of 20 Te-box jac runs (3a + 3b; 10 at 2 threads, 10 at 4) and 0 of 4 full-problem jac runs agree
+    with serial; every group is also non-deterministic. AIUE-54 measured 0/20 at 4 threads (Te box and full).
+
+3c. SEEDED RACE on v9-develop (AIUE-57-race), OMP_CI_MAX_JOBS=1, Te-box flow K=5: run_omp_ci.sh EXIT 1, 218 s
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=18); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=19) [agreement (serial vs run2)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: ... failed run0: exited with -11 and wrote no record (see run.log)
+    (report.py at that time printed "equation n/a, cell (n/a)" for all-crash groups; it now says "no comparable
+    mismatch, the OpenMP run(s) failed", see 3d.) 9 of 10 jac runs (19 of 20 OpenMP runs) crashed with SIGSEGV
+    (exit -11); the one jac run that finished mismatched in Te rows. This tree also has C1, so it is red for two
+    reasons.
+
+3d. SEEDED RACE with C1 removed (AIUE-57-race-swap), OMP_CI_MAX_JOBS=1, Te-box flow K=5: EXIT 1, 191 s
+    report.py re-run on the flow (current wording):
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: no comparable mismatch, the OpenMP run(s) failed; 0/5 runs agree with serial; failed run0: exited with -11 and wrote no record (see run.log)
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: no comparable mismatch, the OpenMP run(s) failed; 0/5 runs agree with serial; failed run0: exited with -11 and wrote no record (see run.log)
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 2: FAIL: first mismatch in equation te, cell (ix=3,iy=20); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=3,iy=20) col te(ix=5,iy=18) [agreement (serial vs run2)]; plus 4 failed run(s)
+REPORT-ONLY [tebox] configuration tebox, arm jacrhs, threads 4: FAIL: no comparable mismatch, the OpenMP run(s) failed; ...
+    10 of 10 jac runs crashed (SIGSEGV, the log ends after the banner); 19 of 20 OpenMP runs overall; the
+    survivor mismatched in Te rows. The seeded race is caught with C1 removed, at both thread counts.
+    Seeded race summary: 10/10 Te-box jac runs (and 20/20 OpenMP runs) red on each of the two builds (crash or
+    Te-row mismatch); every jac group FAIL, exit 1.
+    The full-problem half of the PR set was not run on the race builds (time box; ~1 h per run under this load).
+
+3e. C1 REMOVED, NO RACE (AIUE-57-swap; proxy for the fixed code), Te-box flow K=5
+    --itermx 3: EXIT 1, 254 s
+GATED [tebox] configuration tebox, arm jac, threads 2: FAIL: first mismatch in equation te, cell (ix=5,iy=21); 4/5 runs agree with serial; jacobian:post_exmain value row te(ix=5,iy=21) col te(ix=5,iy=20) [agreement (serial vs run0)]
+GATED [tebox] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te, cell (ix=5,iy=21); 0/5 runs agree with serial; jacobian:post_exmain value row te(ix=5,iy=21) col te(ix=4,iy=20) [agreement (serial vs run0)]
+    (jacrhs: 1/5 and 0/5.) Failing sections: fnrm_final, fnrm_printed, jac:post_exmain, yldot, yldot_probe:
+    after 3 Newton iterations the round-off Jacobian difference has moved the iterate, so fnrm and yldot differ
+    as well. The jac:post_exmain mismatch is 1-2 entries, e.g. 0.004701627609469395 vs 0.004701627047183649
+    (relative 1.2e-7) — mechanism M2.
+    one evaluation (OMP_CI_ITERMX= ): EXIT 1, 26 s; 0/5 agree at 2 and at 4 threads; only jac:post_exmain fails
+    (fnrm, yldot, sfscal agree bitwise); 1-2 entries, e.g. 380.24309105821885 vs 380.24304558348376 (rel 1.2e-7).
+    AIUE-50-swap, --itermx 3: EXIT 1; 2/5 (2 threads), 0/5 (4 threads) — same picture.
+    => With only C1 fixed, the bitwise gate is still red on the Te box. "Green on the fixed code" needs M2 fixed
+       as well, or decision 9 to choose a tolerance gate. A tolerance gate with --itermx 3 must then also cover
+       fnrm/yldot (they move with the Newton path), or the gated flow must use one evaluation.
+
+    "Green on the fixed code": NOT SHOWN — pending AIUE-56 (no fixed build exists) and decision 9.
+
+
+4. Gate design and the decision-9 switch
+----------------------------------------
+- Gate = the flow's own jac-arm verdict (`--gate jac`), bitwise. Exit 1 on a mismatch, exit 2 when the flow cannot
+  judge (failed serial reference, arm not in effect, unit/smoke test failed). jacrhs: ::warning:: only.
+- One switch: OMP_CI_JAC_TOLERANCE in the workflow env. Empty = bitwise. A value is forwarded as
+  `--jac-tolerance VALUE` once harness/cli.py flow has that option; until then the script stops with exit 2 and a
+  message (checked, section 1). No tolerance comparator was written here. Option name is a proposal for the
+  harness ticket; if it lands under another name only run_omp_ci.sh (two lines) changes.
+
+
+5. PR-job time estimate (ubuntu-latest, 4 vCPU, 16 GB)
+-------------------------------------------------------
+Inputs: AIUE-54 (macOS, loaded, upper bounds): Te box one run 2-6 s; full serial one evaluation 35-55 s; full
+OpenMP 4 threads one evaluation 11-13 s; full comparison ~5 s; itermx 3 x2-4. Measured here at the end, load ~15-25:
+full serial one evaluation 38.2 s, full serial --itermx 3 99.3 s (x2.6), full jac 4 threads --itermx 3 46.3 s.
+Te box --itermx 3 runs 4-10 s at load ~90 (3b), one evaluation 1.3-3.4 s (3e).
+Assumed: a runner core is 1.5-2x slower than this machine's cores; the OpenMP build takes 4-7 min (not measured
+in CI; the two local scratch builds took a few minutes each under load 60+).
+
+Flow scheduling with --cores 4 --max-jobs 4 (harness/flow.py _schedule): the serial reference (1 core) starts
+first, a 2-thread run fits beside it, 4-thread runs wait until the 4 cores are free.
+
+  step                                   estimate
+  checkout, setup-python, pip deps       ~1 min
+  pip install -v . (OpenMP)              4-7 min
+  unit tests + smoke test                < 0.5 min
+  tebox flow: 1 serial + 20 OpenMP runs  1.5-3 min  (21 runs x 4-8 s; t4 runs exclusive, t2 runs in pairs)
+  full flow (jac only):                  6.3-8.8 min
+     serial (1 core)                                 150-200 s   (99 s here x 1.5-2)
+     2 x t2, one after the other, beside it          210-280 s   (t2 not measured: ~1.5 x t4, x 1.5-2)
+     then 2 x t4 (need all 4 cores)                  140-186 s   (46 s here x 1.5-2, each)
+     6 comparisons (4 agreement, 2 determinism)      30-60 s
+  report + artifact upload               < 0.5 min
+  TOTAL                                  ~14-21 min, central ~17 min
+
+The upper end crosses the 20-min budget only if every factor is at its worst. That is why the full-problem jacrhs
+arm (report-only, ~40 % of the full flow) is not in the PR set; the nightly set runs it. Further cuts, in order,
+if the measured time is over 20 min: tebox K 5 -> 3; full at 4 threads only. Job timeout 30 min.
+MEASURED CI WALL TIME: NOT AVAILABLE (nothing pushed). The workflow's "Wall time" step writes the job and build
+time to the step summary and timing.txt; copy it into the PR.
+
+Nightly (--all, 8 configurations x 2 arms x 2,4,8 threads, K=3, --itermx 3): AIUE-54 measured flow --all K=2 one
+evaluation at 368 s on this machine with all cores; x1.5 (K) x2.6 (itermx) x~3 (4 cores, slower cores) ~ 70-90 min.
+Timeout 150 min. Not measured.
+
+
+6. Not verified / pending
+-------------------------
+- 20/20 red CI runs on the pre-fix code and on the seeded race: NOT VERIFIED (CI, requires pushing). Local
+  evidence: pre-fix 0/40 Te-box and 0/4 full jac runs agree (plus AIUE-54's 0/20); seeded race 20/20 Te-box jac runs
+  red on each of two builds.
+- Green on the fixed code: PENDING AIUE-56, and blocked on M2 / decision 9 (section 3e).
+- Linux/libgomp behaviour (all numbers here are macOS/libomp).
+- Build on ubuntu-latest with `pip install -v .` (OpenMP) is unexercised; the serial build of the same tree builds
+  in build-test-wheel.yml with the same setup.
+- Nightly schedule runs only from the default branch.
