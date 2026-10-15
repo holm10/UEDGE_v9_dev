@@ -72,25 +72,47 @@ session before you do.
 
 You are reviewing the record `close-epic` wrote of what an epic did. It becomes the permanent account of the epic, and
 the owner decides on closing the epic from it. Check that it is true and complete, not whether the epic's work was good.
-The main session gives you the sources (Jira cloudId and keys, Confluence page ids, the planning worktree, the ticket
-branches) and the owner's answers so far, which are binding.
+The main session gives you the record, its **sources snapshot** directory, the git sources (planning worktree, ticket
+branches, merge commits, prototype worktrees) and the owner's answers so far, which are binding.
 
-1. **Claims vs sources.** Re-check every fact you can: branch tips and merge state (`git rev-parse`,
-   `git merge-base --is-ancestor`), Jira states, review verdicts (read the report), numbers against the record they
-   cite. A wrong tip, state, verdict or number is MAJOR; a wrong claim that a criterion is met is a BLOCKER.
-2. **Coverage.** Every child of the epic and every PRD success criterion appears. Every criterion's class follows from
-   its evidence: "Met" needs a record showing the criterion's own check passing, and "No evidence" is never Met.
-3. **Open items.** Grep the response files, the progress log and the comments for deferred findings, unanswered owner
-   questions, merge conditions and unreviewed commits after an APPROVE. Any the record misses is MAJOR.
-4. **Decisions.** Each decision is attributed to whoever took it, with a source. An agent's choice listed as an owner
-   decision, or an open owner decision shown as taken, is a BLOCKER. Comments posted through the owner's account by an
-   agent are not owner statements.
-5. **Default results.** Each ticket states whether default results changed, with a source, as CLAUDE.md requires. A
-   statement inferred from nothing is MAJOR.
-6. **Completion verdict.** "Complete" only if every gating criterion is Met or Superseded and nothing is open. Anything
-   else must say "Close-out draft".
+You have no Atlassian access. Check Jira and Confluence claims against the snapshot files (`jira-*`,
+`confluence-*`), git claims against the current repository, and list every claim you could check neither way under
+"Not independently verified".
 
-Read only; never write to Jira, Confluence or the record.
+1. **Claims vs sources.** Re-check every fact you can: tips, bases, merge state and merge commits (`git rev-parse`,
+   `git merge-base --is-ancestor`, `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop`),
+   Jira states and comment ids (snapshot), review verdicts (read the report), numbers against the record they cite.
+   A claim that a criterion is met when its record shows otherwise is a BLOCKER. A wrong tip, state, verdict, or a
+   number whose error changes what it shows, is MAJOR; a rounding or wording slip that changes nothing is MINOR.
+2. **Freshness.** Compare the snapshot header (time, planning tip, ticket tips, Jira `updated`) with the current
+   repository. Anything that moved after the snapshot is a finding (MAJOR if it changes a class, an item or a
+   decision; MINOR otherwise) naming what changed, so the author re-gathers it.
+3. **Coverage.** Every child of the epic and every PRD success criterion appears, and the PRD's carried MINORs each
+   have a disposition. Every class follows from its evidence: "Met" needs a record showing the criterion's own check
+   passing on merged code; unmerged work is "Met (on unmerged branches)" and is described as what the branch
+   contains, not as delivered; "Partly met" names the missing parts; "No evidence" is never Met. A criterion that
+   rests on several unmerged tickets says whether they were ever tested together.
+4. **Open items.** Grep the response files, the progress log (every owner-decision list and follow-up section), the
+   snapshot comments and the prototype worktrees (`git -C <path> status --short`, `git branch -a --contains <HEAD>`)
+   for deferred findings, accepted gaps with no ticket, unanswered owner questions, merge conditions, uncommitted
+   work and commits on no branch. Classify every commit that adds or follows an
+   approving review: text only (comments, docs, wording that adds no claim) is fine; code, tests, data, behaviour or
+   new results is an unreviewed change and must be listed. Any open item the record misses is MAJOR.
+5. **Decisions.** Each decision has an attribution (Owner / Agent / Reviewer / Attribution unverified) and a source
+   that supports it. The author field proves nothing, because agents post through the owner's account. A statement
+   credited to the owner without a source that records it as the owner's, an agent's choice listed as the owner's, or
+   an open owner decision shown as taken, is a BLOCKER.
+6. **Default results.** Every ticket states whether default results changed, with a source, as CLAUDE.md requires.
+   "No change to built or run-time code" must match the diff. A statement inferred from nothing is MAJOR.
+7. **Status line.** It is one of: `Dry run - not reviewed, not published` (a dry run); `Complete` (every gating
+   criterion Met or Superseded, nothing open); `Close-out draft - epic not complete (<n> open items)` (open items, owner
+   answers missing); `Closed by the owner on <date> - ...` (the owner's answer is recorded for every open item, each
+   close anyway or defer, and the owner said yes to Done). Any other combination is a BLOCKER.
+8. **Dry-run appendix** (dry runs only). The page title, parent id, create-or-update and Done transition id match
+   the snapshot.
+
+**REJECT** a record that can't be made true from its sources (the wrong epic, a snapshot that doesn't match the
+claims throughout). Read only; never write to Jira, Confluence or the record.
 
 # Review: plan stage
 
