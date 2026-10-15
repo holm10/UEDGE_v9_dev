@@ -47,12 +47,32 @@ PETSc clip index)
      `aph/aphrates.m:596,773,1031`; `api/fmombal.m:248` (the `isimpon=5` path, blocked under OpenMP; converted for
      uniformity).
    - The 10 `com/com.v` lines go back to their original text: no `+threadprivate`, original doc strings.
-   - Timers then sum exactly over threads (before AIUE-60: lost updates). TSan sees atomics, so it doesn't report them.
+   - Timers then sum thread-seconds exactly over threads under OpenMP and can exceed the elapsed time (before
+     AIUE-60: lost updates). gcc instruments only the atomic's initial load for TSan, not the compare-and-swap, so
+     TSan does not confirm atomicity. A lost directive would still show as a plain read/write race. Atomicity is
+     checked statically instead (G-atomic, below).
+   - **Exact helper text (LA1-m1)**, appended to `com/misc.m`. There is no `Use` line, because `MoveDecs` would move
+     the declarations below the directive. The directive line stands directly before the assignment:
+     ```
+     c-----------------------------------------------------------------------
+           subroutine acctim(acc, dt)
+     c ... acc = acc + dt for the com timing accumulators (Timing, Timespl),
+     c     which OpenMP threads share: the next line makes the update atomic
+     c     in the OpenMP build and is a comment in the serial build (AIUE-60).
+           implicit none
+           real acc, dt
+     c$omp atomic
+           acc = acc + dt
+           return
+           end
+     ```
 5. **`iflag_aph` (B4): replaced by a local, not threadprivate.**
    - `rqa`, `rra` and `rsa` get a local `iflagl`, appended to their existing `integer nxcoef,nycoef` line
      (`aph/aphrates.m:433,641,897`), and pass it to `B2VAhL` instead of `iflag_aph` (`:570,595,749,772,1007,1030`).
      This is line-neutral.
-   - `iflag_aph` is not read after these calls (`git grep`), so results are unchanged.
+   - `iflag_aph` is not read after these calls (`git grep`), so results are unchanged. The Python-visible
+     `aph.iflag_aph` then reflects only the `aphread` setup calls (`aph/aphread.m:920-951`), not the rate
+     evaluations. This is listed in the PR (LA1-m5).
    - `aph/aph.v:203` goes back to its original text. `workh` (an array: per-routine `pcopy__`, not the scalar common)
      stays `+threadprivate`, with the paren-free bound of `02e6e60`.
 
@@ -73,23 +93,47 @@ PETSc clip index)
     statement, joined over its `&` continuation lines, × 8 B; sizes checked at plan time: AIUE-56 `bbb` 89/712 B,
     `api` 12/96 B; pre-amendment AIUE-60 `bbb` 91/728 B, `api` 96 B, `com` 10/80 B, `aph` 1/8 B).
 
+  The load order is parsed from the venv's `uedge/__init__.py` (`uedgeC`, `com`, `grd`, `flx`, `bbb`, `svr`, `wdf`,
+  `api`, `aph`, `ppp`, `ncl`). Sizes come from the declared kinds of the `copy` variables (`<type>(kind=K)`). The
+  generated-source directory is an argument and must belong to the same build. A definer without a size, or a
+  missing `.so`, is an ERROR (fail closed). `nm -m` is macOS-only; the script uses `nm -S` on Linux (LA1-m2).
   **Pass:** the first definer in load order is `bbb`, and every other definer's block is ≤ `bbb`'s. Expected:
   definers exactly `bbb` (91 scalars, 728 B) and `api` (96 B); `com` and `aph` define none. It is also run on the
   AIUE-56 venv as a control (`bbb` 712 B, `api` 96 B: pass), and on the pre-amendment AIUE-60 venv as a negative
   control (`com` first, 80 B: fail).
+  **Controls already run on preserved artefacts (LA1-M2)**, before any rebuild:
+  - The pre-amendment venv was copied to `venvs/AIUE-60-omp-pre`, and its generated `*_p.F90` to
+    `logs/AIUE-60/pre_amend_gen/`.
+  - AIUE-56: `RESULT: PASS (first definer bbbpy 712 B; others apipy 96 B)`.
+  - Pre-amendment: `RESULT: FAIL: first definer is compy (80 B), not bbbpy; bbbpy block 728 B > first definer compy
+    80 B; apipy block 96 B > first definer compy 80 B`.
+  - The outputs are recorded in `docs/reviews/AIUE-60-amendment1-controls.txt`.
 - **G-iotable (dynamic).** The reviewer's probe, made robust to a missing `com` block, committed as
   `docs/reviews/AIUE-60-iotable-probe.py`. Te box, `jac` arm, 4 threads, `itermx=1` (≥ 2 OpenMP Jacobians).
-  **Pass:** 0 changed `iotable` words, on the amended AIUE-60 build. Control: the pre-amendment build reports > 0
-  (the reviewer saw 62).
-- **TSan (Testing 5) after the amendment.** Same gate. The timer groups must stay absent, now because the updates are
-  atomic. The pre-registered expectation for out-of-loop groups adds: no `ompcommonscalarcopy_` report located in
-  `compy` or `aphpy`.
-- **Probe S, updated expectations.** `shared-writes` 161 → 147, with exactly the same 14 removals: the timer writes
+  **Pass (differential, LA1-M1):** in each of 2 repeats, the amended AIUE-60 build's before- and after-states of all
+  128 `iotable` words equal the AIUE-56 build's. The AIUE-56 build must be repeatable across its own repeats; if it
+  isn't, the result is ERROR. A correct build legitimately changes words, because `exmain` opens files.
+  - **Positive control, already run:** AIUE-56 changes exactly `{11: 0→1, 12: 0→1}`, identically in 2/2 repeats.
+  - **Negative control, already run:** the preserved pre-amendment build changes 62 words in 2/2 repeats (`0→4`,
+    `5: 0→4592291131226807497`, `9,10: 1→0`, `11: 0→70`, `12: 0→69`, …), so it differs from AIUE-56: `RESULT: FAIL`.
+  - The outputs are recorded in `docs/reviews/AIUE-60-amendment1-controls.txt`.
+- **TSan (Testing 5) after the amendment.** Same gate. The timer groups must stay absent. TSan shows only that no plain
+  racing read/write remains; atomicity itself is shown by G-atomic. The pre-registered expectation for out-of-loop
+  groups adds: no `ompcommonscalarcopy_` report located in `compy` or `aphpy`.
+- **G-atomic (static, LA1-m1).** Two checks:
+  - In the OpenMP build's generated `com/misc.F`, the line directly above `acc = acc + dt` is `c$omp atomic`.
+  - `otool -tV` of the OpenMP `compy*.so`, routine `_acctim_`, shows a compare-and-swap loop (`cas`/`casal`, or
+    `ldaxr`/`stlxr`). The serial build's `_acctim_` shows a plain load, add and store (`fadd`), with no CAS.
+- **Probe S, updated expectations.** Reachable units 145 → **146** (`acctim` is new, LA1-m3). `shared-writes`
+  161 → 147, with exactly the same 14 removals: the timer writes
   become `call acctim(...)` arguments, so the assignment scan no longer lists them. `passed-args`: `workh` and
   `iflag_aph` disappear; the timer variables now appear as `acctim` arguments (`com.Timing.*` and `com.Timespl.*`, 10
   entries), so 137 → 145; they are listed and classified as atomic updates in the validation record. Any other change fails.
 - **Timing (report, flag > 10 %).** Interleaved full-problem `jac` runs at 4 threads, AIUE-56 and AIUE-60, K=5 each:
-  the ratio of medians of the harness `elapsed_s`, so the cost of the atomics is visible.
+  the ratio of medians of the harness `elapsed_s`, so the cost of the atomics is visible. `totintrv`/`totb2val` and
+  `ttimpfe`/`ttimpjf` are updated without an `istimingon` guard, so their atomics are on the spline hot path.
+  **A flag (> 10 %) is reported to the owner as a decision** (accept, or guard the hot-path updates with
+  `istimingon`); it doesn't block the ticket (LA1-m4).
 
 **Follow-up ticket text proposed (Forthon / generated OpenMP copies).** "Forthon `--omp`
 (`wrappergenerator_ompextension.py`):
@@ -98,8 +142,9 @@ flat-namespace / ELF interposition, the first loaded definition serves all packa
 has fewer threadprivate scalars makes later packages overflow the block (AIUE-60: `com` timers → `bbb` overwrote
 `com`'s `/iotable/`). Fix: package-specific names (`ompcommonscalarcopy_<pkg>`), or module variables instead of a
 common block.
-(2) `ProcessDim`/`GetSize` cut a dimension at the first `)`, so a bound with nested parentheses such as
-`2*k*(n+1)` produces uncompilable copy routines.
+(2) `ProcessDim`/`GetSize` take `S.split('(')[1].split(')')[0]`, the text between the first `(` and the next `(` or
+`)`. So a nested `(` in a bound, such as `2*k*(n+1)`, truncates it and produces uncompilable copy routines.
+Filed as **AIUE-71**.
 Until fixed, UEDGE keeps the invariant in `openmp-jacobian.md` and checks it with `docs/reviews/AIUE-60-common-check.py`
 (candidate for the AIUE-57 OpenMP CI job)."
 
@@ -136,7 +181,7 @@ J.Guterl", `bbb/odesetup.m:6727-6770`). So `isimpon=3,4,5` and the Monte Carlo n
 | A1 | `areapl` (F16) | decl `bbb/bbb.v:951` (`Rccoef`, `+work`); written at `bbb/pandf_boundary.m:3091,3166,3446,3544` (`left_boundary`) and `:3797,3882,4180,4277` (`right_boundary`), each followed by reads in the same block (`:3095`, `:3173,3179`, `:3453,3461`, `:3548`, `:3812`, `:3888,3894`, `:4188,4196`, `:4281`). No reader outside these blocks or in Python | shared scalar written and read by every thread whose box touches a plate: a race on physics state | `+threadprivate` |
 | A2 | `TimingPandfOn` (F5) | decl `bbb/bbb.v:4136` (`PandfTiming`); written every call at `bbb/pandf.m:573-579`, read at `:580-598,713`, `bbb/oderhs.m:88,532`, and, without being set, in the parallel RHS at `ppp/omp_parallel.F90:1227,1232,1294` (`OMPPandf`/`OMPPandf_XPT`) | every thread writes it. It is 0 in every parallel context: `yl(neq+1)=1` in Jacobian columns and copies, and `ParallelPandf1=1` forces 0 for the full RHS (`bbb/pandf.m:573-574`) | `+threadprivate`. In the parallel RHS a worker reads its own copy (0 from its last column or from `OmpCopyScalarbbb`) instead of the master's (also 0): no change |
 | A3 | `com.nfsp` (F7) | decl `com/com.v:28` (`Dim`); written every call at `bbb/pandf.m:50-51` (`initialize_ranges`) | every thread writes it, always the same value under OpenMP: the second assignment (`nhsp`) applies only to `isimpon=3,4`, which are documented as disabled (`bbb/bbb.v:3878-3879`) and blocked for OpenMP by the roadblock above | write only when the value changes (line-neutral MPPL hunk, below). Not `+threadprivate`: it is in `Dim` with the grid dimensions, and the RHS path writes it too (`ppp/omp_parallel.F90:831-832`, AIUE-58/59) |
-| A4 | `com` timers (F6) | `Timing` (`com/com.v:502-521`): `ttimpfe`, `ttimpjf` (`bbb/pandf.m:758,760`, `timimpfj`), `ttnpg` (`bbb/pandf.m:636`), `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy` (`bbb/pandf_gas_continuity.m:664,765,777,876`), `ttimpc` (`api/fmombal.m:248`); `Timespl` (`com/com.v:564-567`): `totintrv` (`com/comutil.m:3654,3902`, `B2VAhL`/`B1VAhL`, reached from `emissbs`), `totb2val` (`aph/aphrates.m:596,773,1031`). Other readers: reset `bbb/odesolve.m:87-93` and print `:984-988`, master only | lost updates (TSan: 199 of the in-loop reports in AIUE-50) | `+threadprivate` on these 10 accumulators only. Not on the inputs `istimingon`/`iprinttim` and not on the master-only `ttotfe`, `ttotjf`, `ttmatfac`, … (written outside the parallel regions). With OpenMP the reported values then count the master thread only: say so in each doc string |
+| A4 | `com` timers (F6) | `Timing` (`com/com.v:502-521`): `ttimpfe`, `ttimpjf` (`bbb/pandf.m:758,760`, `timimpfj`), `ttnpg` (`bbb/pandf.m:636`), `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy` (`bbb/pandf_gas_continuity.m:664,765,777,876`), `ttimpc` (`api/fmombal.m:248`); `Timespl` (`com/com.v:564-567`): `totintrv` (`com/comutil.m:3654,3902`, `B2VAhL`/`B1VAhL`, reached from `emissbs`), `totb2val` (`aph/aphrates.m:596,773,1031`). Other readers: reset `bbb/odesolve.m:87-93` and print `:984-988`, master only | lost updates (TSan: 199 of the in-loop reports in AIUE-50) | **Superseded by Amendment 1:** the timers stay shared, and every update goes through the atomic `acctim` helper (no `+threadprivate`; the `com.v` lines are unchanged from `1553e75`). Under OpenMP the values are thread-seconds summed over threads. The inputs `istimingon`/`iprinttim` and the master-only `ttotfe`, `ttotjf`, `ttmatfac`, … are untouched |
 | A5 | Clip index | serial `bbb/oderhs.m:1187`: `abs(jacelem*sfscal(ii))`; parallel `ppp/parallel.F90:292`: `abs(jacelem*sfscal(iv))`; debug print `:288` prints `sfscal(iv)` | `ii` is the row (equation), `iv` the perturbed variable (column). `sfscal` scales equations, so serial is right. Probe C: no effect at `jaccliplim=0`; at `1e-6` the OpenMP build keeps exactly the column-rule set (full problem: 812 962 entries differ from serial) | `sfscal(ii)` at `:292` and in the debug print `:288` |
 | A6 | `emcoef` in `copyin` (F15) | `ppp/omp_parallel.F90:721` (`copyin(yinc,xlinc,xrinc,emcoef)`), `USE Imslwrk, ONLY: emcoef` `:654` | `copyin` pointer-assigns each worker's `emcoef` to the master's array, and that stays after the loop: from the second Jacobian on, `OmpCopyPointeremcoef` has 3 workers write the same values into the master's array (outside the column loop; benign). Inside the loop `emcoef` is only read | **Document, don't change here** (`openmp-jacobian.md`). Since AIUE-56 the `copyin` is redundant. Removing it touches the directive AIUE-61 rewrites, so it is offered to AIUE-61 (merge note) |
 | A7 | `fmombal` SAVE arrays (F9, F10) | `api/fmombal.m:70` (`uresp`, `usave`, `caplams`), `:368` (`mrespond`), `:1064` (`zrespond`) | reached only via `mombal` for `isimpon=5` (`bbb/pandf_plasma_momentum.m:669-671,701-703`). Probe S: that path also writes 9 non-threadprivate `Reduced_ion_interface` arrays (`bbb/bbb.v:3937-3954`), the 12 `api` `Reduced_ion_variables` (`api/api.v:224-235`) and 4 `Reduced_ion_constants` scalars (`api/fmombal.m:536,774,819,1086`). `mombal` always passes `ldir=2` (`:1014`), so the SAVE arrays are per-call scratch that threads would overwrite | **Document; no code.** The roadblock already stops OpenMP with `isimpon=5` (`bbb/odesetup.m:6728-6737`). Making the path thread-safe is AIUE-69 |
@@ -146,7 +191,7 @@ J.Guterl", `bbb/odesetup.m:6727-6770`). So `isimpon=3,4,5` and the Monte Carlo n
 | # | Variables | Written at | Path (default off) | Why `+threadprivate` is safe |
 |---|---|---|---|---|
 | B2 | `bbb.sputflxllim`, `sputflxrlim` (`bbb/bbb.v:986-987`, `Rccoef`) | `bbb/pandf_boundary.m:4957-4990,5041-5070` (`limiter_patch`), zeroed then accumulated per `iy`, then read in the same routine | `islimon≠0` with limiter sputtering | no reader outside `limiter_patch`; value never needed on another thread or across calls |
-| B4 | `aph.workh`, `iflag_aph` (`aph/aph.v:210,203`, `Aphwrk`) | `B2VAhL` (work array, flag; `B2VAhL` sets `IFLAG=0` first) in `rqa`/`rra`/`rsa` (`aph/aphrates.m:569,594,748,771,1006,1029`) | `istabon=5,6` (spline hydrogen rates) | scratch written before read; the `api` analogue (`work2`, `iworki`, `icont`, `iflagi`) is already threadprivate (`api/api.v:154-160`) |
+| B4 | `aph.workh`, `iflag_aph` (`aph/aph.v:210,203`, `Aphwrk`) | `B2VAhL` (work array, flag; `B2VAhL` sets `IFLAG=0` first) in `rqa`/`rra`/`rsa` (`aph/aphrates.m:569,594,748,771,1006,1029`) | `istabon=5,6` (spline hydrogen rates) | scratch written before read; the `api` analogue (`work2`, `iworki`, `icont`, `iflagi`) is already threadprivate (`api/api.v:154-160`). **Amendment 1:** only `workh` (an array) is threadprivate; `iflag_aph` is replaced by a local `iflagl` in `rqa`/`rra`/`rsa` |
 
 Both arrays have bounds from shared `com` `Dim` scalars or non-threadprivate `aph` scalars, so no copy-order hazard
 (AIUE-56). `workh` needs no copy; `aph` gets no `OmpCopy` call. Workers get their own `workh` buffer at allocation time
@@ -208,8 +253,10 @@ team covers the Jacobian team.
    - The clip test `abs(x*s) > 0` keeps the same entries for `s = sfscal(ii)` and `s = sfscal(iv)`, because `sfscal`
      is positive and finite (`sfsetnk` stops on a zero row, `bbb/oderhs.m:2349-2352`). The only exception would be an
      underflow of `x*s` to 0, which needs `|x| < ~1e-309`. The flow checks this empirically.
-4. **Reported timers** (`com.ttimpjf` and the others in A4) count only the master thread in an OpenMP run. That is
-   diagnostic output, not a result, and is stated in the doc strings and the PR.
+4. **Reported timers** (`com.ttimpjf` and the others in A4): *Amendment 1.* Under OpenMP they are thread-seconds
+   summed over threads, through atomic updates. In serial the update is the same `acc = acc + dt` as before. This is
+   diagnostic output, not a result, and is stated in `openmp-jacobian.md` and the PR. The `com.v` doc strings stay
+   unchanged, because `com.v` returns to its `1553e75` text.
 
 ## Context references — read before implementing
 - `bbb/bbb.v:819-821` (`xcnearlb … +threadprivate`) and `api/api.v:152-160` (threadprivate work arrays): patterns.
@@ -222,17 +269,19 @@ team covers the Jacobian team.
 
 ## Step-by-step tasks
 
-### 1. UPDATE `bbb/bbb.v`, `com/com.v`, `aph/aph.v` — `+threadprivate` (A1, A2, A4, B2, B4)
+### 1. UPDATE `bbb/bbb.v`, `aph/aph.v` — `+threadprivate` (A1, A2, B2, B4); A4 per Amendment 1
 - **IMPLEMENT**: append `+threadprivate` after the type/default/existing attributes on these lines (same line, so no
   line moves): `bbb/bbb.v:951` (`areapl`, keep `+work`), `:4136` (`TimingPandfOn`), `:986-987` (`sputflxllim`,
-  `sputflxrlim`); `com/com.v:506,508,514,517-521` (`ttimpfe`, `ttimpjf`, `ttimpc`, `ttnpg`, `ttngxlog`, `ttngylog`,
-  `ttngfd2`, `ttngfxy`), `:566-567` (`totb2val`, `totintrv`); `aph/aph.v:203,210` (`iflag_aph`, `workh`). Extend each
-  A4 doc string with `; OpenMP: master thread only`. Add a short `#` doc to `TimingPandfOn` (none today). No units
-  change.
+  `sputflxrlim`); `aph/aph.v:210` (`workh`, with the paren-free bound). Add a short `#` doc to `TimingPandfOn` (none
+  today). No units change.
+- **Amendment 1 (supersedes the earlier `com.v`/`aph.v:203` part).** `com/com.v` and `aph/aph.v:203` keep their
+  `1553e75` text: no threadprivate scalar outside `bbb`. A4 is done by the `acctim` helper and the 13 call-site
+  rewrites, and `iflag_aph` by the `iflagl` locals, both as listed in Amendment 1.
 - **PATTERN**: `work2(nwork2) _real +threadprivate # work array for B3VAL` (`api/api.v:156`).
 - **GOTCHA**: keep the `.v` descriptions plain. Do **not** touch `com/com.v:427-429` or `bbb/bbb.v:669-670,679,683` (Part C).
-- **VALIDATE**: OpenMP build; `grep -n 'threadprivate(areapl)\|threadprivate(ttimpjf)\|threadprivate(sputflxllim)\|threadprivate(workh)' build/temp.*/{bbb,com,aph}_p.F90`
-  finds each, and `grep -c 'threadprivate(ghxpt)\|threadprivate(fngysi)'` finds none; serial build:
+- **VALIDATE**: OpenMP build; `grep -n 'threadprivate(areapl)\|threadprivate(sputflxllim)\|threadprivate(workh)' build/temp.*/{bbb,aph}_p.F90`
+  finds each, and `grep -c 'threadprivate(ghxpt)\|threadprivate(fngysi)\|threadprivate(ttimpjf)\|threadprivate(iflag_aph)'`
+  finds none; then G-common and G-atomic (Amendment 1); serial build:
   `grep -c threadprivate build/temp.*/*_p.F90` is 0 in every file.
 
 ### 2. UPDATE `bbb/pandf.m:48-51` — `nfsp` written only on change (A3)
@@ -271,7 +320,12 @@ team covers the Jacobian team.
 ### 5. UPDATE the AI layer (own commit, trailer `AI-layer: code-facts`)
 - `.claude/context/openmp-jacobian.md`:
   - Rule 1: a scalar that every column recomputes to one value may instead be written only when it changes (`nfsp`).
-    Threadprivate timers report the master thread only.
+    *(Amendment 1: rewrite the committed sentence "Threadprivate timers (`com.ttimpjf`, …) report the master thread
+    only".)* The `com` timers are shared and updated atomically through `acctim` (`com/misc.m`), so under OpenMP they
+    report thread-seconds summed over threads.
+  - New invariant (Amendment 1): a threadprivate *scalar* adds a definition of the shared `/ompcommonscalarcopy/`.
+    No package that loads before `bbb` may have one, and no later package's block may exceed `bbb`'s. Checked by
+    `docs/reviews/AIUE-60-common-check.py`. The same invariant goes into `variables-forthon.md` checklist 4.
   - New bullet "Known OpenMP-unsafe paths": cite the roadblock `bbb/odesetup.m:6727-6770`. Also double null `ghxpt`,
     coupled wall sources, and the PETSc clip index (AIUE-69), with the A6 `emcoef` `copyin` note.
   - Jacobian bullet: the parallel clip uses the row's `sfscal`, as serial does. Note the remaining
@@ -441,7 +495,10 @@ commits and the Probe S hashes are recorded in `docs/reviews/AIUE-60-validation.
       bitwise AGREE on `jac` (and on `jacrhs` if it is deterministic)
 - [ ] Clip check: G1 PASS on `ni` (strict), PASS or "PASS (C2 tolerance)" on `full`; G3 and G4 PASS; G2 reported
 - [ ] TSan after: no global-symbol race in the Jacobian loop; before shows the listed groups
-- [ ] Probe S after the fix: 147 and 135 entries, exactly the listed removals; `scan_ompcopy.py` 0 hazards
+- [ ] Probe S after the fix (Amendment 1): 146 reachable units; 147 and 145 entries, exactly the listed changes;
+      `scan_ompcopy.py` 0 hazards
+- [ ] Amendment 1: G-common PASS; G-iotable PASS (differential vs AIUE-56); G-atomic PASS; no `ompcommonscalarcopy_`
+      TSan report in `compy`/`aphpy`; timing ratio reported (flag → owner)
 - [ ] AI-layer edits of task 5 (`AI-layer: code-facts`); drift check clean
 - [ ] Not this ticket's acceptance: the Linux M3 `up`-row residual (AIUE-65); AIUE-62 already saw that making `areapl`
       threadprivate doesn't remove it
