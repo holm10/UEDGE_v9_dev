@@ -33,7 +33,9 @@ Fixing the copy order on a scratch build makes the Te-box OpenMP Jacobian match 
 in 3 of 3 runs, and the full-problem Jacobian bitwise equal to serial in 1 of 2 runs. The remaining differences are
 round-off-level entries in a few Te rows (mechanism M2, below). They are a separate, much smaller effect.
 
-No other shared-state defect that could produce M1 was found. The secondary findings are below.
+No other shared-state defect that could produce M1 was found. Secondary findings: one real race on physics state
+in the plate boundary conditions (`areapl`, F16; full problem only, not seen to change results), benign races on
+timers, flags and `nfsp` (F5-F7), and SAVE arrays in `api/fmombal.m` (F9-F10).
 
 ### Method
 
@@ -60,7 +62,8 @@ No other shared-state defect that could produce M1 was found. The secondary find
 | F5 | `TimingPandfOn` | `bbb/bbb.v:4136` | integer scalar | set and reset on every `pandf` call (`bbb/pandf.m:573-579`) | **no** | n/a | Data race between threads (sentinel: WRITTEN). It only gates timing, so it does not affect results. Should be threadprivate or not written in the Jacobian |
 | F6 | `TimePandf`, `TotTimePandf`, `TimeConvert0/1`, `TotTimeConvert0/1`, `Timefd2tra` (`PandfTiming`); `com.ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv` (`Timing`) | `bbb/bbb.v:4136-4170`, `com/com.v:503-567` | real scalars | accumulated in `pandf` (`bbb/pandf.m:580-760`), `oderhs.m:88,532`, `com/comutil.m:3654` (`istimingon=1` by default, `com/com.v:503`) | **no** | n/a | Benign data races on timers (lost updates only) |
 | F7 | `com.nfsp` | `com/com.v:28` (`Dim`) | integer scalar | `nfsp = nisp` / `= nhsp` on every `pandf` (`bbb/pandf.m:50-51`) | **no** | n/a | Race, but every thread writes the same value (it depends only on `isimpon`, `nisp`, `nhsp`). Benign |
-| F8 | all other 3480 − 16 non-threadprivate variables, every type | all `.v` | — | not written by a local `pandf` (diff on 25 Te-box + 12 full-problem columns; sentinel on one column of each) | no | n/a | Clean. With F5-F7 this closes H2 for scalars and integer arrays |
+| F16 | `areapl` (`Rccoef`) | `bbb/bbb.v:951` | real scalar, `+work` | written and immediately read in the plate recycling/albedo boundary conditions, `left_boundary`/`right_boundary` (`bbb/pandf_boundary.m:3091,3166,3446,3544,3797,3882,4180,4277`) | **no** | n/a | **Real data race on physics state**, found by the full-problem diff scan (changed in every sampled column whose box touches a plate: 11 of 12). Two threads at plate cells can overwrite each other's value between the write and the read on the next line. Not observed to change results (the full-problem OpenMP Jacobian with C1 fixed differs from serial only in Te rows, and is bitwise equal in 1 of 2 runs), probably because the compiler keeps the value in a register. Still, it must become a local or `+threadprivate` (fix ticket). Not involved in the Te box |
+| F8 | all other 3480 − 17 non-threadprivate variables, every type | all `.v` | — | not written by a local `pandf` (diff on 25 Te-box + 12 full-problem columns; sentinel on one Te-box column only, since the full-problem sentinel run did not finish within the time box) | no | n/a | Clean. With F5-F7 and F16 this closes H2 for scalars and integer arrays on the sampled columns |
 | F9 | `uresp`, `usave`, `caplams` | `api/fmombal.m:70` | SAVE local arrays | passed to `zrespond`/`mrespond`/`mzrespond`, which write them (`api/fmombal.m:223-238`) | no | n/a | **Race when `fmombal` runs on several threads** (called from `mombal` for `isimpon` 6/7 parallel force balance, `bbb/pandf_plasma_momentum.m:671,703`, `:1018`). Not involved in the Te box (`isupon=0`); a candidate for non-Te round-off in the full problem, not for M1 |
 | F10 | `nrow`, `bmat`, `sbar0`, `ubar0` (`mrespond`); `zmat`, `source`, `scaz`, `lsz`, `msz`, `nrowz` (`zrespond`) | `api/fmombal.m:368`, `api/fmombal.m:1064` | SAVE locals | passed to CALLs in the same routines (`:466-480`, `:1199-1213`) | no | n/a | Same as F9 (H3 confirmed as a hazard, not as the M1 cause) |
 | F11 | `lunit`, `mesflg` (`parmsetget`), `args` (`ijmgetmr`), COMMON `/iotable/` (`freeus`) | `com/error.f:144`, `com/getmsg.f:11`, `com/dummy_py.f:66` | SAVE/DATA/COMMON | error-message and interrupt paths (`xermshg`, `check_kaboom`) | no | n/a | Only on error or interrupt paths. Benign for the Jacobian |
@@ -153,7 +156,8 @@ Patch used (scratch only, not committed as product code):
 * *Te rows only.* `emissbs` is used only in `pwrzec`/`pwrze` → `resee` (`bbb/pandf_plasma_energy.m:775,822,1117`).
 * *1 thread bitwise equal.* There are no workers, so nothing is copied.
 * *Thread-count dependent; master columns are correct.* Rows 3, 7, 11, 14, 18 and 22 are bitwise correct in the
-  unmodified run, which fits columns that ran on thread 0.
+  unmodified run. That is consistent with those columns running on thread 0 (the column-to-thread mapping was not
+  recorded).
 * *Off-diagonal entries equal another column's diagonal.* Every column whose stencil contains cell r recomputes
   `emissbs` at r with the same zeroed tables. That gives the same wrong `wk(r)` divided by an almost equal `dyl`
   (the values agree to the last 1-2 ulp).
@@ -212,7 +216,11 @@ The serial reference and the unpatched code were not run under TSan.
 * Units reached only through procedure arguments or ENTRY points, and code reached only through Python callbacks,
   are not followed by `scan_saved_locals.py`. `com/*.f` and `ncl/*.f` are scanned; `svr` (nksol) runs outside the
   Jacobian column loop and was not included in the reachability roots.
-* The sentinel test runs one column per configuration (Te box: column 13; full problem: the middle sampled column).
+* The full-problem **sentinel** run (`--cols 12 --sentinel`) was stopped after about 20 minutes. Forking the
+  44352-equation process once per variable is too slow. For the full problem only the before/after diff on 12
+  columns was done. Restricting the sentinel to a list of variables, or reusing one child per batch, would make
+  it feasible.
+* The sentinel test runs one column (Te box: column 13).
   A variable written only for other cells or boundary columns would be missed by the sentinel, but would still
   show in the diff test if its value changes.
 * `OMPParallelPandf1=1` (parallel RHS) was not scanned. It has its own copy and chunking path, and it writes the
