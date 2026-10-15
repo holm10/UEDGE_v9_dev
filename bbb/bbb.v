@@ -4217,3 +4217,37 @@ VerboseDebug integer /0/
 dummy           real    /0./     # Dummy variable for testing etc.
 gridmorph       real    /0./     # Grid morphing factor to be used with UETOOLS 
 
+
+***** Jacobian_capture:
+# Raw-Jacobian capture hook (AIUE-47). jac_calc_interface copies the CSR Jacobian
+# returned by jac_calc or jac_calc_parallel, before sfsetnk/psetnk scale, normalise
+# or reorder it, into slot k = 1..jaccapn of the arrays below. Python: values are
+# jaccapv[:jaccapnnz[k-1],k-1], same 1-based index conventions as jac/jacj/jaci.
+# All variables are written only by the master thread outside any OpenMP parallel
+# region (jac_calc_interface is called from sfsetnk/psetnk), so none is +threadprivate.
+jaccapture      integer [ ] /0/ +input # Max. number of Jacobians kept; 0 = capture off.
+                                # Not +threadprivate: written outside OpenMP regions.
+jaccapskip      integer [ ] /0/ +input # No. of Jacobians skipped (counted while capture
+                                # is on) before storing starts; jaccapture=1 with
+                                # jaccapskip=k-1 keeps only the k-th Jacobian
+jaccapcount     integer [ ] /0/ # No. of Jacobians seen by jac_calc_interface while
+                                # jaccapture>0 (stored or not). Not reset by exmain:
+                                # set jaccapcount=0 and jaccapn=0 to restart capturing
+jaccapn         integer [ ] /0/ # No. of Jacobians stored (slots 1..jaccapn)
+jaccapcur       integer [ ] /0/ # Caller of the current jac_calc_interface call:
+                                # 1 = sfsetnk, 2 = psetnk, 0 = other (set by caller)
+jaccapnnzmx     integer [ ] /0/ # Leading dim. of jaccapv, jaccapj (largest nnz stored)
+jaccapneqp1     integer [ ] /0/ # Leading dim. of jaccapi (largest neq+1 stored)
+jaccapnslot     integer [ ] /0/ # No. of allocated slots (largest jaccapture used)
+jaccapv(jaccapnnzmx,jaccapnslot) _real [varies] # Raw Jacobian nonzeros d(yldot)/d(yl),
+                                # unscaled (no suscal/sfscal), unpermuted, CSR
+                                # order; tail beyond jaccapnnz(k) is zero
+jaccapj(jaccapnnzmx,jaccapnslot) _integer [ ] # Column indices of jaccapv (1-based)
+jaccapi(jaccapneqp1,jaccapnslot) _integer [ ] # Row pointers of jaccapv (1-based, neq+1)
+jaccapneq(jaccapnslot)  _integer [ ] # neq of the Jacobian in slot k
+jaccapnnz(jaccapnslot)  _integer [ ] # No. of nonzeros of the Jacobian in slot k
+jaccapsrc(jaccapnslot)  _integer [ ] # Routine that produced slot k: 1 = jac_calc
+                                # (serial), 2 = jac_calc_parallel (OpenMP; with
+                                # ppp.ForceSerialCheck>0 its result is serial)
+jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk
+jaccapseq(jaccapnslot)  _integer [ ] # Sequence number (value of jaccapcount) of slot k

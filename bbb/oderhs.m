@@ -1914,6 +1914,7 @@ c ... Common blocks:
       Use(UEpar)          # isnion,isupon,isteon,istion,isngon,isphion,isnionxy,
                           # isuponxy,isteonxy,istionxy,isngonxy,isphionxy
       Use(Jac_work_arrays) # iwwp,wwp,liwp,lwp  # diagnostic arrays in this sub
+      Use(Jacobian_capture) # jaccapcur
 
 c ... Local variables:
       real tp
@@ -1943,8 +1944,10 @@ c ... Call pandf to set terms with yl(neq+1) flag on for Jacobian
 
 c ... Calculate Jacobian matrix. 
       tp = 0.
+      jaccapcur = 2        # tag for raw-Jacobian capture (AIUE-47)
       call jac_calc_interface (neq, tp, yl, f0, lbw, ubw, wk,
      .               nnzmx, jac, jacj, jaci)
+      jaccapcur = 0
       yl(neq+1) = -1.             # Turn-off Jacobian flag for pandf
       call rhsnk (neq, yl, f0)    # Reset f0 with nufak off
 
@@ -2314,6 +2317,7 @@ c ... Common blocks:
       Use(Dim)                 # nx,ny
       Use(Time_dep_nwt)        # ydt_max0,nufak0
       Use(Share)               # cutlo
+      Use(Jacobian_capture)    # jaccapcur
 
 c ... Local variables:
       real tp
@@ -2330,8 +2334,10 @@ c ... Calculate right-hand sides at unperturbed values of variables.
 c ... Calculate Jacobian matrix.
       tp = 0.
       #Working array wk in place of sf in the call to jac_calc (J.Guterl)
+      jaccapcur = 1        # tag for raw-Jacobian capture (AIUE-47)
       call jac_calc_interface (neq, tp, yl, yldot0, lbw, ubw, wk,
      .               nnzmx, jac, jacj, jaci)
+      jaccapcur = 0
 
       yl(neq+1) = -1.      # Turn-off Jacobian flag for pandf
 c ... Compute inverse of column-scaling vector, and perform column
@@ -4690,8 +4696,10 @@ c ... Output arguments:
       integer ja(nnzmx)   # col indices of nonzero Jacobian elements
       integer ia(neq+1)   # pointers to beginning of each row in jac,ja
       real tick, tock, tsjf
+      integer jcsrc       # producer tag for jac_capture
 
       Use(ParallelEval)   # ParallelJac
+      Use(Jacobian_capture) # jaccapture
       tsjf = tick()
 c!omp if (ParallelJac.eq.1) then
 c!omp    call jac_calc_parallel (neq, t, yl, yldot00, ml, mu, wk,
@@ -4701,6 +4709,15 @@ c!omp else
      .               nnzmx, jac, ja, ia)
 c!omp  endif
        ttotjf = ttotjf + tock(tsjf)
+
+c ... Raw-Jacobian capture (AIUE-47, off by default): copy the unscaled,
+c     unpermuted CSR Jacobian before sfsetnk/psetnk scale or reorder it.
+c     Runs on the master thread, outside any OpenMP parallel region.
+      if (jaccapture .gt. 0) then
+         jcsrc = 1
+c!omp    if (ParallelJac.eq.1) jcsrc = 2
+         call jac_capture (neq, jac, ja, ia, jcsrc)
+      endif
        end subroutine jac_calc_interface
 
 
@@ -4717,3 +4734,65 @@ c!omp  endif
             endif
         end subroutine PrintTimingPandf
 
+c-----------------------------------------------------------------------
+      subroutine jac_capture (neq, jac, ja, ia, isrc)
+
+c ... Raw-Jacobian capture hook (AIUE-47). Copy the CSR Jacobian just
+c     returned by jac_calc or jac_calc_parallel (no suscal/sfscal
+c     scaling, no row normalisation, no reordering) into the next slot
+c     of the Jacobian_capture arrays. Called from jac_calc_interface
+c     only when jaccapture > 0, by the master thread outside any
+c     OpenMP parallel region. Stores the Jacobians with sequence numbers
+c     jaccapskip+1 .. jaccapskip+jaccapture (counted in jaccapcount).
+
+      implicit none
+
+c ... Input arguments:
+      integer neq         # total number of equations (all grid points)
+      real jac(*)         # nonzero Jacobian elements
+      integer ja(*)       # col indices of nonzero Jacobian elements
+      integer ia(neq+1)   # pointers to beginning of each row in jac,ja
+      integer isrc        # 1 = jac_calc, 2 = jac_calc_parallel
+
+c ... Common blocks:
+      Use(Jacobian_capture)   # jaccapture,jaccapskip,jaccapcount,...
+
+c ... Local variables:
+      integer nnz, islot, i
+
+      jaccapcount = jaccapcount + 1
+      if (jaccapcount .le. jaccapskip) return
+      islot = jaccapcount - jaccapskip
+      if (islot .gt. jaccapture) return
+      nnz = ia(neq+1) - 1
+
+c ... Grow the capture arrays if needed. gchange keeps the slots already
+c     stored and allocates the group if it was freed from Python.
+      jaccapnnzmx = max(jaccapnnzmx, nnz, 1)
+      jaccapneqp1 = max(jaccapneqp1, neq+1)
+      jaccapnslot = max(jaccapnslot, jaccapture)
+      call gchange("Jacobian_capture",0)
+
+      do i = 1, nnz
+         jaccapv(i,islot) = jac(i)
+         jaccapj(i,islot) = ja(i)
+      enddo
+      do i = nnz+1, jaccapnnzmx
+         jaccapv(i,islot) = 0.
+         jaccapj(i,islot) = 0
+      enddo
+      do i = 1, neq+1
+         jaccapi(i,islot) = ia(i)
+      enddo
+      do i = neq+2, jaccapneqp1
+         jaccapi(i,islot) = 0
+      enddo
+      jaccapneq(islot) = neq
+      jaccapnnz(islot) = nnz
+      jaccapsrc(islot) = isrc
+      jaccapfrom(islot) = jaccapcur
+      jaccapseq(islot) = jaccapcount
+      jaccapn = islot
+
+      return
+      end subroutine jac_capture
