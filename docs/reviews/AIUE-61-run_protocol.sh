@@ -1,6 +1,6 @@
 #!/bin/bash
 # AIUE-61 validation protocol (plan .claude/plans/AIUE-61-omp-static-partition.md, "Validation protocol").
-# Usage: AIUE-61-run_protocol.sh OUTDIR PHASE...     phases: g0 g1 ctl g2 g3 g4 g5 g6 g9 g10   (run in that order)
+# Usage: AIUE-61-run_protocol.sh OUTDIR PHASE...     phases: g0 g1 ctl g2 g3 g4 g5 g6 g9 g10 g10nc5 g10b
 # Shared machine: at most 2 UEDGE processes at a time, at most 4 threads each; 8-thread runs one at a time.
 # Preliminary run (AIUE-56 base): every phase except G7/R2/R4/R5. The final run repeats it on the AIUE-60-combined tree.
 set -u
@@ -32,6 +32,14 @@ chk() { local n=$1 py=$2 p=$3 t=$4 k=$5 pp=$6; shift 6
 cmp() { $NEW $H compare "$1" "$2" > "$OUT/cmp_$3.txt" 2>&1; log "cmp_$3 exit $? :: $(tail -1 "$OUT/cmp_$3.txt")"; }
 # jw NAME PY THREADS PRESET 'json'   (AIUE-61-jworker.py through the launcher)
 jw() { "$L" "$2" "$OUT/jw/$1" "$3" "$R/AIUE-61-jworker.py" "$4" jac "$3" "$5" >> "$LOG" 2>&1; }
+# jww: as jw, for runs expected to stop on a Fortran runtime error. Such an error in an OpenMP worker leaves the
+# process hanging (seen in NC5), so the run is killed 10 s after the message appears (or after 600 s).
+jww() { jw "$@" & local p=$! n=0
+  while kill -0 $p 2>/dev/null && [ $n -lt 600 ]; do
+    grep -aq "Fortran runtime error" "$OUT/jw/$1/run.log" 2>/dev/null && { sleep 10; break; }
+    sleep 2; n=$((n+2)); done
+  pkill -f "AIUE-61-chk/bin/python -I $R/AIUE-61-jworker.py" 2>/dev/null; wait $p 2>/dev/null
+  log "$1 (watched): $(grep -a -m1 -o "Fortran runtime error.*" "$OUT/jw/$1/run.log" 2>/dev/null | head -1)"; }
 
 for PHASE in "$@"; do log "== phase $PHASE"; case $PHASE in
 g0)  # G0a, G0b (1 thread each, two at a time)
@@ -105,7 +113,12 @@ g10) # bounds (checkbounds build) and the default OMP_STACKSIZE
   jw chk_tebox_t4 $CHK 4 tebox '{"ppp": '"$FIX"'}'
   for k in 1 2 3 4 5; do jw chk_tebox12_t8_$k $CHK 8 tebox '{"ppp": {"OMPJacFixedChunks": 1, "OMPJacNchunksFixed": 64, "OMPJacMinChunkLen": 12}}'; done
   for k in 1 2 3 4 5; do jw chk_full2_t8_$k $CHK 8 full '{"ppp": {"OMPJacFixedChunks": 1, "OMPJacNchunksFixed": 2, "OMPJacMinChunkLen": 300}}'; done
-  for k in 1 2 3 4 5; do jw nc5_$k $CHK 4 tebox '{"ppp": {"OMPJacFixedChunks": 0, "OMPJacNchunks": 2}}'; done
+  ;;
+g10nc5) # NC5 (legacy out-of-bounds on the checkbounds build; watched, because the runtime error hangs the process)
+  for k in 1 2 3 4 5; do [ -e "$OUT/jw/nc5_$k/jrun.json" ] || [ -e "$OUT/jw/nc5_${k}.done" ] && continue
+    jww nc5_$k $CHK 4 tebox '{"ppp": {"OMPJacFixedChunks": 0, "OMPJacNchunks": 2}}'; touch "$OUT/jw/nc5_${k}.done"; done
+  ;;
+g10b) # the default OMP_STACKSIZE (variable not set), new and old build
   for t in 4 8; do
     AIUE61_NOSTACK=1 jw nostack_new_t$t $NEW $t full '{"ppp": '"$FIX"'}'
     AIUE61_NOSTACK=1 jw nostack_old_t$t $OLD $t full '{}'
