@@ -143,7 +143,9 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   `get_fnrm()` at the final state: the serial `pandf` residual times `sfscal`, a fingerprint of the final state, not
   nksol's own value on the `jacrhs` arm. The RHS arm is checked through the `exmain` residual and one RHS probe
   (`ffun`) after `exmain`, not through every parallel RHS evaluation of the solve. The compiler and its flags can't be
-  recovered from the installed binaries (macOS Mach-O keeps no `.comment` section), so they are not recorded. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
+  recorded on macOS (Mach-O binaries keep no `.comment` section); on Linux/ELF builds the compiler string is recorded,
+  the flags never are. `provenance.build.extensions_sha256` (a SHA-256 over the extension modules) is what identifies
+  the binary under test. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
   by the harness.
 
 Unit tests (no UEDGE build needed): `python -m pytest tests/deterministic_omp/harness`.
