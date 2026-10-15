@@ -5,7 +5,8 @@ tests/deterministic_omp/tools/scan_shared_state.py (feature/v9-AIUE-50-shared-st
 replaced by one full pandf: every variable of every package that is NOT +threadprivate (per the .v files of --src) is
 set to a sentinel (reals: the next representable number above the value, elementwise; integers +1; logicals negated)
 in a forked child, a full pandf runs with yl(neq+1)=1, and the variable is WRITTEN if any element no longer holds the
-sentinel. Character variables are not tested.
+sentinel. Character variables are not tested. A child that runs longer than 60 s
+(a sentinel on a loop bound or tolerance) is reported as "timeout" in errors.
 Usage (through AIUE-61-launch.sh, 1 thread; serial or OpenMP build with the switches 0):
     AIUE-61-shared-full.py HARNESS_DIR AIUE50_TOOLS_DIR SRC_TREE   -> shared_full.json
 PASS (plan G0b): WRITTEN is a subset of AIUE-60 Probe S Parts A and B (on the combined tree: of whatever AIUE-60 leaves
@@ -60,6 +61,11 @@ for (p, n) in names:
     if pid == 0:
         os.close(r)
         out = "error"
+        import signal
+        # a sentinel on a loop bound or tolerance can make pandf spin inside Fortran, where a Python handler never
+        # runs: the default SIGALRM action kills the child, and the parent reports "timeout"
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        signal.alarm(60)
         try:
             m = mods[p]
             if isinstance(val, np.ndarray):
@@ -88,8 +94,9 @@ for (p, n) in names:
     os.close(r)
     _, status = os.waitpid(pid, 0)
     if not data:
-        data = f"crash(status={status})"
+        data = "timeout" if os.WIFSIGNALED(status) and os.WTERMSIG(status) == 14 else f"crash(status={status})"
     key = f"{p}.{n}"
+    print(key, data, flush=True)
     if data.startswith("WRITTEN"):
         res["written"][key] = data
     elif data != "not written":

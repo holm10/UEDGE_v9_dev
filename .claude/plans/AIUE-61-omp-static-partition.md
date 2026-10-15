@@ -29,7 +29,7 @@ in (response `docs/reviews/AIUE-61-plan-round2-response.md`). Round 1: `docs/rev
 - **Merge order (owner, via the coordinator): AIUE-56, then AIUE-60, then AIUE-61.**
 - Implementation and development checks run on the current base, `bugfix/v9-AIUE-56-omp-jacobian-fix` `1553e75`.
 - Once AIUE-60's implementation is approved, rebase: `git rebase --onto bugfix/v9-AIUE-60-omp-races bugfix/v9-AIUE-56-omp-jacobian-fix`.
-  AIUE-60's plan is `d2fac6e`. It makes `areapl`, `TimingPandfOn` and the `com` timers threadprivate, and writes `nfsp`
+  AIUE-60's plan is `d2fac6e`, revised to `203a5ff`. It makes `areapl`, `TimingPandfOn` and the `com` timers threadprivate, and writes `nfsp`
   only when it changes.
 - **The final gates G0–G10 run on the combined tree.**
 - Expected conflicts, as AIUE-60's plan foresees:
@@ -132,14 +132,15 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
   - Also refused: `ishosor`, `ispsorave`, `cfvisxneoq/v`.
   - Control C-guard checks that both exceptions stop before any Jacobian. This plan adds no new guard. The `.v`
     description and `openmp-jacobian.md` name the conditions.
-- **Shared state a full `pandf` writes:** AIUE-60's Probe S (plan `d2fac6e`) is a static scan of every unit reachable
-  from `pandf`. It doesn't depend on whether the call is local or full, so it covers the reset.
+- **Shared state a full `pandf` writes:** AIUE-60's Probe S (plan `d2fac6e`, revised `203a5ff`) is a static scan of
+  every unit reachable from `pandf`. It doesn't depend on whether the call is local or full, so it covers the reset.
   - Default paths, Part A, made safe by AIUE-60: `areapl`, `TimingPandfOn`, `com.nfsp`, and the `com` timers
     (`ttimpfe`, `ttimpjf`, `ttnpg`, `ttngxlog`, `ttngylog`, `ttngfd2`, `ttngfxy`, `totintrv`).
-  - Non-default paths, Part B: `ghxpt/gvxpt/sxyxpt` (`nxpt=2`), `sputflxllim/rlim` (limiter sputtering),
-    `iwalli/iwallo/fngysi/fngyso` (coupled walls), `aph.workh/iflag_aph` (`istabon=5,6`).
-  - Part C: `isimpon=5` and `ismcnon` (refused above).
-  - Phase 2 checks this dynamically for a full Jacobian-mode evaluation (G0b). Part B configurations are outside the
+  - Non-default paths kept in AIUE-60 (Part B in `203a5ff`): B2 `sputflxllim/rlim` (limiter sputtering) and B4
+    `aph.workh/iflag_aph` (`istabon=5,6`).
+  - Moved to AIUE-69 (Part C in `203a5ff`): `ghxpt/gvxpt/sxyxpt` (`nxpt=2`), `iwalli/iwallo/fngysi/fngyso` (coupled
+    walls), and `isimpon=5` (refused above), together with `ismcnon` (also refused).
+  - Phase 2 checks this dynamically for a full Jacobian-mode evaluation (G0b). The non-default paths are outside the
     validated scope and are named as such in `openmp-jacobian.md`.
 - **The validated scope:** the eight `flow --all` configurations of the reproducer deck at 1–8 threads; the D_only
   default case (G9b); macOS arm64; and Linux x86-64 if R5 runs.
@@ -169,7 +170,7 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
 - `ppp/parallel.F90:159-345` `LocalJacBuilder`: arguments `:159-160,185`, `wk` `:195`, loop start `:210-211`.
 - `bbb/oderhs.m:1090-1235`, the serial `jac_calc` column loop; `bbb/oderhs.m:1716`, the Jacobian-mode flag.
 - `bbb/odesetup.m:6727-6770`, the OpenMP roadblocks.
-- AIUE-60 plan `d2fac6e:.claude/plans/AIUE-60-omp-races.md` (Parts A–C; merge notes).
+- AIUE-60 plan `203a5ff:.claude/plans/AIUE-60-omp-races.md` (revision of `d2fac6e`: Part A, B2/B4 kept, B1/B3 to AIUE-69; merge notes).
 - `.claude/context/openmp-jacobian.md` "OpenMP parallelism"; `.claude/context/variables-forthon.md` (`[none]` for
   dimensionless inputs, e.g. `bbb/bbb.v:1334`).
 - Probe tree `uedge-wt/AIUE-61-probe` (`git -C … diff`): the revision-1 design. It is a reference only; it lacks Q5
@@ -278,7 +279,7 @@ Scratch: `/Users/holma/Documents/uedge/src/uedge-wt/scratch-AIUE-61/` (scripts a
     - the default fixed partition (`OMPJacFixedChunks=1`; the chunk count rule with `OMPJacNchunksFixed=64` and
       `OMPJacMinChunkLen=300`);
     - the full `pandf` at each chunk start, and why;
-    - the guarantee and its scope: the exmain roadblocks, the AIUE-60 Part B paths unvalidated, macOS ≠ serial;
+    - the guarantee and its scope: the exmain roadblocks, the AIUE-60/AIUE-69 non-default paths unvalidated, macOS ≠ serial;
     - the legacy switch;
     - no per-thread automatic copies;
     - `OMPTimeLocalJac` per chunk in fixed mode.
@@ -326,7 +327,7 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
 | ID | What | PASS when |
 |---|---|---|
 | **G0a** | P3 again (`AIUE-61-state_probe.py`), serial build `AIUE-61-serial`, **`yl(neq+1)=1` set explicitly**, all packages (`bbb, com, api, aph, wdf, svr, flx, grd, ppp, ncl`) in all 4 regions | after the full `pandf`, only timers/counters and the `Jacobian_restore` scratch differ from the fresh state |
-| **G0b** | Shared writes of one full Jacobian-mode `pandf` (`AIUE-61-shared-full.py --sentinel`, all packages) | the set of non-threadprivate variables WRITTEN is a subset of AIUE-60 Probe S Parts A and B (on the combined tree: of whatever AIUE-60 leaves non-threadprivate). Anything else: STOP and report (a race the reset exposes) |
+| **G0b** | Shared writes of one full Jacobian-mode `pandf` (`AIUE-61-shared-full.py --sentinel`, all packages) | the set of non-threadprivate variables WRITTEN is a subset of AIUE-60 Probe S Part A plus the non-default variables of B2/B4 and of AIUE-69 (on the combined tree: of whatever AIUE-60's final version leaves non-threadprivate; `203a5ff` expects Probe S shared writes 161 → 147). Anything else: STOP and report (a race the reset exposes) |
 | **G1** | Defaults unchanged: `serial_check.py --base-python base-serial --new-python AIUE-61-serial --base-omp-python base-omp --new-omp-python AIUE-61-omp --jobs 4` (all 42 cases, both pairs) | `RESULT: AGREE (bitwise identical; complete gate)` |
 | **G2** | K=20 determinism, jac arm, 4 threads, one evaluation: `check --preset full`; `check --preset tebox` **with `OMPJacMinChunkLen=1`** (25 chunks) and with the default (1 chunk); `--repeats 20` each | all 20 runs deterministic in every group |
 | **G3** | Thread identity. `check`, jac arm, K=3, at **1, 2, 3, 4 and 8** threads, for `full` (default), `tebox` with `OMPJacMinChunkLen=1`, and `tebox` with the default. Compare run0 of each thread count with 4 threads. **G3-sched:** `full` at 4 threads with `OMPLoopJacNchunk=3` against the default 1. **G3-count:** `AIUE-61-jworker.py` records `NchunksJac` at 1/2/4/8 threads for `full` (64), `tebox` (1), and `tebox` with min 1 (25) | AGREE for every pair; every group deterministic; G3-sched AGREE; G3-count shows the same count at every thread count |
