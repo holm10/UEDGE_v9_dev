@@ -179,13 +179,15 @@ def child(argv):
             checks["identity_evaluated"] = any(
                 "check_raw_times_inv_suscal_bitwise_eq_bbb_jac" in s for s in slots)
         out["capture_run_checks"] = checks
-        out["capture_alloc"] = {
+        alloc = {
             "jaccapnslot": nslot,
             "jaccapnnzmx": int(bbb.jaccapnnzmx),
             "jaccapneqp1": int(bbb.jaccapneqp1),
-            "jaccapv_shape": list(np.shape(bbb.jaccapv)),
-            "bytes": int(bbb.jaccapv.nbytes + bbb.jaccapj.nbytes + bbb.jaccapi.nbytes),
         }
+        if nslot > 0:  # the arrays are unallocated before the first capture
+            alloc["jaccapv_shape"] = list(np.shape(bbb.jaccapv))
+            alloc["bytes"] = int(bbb.jaccapv.nbytes + bbb.jaccapj.nbytes + bbb.jaccapi.nbytes)
+        out["capture_alloc"] = alloc
     # get_fnrm last: it re-evaluates the RHS and may overwrite yldot.
     out["fnrm"] = float(bbb.get_fnrm(bbb.dtreal)).hex()
     sys.stdout.flush()
