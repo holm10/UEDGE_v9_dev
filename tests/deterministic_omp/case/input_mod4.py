@@ -15,7 +15,11 @@ for _rate_file in ("ehr2.dat", "C_rates.adas"):
     if not os.path.exists(os.path.join(_rates_dir, _rate_file)):
         raise Exception("Rate file {} not found in {}".format(_rate_file, _rates_dir))
 if len(_rates_dir) > 120:
-    raise Exception("Rate directory path longer than 120 characters: {}".format(_rates_dir))
+    # aphdir/apidir are character*120: in a deep checkout fall back to the relative path
+    _rel = os.path.relpath(_rates_dir)
+    if len(_rel) > 120:
+        raise Exception("Rate directory path longer than 120 characters: {}".format(_rates_dir))
+    _rates_dir = _rel
 aph.aphdir = _rates_dir
 api.apidir = _rates_dir
 bbb.restart=1

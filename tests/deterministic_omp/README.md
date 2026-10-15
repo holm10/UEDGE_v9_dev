@@ -7,7 +7,7 @@ this case.
 
 ## The case
 
-`case/input_mod4.py` is the owner's deck: upper single null, 72×44 grid, D plus carbon (`isimpon=6` while the arrays
+`case/input_mod4.py` is the owner's deck: upper single null, nx×ny = 70×42 (72×44 with guard cells), D plus carbon (`isimpon=6` while the arrays
 are populated, then `isimpon=7` with `afracs`), drifts and potential on. It
 
 1. restores the state from `b0p1.hdf5` and runs a populate `exmain` (`issfon=0`, `ftol=1e20`);
@@ -40,14 +40,24 @@ The deck needs `ehr2.dat` (hydrogen rates, `aph.aphdir`) and `C_rates.adas` (car
 already tracked in the repository in `builder/test/Forthon_cases/Forthon_case5/`, and the deck points there by
 default (a path relative to the deck file). To use another directory holding both files, set
 `UEDGE_OMP_RATES_DIR`. **Set it whenever the deck is copied out of this tree** (a temporary run directory, for
-example), because the default path is relative to the deck. The deck stops with an error if a rate file is missing or
-the path is longer than the 120 characters `aphdir`/`apidir` can hold.
+example), because the default path is relative to the deck. `aphdir`/`apidir` hold at most 120 characters: in a
+deeper checkout the deck falls back to the path relative to the working directory (a relative `UEDGE_OMP_RATES_DIR`
+also works). The deck stops with an error if a rate file is missing or no form of the path fits. The case thus depends
+on the legacy `builder/test/` directory; moving or deleting those files breaks it.
+
+### Provenance of the data
+
+The owner's originals (not committed) had SHA-256 `e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5`
+(`b0p1.hdf5`, 11.7 MB) and `0283e4b91c4266afe513b5c92134ac650654ad577b81cbfa9a48080ff4b032bc` (`save_input_mod4.h5`).
+The state in them was written by UEDGE 8.1.2-beta.0. `tools/trim_case_data.py` applied to those files reproduces the
+committed files byte for byte, and every kept dataset is byte-equal to the original one (checked in the AIUE-46
+review).
 
 ## Environment
 
 | Setting | Why |
 |---|---|
-| `OMP_STACKSIZE=512M` | Without it the OpenMP Jacobian crashes with SIGBUS on this case. |
+| `OMP_STACKSIZE=512M` | During planning the OpenMP Jacobian crashed with SIGBUS at the default thread stack. The AIUE-46 review could not reproduce that at 4 and 8 threads, but per-thread automatic arrays scale with `neq`, so set it anyway. |
 | `OMP_NUM_THREADS=N` and `ppp.Nthreads` | `Nthreads` is clamped to `OMP_GET_MAX_THREADS()`. Record both. |
 | `HOME` set to an empty directory, `python -I` | `import uedge` runs `~/.uedgerc.py` or `./.uedgerc.py` if present, and `-I` also ignores `PYTHON*` variables. With `-I` the script's folder is not on `sys.path`, so add the case directory explicitly. |
 | A fresh process per run | Forthon module state is global. |
@@ -62,18 +72,20 @@ cp -R tests/deterministic_omp/case /tmp/omp_case && cd /tmp/omp_case
 export UEDGE_OMP_RATES_DIR=$OLDPWD/builder/test/Forthon_cases/Forthon_case5
 export OMP_STACKSIZE=512M OMP_NUM_THREADS=4 HOME=/tmp/emptyhome
 python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py --tebox            # serial Te box (25 equations)
-python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py --tebox --omp-jac  # OpenMP Jacobian, same box
+python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py --tebox --omp-jac  # OpenMP Jacobian (needs the OpenMP build)
 python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py                    # full problem, ~30 s serial
 ```
 
-`fingerprint.py` writes `fingerprint.json` in the working directory and prints the same object. Use the file:
+`fingerprint.py` writes `fingerprint.json` in the working directory and prints the same object. Its `yldot` is the
+residual `exmain` left, hashed before `get_fnrm()` re-evaluates the RHS serially, so with `--omp-jac` it shows the
+solver's last residual, not a parallel-RHS evaluation (the harness of AIUE-49 has an explicit RHS probe). Use the file:
 when stdout is redirected to a file, the Fortran runtime's buffered output can overwrite what Python printed.
 The Fortran output also contains NUL bytes, so use `grep -a` on captured logs.
 
 The owner's original check, from inside a copy of `case/` (with the environment above):
 
 ```bash
-./comp.sh          # runs testscript.py twice; different "iter= 0 fnrm=" lines mean non-determinism
+./comp.sh          # runs testscript.py twice (OpenMP build); different "iter= 0 fnrm=" lines mean non-determinism
 ```
 
 ### Reference values (serial, `v9-develop` `0fac655`, macOS arm64, gfortran 15)

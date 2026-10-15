@@ -6,7 +6,8 @@ input_mod4.py reads from b0p1.hdf5:
   - restore/bbb/{ngs,nis,phis,tes,tgs,tis,ups}  (falls back to bbb/ if restore/ is missing)
   - diffusivities/bbb/*                         (each one optional)
 and calls uedge.hdf5.hdf5_restore on save_input_mod4.h5, which reads
-  - bbb/{tes,tis,ups,nis,phis,ngs,tgs,tipers}   (tipers only if bbb has it and the file has it)
+  - bbb/{tes,tis,ups,nis,phis,ngs,tgs}          (and tipers whenever bbb has it, raising if the file lacks it;
+                                                v9's bbb has no tipers and neither original file holds it)
 Everything else in the two files is dropped. Datasets are copied bit for bit (h5py copy).
 """
 import sys

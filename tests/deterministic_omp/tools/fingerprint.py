@@ -44,11 +44,13 @@ def main(argv):
 
     neq = int(bbb.neq)
     nnz = int(bbb.jaci[neq]) - 1
+    # yldot first: get_fnrm() evaluates the RHS again (serial pandf) and overwrites it
+    yldot = digest(bbb.yldot[:neq])
     out = {
         "neq": neq,
         "nnz": nnz,
+        "yldot": yldot,
         "fnrm": float(bbb.get_fnrm(bbb.dtreal)).hex(),
-        "yldot": digest(bbb.yldot[:neq]),
         "jac": digest(bbb.jac[:nnz]),
         "jacj": digest(bbb.jacj[:nnz]),
         "jaci": digest(bbb.jaci[: neq + 1]),
