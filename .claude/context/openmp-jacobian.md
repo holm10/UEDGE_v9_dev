@@ -27,8 +27,10 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
   bounds must already be there (AIUE-8 root cause C1: the `api` `Imslwrk` spline tables). A new threadprivate array
   whose bounds are threadprivate scalars is safe only with this order; with the debug switches `OMPCopyScalar=0,
   OMPCopyArray=1` the hazard comes back. `OMPPandf1Rhs` never copies: its workers run on what the last
-  `OMPJacBuilder` copy left (`OMPParallelPandf1=1` forces `OMPParallelJac=1`, `ppp/parallel.F90:30-36`, so a
-  Jacobian always comes first in the nksol sequence).
+  `OMPJacBuilder` copy left (`OMPParallelPandf1=1` forces `OMPParallelJac=1`, `ppp/parallel.F90:30-36`). In an nksol
+  run the RHS evaluations before the first Jacobian are serial only because `OMPPandf1Rhs` falls back to `pandf`
+  while `ijactot` is 0, and `exmain` resets `ijactot` only when `icntnunk=0`: with `icntnunk=1`, or an RHS call from
+  Python after an earlier `exmain`, the parallel RHS runs on whatever worker state the previous Jacobian left.
 
 ## Rules for code in the `pandf` tree
 
