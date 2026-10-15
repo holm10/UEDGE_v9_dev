@@ -4766,11 +4766,16 @@ c ... Local variables:
       if (islot .gt. jaccapture) return
       nnz = ia(neq+1) - 1
 
-c ... Grow the capture arrays if needed. gchange keeps the slots already
-c     stored and allocates the group if it was freed from Python.
+c ... Grow the capture arrays if needed. Slots are allocated by use, not
+c     up front: the slot dimension doubles (capped at jaccapture) when
+c     slot islot does not exist yet. gchange keeps the slots already
+c     stored. If the group was freed from Python it is reallocated here,
+c     zero-filled: earlier slots are then lost (reset the counters).
       jaccapnnzmx = max(jaccapnnzmx, nnz, 1)
       jaccapneqp1 = max(jaccapneqp1, neq+1)
-      jaccapnslot = max(jaccapnslot, jaccapture)
+      if (islot .gt. jaccapnslot) then
+         jaccapnslot = min(jaccapture, max(islot, 2*jaccapnslot))
+      endif
       call gchange("Jacobian_capture",0)
 
       do i = 1, nnz

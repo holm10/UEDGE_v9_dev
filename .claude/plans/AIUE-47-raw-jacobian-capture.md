@@ -44,8 +44,8 @@ new subroutine `jac_capture` at the end of `bbb/oderhs.m`.
 - `jaccapture` (input, default 0): maximum number of Jacobians kept; 0 = off. When 0 the hook is a single
   integer test and nothing else runs (bitwise-unchanged results).
 - `jaccapskip` (input, default 0): number of Jacobians (counted while capture is on) skipped before storing
-  starts. "Keep every Jacobian" = large `jaccapture`, `jaccapskip=0`; "keep only the k-th" =
-  `jaccapture=1, jaccapskip=k-1`.
+  starts. "Keep every Jacobian" = `jaccapture` set to an upper bound (it is only a cap: memory grows with the
+  slots actually filled, see Memory), `jaccapskip=0`; "keep only the k-th" = `jaccapture=1, jaccapskip=k-1`.
 - `jaccapcount`: Jacobians seen by `jac_calc_interface` while capture is on; `jaccapn`: Jacobians stored
   (slots `1..jaccapn`). Stored are the Jacobians with sequence numbers `jaccapskip+1 .. jaccapskip+jaccapture`
   (first-N, no ring buffer: deterministic and simple). Counters are not reset by `exmain`; the user restarts
@@ -58,8 +58,12 @@ new subroutine `jac_capture` at the end of `bbb/oderhs.m`.
 - `jaccapcur` is the caller tag set to 1/2 by `sfsetnk`/`psetnk` just before their `jac_calc_interface`
   call and back to 0 after (a plain integer store; no effect on results).
 - The capture runs after `ttotjf` is accumulated, so the copy time is not charged to Jacobian timing.
-- Memory: ~3.2M nonzeros for the full reproducer case, about 3.2M*(8+8) bytes per slot (~51 MB); four slots
-  are ~200 MB.
+- Memory (revised after review round 1, L-M1): slots are allocated by use. When slot `islot` does not exist,
+  `jaccapnslot = min(jaccapture, max(islot, 2*jaccapnslot))` (doubling, capped), so at most twice the filled
+  slots are allocated and a run with N Jacobians reallocates O(log N) times. Each slot costs about
+  `16*nnz + 8*(neq+1)` bytes (8-byte reals and integers, `-fdefault-integer-8`): ~51 MB serial / ~58 MB parallel
+  on the reproducer. A growth briefly holds old and new arrays. After `gfree("Jacobian_capture")` the stored
+  slots are lost; reset `jaccapcount = jaccapn = 0`.
 
 ## Tasks
 

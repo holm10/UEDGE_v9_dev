@@ -9,6 +9,10 @@ later tickets of epic AIUE-8. Three subcommands:
            yldot, the post-exmain jac/jacj/jaci, sfscal, suscal, get_fnrm() as float.hex,
            and (capture on) per captured slot its metadata and digests plus the check
            that the sfsetnk capture times 1/suscal is bitwise the post-exmain bbb.jac.
+           With --capture K>0 the run FAILS unless at least one Jacobian was stored,
+           every slot has a caller tag (sfsetnk/psetnk), the allocated slots are
+           bounded by the lazy-growth rule, and (ftol=1e20 mode) the identity was
+           actually evaluated.
   run      Copies --case to a fresh temporary directory and runs "child" there with the
            given python in a fresh "python -I" process with an empty HOME. Prints the
            fingerprint, the printed nksol fnrm sequence and the capture checks.
@@ -162,6 +166,26 @@ def child(argv):
                     slot["check_bbb_jac_times_suscal_max_reldiff"] = float(np.max(np.abs(back - v) / den))
             slots.append(slot)
         out["slots"] = slots
+        # Run-level checks (a capture run must actually have captured and checked something).
+        nslot = int(bbb.jaccapnslot)
+        nstored = int(bbb.jaccapn)
+        checks = {
+            "captured_at_least_one": nstored > 0,
+            "caller_tags_present": all(s["from"] in ("sfsetnk", "psetnk") for s in slots),
+            # lazy allocation: slot dimension doubles from what is used, capped at jaccapture
+            "alloc_slots_bounded": nstored <= nslot <= min(int(bbb.jaccapture), max(1, 2 * nstored)),
+        }
+        if a.newton == 0:
+            checks["identity_evaluated"] = any(
+                "check_raw_times_inv_suscal_bitwise_eq_bbb_jac" in s for s in slots)
+        out["capture_run_checks"] = checks
+        out["capture_alloc"] = {
+            "jaccapnslot": nslot,
+            "jaccapnnzmx": int(bbb.jaccapnnzmx),
+            "jaccapneqp1": int(bbb.jaccapneqp1),
+            "jaccapv_shape": list(np.shape(bbb.jaccapv)),
+            "bytes": int(bbb.jaccapv.nbytes + bbb.jaccapj.nbytes + bbb.jaccapi.nbytes),
+        }
     # get_fnrm last: it re-evaluates the RHS and may overwrite yldot.
     out["fnrm"] = float(bbb.get_fnrm(bbb.dtreal)).hex()
     sys.stdout.flush()
@@ -215,6 +239,12 @@ def capture_checks(label, fp):
                 print("[%s] slot %d: %s = %s" % (label, s["slot"], key[6:], s[key]))
                 if isinstance(s[key], bool):
                     ok &= s[key]
+    # Run-level checks exist only for runs with --capture K>0; any False fails the run.
+    for key, val in sorted(fp.get("capture_run_checks", {}).items()):
+        print("[%s] run: %s = %s" % (label, key, val))
+        ok &= bool(val)
+    if "capture_alloc" in fp:
+        print("[%s] run: allocation %s" % (label, json.dumps(fp["capture_alloc"], sort_keys=True)))
     return ok
 
 
