@@ -20,17 +20,62 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))  # tests/deterministic_omp, for "harness"
 sys.path.insert(0, os.getcwd())  # the run directory, for input_mod4
 
-from harness.config import ARMS, RunSpec, apply_preset  # noqa: E402
+from harness.config import ARMS, DIAGNOSTIC_SWITCHES, RunSpec, apply_preset  # noqa: E402
 
 EQ_CODES = ["ni", "up", "te", "ti", "ng", "tg", "phi"]
 
 
-def git_commit():
+def git_state(path):
+    """(HEAD, dirty) of the git checkout holding path, or ("unknown", None)."""
     try:
-        return subprocess.run(["git", "-C", HERE, "rev-parse", "HEAD"], capture_output=True, text=True,
-                              timeout=10).stdout.strip()
+        head = subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True,
+                              timeout=10).stdout.strip() or "unknown"
+        status = subprocess.run(["git", "-C", path, "status", "--porcelain", "--untracked-files=no"],
+                                capture_output=True, text=True, timeout=30).stdout
+        return head, bool(status.strip())
     except Exception:
-        return "unknown"
+        return "unknown", None
+
+
+def build_identity():
+    """Which build this process runs: the installed uedge's source tree (pip's direct_url.json),
+    that tree's git HEAD and dirty state, a SHA-256 over the compiled extension modules, whether
+    they link an OpenMP runtime, and the compiler they were built with (from the .comment
+    strings). The compile flags are not recorded in the binaries, so they can't be recovered."""
+    import glob
+    import hashlib
+    import importlib.metadata
+    import uedge
+
+    ident = {"uedge_file": uedge.__file__}
+    try:
+        dist = importlib.metadata.distribution("uedge")
+        direct = dist.read_text("direct_url.json")
+        url = json.loads(direct).get("url", "") if direct else ""
+        src = url[len("file://"):] if url.startswith("file://") else url
+        ident["source_dir"] = src or None
+        if src:
+            ident["source_head"], ident["source_dirty"] = git_state(src)
+    except Exception as err:  # not a pip install from a directory
+        ident["source_dir"] = None
+        ident["source_error"] = repr(err)
+    sos = sorted(glob.glob(os.path.join(os.path.dirname(uedge.__file__), "*.so")))
+    digest = hashlib.sha256()
+    openmp = False
+    compilers = set()
+    for so in sos:
+        data = open(so, "rb").read()
+        digest.update(os.path.basename(so).encode() + b"\0" + hashlib.sha256(data).digest())
+        openmp = openmp or b"GOMP_" in data or b"__kmpc_" in data
+        for marker in (b"GCC: (",):
+            i = data.find(marker)
+            if i >= 0:
+                compilers.add(data[i:i + 80].split(b"\0")[0].decode(errors="replace"))
+    ident["extensions_sha256"] = digest.hexdigest()
+    ident["n_extensions"] = len(sos)
+    ident["openmp_build"] = openmp
+    ident["compiler"] = sorted(compilers)
+    return ident
 
 
 def equation_map(bbb, com, neq):
@@ -105,6 +150,8 @@ def run(spec):
     from input_mod4 import bbb, com, ppp  # runs the deck in the current directory
 
     apply_preset(bbb, spec.preset)
+    for name in DIAGNOSTIC_SWITCHES:  # never on in a measured run
+        setattr(ppp, name, 0)
     for name, value in ARMS[spec.arm].items():
         setattr(ppp, name, value)
     ppp.Nthreads = spec.threads
@@ -132,30 +179,45 @@ def run(spec):
         "igyl": np.array(bbb.igyl[:neq, :]),
     }
     arrays["eq"], arrays["species"] = equation_map(bbb, com, neq)
+    capture = collect_capture(bbb, arrays) if hook else {"hook": False, "count": 0}
+    # Which Jacobian bbb.jac holds after exmain: the sfsetnk one (scaled by 1/suscal only), or,
+    # once nksol has called psetnk, the last psetnk one (scaled, row-normalised and, with
+    # premeth="ilut" and ireorder=1, permuted in place by jac_reorder).
+    if capture["count"]:
+        last = capture["caller"][-1]
+    else:
+        last = "psetnk" if int(bbb.ijactot) > 1 else "sfsetnk"
+    permuted = last == "psetnk" and int(bbb.ireorder) == 1
     meta = {
         "spec": json.loads(spec.to_json()),
         "neq": neq,
         "nnz_post": nnz,
         "numvar": int(bbb.numvar),
-        "fnrm_final_hex": float(bbb.get_fnrm(bbb.dtreal)).hex(),
         "ijactot": int(bbb.ijactot),
-        "capture": collect_capture(bbb, arrays) if hook else {"hook": False, "count": 0},
-        "post_exmain_jacobian": ("sfsetnk Jacobian scaled by 1/suscal (ftol=1e20: no psetnk row "
-                                 "normalisation or reordering)" if spec.itermx is None else
-                                 "last psetnk Jacobian: scaled, row-normalised, possibly RCM-permuted"),
+        "capture": capture,
+        "post_exmain_from": last,
+        "post_exmain_permuted": permuted,
     }
 
     if spec.rhs_probe:
-        # One more RHS evaluation through the solver's path (ffun -> PandfRHS_interface).
-        # With OMPParallelPandf1=1 and ijactot>0 this is the parallel RHS (OMPPandf1Rhs).
-        yl = np.array(bbb.yl[:neq])
-        out = np.zeros(neq)
+        # One more RHS evaluation through the solver's path (ffun -> PandfRHS_interface), before
+        # get_fnrm (which runs the serial pandf and overwrites bbb.yldot). With OMPParallelPandf1=1
+        # and ijactot>0 this is the parallel RHS (OMPPandf1Rhs). pandf reads yl(neq+1), so pass
+        # the whole neq+2 vector.
+        yl = np.array(bbb.yl[: neq + 2])
+        out = np.zeros(neq + 2)
         bbb.ffun(neq, 0.0, yl, out)
-        arrays["yldot_probe"] = out
+        arrays["yldot_probe"] = out[:neq].copy()
         meta["rhs_probe_parallel"] = bool(int(bbb.ParallelPandf1) > 0 and int(bbb.ijactot) > 0)
+    # get_fnrm: the norm of the serial pandf residual at the final state times sfscal, i.e. a
+    # fingerprint of the final state and sfscal, not nksol's own (possibly parallel-RHS) value
+    meta["fnrm_final_hex"] = float(bbb.get_fnrm(bbb.dtreal)).hex()
 
+    harness_head, harness_dirty = git_state(HERE)
     meta["provenance"] = {
-        "commit": git_commit(),
+        "harness_commit": harness_head,
+        "harness_dirty": harness_dirty,
+        "build": build_identity(),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "uedge_ver": bytes(bbb.uedge_ver[0]).decode(errors="replace").strip()
@@ -171,7 +233,13 @@ def run(spec):
         "OMPAutoBalance": int(ppp.OMPAutoBalance),
         "OMPLoopJacNchunk": int(ppp.OMPLoopJacNchunk),
         "OMPlenpfac": int(ppp.OMPlenpfac),
+        "ireorder": int(bbb.ireorder),
+        "premeth": bytes(bbb.premeth).decode(errors="replace").strip()
+        if isinstance(bbb.premeth, (bytes, bytearray)) else str(bbb.premeth).strip(),
     }
+    for name in DIAGNOSTIC_SWITCHES:
+        meta["provenance"][name] = int(getattr(ppp, name))
+    meta["provenance"]["openmp_build"] = meta["provenance"]["build"]["openmp_build"]
     np.savez("record.npz", **arrays)
     return meta
 

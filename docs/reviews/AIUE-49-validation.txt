@@ -154,3 +154,31 @@ run0 capture {'caller': ['sfsetnk', 'psetnk'], 'count': 2, 'hook': True, 'seen':
   yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
   fnrm_final: 1 mismatch(es): 0x1.8e4ccf15b38f6p-36 vs 0x1.5a01fff4a2316p-32
   fnrm_printed: 1 mismatch(es): [[0, '0.1387032573212814'], [1, '0.6584996603777665E-02'], [2, '0.6196292202160734E-05'], [3, '0.2264073571398288E-10']] vs [[0, '0.1586859089740692'], [1, '0.8728610241907105E-02'], [2, '0.2314004686417733E-04'], [3, '0.3146922716246151E-09']]
+
+# Part 3: after review round 1 (strict comparator, arm checks, exit codes, provenance)
+
+## unit tests: 29 passed in 0.67s
+
+## live runs (exit codes)
+### ss
+note: --arm serial compares serial runs with each other (a determinism check of the build)
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+[determinism (run0 vs run1)] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+### b1
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: ERROR
+  ERROR: b (tebox_jac_t4_it0): jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?)
+  ERROR: b (tebox_jac_t4_it0): jac arm run with a build that has no OpenMP runtime
+CHECK tebox_jac_t4_it0: ERROR
+### jac
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+[determinism (run0 vs run1)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+CHECK tebox_jac_t4_it0: MISMATCH
+### rhs
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+[determinism (run0 vs run1)] tebox_jacrhs_t4_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+CHECK tebox_jacrhs_t4_it0: MISMATCH
+### tephi
+te_phi_serial_t1_it0: neq 6336, fnrm ['1.890747266414930'], 27.53 s

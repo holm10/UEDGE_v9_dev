@@ -98,12 +98,16 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
 ```
 
 - **Presets** (`harness/config.py`): `full`, `tebox` (the owner's 25-equation box), `te`, `ti`, `ni`, `up`, `ng`
-  (one group alone, other switches 0, `isphiofft=1`), `full_note` (all but Te; phi alone fails in serial).
+  (one group alone, other switches 0, `isphiofft=1`), `te_phi` (Te and phi). Phi alone fails in serial ("Jacobian
+  row = 0"), and so do phi with ni+up, phi with ni+up+ti and the full problem without Te: phi runs only with Te, so
+  while the Te bug exists a phi isolation can't get a verdict of its own.
 - **Arms:** `serial` (both OpenMP switches 0, 1 thread), `jac` (`OMPParallelJac=1`), `jacrhs`
   (`OMPParallelPandf1=1`, which forces `OMPParallelJac=1`). `--ppp '{"OMPJacNchunks": -1}'` sets extra `ppp`
   variables; `--itermx N` runs N Newton iterations instead of one evaluation (`ftol=1e20`).
-- **`check`** runs a serial reference of the same build and K OpenMP runs, and reports agreement with serial and
-  determinism (run 0 vs run k) separately. It writes `check.json` with every report and the provenance (commit,
+- **`check`** runs a serial reference of the same build and K ≥ 1 OpenMP runs, and reports agreement with serial and
+  determinism (run 0 vs run k) separately. The ticket's measurement is `--itermx 3` (several Jacobians and the
+  fnrm sequence); the default (one evaluation) is the fast check. Each record says how many Jacobians were made
+  (`ijactot`, the capture list) — an "it0" run can still iterate when the iteration-0 residual exceeds `ftol`. It writes `check.json` with every report and the provenance (commit,
   platform, thread and chunking settings).
 - **What is compared, bitwise** (`harness/compare.py`): every Jacobian the run produced, as sets of (row, column)
   entries: the raw Jacobians of AIUE-47's capture hook (`bbb.jaccapture`, one per `sfsetnk`/`psetnk` call, before
@@ -117,11 +121,28 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
 - **Localisation:** every mismatch is mapped through `igyl` and the `idx*` tables to equation, species and cell, and
   counted per (row equation, column equation) pair, e.g. `te/ni: 387007; first value row te(ix=1,iy=1) col
   ni[0](ix=1,iy=1)`.
-- **Exit codes:** 0 everything agrees, 1 at least one mismatch, 2 harness error (missing file, failed run).
+- **Is it really the arm it claims?** Every comparison first checks each record (`compare.check_arm`): OpenMP arms
+  need `ParallelJac=1` (and `ParallelPandf1=1` plus a parallel RHS probe on `jacrhs`), captured Jacobians from
+  `jac_calc_parallel`, an OpenMP runtime in the build; the serial arm needs all four switches 0; `Nthreads` and
+  `OMP_NUM_THREADS` must equal the requested threads; `CheckJac`/`CheckPandf1`/`ForceSerialCheck` must be 0. Any
+  violation (e.g. `--python` pointing at a serial build) is a harness error, never AGREE.
+- **Strictness:** `yldot`, `sfscal`, `suscal`, the equation maps and the iterations are mandatory; a quantity present
+  in one record only, a duplicate CSR entry, or a different number of Jacobians is a mismatch; a different problem
+  (neq, preset, itermx, equation map) or an out-of-range index is a harness error. The post-`exmain` Jacobian after a
+  `psetnk` is RCM-permuted (`ireorder=1`): it is compared by position and labelled "permuted indices", not mapped to
+  cells; the raw captured Jacobians are always in natural order.
+- **Provenance:** the build under test (the installed uedge's source tree from pip's `direct_url.json`, its git HEAD
+  and dirty state, a SHA-256 over the extension modules, whether they link an OpenMP runtime), the harness commit and
+  dirty state, Python and platform, and every OpenMP and chunking switch.
+- **Exit codes:** 0 everything agrees, 1 at least one mismatch, 2 harness error (missing or corrupt file, failed run,
+  wrong arm, any unexpected exception).
 - **Capture slots:** `RunSpec.capture` (default 16) raw Jacobians are kept; a run that produces more is a harness
   error, never a silent truncation. A build without the hook compares the post-`exmain` Jacobian only.
-- **Limits:** the per-iteration `fnrm` is available only as the 16 digits nksol prints; the float64 value is
-  recorded for the final state. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
+- **Limits:** the per-iteration `fnrm` is available only as the 16 digits nksol prints. `fnrm_final` is
+  `get_fnrm()` at the final state: the serial `pandf` residual times `sfscal`, a fingerprint of the final state, not
+  nksol's own value on the `jacrhs` arm. The RHS arm is checked through the `exmain` residual and one RHS probe
+  (`ffun`) after `exmain`, not through every parallel RHS evaluation of the solve. The compiler and its flags can't be
+  recovered from the installed binaries (macOS Mach-O keeps no `.comment` section), so they are not recorded. Diagnostic switches (`CheckJac`, `CheckPandf1`, `ForceSerialCheck`) are never set
   by the harness.
 
 Unit tests (no UEDGE build needed): `python -m pytest tests/deterministic_omp/harness`.

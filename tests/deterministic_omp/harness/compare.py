@@ -51,6 +51,9 @@ def matrix_mismatch(a, b, neq):
     mismatching entries as (row, col) arrays: value mismatches, entries only in a, only in b."""
     ra, ca, va = csr_entries(*a)
     rb, cb, vb = csr_entries(*b)
+    for name, rows, cols in (("a", ra, ca), ("b", rb, cb)):
+        if len(cols) and (cols.min() < 0 or cols.max() >= neq or rows.max() >= neq):
+            raise IndexError("matrix {}: column/row index outside 1..neq={}".format(name, neq))
     ka = ra * neq + ca
     kb = rb * neq + cb
     oa = np.argsort(ka, kind="stable")
@@ -103,7 +106,7 @@ def summarize_matrix(mm, eq, species, igyl):
                 if kind == "value":
                     entry["a"], entry["b"] = repr(float(mm["value_pairs"][0][n])), repr(float(mm["value_pairs"][1][n]))
                 first.append(entry)
-    total = sum(len(mm[k][0]) for k in ("value", "only_a", "only_b"))
+    total = sum(len(mm[k][0]) for k in ("value", "only_a", "only_b")) + mm["duplicates"]
     return {"mismatches": total, "value": len(mm["value"][0]), "only_a": len(mm["only_a"][0]),
             "only_b": len(mm["only_b"][0]), "duplicates": mm["duplicates"],
             "nonfinite_a": mm["nonfinite_a"], "nonfinite_b": mm["nonfinite_b"],
@@ -121,71 +124,172 @@ def summarize_vector(bad, a, b, eq, species, igyl):
 
 
 def jacobians(record):
-    """The list of (name, (values, cols, rowptr)) Jacobians a record holds, in order."""
+    """The list of (name, (values, cols, rowptr), localisable) Jacobians a record holds, in order.
+    localisable is False for a matrix whose rows/columns are permuted (post-exmain after psetnk
+    with ireorder=1): it is compared position by position but not mapped to cells."""
     arr = record.arrays
     out = []
     n = int(record.meta.get("capture", {}).get("count", 0))
     for k in range(n):
         out.append(("captured[{}]".format(k), (arr["capjac_{}".format(k)], arr["capjacj_{}".format(k)],
-                                               arr["capjaci_{}".format(k)])))
-    out.append(("post_exmain", (arr["jac_post"], arr["jacj_post"], arr["jaci_post"])))
+                                               arr["capjaci_{}".format(k)]), True))
+    permuted = bool(record.meta.get("post_exmain_permuted", False))
+    out.append(("post_exmain" + (" (permuted indices)" if permuted else ""),
+                (arr["jac_post"], arr["jacj_post"], arr["jaci_post"]), not permuted))
     return out
 
 
+SERIAL_SWITCHES = ("OMPParallelJac", "OMPParallelPandf1", "ParallelJac", "ParallelPandf1")
+DIAGNOSTIC_SWITCHES = ("CheckJac", "CheckPandf1", "ForceSerialCheck")
+
+
+def check_arm(record, spec=None):
+    """Problems (list of strings; empty = fine) showing that a run did not do what its arm asked:
+    the OpenMP path didn't run, the thread count wasn't applied, a diagnostic switch was on, the
+    captured Jacobians came from the wrong routine. spec defaults to the record's own spec."""
+    spec = spec or record.meta.get("spec", {})
+    arm, threads = spec.get("arm"), spec.get("threads")
+    prov = record.meta.get("provenance", {})
+    problems = []
+    if not prov:
+        return ["no provenance recorded"]
+    if arm == "serial":
+        for name in SERIAL_SWITCHES:
+            if prov.get(name) != 0:
+                problems.append("serial arm but {}={}".format(name, prov.get(name)))
+    elif arm in ("jac", "jacrhs"):
+        if prov.get("ParallelJac") != 1:
+            problems.append("{} arm but ParallelJac={} (OpenMP Jacobian did not run: serial build?)"
+                            .format(arm, prov.get("ParallelJac")))
+        if arm == "jacrhs":
+            if prov.get("ParallelPandf1") != 1:
+                problems.append("jacrhs arm but ParallelPandf1={}".format(prov.get("ParallelPandf1")))
+            if not record.meta.get("rhs_probe_parallel", False):
+                problems.append("jacrhs arm but the RHS probe did not take the parallel branch")
+        if prov.get("openmp_build") is False:
+            problems.append("{} arm run with a build that has no OpenMP runtime".format(arm))
+    else:
+        problems.append("unknown arm {!r}".format(arm))
+    if threads is not None:
+        if prov.get("Nthreads") != threads:
+            problems.append("Nthreads={} but {} requested".format(prov.get("Nthreads"), threads))
+        if str(prov.get("OMP_NUM_THREADS")) != str(threads):
+            problems.append("OMP_NUM_THREADS={} but {} requested".format(prov.get("OMP_NUM_THREADS"), threads))
+    for name in DIAGNOSTIC_SWITCHES:
+        if prov.get(name, 0) != 0:
+            problems.append("diagnostic switch {}={} in a measured run".format(name, prov.get(name)))
+    cap = record.meta.get("capture", {})
+    want = "jac_calc" if arm == "serial" else "jac_calc_parallel"
+    wrong = [s for s in cap.get("source", []) if s != want]
+    if wrong:
+        problems.append("captured Jacobians from {} on the {} arm".format(sorted(set(wrong)), arm))
+    if cap.get("truncated"):
+        problems.append("more Jacobians than capture slots ({}); raise RunSpec.capture".format(cap.get("slots")))
+    if not record.meta.get("iterations"):
+        problems.append("no nksol iterations recorded")
+    return problems
+
+
+def _parallel_rhs(record):
+    return int(record.meta.get("provenance", {}).get("ParallelPandf1", 0)) > 0
+
+
 def compare_records(a, b, rhs_signed_zero_equal=None):
-    """Compare record a (usually the reference) with record b. Returns a report dict with
-    "agree" (bool) and one section per compared quantity."""
-    neq = a.meta["neq"]
-    report = {"a": a.label, "b": b.label, "agree": True, "sections": {}}
+    """Compare record a (usually the reference) with record b.
+
+    Returns a report dict: "agree" (True only if every section matches and there are no
+    errors), "errors" (list: reasons the comparison can't be trusted -> harness error, exit 2)
+    and one section per compared quantity (mismatch -> exit 1)."""
+    report = {"a": a.label, "b": b.label, "agree": True, "errors": [], "sections": {}}
 
     def add(name, section):
         report["sections"][name] = section
-        if section.get("mismatches", 0) or section.get("nonfinite_a", 0) or section.get("nonfinite_b", 0) \
-                or section.get("error"):
+        if section.get("mismatches", 0) or section.get("nonfinite_a", 0) or section.get("nonfinite_b", 0):
             report["agree"] = False
 
-    if b.meta["neq"] != neq:
-        add("neq", {"error": "neq {} vs {}".format(neq, b.meta["neq"]), "mismatches": 1})
+    def error(message):
+        report["errors"].append(message)
+        report["agree"] = False
+
+    for side, rec in (("a", a), ("b", b)):
+        for problem in check_arm(rec):
+            error("{} ({}): {}".format(side, rec.label, problem))
+        for name in ("yldot", "sfscal", "suscal", "eq", "species", "igyl", "jac_post", "jacj_post", "jaci_post"):
+            if name not in rec.arrays:
+                error("{} ({}): {} missing from the record".format(side, rec.label, name))
+    neq = a.meta.get("neq")
+    if b.meta.get("neq") != neq:
+        error("neq {} vs {}: different problems".format(neq, b.meta.get("neq")))
+    sa, sb = a.meta.get("spec", {}), b.meta.get("spec", {})
+    for key in ("preset", "itermx"):
+        if sa.get(key) != sb.get(key):
+            error("spec {} differs: {!r} vs {!r} (different problems)".format(key, sa.get(key), sb.get(key)))
+    if report["errors"]:
         return report
     eq, species, igyl = a.arrays["eq"], a.arrays["species"], a.arrays["igyl"]
-    for side, rec in (("a", a), ("b", b)):
-        if rec.meta.get("capture", {}).get("truncated"):
-            add("capture_" + side, {"error": "{} saw more Jacobians than capture slots ({}); raise RunSpec.capture"
-                .format(rec.label, rec.meta["capture"]["slots"]), "mismatches": 1})
+    for name in ("eq", "species", "igyl"):
+        if not np.array_equal(a.arrays[name], b.arrays[name]):
+            error("equation map {} differs between the records".format(name))
+    if a.meta.get("capture", {}).get("hook") != b.meta.get("capture", {}).get("hook"):
+        error("only one record has captured Jacobians (capture hook in one build only)")
+    if report["errors"]:
+        return report
 
     ja, jb = jacobians(a), jacobians(b)
-    if [n for n, _ in ja] != [n for n, _ in jb]:
-        add("jacobian_count", {"error": "jacobians {} vs {}".format([n for n, _ in ja], [n for n, _ in jb]),
-                               "mismatches": 1})
-    for (name, ma), (_, mb) in zip(ja, jb):
-        add("jacobian:" + name, summarize_matrix(matrix_mismatch(ma, mb, neq), eq, species, igyl))
+    if [n for n, _, _ in ja] != [n for n, _, _ in jb]:
+        add("jacobian_count", {"mismatches": 1, "a": [n for n, _, _ in ja], "b": [n for n, _, _ in jb]})
+    for (name, ma, loc), (_, mb, _) in zip(ja, jb):
+        try:
+            mm = matrix_mismatch(ma, mb, neq)
+        except IndexError as err:
+            error("jacobian {}: {}".format(name, err))
+            continue
+        if loc:
+            add("jacobian:" + name, summarize_matrix(mm, eq, species, igyl))
+        else:
+            ident = np.arange(neq)
+            sec = summarize_matrix(mm, np.full(neq, -1), np.full(neq, -1), np.stack([ident, ident], axis=1))
+            sec["note"] = "permuted indices: positions compared, not mapped to cells"
+            add("jacobian:" + name, sec)
 
-    for vec in ("sfscal", "suscal", "yldot"):
-        bad = vector_mismatch(a.arrays[vec], b.arrays[vec])
-        add(vec, summarize_vector(bad, a.arrays[vec], b.arrays[vec], eq, species, igyl))
-    if "yldot_probe" in a.arrays and "yldot_probe" in b.arrays:
-        szero = rhs_signed_zero_equal
-        if szero is None:  # default: only when one side ran the parallel RHS
-            szero = bool(a.meta.get("rhs_probe_parallel") or b.meta.get("rhs_probe_parallel"))
-        bad = vector_mismatch(a.arrays["yldot_probe"], b.arrays["yldot_probe"], signed_zero_equal=szero)
-        sec = summarize_vector(bad, a.arrays["yldot_probe"], b.arrays["yldot_probe"], eq, species, igyl)
-        sec["signed_zero_equal"] = szero
-        sec["parallel"] = [a.meta.get("rhs_probe_parallel"), b.meta.get("rhs_probe_parallel")]
-        add("yldot_probe", sec)
+    # The parallel RHS's REDUCTION(+) turns a serial -0.0 into +0.0 (ppp/omp_parallel.F90): for every
+    # yldot a parallel RHS may have produced, +0.0 == -0.0 (counted separately).
+    szero_auto = _parallel_rhs(a) or _parallel_rhs(b)
+    szero = szero_auto if rhs_signed_zero_equal is None else rhs_signed_zero_equal
+    for vec in ("sfscal", "suscal", "yldot", "yldot_probe"):
+        if vec == "yldot_probe" and vec not in a.arrays and vec not in b.arrays:
+            continue
+        if (vec in a.arrays) != (vec in b.arrays):
+            add(vec, {"mismatches": 1, "error": "{} present in one record only".format(vec)})
+            continue
+        zero_ok = szero and vec in ("yldot", "yldot_probe")
+        bad = vector_mismatch(a.arrays[vec], b.arrays[vec], signed_zero_equal=zero_ok)
+        sec = summarize_vector(bad, a.arrays[vec], b.arrays[vec], eq, species, igyl)
+        if vec in ("yldot", "yldot_probe"):
+            sec["signed_zero_equal"] = zero_ok
+            if zero_ok:
+                strict = vector_mismatch(a.arrays[vec], b.arrays[vec])
+                sec["signed_zero_differences"] = int(len(strict) - len(bad))
+        if vec == "yldot_probe":
+            sec["parallel"] = [a.meta.get("rhs_probe_parallel"), b.meta.get("rhs_probe_parallel")]
+        add(vec, sec)
 
     fa, fb = a.meta["fnrm_final_hex"], b.meta["fnrm_final_hex"]
     add("fnrm_final", {"mismatches": int(fa != fb), "a": fa, "b": fb})
-    ia = [(i["iter"], i["fnrm_printed"]) for i in a.meta.get("iterations", [])]
-    ib = [(i["iter"], i["fnrm_printed"]) for i in b.meta.get("iterations", [])]
+    ia = [(i["iter"], i["fnrm_printed"]) for i in a.meta["iterations"]]
+    ib = [(i["iter"], i["fnrm_printed"]) for i in b.meta["iterations"]]
     add("fnrm_printed", {"mismatches": int(ia != ib), "a": ia, "b": ib})
     return report
 
 
 def format_report(report):
-    lines = ["{} vs {}: {}".format(report["a"], report["b"], "AGREE" if report["agree"] else "MISMATCH")]
+    verdict = "ERROR" if report.get("errors") else ("AGREE" if report["agree"] else "MISMATCH")
+    lines = ["{} vs {}: {}".format(report["a"], report["b"], verdict)]
+    for err in report.get("errors", []):
+        lines.append("  ERROR: {}".format(err))
     for name, sec in report["sections"].items():
         if "error" in sec:
-            lines.append("  {}: ERROR {}".format(name, sec["error"]))
+            lines.append("  {}: MISMATCH {}".format(name, sec["error"]))
             continue
         n = sec.get("mismatches", 0)
         nf = sec.get("nonfinite_a", 0) + sec.get("nonfinite_b", 0)

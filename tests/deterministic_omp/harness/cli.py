@@ -41,16 +41,27 @@ def cmd_run(args):
     return 0
 
 
+def exit_code(reports):
+    """2 if any report has errors (the comparison can't be trusted), 1 if any mismatch, else 0."""
+    if any(r.get("errors") for r in reports):
+        return 2
+    return 0 if all(r["agree"] for r in reports) else 1
+
+
 def cmd_compare(args):
     report = compare_records(Record(args.a), Record(args.b), _signed_zero(args.rhs_signed_zero_equal))
     print(format_report(report))
     if args.json:
         with open(args.json, "w") as f:
             json.dump(report, f, indent=1, default=str)
-    return 0 if report["agree"] else 1
+    return exit_code([report])
 
 
 def cmd_check(args):
+    if args.repeats < 1:
+        raise ValueError("--repeats must be >= 1")
+    if args.arm == "serial":
+        print("note: --arm serial compares serial runs with each other (a determinism check of the build)")
     os.makedirs(args.out, exist_ok=False)
     ref = run_spec(_spec(args, arm="serial", threads=1), os.path.join(args.out, "serial"), python=args.python)
     runs = [run_spec(_spec(args), os.path.join(args.out, "run{}".format(k)), python=args.python)
@@ -66,13 +77,14 @@ def cmd_check(args):
             reports.append(rep)
     for rep in reports:
         print("[{}] {}".format(rep["kind"], format_report(rep)))
-    agree = all(r["agree"] for r in reports)
-    summary = {"agree": agree, "spec": json.loads(_spec(args).to_json()), "repeats": args.repeats,
+    code = exit_code(reports)
+    agree = code == 0
+    summary = {"agree": agree, "exit_code": code, "spec": json.loads(_spec(args).to_json()), "repeats": args.repeats,
                "provenance": runs[0].meta.get("provenance") if runs else None, "reports": reports}
     with open(os.path.join(args.out, "check.json"), "w") as f:
         json.dump(summary, f, indent=1, default=str)
-    print("CHECK {}: {}".format(_spec(args).label(), "AGREE" if agree else "MISMATCH"))
-    return 0 if agree else 1
+    print("CHECK {}: {}".format(_spec(args).label(), {0: "AGREE", 1: "MISMATCH", 2: "ERROR"}[code]))
+    return code
 
 
 def main(argv=None):
@@ -103,6 +115,11 @@ def main(argv=None):
         return {"run": cmd_run, "compare": cmd_compare, "check": cmd_check}[args.cmd](args)
     except (HarnessError, ValueError, OSError, KeyError) as err:
         print("HARNESS ERROR: {}".format(err), file=sys.stderr)
+        return 2
+    except Exception:  # anything unexpected is a harness error, never a "mismatch"
+        import traceback
+
+        print("HARNESS ERROR (unexpected):\n{}".format(traceback.format_exc()), file=sys.stderr)
         return 2
 
 

@@ -15,6 +15,9 @@ ARMS = {
     "jacrhs": {"OMPParallelJac": 1, "OMPParallelPandf1": 1},
 }
 
+# Never on in a measured run (they change solver state or abort): RunSpec.validate rejects them
+DIAGNOSTIC_SWITCHES = ["CheckJac", "CheckPandf1", "ForceSerialCheck"]
+
 EQUATIONS = ["isnion", "isupon", "isteon", "istion", "isngon", "isphion"]
 
 # Equation presets, applied after the deck. "keep" lists the equation switches left at the
@@ -34,8 +37,9 @@ PRESETS = {
     "ni": {"keep": ["isnion"], "set": []},
     "up": {"keep": ["isupon"], "set": []},
     "ng": {"keep": ["isngon"], "set": []},
-    # phi alone fails in serial ("Jacobian row = 0"); the full problem without Te includes phi
-    "full_note": {"keep": ["isnion", "isupon", "istion", "isngon", "isphion"], "set": []},
+    # phi alone fails in serial ("Jacobian row = 0"), and so do phi with ni+up, phi with
+    # ni+up+ti, and the full problem without Te; phi runs in serial only together with Te
+    "te_phi": {"keep": ["isteon", "isphion"], "set": []},
 }
 
 
@@ -81,6 +85,12 @@ class RunSpec:
             raise ValueError("the serial arm runs with threads=1")
         if self.threads < 1:
             raise ValueError("threads must be >= 1")
+        bad = [k for k in self.ppp if k in DIAGNOSTIC_SWITCHES or k in ("OMPParallelJac", "OMPParallelPandf1",
+                                                                         "Nthreads")]
+        if bad:
+            raise ValueError("ppp settings {} are set by the arm/threads or are diagnostics; not allowed".format(bad))
+        if self.capture < 0:
+            raise ValueError("capture must be >= 0")
         return self
 
     def label(self):

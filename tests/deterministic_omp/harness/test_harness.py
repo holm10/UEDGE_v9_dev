@@ -103,12 +103,26 @@ def test_describe_and_summarize():
 
 
 # ---------------------------------------------------------------- records
+def provenance(arm="serial", threads=1, **over):
+    omp = arm != "serial"
+    prov = {"OMPParallelJac": int(omp), "OMPParallelPandf1": int(arm == "jacrhs"), "ParallelJac": int(omp),
+            "ParallelPandf1": int(arm == "jacrhs"), "Nthreads": threads, "OMP_NUM_THREADS": str(threads),
+            "CheckJac": 0, "CheckPandf1": 0, "ForceSerialCheck": 0, "openmp_build": True}
+    prov.update(over)
+    return prov
+
+
 class FakeRecord:
-    def __init__(self, label, jac, yldot, fnrm="0x1p+0", iters=(("0", "1.0"),), parallel=False):
+    def __init__(self, label, jac, yldot, fnrm="0x1p+0", iters=(("0", "1.0"),), parallel=False, arm=None,
+                 threads=None):
         vals, cols, ptr = jac
         n = len(ptr) - 1
+        arm = arm or ("jacrhs" if parallel else "serial")
+        threads = threads or (4 if arm != "serial" else 1)
         self.label = label
         self.meta = {"neq": n, "fnrm_final_hex": fnrm, "rhs_probe_parallel": parallel,
+                     "spec": {"preset": "tebox", "arm": arm, "threads": threads, "itermx": None},
+                     "provenance": provenance(arm, threads),
                      "iterations": [{"iter": int(i), "fnrm_printed": f} for i, f in iters]}
         self.arrays = {"jac_post": vals, "jacj_post": cols, "jaci_post": ptr, "yldot": np.array(yldot, float),
                        "sfscal": np.ones(n), "suscal": np.ones(n), "yldot_probe": np.array(yldot, float),
@@ -127,9 +141,17 @@ def test_compare_records_rhs_signed_zero_auto():
     a = FakeRecord("a", m, [-0.0, 1.0])
     b = FakeRecord("b", m, [0.0, 1.0], parallel=True)
     r = compare_records(a, b)
-    # the probe passes (parallel RHS: +-0 equal) but the exmain yldot still differs in its sign bit
-    assert r["sections"]["yldot_probe"]["mismatches"] == 0 and r["sections"]["yldot_probe"]["signed_zero_equal"]
+    # a parallel RHS produced b's yldot and probe: +-0 equal in both, counted separately
+    for vec in ("yldot", "yldot_probe"):
+        assert r["sections"][vec]["mismatches"] == 0 and r["sections"][vec]["signed_zero_equal"]
+        assert r["sections"][vec]["signed_zero_differences"] == 1
+    assert r["agree"]
+    # serial vs serial: the sign of zero counts
+    r = compare_records(FakeRecord("a", m, [-0.0, 1.0]), FakeRecord("b", m, [0.0, 1.0]))
     assert r["sections"]["yldot"]["mismatches"] == 1 and not r["agree"]
+    # a real difference is never hidden by the rule
+    r = compare_records(a, FakeRecord("b", m, [0.0, 1.5], parallel=True))
+    assert r["sections"]["yldot"]["mismatches"] == 1
 
 
 # ---------------------------------------------------------------- iterations, specs, errors
@@ -174,7 +196,7 @@ def test_apply_preset_tebox():
     apply_preset(bbb, "tebox")
     assert bbb.isteon == 1 and bbb.istion == 0 and bbb.isphiofft == 1
     assert bbb.isteoffxy.sum() == 10 * 30 - 25 and bbb.isteoffxy[3:8, 18:23].sum() == 0
-    assert set(PRESETS) >= {"full", "tebox", "te", "ti", "ni", "up", "ng", "full_note"}
+    assert set(PRESETS) >= {"full", "tebox", "te", "ti", "ni", "up", "ng", "te_phi"}
 
 
 def test_missing_case_file_is_harness_error(tmp_path, monkeypatch):
@@ -224,4 +246,121 @@ def test_captured_jacobians_compared_and_truncation_is_error():
     assert compare_records(a, b)["agree"]
     b.meta["capture"]["truncated"] = True
     r = compare_records(a, b)
-    assert not r["agree"] and "error" in r["sections"]["capture_b"]
+    assert not r["agree"] and any("capture slots" in e for e in r["errors"])
+
+
+# ---------------------------------------------------------------- review round 1 (I1-B1, M1-M4, m3)
+M = None
+
+
+def _m():
+    return csr([[1.0, None], [None, 2.0]])
+
+
+def test_arm_that_did_not_run_is_an_error():
+    a = FakeRecord("serial", _m(), [0.0, 1.0])
+    b = FakeRecord("omp", _m(), [0.0, 1.0], arm="jac", threads=4)
+    assert compare_records(a, b)["agree"]
+    b.meta["provenance"]["ParallelJac"] = 0  # a serial build: the OpenMP switch had no effect
+    r = compare_records(a, b)
+    assert not r["agree"] and any("ParallelJac=0" in e for e in r["errors"])
+    b.meta["provenance"].update(ParallelJac=1, Nthreads=1)  # clamped thread count
+    assert any("Nthreads=1" in e for e in compare_records(a, b)["errors"])
+    a.meta["provenance"]["OMPParallelJac"] = 1  # serial reference with a switch on
+    assert any("serial arm" in e for e in compare_records(a, b)["errors"])
+
+
+def test_jacrhs_needs_parallel_probe_and_diagnostics_off():
+    a = FakeRecord("serial", _m(), [0.0, 1.0])
+    b = FakeRecord("rhs", _m(), [0.0, 1.0], parallel=True)
+    assert compare_records(a, b)["agree"]
+    b.meta["rhs_probe_parallel"] = False
+    assert any("parallel branch" in e for e in compare_records(a, b)["errors"])
+    b.meta["rhs_probe_parallel"] = True
+    b.meta["provenance"]["CheckJac"] = 1
+    assert any("CheckJac" in e for e in compare_records(a, b)["errors"])
+
+
+def test_captured_source_must_match_arm():
+    a = FakeRecord("serial", _m(), [0.0, 1.0])
+    b = FakeRecord("omp", _m(), [0.0, 1.0], arm="jac")
+    for rec, src in ((a, "jac_calc"), (b, "jac_calc")):
+        rec.meta["capture"] = {"hook": True, "count": 1, "slots": 4, "source": [src]}
+        rec.arrays.update({"capjac_0": _m()[0], "capjacj_0": _m()[1], "capjaci_0": _m()[2]})
+    assert any("captured Jacobians from" in e for e in compare_records(a, b)["errors"])
+
+
+def test_duplicates_one_sided_and_missing_are_not_agree():
+    a = FakeRecord("a", _m(), [0.0, 1.0])
+    # duplicate (0,0) entry next to the matching one
+    dup = (np.array([1.0, 7.0, 2.0]), np.array([1, 1, 2]), np.array([1, 3, 4]))
+    r = compare_records(a, FakeRecord("b", dup, [0.0, 1.0]))
+    assert not r["agree"] and r["sections"]["jacobian:post_exmain"]["duplicates"] == 1
+    b = FakeRecord("b", _m(), [0.0, 1.0])
+    del b.arrays["yldot_probe"]
+    r = compare_records(a, b)
+    assert not r["agree"] and r["sections"]["yldot_probe"]["mismatches"] == 1
+    b = FakeRecord("b", _m(), [0.0, 1.0])
+    del b.arrays["yldot"]
+    assert compare_records(a, b)["errors"]
+    b = FakeRecord("b", _m(), [0.0, 1.0])
+    b.meta["iterations"] = []
+    assert any("iterations" in e for e in compare_records(a, b)["errors"])
+    b = FakeRecord("b", _m(), [0.0, 1.0])
+    b.arrays["igyl"] = np.ones((2, 2), int)
+    assert any("igyl" in e for e in compare_records(a, b)["errors"])
+    b = FakeRecord("b", _m(), [0.0, 1.0])
+    b.meta["spec"]["preset"] = "full"
+    assert any("preset" in e for e in compare_records(a, b)["errors"])
+
+
+def test_bad_column_index_is_an_error():
+    a = FakeRecord("a", _m(), [0.0, 1.0])
+    bad = (np.array([1.0, 2.0]), np.array([1, 3]), np.array([1, 2, 3]))  # column 3 > neq=2
+    assert any("outside" in e for e in compare_records(a, FakeRecord("b", bad, [0.0, 1.0]))["errors"])
+
+
+def test_permuted_post_exmain_is_compared_but_not_localised():
+    a = FakeRecord("a", _m(), [0.0, 1.0])
+    b = FakeRecord("b", csr([[1.5, None], [None, 2.0]]), [0.0, 1.0])
+    for rec in (a, b):
+        rec.meta["post_exmain_permuted"] = True
+    r = compare_records(a, b)
+    sec = r["sections"]["jacobian:post_exmain (permuted indices)"]
+    assert sec["value"] == 1 and "permuted" in sec["note"] and not r["agree"]
+
+
+def test_cli_exit_2_on_errors_unexpected_and_truncated(tmp_path, monkeypatch):
+    def write(d, rec):
+        os.makedirs(d)
+        np.savez(os.path.join(d, "record.npz"), **rec.arrays)
+        with open(os.path.join(d, "record.json"), "w") as f:
+            json.dump(rec.meta, f)
+
+    write(str(tmp_path / "a"), FakeRecord("a", _m(), [0.0, 1.0]))
+    noomp = FakeRecord("b", _m(), [0.0, 1.0], arm="jac")
+    noomp.meta["provenance"]["ParallelJac"] = 0
+    write(str(tmp_path / "b"), noomp)
+    assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "b")]) == 2
+    write(str(tmp_path / "c"), FakeRecord("c", _m(), [0.0, 1.0]))
+    with open(str(tmp_path / "c" / "record.npz"), "r+b") as f:
+        f.truncate(20)
+    assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "c")]) == 2
+    from harness import compare as cmp
+
+    def boom(*args, **kwargs):
+        raise ZeroDivisionError("planted")
+
+    monkeypatch.setattr(cli, "compare_records", boom)
+    write(str(tmp_path / "d"), FakeRecord("d", _m(), [0.0, 1.0]))
+    assert cli.main(["compare", str(tmp_path / "a"), str(tmp_path / "d")]) == 2
+    assert cmp is not None
+
+
+def test_spec_rejects_diagnostics_and_repeats_zero(tmp_path):
+    with pytest.raises(ValueError):
+        RunSpec(arm="jac", threads=4, ppp={"CheckJac": 1}).validate()
+    with pytest.raises(ValueError):
+        RunSpec(arm="jac", threads=4, ppp={"Nthreads": 8}).validate()
+    assert cli.main(["check", "--preset", "tebox", "--arm", "jac", "--repeats", "0",
+                     "--out", str(tmp_path / "x")]) == 2

@@ -21,7 +21,8 @@ REPO_DIR = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 DEFAULT_RATES = os.path.join(REPO_DIR, "builder", "test", "Forthon_cases", "Forthon_case5")
 CASE_FILES = ["input_mod4.py", "b0p1.hdf5", "gridue.hdf5", "save_input_mod4.h5", "mist.dat"]
 
-# nksol prints "iter=" (serial RHS) or "OMP iter=" (parallel RHS), see bbb/pandf.m PandfRHS_interface
+# nksol prints "iter=" or, whenever ParallelPandf1>0, "OMP iter=" (bbb/pandf.m PandfRHS_interface). The tag
+# does not prove the parallel RHS ran: OMPPandf1Rhs falls back to the serial pandf while ijactot==0.
 ITER_RE = re.compile(r"(OMP )?iter=\s*(\d+)\s+fnrm=\s*(\S+)\s+nfe=\s*(\d+)")
 
 
@@ -34,12 +35,18 @@ class Record:
 
     def __init__(self, rundir):
         self.rundir = rundir
-        with open(os.path.join(rundir, "record.json")) as f:
-            self.meta = json.load(f)
+        try:
+            with open(os.path.join(rundir, "record.json")) as f:
+                self.meta = json.load(f)
+        except (OSError, ValueError) as err:
+            raise HarnessError("unreadable record.json in {}: {}".format(rundir, err))
         if "error" in self.meta:
             raise HarnessError("run in {} failed:\n{}".format(rundir, self.meta["error"]))
-        with np.load(os.path.join(rundir, "record.npz")) as data:
-            self.arrays = {k: data[k] for k in data.files}
+        try:
+            with np.load(os.path.join(rundir, "record.npz")) as data:
+                self.arrays = {k: data[k] for k in data.files}
+        except Exception as err:  # missing, truncated or corrupt npz
+            raise HarnessError("unreadable record.npz in {}: {!r}".format(rundir, err))
 
     @property
     def label(self):
