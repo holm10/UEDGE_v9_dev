@@ -575,6 +575,14 @@ END SUBROUTINE InitOMPPandf1
 
     if (OMPJacVerbose.gt.0) then
         write(*,*) ' *OMPJac* neq=',neq,neqmx
+        if (OMPJacFixedChunks.gt.0) then
+        ! fixed partition: no load weights; OMPTimeLocalJac is per chunk, from the previous Jacobian
+        write(*,*) ' *OMPJac* Ivmin(ichunk),Ivmax(ichunk) (fixed partition) : OMPTimeLocalJac(ichunk) ***'
+        do ichunk=1,NchunksJac
+            write(*,'(a,I3,a,I7,I7,a,f6.2)') '  * ichunk ', ichunk,':', &
+                OMPivmin(ichunk),OMPivmax(ichunk),' : ',OMPTimeLocalJac(ichunk)
+        enddo
+        else
         write(*,*) &
             ' *OMPJac* Ivmin(ichunk),Ivmax(ichunk), OMPLoadWeight(ichunk) : OMPTimeLocalJac(ichunk) ***'
         do ichunk=1,NchunksJac
@@ -582,6 +590,7 @@ END SUBROUTINE InitOMPPandf1
                 OMPivmin(ichunk),OMPivmax(ichunk),OMPLoadWeight(ichunk), &
                 ' : ',OMPTimeLocalJac(ichunk)
         enddo
+        endif
     endif
 
     OMPTimeJacCalc= tick()

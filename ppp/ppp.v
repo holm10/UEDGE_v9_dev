@@ -60,9 +60,9 @@ OMPLoopJacNchunk    integer /1/
 OMPJacFixedChunks   integer [none] /1/   # [1] (default): fixed contiguous chunks; every chunk starts from a fresh
                                          # full pandf on its thread, so the OpenMP Jacobian is bitwise reproducible and
                                          # the same for any number of OpenMP threads (OMP_NUM_THREADS); it still differs
-                                         # from serial at round-off on some platforms. Holds where a full pandf resets
-                                         # all state, i.e. the paths the exmain OpenMP checks allow (ismcnon=0 and
-                                         # isimpon 0, 2, 6, 7 only); see .claude/context/openmp-jacobian.md.
+                                         # from serial at round-off on some platforms. Validated only where exmain allows
+                                         # OpenMP (ismcnon=0, isimpon 0,2,6,7) and NOT for nxpt=2, limiter sputtering,
+                                         # coupled walls, istabon=5,6 (AIUE-69); see .claude/context/openmp-jacobian.md.
                                          # OMPJacNchunks, OMPLoadBalance, OMPAutoBalance are then ignored.
                                          # [0]: the partition used before AIUE-61 (varies from run to run at
                                          # round-off). OpenMP build only; takes effect at the next exmain.
