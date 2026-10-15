@@ -3,55 +3,75 @@
   python tests/deterministic_omp/harness/serial_check.py \\
       --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \\
       --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python \\
-      [--cases quick|all|NAME,NAME,...] [--jobs N] --out DIR
+      [--cases all|quick|NAME,NAME,...] [--jobs N] [--partial-ok] --out DIR
 
 Runs every case once per build, each in a fresh `python -I` process with an empty HOME, on the
-serial path (ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0, Nthreads = 1, OMP_NUM_THREADS = 1),
-and compares new against base with the AIUE-49 comparator (compare.compare_records): the
-Jacobians the records hold (post-exmain sfsetnk Jacobian; raw captures when both builds have the
-AIUE-47 hook), sfscal, suscal, yldot, one more RHS through ffun, the final fnrm (float.hex) and the
-printed fnrm sequence. Bitwise: +0.0 and -0.0 differ, any NaN/Inf fails.
+serial path (ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0, Nthreads = 1, OMP_NUM_THREADS = 1;
+checked in every record), and compares new against base with the AIUE-49 comparator
+(compare.compare_records): every Jacobian the records hold (the post-exmain bbb.jac, and the raw
+sfsetnk/psetnk Jacobians of the AIUE-47 capture hook when both builds have it), sfscal, suscal,
+yldot, one more RHS through ffun, the final fnrm (float.hex) and the printed fnrm sequence.
+Bitwise: +0.0 and -0.0 differ, any NaN/Inf fails. Cases ending in -itN run N Newton iterations,
+so that psetnk, the ILU preconditioner, the Krylov solve and the line search are covered too.
 
 Pairs: "serial" (--base-python vs --new-python, the --serial builds) and "omp0" (--base-omp-python
-vs --new-omp-python, the default OpenMP builds with both switches 0). The PR gate needs both.
-Before running, every interpreter is probed (build_probe.py): its path, uedge.__file__, version,
-SHA-256 of the compiled extensions, and whether bbbpy is an OpenMP build. It is a harness error if
-base and new are the same build (same extension hashes; --allow-same-build to compare a build with
-itself on purpose), or if a build is of the wrong kind for its pair.
+vs --new-omp-python, the default OpenMP builds with both switches 0).
+
+Before running, every interpreter is probed (build_probe.py): path, uedge.__file__, version,
+SHA-256 of the compiled extensions, OpenMP or not, and the source tree pip installed it from
+(direct_url.json), whose git HEAD and dirty state are read now (at check time, not build time).
+Harness errors: a build of the wrong kind for its pair; base and new the same build, the same source
+tree, or the same clean commit (unless --allow-same-build). Warnings: a base HEAD that is not
+origin/v9-develop or an ancestor of it, an unknown source, serial/OpenMP builds of different commits.
+
+The gate is complete only with both pairs, base and new different builds, and every case of "all".
+Anything less that agrees prints RESULT: INCOMPLETE and exits 2, unless --partial-ok (exit 0, and the
+RESULT line says PARTIAL and why).
 
 Cases (--list): reproducer presets (repro-*, config.PRESETS, serial arm) and upstream pytests
-cases (pytests-*), run as their test_reference does (pytests_worker.py). The pytests checkout is
---pytests-dir, else $UEDGE_PYTESTS_DIR, else ../uedge-pytests or ../../uedge-pytests next to the
-repository (git worktree add ../uedge-pytests upstream/pytests).
+cases (pytests-*, run as their test_reference does, pytests_worker.py), plus ad hoc names
+repro:<preset>[@itN] and pytests:<path below pytests/>[@itN]. The pytests checkout is --pytests-dir,
+else $UEDGE_PYTESTS_DIR, else ../uedge-pytests or ../../uedge-pytests next to the repository.
 
-Writes DIR/serial_check.json (builds, cases, every report), DIR/summary.txt, and the runs under
-DIR/<pair>/<base|new>/<case>/. record.npz of agreeing cases is deleted unless --keep-records.
-Exit codes: 0 every case agrees, 1 at least one mismatch, 2 harness error (wins over 1).
+Writes DIR/serial_check.json (builds, sources, cases, every report), DIR/summary.txt, and the runs
+under DIR/<pair>/<base|new>/<case>/. record.npz of agreeing cases is deleted unless --keep-records.
+Exit codes: 0 the complete gate agrees (or a --partial-ok run agrees), 1 at least one mismatch,
+2 harness error or incomplete gate (an error wins over a mismatch).
 """
 import argparse
 import concurrent.futures
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
+import traceback
+from urllib.parse import unquote, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+from harness.cli import exit_code  # noqa: E402
 from harness.compare import compare_records, format_report  # noqa: E402
 from harness.config import PRESETS, RunSpec  # noqa: E402
 from harness.runner import REPO_DIR, HarnessError, Record, parse_iterations, run_spec  # noqa: E402
 
 CRUMPET = ["rates/aph/crumpet_nrates.dat", "rates/aph/crumpet_Erates.dat"]  # D_mols decks read them from cwd
+CAPTURE_SLOTS = 16  # raw Jacobians kept per run with the AIUE-47 hook (more is a harness error)
+BASE_REF = "origin/v9-develop"
 
 # name -> case. kind "repro": a reproducer preset on the serial arm. kind "pytests": a case directory
-# of the upstream pytests checkout; add_files are repository files copied next to it.
+# of the upstream pytests checkout; add_files are repository files copied next to it. itermx: N Newton
+# iterations at the deck's ftol instead of one evaluation at ftol=1e20.
 CASES = {}
 for _p in PRESETS:
     CASES["repro-" + _p] = {"kind": "repro", "preset": _p}
 CASES.update({
+    "repro-tebox-it5": {"kind": "repro", "preset": "tebox", "itermx": 5},
+    "repro-te-it3": {"kind": "repro", "preset": "te", "itermx": 3},
+    "repro-full-it3": {"kind": "repro", "preset": "full", "itermx": 3},
     "pytests-D_only": {"kind": "pytests", "path": "unittests/D_only/nonog/default"},
     "pytests-D+C": {"kind": "pytests", "path": "unittests/D+C/nonog_carbon/default"},
     "pytests-D_mols": {"kind": "pytests", "path": "unittests/D_mols/nonog_mols/default", "add_files": CRUMPET},
@@ -61,17 +81,31 @@ CASES.update({
     "pytests-orthogonal": {"kind": "pytests", "path": "fulltests/orthogonal_unittest"},
     "pytests-slab": {"kind": "pytests", "path": "unittests/slab_D_only/slab/default"},
 })
-QUICK = ["repro-tebox", "pytests-D_only", "pytests-D+C", "pytests-D_mols", "pytests-full-d_c-16x8"]
+for _name in ("D_only", "D+C", "D_mols", "full-d_c-16x8", "slab"):
+    CASES["pytests-{}-it5".format(_name)] = dict(CASES["pytests-" + _name], itermx=5)
+# boundary-condition, transport and drift variants of the D_only and D_mols families (one switch each)
+UNIT = ["istewc3", "istiwc4", "isnwcono3", "isnwconi2", "istepfc2", "isupwo3", "isupwi3", "recycmlb_therm_momflux",
+        "recycmrb", "tg_atom_drifts", "tg_atom_istgwc2", "newbcl_iskaplex", "isnewpot", "ishosor", "curcore",
+        "convis", "isfdiax", "isvylog", "core_nogradient"]
+for _v in UNIT:
+    CASES["pytests-unit-" + _v] = {"kind": "pytests", "path": "unittests/D_only/nonog/" + _v}
+CASES["pytests-unit-tg_mol_istgpfc4"] = {"kind": "pytests", "path": "unittests/D_mols/nonog_mols/tg_mol_istgpfc4",
+                                         "add_files": CRUMPET}
+
+QUICK = ["repro-tebox", "repro-tebox-it5", "pytests-D_only", "pytests-D+C", "pytests-D_mols", "pytests-full-d_c-16x8",
+         "pytests-D_only-it5", "pytests-D+C-it5"]
 # slowest first, so that parallel jobs finish together
-ALL = ["repro-full", "repro-ni", "repro-up", "repro-ti", "repro-te", "repro-ng", "repro-tebox",
-       "pytests-full-d_c-16x8", "pytests-D+C", "pytests-D_only", "pytests-D_mols", "pytests-D_mols-drift",
-       "pytests-slab"]
+ALL = (["repro-full-it3", "repro-full", "repro-ni", "repro-up", "repro-te_phi", "repro-te-it3", "repro-ti", "repro-te",
+        "repro-ng",
+        "pytests-full-d_c-16x8-it5", "pytests-slab-it5", "repro-tebox-it5", "repro-tebox", "pytests-full-d_c-16x8",
+        "pytests-D+C-it5", "pytests-D_mols-it5", "pytests-D_only-it5", "pytests-slab", "pytests-D+C",
+        "pytests-D_only", "pytests-D_mols", "pytests-D_mols-drift"]
+       + sorted(n for n in CASES if n.startswith("pytests-unit-")))
 # Cases that fail on v9-develop itself (0fac655), in both builds: left out of "all", still runnable by name.
 EXCLUDED = {
-    "repro-full_note": "serial exmain stops with 'Jacobian row = 0 for eqn iv = 1092' (RuntimeError)",
     "pytests-orthogonal": "input.py stops with 'ueinit -- error in sign sx, sy'; the upstream test fails the same way",
 }
-assert sorted(ALL + list(EXCLUDED)) == sorted(CASES) and not set(ALL) & set(EXCLUDED)
+assert sorted(ALL + list(EXCLUDED)) == sorted(CASES) and not set(ALL) & set(EXCLUDED) and set(QUICK) <= set(ALL)
 
 PAIRS = {"serial": ("base_python", "new_python", False), "omp0": ("base_omp_python", "new_omp_python", True)}
 
@@ -99,23 +133,49 @@ def find_pytests_dir(arg=None):
                        .format(candidates))
 
 
-def git_head(path):
+def git(path, *args):
+    """(returncode, stdout) of git -C path args; (None, "") if git cannot run."""
     try:
-        return subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True,
-                              timeout=10).stdout.strip() or "unknown"
+        p = subprocess.run(["git", "-C", path] + list(args), capture_output=True, text=True, timeout=30)
+        return p.returncode, p.stdout.strip()
     except Exception:
-        return "unknown"
+        return None, ""
+
+
+def git_head(path):
+    code, out = git(path, "rev-parse", "HEAD")
+    return out if code == 0 and out else "unknown"
+
+
+ADHOC = re.compile(r"^(repro|pytests):([^@]+)(?:@it(\d+))?$")
 
 
 def resolve_cases(text):
+    """Case names for --cases (quick, all, or a comma list); ad hoc names are added to CASES."""
     if text == "quick":
         return list(QUICK)
     if text == "all":
         return list(ALL)
     names = [n.strip() for n in text.split(",") if n.strip()]
-    unknown = [n for n in names if n not in CASES]
+    unknown = []
+    for n in names:
+        if n in CASES:
+            continue
+        m = ADHOC.match(n)
+        if m and m.group(1) == "repro" and m.group(2) in PRESETS:
+            CASES[n] = {"kind": "repro", "preset": m.group(2)}
+        elif m and m.group(1) == "pytests":
+            CASES[n] = {"kind": "pytests", "path": m.group(2).strip("/")}
+            if "D_mols" in m.group(2):
+                CASES[n]["add_files"] = CRUMPET
+        else:
+            unknown.append(n)
+            continue
+        if m.group(3):
+            CASES[n]["itermx"] = int(m.group(3))
     if unknown or not names:
-        raise HarnessError("unknown case(s) {}; known: quick, all, {}".format(unknown, ", ".join(sorted(CASES))))
+        raise HarnessError("unknown case(s) {}; known: quick, all, {}, repro:<preset>[@itN], "
+                           "pytests:<path>[@itN]".format(unknown, ", ".join(sorted(CASES))))
     return names
 
 
@@ -142,23 +202,71 @@ def probe_build(python, workdir, timeout=300):
     return result
 
 
+def source_info(probe):
+    """Where the build came from: the source directory in pip's direct_url.json, its git HEAD,
+    whether it has uncommitted changes, and whether HEAD is BASE_REF or an ancestor of it.
+    All read now, at check time."""
+    du = probe.get("direct_url") or {}
+    url = du.get("url", "")
+    info = {"url": url or None, "editable": bool(du.get("dir_info", {}).get("editable")), "dir": None,
+            "head": None, "dirty": None, "on_base_ref": None}
+    parsed = urlparse(url)
+    if parsed.scheme != "file":
+        return info
+    path = os.path.realpath(unquote(parsed.path))
+    info["dir"] = path
+    if not os.path.isdir(path):
+        return info
+    code, head = git(path, "rev-parse", "HEAD")
+    if code != 0 or not head:
+        return info
+    info["head"] = head
+    code, status = git(path, "status", "--porcelain", "--untracked-files=no")
+    info["dirty"] = bool(status) if code == 0 else None
+    code, _ = git(path, "merge-base", "--is-ancestor", head, BASE_REF)
+    info["on_base_ref"] = {0: True, 1: False}.get(code)
+    return info
+
+
 def check_pair(pair, base, new, want_openmp, allow_same):
-    """Errors (list of str) for a base/new build pair: wrong build kind, or the same build twice."""
-    errors = []
+    """(errors, warnings, same) for a base/new build pair: wrong build kind, the same build, source
+    tree or clean commit twice (an error unless allow_same; same=True then), base not on BASE_REF."""
+    errors, warnings, same = [], [], []
     for role, b in (("base", base), ("new", new)):
         if b["openmp_build"] != want_openmp:
             errors.append("{} {} build {} is {}an OpenMP build; the {} pair needs {}".format(
                 pair, role, b["python_arg"], "" if b["openmp_build"] else "not ", pair,
                 "the default OpenMP build" if want_openmp else "the --serial build"))
-    if base["extensions_sha256"] == new["extensions_sha256"] and not allow_same:
-        errors.append("{} pair: base and new are the same build (extension SHA-256 {}; base {}, new {}). "
-                      "Pass --allow-same-build to compare a build with itself on purpose."
-                      .format(pair, base["extensions_sha256"][:16], base["uedge_file"], new["uedge_file"]))
-    return errors
+    if base["extensions_sha256"] == new["extensions_sha256"]:
+        same.append("the same build (extension SHA-256 {}; base {}, new {})".format(
+            base["extensions_sha256"][:16], base["uedge_file"], new["uedge_file"]))
+    sb, sn = base.get("source") or {}, new.get("source") or {}
+    if sb.get("dir") and sb.get("dir") == sn.get("dir"):
+        same.append("built from the same source tree {}".format(sb["dir"]))
+    elif sb.get("head") and sb.get("head") == sn.get("head"):
+        if sb.get("dirty") is False and sn.get("dirty") is False:
+            same.append("built from the same clean commit {}".format(sb["head"][:12]))
+        else:
+            warnings.append("{}: base and new are the same commit {}, different only by uncommitted changes "
+                            "(read now, not at build time)".format(pair, sb["head"][:12]))
+    for role, s in (("base", sb), ("new", sn)):
+        if not s.get("head"):
+            warnings.append("{} {}: source unknown (direct_url {}); the summary cannot show what was compared"
+                            .format(pair, role, s.get("url")))
+        elif s.get("dirty"):
+            warnings.append("{} {}: source tree {} has uncommitted changes (read now, not at build time)"
+                            .format(pair, role, s["dir"]))
+    if sb.get("head") and sb.get("on_base_ref") is not True:
+        warnings.append("{} base: HEAD {} is not {} or an ancestor of it{}".format(
+            pair, sb["head"][:12], BASE_REF, "" if sb.get("on_base_ref") is False else " (could not check)"))
+    if same and not allow_same:
+        errors.append("{} pair: base and new are {}. Pass --allow-same-build to compare on purpose."
+                      .format(pair, "; ".join(same)))
+    return errors, warnings, bool(same)
 
 
 # ------------------------------------------------------------------ runs
-def run_pytests_case(case, case_dir, rundir, python, timeout=3600):
+def run_pytests_case(case, case_dir, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
     """Run one pytests case directory with pytests_worker.py in a fresh process. Returns a Record."""
     if not os.path.isfile(os.path.join(case_dir, "input.py")):
         raise HarnessError("pytests case missing: {}".format(case_dir))
@@ -172,7 +280,9 @@ def run_pytests_case(case, case_dir, rundir, python, timeout=3600):
         shutil.copy2(src, rundir)
     home = os.path.join(rundir, "home")
     os.makedirs(home)
-    spec = {"case": case["path"], "deck": "input.py", "rhs_probe": True}
+    # preset/arm/threads/itermx as in a RunSpec, so that compare.check_arm and the spec checks apply
+    spec = {"case": case["path"], "deck": "input.py", "rhs_probe": True, "itermx": case.get("itermx"),
+            "capture": capture, "preset": "pytests:" + case["path"], "arm": "serial", "threads": 1}
     with open(os.path.join(rundir, "spec.json"), "w") as f:
         json.dump(spec, f, sort_keys=True)
     cmd = [python, "-I", os.path.join(HERE, "pytests_worker.py"), os.path.join(rundir, "spec.json")]
@@ -199,37 +309,32 @@ def run_pytests_case(case, case_dir, rundir, python, timeout=3600):
     return record
 
 
-def run_case(name, rundir, python, pytests_dir, timeout):
+def run_case(name, rundir, python, pytests_dir, timeout, capture=CAPTURE_SLOTS, identity=None):
+    """Run one case; capture = raw-Jacobian slots (0 when not both builds of the pair have the hook);
+    identity = the probed provenance["build"] the record must show (a reinstall mid-check fails)."""
     case = CASES[name]
     if case["kind"] == "repro":
-        spec = RunSpec(preset=case["preset"], arm="serial", threads=1)
-        return run_spec(spec, rundir, python=python, timeout=timeout)
-    return run_pytests_case(case, os.path.join(pytests_dir, case["path"]), rundir, python, timeout=timeout)
-
-
-class _View:
-    """A record whose capture count is lowered, so that compare_records skips the extra captures."""
-
-    def __init__(self, record, count, label):
-        self.meta = dict(record.meta)
-        self.meta["capture"] = dict(record.meta.get("capture", {}), count=count)
-        self.arrays = record.arrays
-        self.label = label
+        spec = RunSpec(preset=case["preset"], arm="serial", threads=1, itermx=case.get("itermx"), capture=capture)
+        record = run_spec(spec, rundir, python=python, timeout=timeout)
+    else:
+        record = run_pytests_case(case, os.path.join(pytests_dir, case["path"]), rundir, python, timeout=timeout,
+                                  capture=capture)
+    if identity is not None:
+        got = record.meta.get("provenance", {}).get("build", {}).get("extensions_sha256")
+        if got != identity.get("extensions_sha256"):
+            raise HarnessError("run in {} used a different build than was probed (extensions {} vs {}): "
+                               "reinstalled during the check?".format(rundir, str(got)[:16],
+                                                                     str(identity.get("extensions_sha256"))[:16]))
+    return record
 
 
 def compare_pair(name, base, new):
-    """compare_records(base, new), comparing captured Jacobians only as far as both builds have them."""
-    cb = int(base.meta.get("capture", {}).get("count", 0))
-    cn = int(new.meta.get("capture", {}).get("count", 0))
-    notes = []
-    n = min(cb, cn)
-    if cb != cn:
-        notes.append("captured Jacobians: base {}, new {}; compared the first {} (AIUE-47 hook not in both "
-                     "builds); the post-exmain Jacobian is always compared".format(cb, cn, n))
-    report = compare_records(_View(base, n, "base:" + name), _View(new, n, "new:" + name),
-                             rhs_signed_zero_equal=False)
-    report["notes"] = notes
-    return report
+    """compare_records(base, new) with the serial-path checks (compare.check_arm) on both records.
+    Returns (report, status) with status AGREE, MISMATCH or ERROR (cli.exit_code 0/1/2)."""
+    base.meta["label"], new.meta["label"] = "base:" + name, "new:" + name
+    report = compare_records(base, new, rhs_signed_zero_equal=False)
+    report["captured_compared"] = int(base.meta.get("capture", {}).get("count", 0)) if not report["errors"] else 0
+    return report, {0: "AGREE", 1: "MISMATCH", 2: "ERROR"}[exit_code([report])]
 
 
 def first_mismatch(report):
@@ -253,6 +358,22 @@ def first_mismatch(report):
             return "{}: base {} new {}".format(sec_name, sec["a"], sec["b"])
         return "{}: {} mismatch(es), {} non-finite".format(sec_name, n, nf)
     return None
+
+
+def error_cause(message, rundir):
+    """The informative part of a failed run: the last line of the traceback, and the last
+    error line UEDGE printed to run.log (often the only cause given, e.g. '*** Error: ...')."""
+    lines = [ln.strip() for ln in message.splitlines() if ln.strip()]
+    cause = lines[-1] if lines else message
+    log = os.path.join(rundir, "run.log")
+    if os.path.exists(log):
+        with open(log, "rb") as f:
+            text = f.read().replace(b"\x00", b"").decode(errors="replace")
+        hits = [ln.strip() for ln in text.splitlines()
+                if re.search(r"\*\*\*|error|Error|ERROR", ln) and "Traceback" not in ln]
+        if hits and hits[-1] not in cause:
+            cause = "{}; log: {}".format(cause, hits[-1])
+    return cause
 
 
 def _prune(record):
@@ -280,26 +401,42 @@ def serial_check(args):
     if any(CASES[n]["kind"] == "pytests" for n in names):
         pytests_dir = find_pytests_dir(args.pytests_dir)
 
-    result = {"agree": None, "exit_code": None, "cases": names, "pairs": pairs, "skipped_pairs":
-              [p for p in PAIRS if p not in pairs], "harness_commit": git_head(HERE), "pytests_dir": pytests_dir,
-              "pytests_commit": git_head(pytests_dir) if pytests_dir else None, "builds": {}, "results": {},
-              "errors": []}
+    result = {"agree": None, "exit_code": None, "gate_complete": None, "incomplete": [], "cases": names,
+              "pairs": pairs, "skipped_pairs": [p for p in PAIRS if p not in pairs],
+              "skipped_cases": [n for n in ALL if n not in names], "harness_commit": git_head(HERE),
+              "pytests_dir": pytests_dir, "pytests_commit": git_head(pytests_dir) if pytests_dir else None,
+              "builds": {}, "results": {}, "errors": [], "warnings": []}
 
     def save():
         with open(os.path.join(out, "serial_check.json"), "w") as f:
             json.dump(result, f, indent=1, sort_keys=True, default=str)
 
-    # probe the builds
+    # probe the builds and their sources
+    same_pairs = []
     for p in pairs:
         b, n, want_openmp = PAIRS[p]
         probes = {}
         for role, attr in (("base", b), ("new", n)):
             probes[role] = probe_build(os.path.abspath(getattr(args, attr)), os.path.join(out, "probe", p, role))
+            probes[role]["source"] = source_info(probes[role])
         result["builds"][p] = probes
-        result["errors"] += check_pair(p, probes["base"], probes["new"], want_openmp, args.allow_same_build)
-        if probes["base"]["extensions_sha256"] == probes["new"]["extensions_sha256"]:
-            result.setdefault("warnings", []).append("{}: base and new are the same build (--allow-same-build)"
-                                                     .format(p))
+        # compare.compare_records needs captures on both sides or neither
+        hooks = [bool(probes[r].get("capture_hook")) for r in ("base", "new")]
+        result.setdefault("capture_slots", {})[p] = CAPTURE_SLOTS if all(hooks) else 0
+        if any(hooks) and not all(hooks):
+            result["warnings"].append("{}: the AIUE-47 capture hook is in one build only, so no raw Jacobians are "
+                                      "captured; the post-exmain Jacobian is compared".format(p))
+        errs, warns, same = check_pair(p, probes["base"], probes["new"], want_openmp, args.allow_same_build)
+        result["errors"] += errs
+        result["warnings"] += warns
+        if same:
+            same_pairs.append(p)
+    if len(pairs) == 2:
+        for role in ("base", "new"):
+            hs = [result["builds"][p][role]["source"].get("head") for p in pairs]
+            if hs[0] and hs[1] and hs[0] != hs[1]:
+                result["warnings"].append("{}: the serial and OpenMP builds come from different commits ({}, {})"
+                                          .format(role, hs[0][:12], hs[1][:12]))
     if result["errors"]:
         save()
         raise HarnessError("\n".join(result["errors"]))
@@ -313,13 +450,16 @@ def serial_check(args):
             python = os.path.abspath(getattr(args, PAIRS[p][0 if role == "base" else 1]))
             rundir = os.path.join(out, p, role, name)
             os.makedirs(os.path.dirname(rundir), exist_ok=True)
-            futures[pool.submit(run_case, name, rundir, python, pytests_dir, args.timeout)] = (p, role, name)
+            futures[pool.submit(run_case, name, rundir, python, pytests_dir, args.timeout,
+                                result["capture_slots"][p], result["builds"][p][role].get("identity"))] = (p, role, name)
         for fut in concurrent.futures.as_completed(futures):
             key = futures[fut]
             try:
                 records[key] = fut.result()
-            except (HarnessError, OSError, ValueError, KeyError) as err:
-                failures[key] = str(err)
+            except Exception as err:  # any failure of a run is a harness error, never a verdict
+                msg = str(err) if isinstance(err, HarnessError) else "".join(
+                    traceback.format_exception(type(err), err, err.__traceback__))
+                failures[key] = (msg, error_cause(msg, os.path.join(out, *key)))
             print("  done {}/{}/{}{}".format(*key, " (FAILED)" if key in failures else ""), flush=True)
 
     # compare
@@ -328,29 +468,52 @@ def serial_check(args):
         result["results"][p] = {}
         for name in names:
             entry = {"base_rundir": os.path.join(out, p, "base", name), "new_rundir": os.path.join(out, p, "new", name)}
-            errs = [failures[(p, r, name)] for r in ("base", "new") if (p, r, name) in failures]
+            errs = [(r, failures[(p, r, name)]) for r in ("base", "new") if (p, r, name) in failures]
             if errs:
-                entry.update({"status": "ERROR", "error": "\n".join(errs)})
-                result["errors"].append("{}/{}: {}".format(p, name, errs[0].splitlines()[0]))
+                entry.update({"status": "ERROR", "error": "\n".join(m for _, (m, _) in errs),
+                              "cause": "; ".join("{}: {}".format(r, c) for r, (_, c) in errs)})
+                result["errors"].append("{}/{}: {}".format(p, name, entry["cause"]))
             else:
                 base, new = records[(p, "base", name)], records[(p, "new", name)]
                 try:
-                    report = compare_pair(name, base, new)
+                    report, status = compare_pair(name, base, new)
                 except Exception as err:  # a comparator crash is a harness error, not a verdict
-                    entry.update({"status": "ERROR", "error": "compare failed: {!r}".format(err)})
+                    entry.update({"status": "ERROR", "error": "compare failed: {!r}".format(err),
+                                  "cause": "compare failed: {!r}".format(err)})
                     result["errors"].append("{}/{}: compare failed: {!r}".format(p, name, err))
-                else:
-                    entry.update({"status": "AGREE" if report["agree"] else "MISMATCH", "report": report,
+                    status = None
+                if status == "ERROR":  # compare.check_arm or the record checks found a problem
+                    entry.update({"status": "ERROR", "report": report, "error": "\n".join(report["errors"]),
+                                  "cause": "; ".join(report["errors"])})
+                    result["errors"].append("{}/{}: {}".format(p, name, entry["cause"]))
+                elif status:
+                    entry.update({"status": status, "report": report,
                                   "first_mismatch": first_mismatch(report), "neq": base.meta["neq"],
+                                  "iterations": len(base.meta.get("iterations", [])),
+                                  "post_exmain_from": base.meta.get("post_exmain_from"),
                                   "elapsed_s": [base.meta.get("elapsed_s"), new.meta.get("elapsed_s")]})
-                    any_mismatch |= not report["agree"]
-                    if report["agree"] and not args.keep_records:
+                    any_mismatch |= status == "MISMATCH"
+                    if status == "AGREE" and not args.keep_records:
                         _prune(base)
                         _prune(new)
             result["results"][p][name] = entry
 
-    code = 2 if result["errors"] else (1 if any_mismatch else 0)
-    result["agree"] = code == 0
+    incomplete = ["pair {} not checked".format(p) for p in result["skipped_pairs"]]
+    incomplete += ["{}: base and new are the same build/source (--allow-same-build)".format(p) for p in same_pairs]
+    if result["skipped_cases"]:
+        incomplete.append("{} case(s) of 'all' not run: {}".format(
+            len(result["skipped_cases"]), ", ".join(result["skipped_cases"])))
+    result["incomplete"] = incomplete
+    result["gate_complete"] = not incomplete
+    if result["errors"]:
+        code = 2
+    elif any_mismatch:
+        code = 1
+    elif incomplete and not args.partial_ok:
+        code = 2
+    else:
+        code = 0
+    result["agree"] = not result["errors"] and not any_mismatch
     result["exit_code"] = code
     result["elapsed_s"] = round(time.time() - started, 1)
     save()
@@ -361,33 +524,57 @@ def serial_check(args):
     return code
 
 
+def _source_line(s):
+    if not s.get("head"):
+        return "source unknown ({})".format(s.get("url"))
+    return "source {} @ {}{}{}".format(s["dir"], s["head"][:12], " DIRTY" if s.get("dirty") else "",
+                                       "" if s.get("on_base_ref") else " (not on {})".format(BASE_REF))
+
+
+def result_line(result):
+    scope = "pairs {}, cases {} ({})".format("+".join(result["pairs"]),
+                                            "all" if not result["skipped_cases"] else "partial", len(result["cases"]))
+    code = result["exit_code"]
+    if code == 1:
+        verdict = "MISMATCH"
+    elif result["errors"]:
+        verdict = "HARNESS ERROR"
+    elif result["incomplete"]:
+        verdict = "INCOMPLETE (what ran agrees bitwise; not the gate)" if code == 2 else \
+            "AGREE, PARTIAL (--partial-ok; not the gate)"
+    else:
+        verdict = "AGREE (bitwise identical; complete gate)"
+    return "RESULT: {}  [{}]  ({} s)".format(verdict, scope, result.get("elapsed_s"))
+
+
 def summary_text(result):
     lines = ["SERIAL BITWISE CHECK (AIUE-53)  harness {}  pytests {}".format(
         result["harness_commit"][:12], (result["pytests_commit"] or "-")[:12])]
     for p, probes in result["builds"].items():
         for role in ("base", "new"):
             b = probes[role]
-            lines.append("  build {:6s} {:4s} {}  uedge {}  ext-sha256 {}  openmp {}".format(
-                p, role, b["python_arg"], b["uedge_file"], b["extensions_sha256"][:16], b["openmp_build"]))
+            lines.append("  build {:6s} {:4s} {}  ext-sha256 {}  openmp {}".format(
+                p, role, b["python_arg"], b["extensions_sha256"][:16], b["openmp_build"]))
+            lines.append("               uedge {}".format(b["uedge_file"]))
+            lines.append("               {}".format(_source_line(b.get("source") or {})))
     for w in result.get("warnings", []):
         lines.append("  WARNING: " + w)
-    for p in result["skipped_pairs"]:
-        lines.append("  WARNING: pair {} not checked; the PR gate needs both pairs".format(p))
     for p, cases in result["results"].items():
         for name, e in cases.items():
             if e["status"] == "ERROR":
-                lines.append("[{}] {:24s} ERROR    {}".format(p, name, e["error"].splitlines()[0]))
+                lines.append("[{}] {:30s} ERROR    {}".format(p, name, e["cause"]))
                 continue
             el = e["elapsed_s"]
-            lines.append("[{}] {:24s} {:8s} neq {:6d}  {} s / {} s".format(p, name, e["status"], e["neq"], el[0], el[1]))
+            lines.append("[{}] {:30s} {:8s} neq {:6d}  iters {}  jacobians {}+post({})  {} s / {} s".format(
+                p, name, e["status"], e["neq"], e["iterations"], e["report"].get("captured_compared", 0),
+                e.get("post_exmain_from"), el[0], el[1]))
             if e["status"] == "MISMATCH":
                 lines.append("    first mismatch: " + e["first_mismatch"])
                 lines += ["    " + ln for ln in format_report(e["report"]).splitlines()[1:]
                           if not ln.endswith(": equal")]
-            for note in e["report"].get("notes", []):
-                lines.append("    note: " + note)
-    verdict = {0: "AGREE (bitwise identical)", 1: "MISMATCH", 2: "HARNESS ERROR"}[result["exit_code"]]
-    lines.append("RESULT: {}  ({} s)".format(verdict, result.get("elapsed_s")))
+    for item in result["incomplete"]:
+        lines.append("  NOT THE GATE: " + item)
+    lines.append(result_line(result))
     return "\n".join(lines)
 
 
@@ -397,12 +584,14 @@ def main(argv=None):
     p.add_argument("--new-python", help="interpreter of the --serial build of the change")
     p.add_argument("--base-omp-python", help="interpreter of the default (OpenMP) build of the base")
     p.add_argument("--new-omp-python", help="interpreter of the default (OpenMP) build of the change")
-    p.add_argument("--cases", default="quick", help="quick, all, or a comma-separated list (--list)")
+    p.add_argument("--cases", default="all", help="all (the gate), quick, or a comma-separated list (--list)")
     p.add_argument("--out", help="new (or empty) directory for the runs and the report")
     p.add_argument("--jobs", type=int, default=4, help="processes run at the same time (each one serial)")
     p.add_argument("--pytests-dir", default=None, help="upstream pytests checkout (or its pytests/ folder)")
     p.add_argument("--allow-same-build", action="store_true",
-                   help="allow base and new to be the same build (self-test of the tool)")
+                   help="allow base and new to be the same build, source tree or commit (self-test of the tool)")
+    p.add_argument("--partial-ok", action="store_true",
+                   help="exit 0 when what ran agrees although the gate is incomplete (RESULT says PARTIAL)")
     p.add_argument("--keep-records", action="store_true", help="keep record.npz of agreeing cases")
     p.add_argument("--timeout", type=int, default=3600, help="seconds per run")
     p.add_argument("--list", action="store_true", help="list the cases and exit")
@@ -412,16 +601,20 @@ def main(argv=None):
             c = CASES[name]
             where = "preset " + c["preset"] if c["kind"] == "repro" else c["path"]
             group = "quick" if name in QUICK else ("all" if name in ALL else "-")
-            print("{:24s} {:6s} {}{}{}".format(name, group, where,
-                                              "  (+ {})".format(", ".join(c["add_files"])) if c.get("add_files") else "",
-                                              "  EXCLUDED: " + EXCLUDED[name] if name in EXCLUDED else ""))
+            print("{:30s} {:6s} {}{}{}{}".format(
+                name, group, where, "  itermx={}".format(c["itermx"]) if c.get("itermx") else "",
+                "  (+ {})".format(", ".join(c["add_files"])) if c.get("add_files") else "",
+                "  EXCLUDED: " + EXCLUDED[name] if name in EXCLUDED else ""))
         return 0
     if not args.out:
         p.error("--out is required")
     try:
         return serial_check(args)
-    except (HarnessError, OSError, ValueError, KeyError, subprocess.SubprocessError) as err:
+    except HarnessError as err:
         print("HARNESS ERROR: {}".format(err), file=sys.stderr)
+        return 2
+    except Exception:  # anything unexpected is a harness error too, never "mismatch"
+        print("HARNESS ERROR (unexpected):\n{}".format(traceback.format_exc()), file=sys.stderr)
         return 2
 
 

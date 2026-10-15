@@ -63,3 +63,16 @@ the AIUE-49 comparator (`compare.compare_records`).
 - [ ] Negative control fails and names case and first entry — task 5
 - [ ] Documented as required for every PR touching Fortran, `.v` or `ppp/` — task 6
 - [ ] Documented in `openmp-jacobian.md` and `testing.md` (`AI-layer: code-facts`) — task 6
+
+## Revision after review round 1 (`docs/reviews/AIUE-53-implementation-round1.md`)
+- Rebased onto the harness-core tip with the AIUE-47 capture integration and the stricter `compare_records`
+  (`check_arm`, record checks, `cli.exit_code`); `full_note` became `te_phi`.
+- I1-B1: Newton-iteration cases (`-itN`) in `quick` and `all`; raw captures of every `sfsetnk`/`psetnk` Jacobian in both
+  workers when both builds have the hook (else capture 0 on both sides, as `compare_records` requires).
+- I1-M1: the gate is complete only with both pairs, two different builds and every case of `all`; otherwise
+  `RESULT: INCOMPLETE`, exit 2, unless `--partial-ok`. `--cases all` is the default.
+- I1-M2: the probe records `direct_url.json`; the source tree's HEAD/dirty/ancestry are read; same tree or same clean
+  commit is a harness error; each record's build identity must equal the probed one.
+- Minors: serial-path checks via `compare.check_arm`; unexpected exceptions exit 2; informative ERROR lines; 20 pytests
+  unit variants; double-null wording; independent-build acceptance (base vs AIUE-47 builds) and a ulp-level
+  (reassociation) negative control in `../uedge-wt/AIUE-53-ulp`.

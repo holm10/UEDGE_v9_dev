@@ -26,6 +26,9 @@ def sha256(path):
 
 
 def probe():
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # for "harness"
+    from harness.worker import build_identity, has_capture_hook
+
     import uedge
     from uedge import bbb, ppp  # noqa: F401  (ppp must exist in both build modes)
 
@@ -51,6 +54,15 @@ def probe():
     if os.path.exists(info_path):
         with open(info_path) as f:
             info = json.load(f)
+    # pip records the source of a local install in <dist-info>/direct_url.json (PEP 610)
+    direct_url = None
+    try:
+        from importlib.metadata import distribution
+
+        text = distribution("uedge").read_text("direct_url.json")
+        direct_url = json.loads(text) if text else None
+    except Exception:
+        direct_url = None
     return {
         "python": sys.executable,
         "prefix": sys.prefix,
@@ -58,6 +70,10 @@ def probe():
         "uedge_file": os.path.abspath(uedge.__file__),
         "uedge_ver": ver,
         "build_info": info,
+        "direct_url": direct_url,
+        "capture_hook": bool(has_capture_hook(bbb)),
+        # the identity the workers record in provenance["build"]; serial_check checks every record against it
+        "identity": build_identity(),
         "openmp_build": openmp,
         "extensions": hashes,
         "extensions_sha256": combined,
