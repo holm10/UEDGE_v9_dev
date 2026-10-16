@@ -1,0 +1,17 @@
+$ cd /tmp && HOME=/tmp/h OMP_NUM_THREADS=1 /work/venv-base/bin/python -I -c "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac)"
+/work/venv-base/bin/python: symbol lookup error: /work/venv-base/lib/python3.12/site-packages/uedge/bbbpy.cpython-312-x86_64-linux-gnu.so: undefined symbol: GOMP_parallel
+exit status 127
+$ cd /tmp && HOME=/tmp/h OMP_NUM_THREADS=1 /work/venv-fix/bin/python -I -c "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac)"
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+uedge_ver [b'8.1.2-beta.0                                                                    '] OMPParallelJac 0
+exit status 0
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+gcc -dumpspecs as-needed occurrences: 3

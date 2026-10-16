@@ -1,0 +1,8 @@
+threads at start 1
+n0 (after import uedge) 2
+threads after the deck 2
+n1 (after the tebox jac exmain, Nthreads=2) 2
+OMPParallelJac 1 Nthreads 2
+libgomp mappings 5
+RESULT FAIL n1-n0 = 0
+probe exit 0

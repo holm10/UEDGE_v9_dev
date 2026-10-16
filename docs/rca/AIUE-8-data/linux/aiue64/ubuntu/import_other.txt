@@ -1,0 +1,36 @@
+$ cd /tmp && HOME=/tmp/h OMP_NUM_THREADS=1 /work/venv-wkld/bin/python -I -c "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac)"
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+uedge_ver [b'8.1.2-beta.0                                                                    '] OMPParallelJac 0
+exit status 0
+$ cd /tmp && HOME=/tmp/h OMP_NUM_THREADS=1 /work/venv-base-ser/bin/python -I -c "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac)"
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+uedge_ver [b'8.1.2-beta.0                                                                    '] OMPParallelJac 0
+exit status 0
+$ cd /tmp && HOME=/tmp/h OMP_NUM_THREADS=1 /work/venv-fix-ser/bin/python -I -c "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac)"
+    __  ____________  ____________
+   / / / / ____/ __ \/ ____/ ____/
+  / / / / __/ / / / / / __/ __/
+ / /_/ / /___/ /_/ / /_/ / /___
+ \____/_____/_____/\____/_____/
+                  v8.1.2-beta.0
+
+For citing UEDGE in publications, see CITATION.md (https://github.com/LLNL/UEDGE/blob/main/CITATION.md).
+Tip: run uedge.cite('version'|'bibtex'|'apa') for a copy-pasteable reference.
+uedge_ver [b'8.1.2-beta.0                                                                    '] OMPParallelJac 0
+exit status 0

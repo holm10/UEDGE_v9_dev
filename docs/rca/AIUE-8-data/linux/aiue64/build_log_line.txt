@@ -1,0 +1,16 @@
+# L2/L4/L6/M1(d): the new setup.py log line in each build log (logs not committed).
+# grep -c "Linux OpenMP build: linking the Forthon extensions with LDFLAGS=" <log>, plus the matching line where present
+linux/ubuntu/build_base.log: 0 
+linux/ubuntu/build_fix.log: 1 Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'
+linux/ubuntu/build_wkld.log: 0 
+linux/ubuntu/build_base-ser.log: 0 
+linux/ubuntu/build_fix-ser.log: 0 
+linux/ubuntu_diag/build_fix.log: 1 Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'
+linux/ubuntu_probe2/build_fix.log: 1 Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'
+linux/debian/build_fix.log: 1 Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'
+mac_before/build_omp.log: 0 
+mac_before/build_serial.log: 0 
+mac_after/build_omp.log: 0 
+mac_after/build_serial.log: 0 
+validate/build_omp.log: 0 
+validate/build_serial.log: 0 

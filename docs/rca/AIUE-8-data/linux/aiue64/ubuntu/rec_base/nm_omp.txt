@@ -1,0 +1,11 @@
+aphpy: 
+apipy: GOMP_barrier GOMP_parallel omp_get_thread_num omp_get_thread_num_ 
+bbbpy: GOMP_barrier GOMP_parallel omp_get_thread_num omp_get_thread_num_ 
+compy: 
+flxpy: 
+grdpy: 
+nclpy: 
+ppppy: GOMP_atomic_end GOMP_atomic_start GOMP_barrier GOMP_loop_end_nowait GOMP_loop_nonmonotonic_dynamic_next GOMP_loop_nonmonotonic_dynamic_start GOMP_parallel omp_get_max_threads_ omp_get_num_threads_ omp_get_thread_num omp_get_thread_num_ omp_get_wtime_ omp_set_num_threads_ 
+svrpy: 
+uedgeC: 
+wdfpy: 

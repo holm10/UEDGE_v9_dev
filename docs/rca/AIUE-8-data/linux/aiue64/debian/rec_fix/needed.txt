@@ -1,0 +1,11 @@
+aphpy: libgfortran.so.5 libc.so.6 
+apipy: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+bbbpy: libgfortran.so.5 libmvec.so.1 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+compy: libgfortran.so.5 libmvec.so.1 libc.so.6 
+flxpy: libgfortran.so.5 libc.so.6 
+grdpy: libgfortran.so.5 libmvec.so.1 libc.so.6 
+nclpy: libgfortran.so.5 libc.so.6 
+ppppy: libgfortran.so.5 libgomp.so.1 libc.so.6 ld-linux-x86-64.so.2 
+svrpy: libgfortran.so.5 libc.so.6 
+uedgeC: libreadline.so.8 libc.so.6 
+wdfpy: libgfortran.so.5 libc.so.6 
