@@ -89,3 +89,54 @@ Capture hook   OK   record.json capture: full t4 run0 count 1, source jac_calc_p
 Overall: PASS. Every check passes; the C1 gate passes on the scaled post_exmain Jacobian, the matrix the bound was
 set on (decision above). The raw-matrix FAIL is a gate-tool issue for AIUE-57. Clean-up (phase B) done after the
 decision.
+
+
+====================================================================================================================
+After merging AIUE-57 (OpenMP CI job) — validation of the merged tip 5bc57d7
+====================================================================================================================
+Merge: `git merge --no-ff feature/v9-AIUE-57-omp-ci-job` (tip 3d4e5ca, rebased onto 9fa2a0e; implementation review
+APPROVE, docs/reviews/AIUE-57-rework-implementation-round1.md) -> 5bc57d7, clean (no conflicts; the merged tree equals
+3d4e5ca's). AIUE-57 adds no product code outside tests/deterministic_omp, .github/workflows/build-test-omp.yml,
+docs/reviews and the AI-layer code facts (git diff 9fa2a0e 5bc57d7 -- '*.m' '*.v' '*.F90' '*.f' setup.py
+Makefile.Forthon src/: empty). Validated tip 5bc57d7 (this record and the PR description draft are the only later
+commits). Outputs: uedge-wt/logs/omp-determinism/m57/ (not committed); earlier build logs kept as
+logs/omp-determinism/build-{serial,omp}-2e73ea9.log.
+
+Branch policy  OK   uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD -> "OK"
+Context refs   OK   uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop -> "OK"
+Build serial   OK   build_uedge.sh serial into venvs/omp-determinism-serial (rebuilt in place, clean tree at 5bc57d7);
+                    smoke import OK (uedge_ver 8.1.2-beta.0, OMPJacFixedChunks 1). Warnings: gfortran 259
+                    (base-serial 259), clang 47 (47); per-file counts identical to base.
+Build OpenMP   OK   build_uedge.sh omp into venvs/omp-determinism-omp (built last, same tree); smoke import OK.
+                    Warnings: gfortran 266 (base-omp 266), clang 47 (47); per-file counts identical to base.
+Serial check   OK   serial_check.py base-* (0fac655) vs omp-determinism-*, --cases all --jobs 2:
+                    "RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (432.4 s)"
+                    ext-sha256: new serial 7a1115bcd192ee73, new omp 9bbd2f3ac8eb700b (rebuilt; base unchanged
+                    141a53db4d12099e / b71788af754cbe0a). Expected warnings as before (capture hook in one build only).
+Unit tests     OK   python -m pytest -q tests/deterministic_omp/harness tests/deterministic_omp/ci: "180 passed"
+                    (132 harness + 48 ci).
+Determinism    OK   cli.py check --arm jac --threads 4 --repeats 5 (defaults):
+                    tebox: exit 0, 5/5 agree with serial, determinism 4/4 AGREE.
+                    full: exit 1 = mismatch with serial only (expected C2, macOS arm64): 12275 mismatches (value
+                    2914, only-a 9340, only-b 21), Te rows only, as before; determinism run0 vs run1..run4 AGREE (4/4).
+Hash           OK   AIUE-61-launch.sh + AIUE-61-jworker.py (harness = this tree), full, jac, 4 threads, '{}':
+                    jachash 8761cd9e36658ee1, nnz 3180971, NchunksJac 64 (= AIUE-61's record and the earlier merge run).
+Threads 2/8    OK   check full --threads 2 and --threads 8, --repeats 1; cli.py compare: t2 vs t4 AGREE, t8 vs t4 AGREE,
+                    t2 vs t8 AGREE.
+C1 bound       PASS tests/deterministic_omp/ci/jac_bound.py --harness tests/deterministic_omp (the AIUE-57 tool; the
+                    bound on the scaled post_exmain Jacobian, as decided above): chk_tebox_t4 run0..4 worst 0;
+                    chk_full_t4 run0..4, chk_full_t2, chk_full_t8: PASS, worst |a-b|/base 4.59e-09 (12275 entries
+                    differ), magnitude ratio 1; "BOUND PASS", exit 0. This closes the gate-tool issue noted above.
+G-common       OK   tests/deterministic_omp/ci/common_check.py --pkgdir <venv uedge> --gen build/temp.* (macOS, nm -m):
+                    "RESULT: PASS (first definer bbbpy 728 B; others apipy 96 B)".
+CI replay      PASS tests/deterministic_omp/linux/run_ci_replay.sh merged 5bc57d7 pr, Docker aiue62-ubuntu:amd64 (Ubuntu
+                    24.04, gcc 13.3, Python 3.12, linux/amd64 emulated by Rosetta, --cpus 5, one container):
+                    build without LDFLAGS ("Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'"),
+                    177 s; "180 passed"; "ppp_keys: OK (OMPJacMinChunkLen, OMPJacVerbose)"; common block (ELF) "RESULT:
+                    PASS (first definer bbbpy 728 B; others apipy 96 B)"; flows tebox1 0 (22 s), tebox 0 (79 s), up1 0
+                    (27 s), full 0 (333 s): every jac group bitwise equal to serial and deterministic (tebox1 3/3 at 2
+                    and 4 threads, tebox 5/5, up 3/3, full 2/2 at 2 and 4), tebox jacrhs 5/5 (report-only); BOUND PASS
+                    x4 (worst 0); NchunksJac 25 in every Te-box run; "COMMON-BLOCK PASS"; "OMP CI RESULT: PASS (exit 0)";
+                    run_omp_ci.sh 480 s (emulated).
+
+Overall: PASS. Native ubuntu-latest (the PR's first run of build-test-omp.yml) is the remaining confirming check.
