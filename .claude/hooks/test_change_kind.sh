@@ -124,5 +124,16 @@ git -C "$R" checkout -q feature/v9-T-8-data; stage .claude/work/T-8/plan.md; git
 ck --range v9-develop...HEAD; ok $? 1 "F7 a violation still fails with budget warnings present"
 clean
 
+echo "== G. HIGH-RISK line (--range)"
+for f in bbb/pandf_x.m ppp/a.py src/x.v setup.py bbb/Package; do
+  git -C "$R" checkout -q -b "feature/v9-T-9-$(echo $f | tr -c 'a-z\n' _)" v9-develop; mkdir -p "$R/$(dirname $f)"; echo x > "$R/$f"; git -C "$R" add -f "$f"
+  git -C "$R" -c core.hooksPath=/dev/null commit -qm hr; ck --range v9-develop...HEAD; ok $? 0 "G1 $f: exit 0"
+  grep -q "HIGH-RISK: yes ($f)" "$W/out.txt"; ok $? 0 "G1 $f: high-risk"
+done
+git -C "$R" checkout -q -b feature/v9-T-9-low v9-develop; echo x > "$R/doc/y.txt"; git -C "$R" add doc/y.txt
+git -C "$R" -c core.hooksPath=/dev/null commit -qm low; ck --range v9-develop...HEAD
+grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G2 a doc-only diff is not high-risk"
+clean
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

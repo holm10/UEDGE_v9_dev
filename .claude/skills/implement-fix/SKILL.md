@@ -47,7 +47,8 @@ serial/parallel mismatch). Record the observed output — you will compare again
 
 Tier the fix (`.claude/context/process-tiers.md`). If it touches the `pandf` tree, `ppp/`, the Jacobian, a `.v` file
 or the build (L), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage:
-plan` on the intended change (the RCA's fix section, or a short plan) **before writing code**. Any other fix skips it.
+plan` on the intended change (the RCA's fix section, or a short plan) **before writing code**. Any other fix skips it, until the diff says otherwise: the review gate re-tiers a fix whose diff prints
+`HIGH-RISK: yes` (`process-tiers.md` → Check the tier against the diff).
 
 ## 3. Implement
 

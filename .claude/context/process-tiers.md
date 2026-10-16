@@ -19,6 +19,13 @@ Summary. Decide by **what the change touches**, not by effort. When in doubt, ta
 
 **High-risk** = the L list. A plan review runs only for high-risk changes; low-risk S and M tickets skip it.
 
+**Check the tier against the diff.** Before choosing the implementation reviewer, run
+`uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and read its `HIGH-RISK:` line (patterns:
+`HIGH_RISK` in that file, the L list above plus every `.m` source). If it says `yes` and the ticket is S or M,
+**re-tier to L**: run the plan review if it did not run, review the implementation in full on Opus, and add one
+Findings-and-decisions entry to the ticket page ("re-tiered S/M -> L: diff touches <paths>"). A verification round
+whose fix diff (`--range <reviewed sha>...HEAD`) says `yes` also runs on Opus.
+
 ## Review rounds scale with the findings
 
 - **Minors never trigger a round.** The author fixes them (or declines them in a line), lists each in the response,

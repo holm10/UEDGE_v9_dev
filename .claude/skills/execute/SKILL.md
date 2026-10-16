@@ -135,7 +135,7 @@ done by a fresh agent from this note, not by resuming this one (`.claude/context
 ### 6. Adversarial review
 
 The work is not done until a fresh `uedge-reviewer` has approved it: run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`
-(`end-to-end-feature` does this as its Step 3b). If you can't spawn a reviewer, say so in the report and hand the
+(`end-to-end-feature` does this as its Step 3b). Run the tier check against the diff first (`process-tiers.md`). If you can't spawn a reviewer, say so in the report and hand the
 caller the ready-to-use reviewer prompt that loop describes. Rounds 2+ are verification rounds on the fix diff;
 MINORs alone never start a round.
 
