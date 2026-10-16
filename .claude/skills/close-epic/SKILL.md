@@ -397,7 +397,8 @@ must be self-contained:
 - on rounds 2+: the previous report and the response file (`...-closeout-round<N>-response.md`).
 
 Then loop as `create-prd` Step 5 does: wait for the completion notification; read the report; **APPROVE** → Step 6;
-**REVISE** → fix every BLOCKER and MAJOR (or rebut it in the response file), fresh reviewer for round N+1;
+**REVISE** → fix every BLOCKER and MAJOR (or rebut it in the response file), fresh reviewer for round N+1 as a
+verification round (`.claude/context/process-tiers.md` → Review rounds; MINORs alone never start a round);
 **REJECT** → stop and show the owner; after round 3 without APPROVE, stop and ask the owner whether to keep revising
 or publish anyway (then add `- review open (N findings)` to the status line and a "## Open review findings"
 section). Record each round in section 10 (round, verdict, counts, each finding in one line and its response). A text-only change after APPROVE

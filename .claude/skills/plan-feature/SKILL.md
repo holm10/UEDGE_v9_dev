@@ -28,6 +28,12 @@ Classify first — it decides the workflow and how the defaults rule applies (`C
 
 If the type is unclear, ask the user before continuing.
 
+**Tier** (`.claude/context/process-tiers.md`): take it from the ticket's breakdown entry (`Tier:`), else assign it now
+from what the change touches (L: the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v`, the build, physics; S:
+investigation, characterisation, doc/tooling, small fixes elsewhere; M: the rest). The tier sets the plan's budget:
+**S ≤150 lines, M ≤300, L ≤300** (up to 500 with a one-line reason in Notes). Omit template sections that don't apply
+("n/a") rather than filling them.
+
 ## Phase 0b: Branch and worktree
 
 Each ticket gets its own branch and worktree (`.claude/context/branching.md`). Do this before writing anything:
@@ -100,7 +106,7 @@ Validate the patterns and file references below before implementing.
 
 ## Summary
 **Type**: Physics (spec: docs/physics_specs/<x>.md) | Refactor | Numerics/Parallel | Bug fix | Python/Build
-**Complexity**: Low/Medium/High
+**Tier**: S | M | L (why) · **Complexity**: Low/Medium/High
 **Default results**: Unchanged | Changed — <which defaults, why, which reference cases move>
 **Packages / files**: <list>
 **Branch / worktree**: <branch> @ <worktree path> (base: <base>)
@@ -157,6 +163,7 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 
 ## Quality bar
 
+- Within the tier's line budget; no section padded to look complete.
 - Another developer could execute it with no extra context; every file reference has line numbers.
 - Every task has a runnable validation step.
 - No generic placeholders left; no physics invented in a non-physics plan.
@@ -177,15 +184,16 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
    page it posts a short `PIV record: plan` comment instead. A failure there is noted in the report and retried at
    the next flush (the plan and the queued entries stay local until then); it never stops planning.
 
-## Adversarial plan review
+## Adversarial plan review (L tier only)
 
 If the plan touches the `pandf` tree, `ppp/`, Jacobian or preconditioner code, a `.v` file, or the build
 (`setup.py`, `Makefile.Forthon`), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` before any code is written.
+Every other plan (S, and M outside those areas) skips this review: it is published and executed.
 The loop records each round on the ticket record. A revision is published, not committed: `ticket-page <KEY> log
 Progress "Plan revised: <what changed>"`, then `ticket-page <KEY> publish` (the page records the new date and
 sha256), which is that round's flush.
 
 ## Report
 
-Plan path (local working copy, not committed), type and complexity, whether defaults change, key risks, the ticket
+Plan path (local working copy, not committed), type, tier, length in lines and complexity, whether defaults change, key risks, the ticket
 record (page URL, Jira comment, or why it was skipped), and a confidence score (#/10) for one-pass execution.

@@ -81,14 +81,21 @@ Return to the main session with:
 6. **AI-layer facts updated**: rows and modules changed, and the drift check result.
 7. **Process issues**: anything about the agents or skills that slowed you down (for `system-review`; don't fix them).
 
+Before you return, write the **handoff note** `<worktree>/.claude/work/<KEY>/handoff.md` (≤60 lines, never
+committed): state (what works, what is red), branch and tip sha, what is done, open items, how to verify (exact
+commands, the venv/build to use). Review fixes are made by a fresh agent from this note, not by resuming you
+(`.claude/context/process-tiers.md` → Fresh fixer), so it must be enough on its own.
+
 # Responding to review
 
-Your work will be checked by the `uedge-reviewer` agent, which reruns builds and tests itself. When given a review file:
+Your work will be checked by the `uedge-reviewer` agent, which reruns builds and tests itself. Fix rounds are normally
+run by a **fresh** agent of this type given the findings, the diff range and your handoff note (not by resuming the
+agent that wrote the code). When given a review file:
 
 - Address every BLOCKER and MAJOR finding: fix the code/tests or give a reasoned rebuttal with evidence (test output, code reference, spec section). MINOR findings may be fixed or declined briefly.
 - If a finding is really about the physics in the spec, do not change the physics; flag it as "for uedge-physics".
 - Rebuild and rerun the affected tests after fixing, and report the new results.
-- Write your response next to the review report, in the local working folder the main session names (normally `<worktree>/.claude/work/<KEY>/reviews/<KEY>-implementation-round<N>-response.md`), listing each finding ID and what you did. It is a working document: never stage or commit it; the main session puts its content on the ticket page, or, for work without a ticket record, in the PR description. Work in the explicit worktree the main session gives you (never an automatically removed one); if you queued ticket-page entries, check that `queue --list` prints nothing before you return.
+- Write your response next to the review report, in the local working folder the main session names (normally `<worktree>/.claude/work/<KEY>/reviews/<KEY>-implementation-round<N>-response.md`), one line per finding ID (fixed where / rebutted why / declined). Update the handoff note. It is a working document: never stage or commit it; the main session puts its content on the ticket page, or, for work without a ticket record, in the PR description. Work in the explicit worktree the main session gives you (never an automatically removed one); if you queued ticket-page entries, check that `queue --list` prints nothing before you return.
 
 # Rules
 

@@ -57,6 +57,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | `.claude/context/branching.md` | Creating a branch or worktree, committing, writing a plan, review, RCA or epic document (where it goes), or touching both `.claude/`/`CLAUDE.md` and product code |
 | `.claude/context/physics-models.md` | Planning, specifying, implementing or reviewing anything that touches an equation or model (index of models, switches, routines, specs) |
 | `.claude/context/python-layer.md` | Editing `src/uedge/*.py` (save/restore, `rundt`, balance, packaging) |
+| `.claude/context/process-tiers.md` | Coordinating tickets or an epic: tiers S/M/L, review rounds, fresh fixers, model mix, report caps, session SOP |
 
 ## Workflow (skills and agents)
 
@@ -69,6 +70,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 | Large epics | Epic documents live on Confluence under the PRD page (no planning branch; local drafts in `.claude/work/<EPIC>/`). `create-prd` (adversarial `uedge-reviewer` gate before Confluence) → `spec` (Jira/Confluence optional; files the tickets and creates each ticket's page under `Ticket plans: <EPIC>`, or a `PIV record` Jira comment without a PRD page; `--pages-only` backfills an epic already sliced: To Do / In Progress children only, pages marked `Backfilled`) → tickets → `close-epic` (close-out record from all sources incl. the ticket pages, `uedge-reviewer` gate, Confluence page under the PRD; Done only on the owner's yes; `--dry-run` is read-only) |
 | Process retrospective | `execution-report` → `system-review` (files `ai-layer` Jira issues; runs at the end of `end-to-end-feature` and `implement-fix`) |
 | Fresh machine | `init-project` |
+| Coordinating (any of the above) | Size each ticket with its tier (S/M/L) and follow the session SOP in `process-tiers.md`: at most ~3 background agents, only when it shortens the critical path; a fresh session per wave; fix rounds by a fresh small agent from a handoff note, never by resuming a long one; `model: sonnet` for mechanical work and verification rounds. `session_guard.py` warns when these are crossed |
 | Improve the AI layer itself | `feature/v9-ai-<slug>` branch, never on a ticket branch (`branching.md`) |
 
 ## Hard rules

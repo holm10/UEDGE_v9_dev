@@ -19,7 +19,9 @@ You have just finished implementing a feature. Before moving on, reflect on:
 ## Generate Report
 
 Save to: `.claude/work/<KEY>/execution-report.md` in the ticket's worktree (`<slug>` without a ticket). It is a
-working document: gitignored, never committed (`.claude/context/branching.md`).
+working document: gitignored, never committed (`.claude/context/branching.md`). Keep it **≤100 lines** (an S ticket needs a
+fraction of that): divergences and lessons, not a retelling of the plan; omit sections with nothing to say
+(`.claude/context/process-tiers.md` → Report caps).
 
 For a Jira ticket, put its lasting content on the ticket page once it is written: `ticket-page <KEY> log "Findings and
 decisions" "Agent: execution report: <each divergence in a line: planned / actual / why>; skipped: <items or none>;

@@ -93,16 +93,23 @@ Read the loaded PRD fully: the goal, user stories, architectural impact, accepta
 
 Break the epic into tickets. A well-sized ticket:
 
-- Maps to **one structured plan** of 500-700 lines.
+- Maps to **one plan** within its tier's budget (`.claude/context/process-tiers.md`): S ≤150 lines, M ≤300, L ≤300
+  (up to 500 with a reason).
 - Is one coherent unit — a vertical slice of behavior, not a horizontal layer.
 - Has clear acceptance criteria of its own.
 - Is small enough to execute in a single PIV loop (roughly 20-60 minutes of execute time).
 
-If a slice would produce a plan longer than ~700 lines, split it further.
+If a slice would need a longer plan, split it. **Don't over-slice:** every ticket pays a fixed process cost (branch,
+worktree, venv, plan, page, review, PR), so merge small investigation, characterisation and doc/tooling slices that
+touch the same area into one S ticket instead of filing several tiny ones.
+
+**Assign a tier to every ticket** (S, M or L, as defined in `.claude/context/process-tiers.md`) from what it touches,
+not from its estimated effort: anything in the `pandf` tree, Jacobian/preconditioner code, `ppp/`, a `.v` file, the
+build, or new physics is L.
 
 ### Step 3 — Slice for parallelizability
 
-Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel** (separate branches/worktrees, each with its own Python env since UEDGE installs compiled modules). Mark which tickets are independent and which form a dependency chain. Slicing along package and equation boundaries (`bbb/pandf_*` files, `.v` groups, `src/uedge/` modules) maximizes independence; tickets that both touch `bbb/bbb.v` or the `pandf` tree usually conflict.
+Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel** (separate branches/worktrees, each with its own Python env since UEDGE installs compiled modules). Mark which tickets are independent and which form a dependency chain. Slicing along package and equation boundaries (`bbb/pandf_*` files, `.v` groups, `src/uedge/` modules) maximizes independence; tickets that both touch `bbb/bbb.v` or the `pandf` tree usually conflict. Parallel is a means, not a goal: a wave runs in parallel only where that shortens the critical path, with at most about 3 tickets (background agents) at once (`.claude/context/process-tiers.md` → Session SOP).
 
 ### Step 4 — Write the ticket breakdown
 
@@ -115,6 +122,7 @@ without an epic key):
 ## Epic summary — goal in 2-3 lines
 ## Tickets
    ### TICKET-1 — <title> · `<KEY>` (fill in the key after Step 6)
+   - Tier: S | M | L (why, in a few words)
    - Scope / acceptance criteria
    - Files touched (estimate)
    - Depends on: <none / TICKET-x>
@@ -246,9 +254,6 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
      Exit 3 (no entry for the key, or no breakdown page) → the Jira
      description (`--text`, `--source "the Jira description of <KEY>"`); exit 2 (several entries match) → the Jira
      description too, and report it.
-   - The branch, checked, never assumed: `git -C <checkout> branch --list <branch>` and `git ls-remote
-     --heads origin <branch>`. Found → `branch_state: exists`; checked and absent → `absent`; not checkable (no
-     branch named, no remote) → leave it out (the header says "not checked").
    - meta: status `Planned` for a ticket created in this run; for a backfill status `Backfilled`, `backfilled` =
      today, `jira_status` = its status, `skill` `spec --pages-only` (or `spec`), and `ticket --backfill`, so the
      Ticket section says "as read on <date>", not "as filed". The skeleton then says the plan is "not mirrored here",

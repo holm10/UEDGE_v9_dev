@@ -216,7 +216,10 @@ Then loop:
 4. **REVISE** → fix every BLOCKER and MAJOR finding in the local copy (or write a specific rebuttal when the
    finding is wrong), and write the response to `.claude/work/<EPIC-KEY>/reviews/<EPIC-KEY>-prd-round<N>-response.md`
    (finding → fixed where / rebutted why). Apply cheap MINOR fixes. Fixes must not contradict a binding user decision. If a finding *does*
-   challenge one, ask the user rather than silently changing scope. Start round N+1 with a fresh reviewer.
+   challenge one, ask the user rather than silently changing scope. Start round N+1 with a fresh reviewer as a
+   **verification round** (the previous findings, the response and a diff of the revised PRD;
+   `.claude/context/process-tiers.md` → Review rounds; `model: sonnet` unless the revision redesigns the approach).
+   MINORs alone never start a round.
 5. **REJECT** → stop. Show the user the reviewer's reasoning and ask how to proceed. Don't publish.
 6. If round 3 ends without APPROVE, stop and escalate. List the open BLOCKER/MAJOR findings and ask the user
    whether to keep revising or to publish anyway.

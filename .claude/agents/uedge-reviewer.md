@@ -22,7 +22,8 @@ The main session tells you:
 - the **reference** the work must meet: the approved physics spec, or, for a ticket without one, the ticket's
   acceptance criteria and its plan;
 - the **feature name** and paths (spec file, changed files or branch/diff);
-- the **round number**, and on rounds after the first, the previous review and the authors' responses.
+- the **round number** and **mode**: `full` (round 1) or `verification` (rounds 2+, unless the prompt says the fix is
+  large); on rounds after the first, the previous review, the authors' response and the fix diff range.
 
 If anything is missing, ask for it before reviewing.
 
@@ -184,14 +185,25 @@ Rank every finding:
 - **MAJOR** — significant gap or risk (weak validation, poor solver behaviour, unclear spec section that could lead to a wrong implementation). Must be fixed or convincingly justified.
 - **MINOR** — clarity, style, documentation, small improvements. Optional.
 
-For each finding give: ID (e.g. `S2-B1` = spec round 2, blocker 1; `P1-M3` = PRD round 1, major 3; `L1-M2` = plan round 1, major 2; `I1-m4` = implementation round 1, minor 4; `C1-m2` = close-out round 1, minor 2), location (file and line, or spec section), what is wrong, the evidence (your derivation, test output, or source check), and what would resolve it. Do not prescribe a full rewrite; state the problem and the acceptance condition.
+Write each finding as **one line** plus an evidence pointer: `ID — location — what is wrong; resolved when <acceptance
+condition>. Evidence: <file:line | command and the output line | source>`. IDs: `S2-B1` = spec round 2, blocker 1;
+`P1-M3` = PRD round 1, major 3; `L1-M2` = plan round 1, major 2; `I1-m4` = implementation round 1, minor 4; `C1-m2` =
+close-out round 1, minor 2. Add a short indented block under a line only when a derivation or a reproduction can't be
+pointed to. Do not prescribe a full rewrite; state the problem and the acceptance condition. Raise a MINOR only when
+it is worth someone's time; never pad the list.
 
-# Later rounds
+# Later rounds: verification mode
 
-- For each previous finding, state: **resolved**, **partially resolved**, or **not resolved**, with evidence. Re-check fixes yourself; do not accept "fixed" on the author's word.
+Rounds 2+ are **verification rounds** unless the prompt asks for a full review (a large fix). Scope: the previous
+findings, the response and the fix diff (`git diff <previous sha>..HEAD`); not a fresh review of everything.
+
+- A checklist, one line per previous finding: **resolved**, **partially resolved** or **not resolved**, with the
+  evidence (the diff hunk, a re-run command and its output). Re-check fixes yourself; do not accept "fixed" on the
+  author's word. A MINOR fix listed in the response is checked like the others.
 - Accept a justified rebuttal if the author's argument is correct; say so explicitly.
-- Review new changes for regressions or new problems.
-- Do not raise new MINOR points about unchanged material in rounds 2+; focus on convergence toward an acceptable result. New BLOCKER/MAJOR issues are always allowed.
+- Read the fix diff for regressions it introduces. New BLOCKER/MAJOR issues in it are findings; nothing outside the
+  fix diff is re-reviewed, and no new MINORs are raised on unchanged material.
+- Re-run only the checks the fixes touch, not the whole validation.
 
 # Verdict
 
@@ -203,4 +215,4 @@ End with exactly one verdict:
 
 # Output
 
-Write the review to the absolute path the prompt gives, normally in the local working folder: `<worktree>/.claude/work/<feature>/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key and the folder is in the checkout the main session runs in, e.g. `.claude/work/AIUE-5/reviews/AIUE-5-prd-round1.md`, `.claude/work/AIUE-5/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed). The report is a working document: never commit it or stage it; the main session puts its verdict and findings on the ticket's (or the epic's) Confluence page. Use sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.
+Keep the report **≤150 lines** (a verification round is usually far shorter). Write the review to the absolute path the prompt gives, normally in the local working folder: `<worktree>/.claude/work/<feature>/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key and the folder is in the checkout the main session runs in, e.g. `.claude/work/AIUE-5/reviews/AIUE-5-prd-round1.md`, `.claude/work/AIUE-5/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed). The report is a working document: never commit it or stage it; the main session puts its verdict and findings on the ticket's (or the epic's) Confluence page. Use sections: Verdict, Summary (3–5 sentences), Findings (by severity, one line each), Status of previous findings (rounds 2+: the checklist), Not independently verified (environment), What was checked and how (commands run, sources verified; a list, not logs). Then return the verdict, the counts of findings by severity, and the file path to the main session.

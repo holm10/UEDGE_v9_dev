@@ -13,6 +13,10 @@ locally" means "green in CI". Commands and background: `CLAUDE.md` → *Build & 
 Arguments: `$ARGUMENTS`. Suites default to `D_only` plus the suites matching the changed area (below). `all` runs
 every suite; `--omp` forces step 4.
 
+This is the **full gate**: run it once a change is complete, not after every edit. While iterating, run the subset
+(one case, two thread counts, the one affected suite) and leave heavy matrices to CI (`.claude/context/testing.md` →
+Fast iteration).
+
 ## 0. Branch hygiene
 
 ```bash
@@ -20,7 +24,9 @@ uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD
 ```
 
 ❌ if it reports a VIOLATION, i.e. the wrong kind of change on this branch, or a working document (plan, review,
-RCA, validation record) committed on it (`.claude/context/branching.md`). Report it verbatim. A ticket started before
+RCA, validation record) committed on it (`.claude/context/branching.md`). Report it verbatim. ⚠️ for a `WARNING:
+PR size budget` line (too many files or lines outside product source and tests, a file over 1 MB, data-like files):
+not a failure, but move raw data out of the branch (summarise it on the ticket page) or justify it in the PR. A ticket started before
 working documents left git fails here until they are removed: follow `branching.md` → "Tickets started before this
 rule" (their content to the page, the tag `archive/<KEY>-docs`, then `git rm`).
 
