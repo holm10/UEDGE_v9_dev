@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Slice an epic or next-epic doc into PIV-sized tickets with a dependency graph. Turns a large strategic doc into the discrete units of work that the PIV loop consumes. Accepts a Confluence page id, a local PRD/epic doc path, OR just a Jira epic key (the PRD page published by create-prd is looked up automatically); optionally cross-references a Jira epic key. Writes the breakdown to docs/specs/ and, when the input was a Confluence page, publishes it back as a child page of the PRD. When a Jira epic key is passed, it also creates the tickets as issues under that epic, skipping any that already exist, and creates each ticket's page (its PIV record for the whole lifecycle) under "Ticket plans <EPIC>" below the PRD, or a short "PIV record" Jira comment when the epic has no PRD page. --pages-only creates the missing pages for an epic that is already sliced.
+description: Slice an epic or next-epic doc into PIV-sized tickets with a dependency graph. Turns a large strategic doc into the discrete units of work that the PIV loop consumes. Accepts a Confluence page id, a local PRD/epic doc path, OR just a Jira epic key (the PRD page published by create-prd is looked up automatically); optionally cross-references a Jira epic key. Writes the breakdown as a local working copy (never committed) and publishes it as a child page of the PRD, which is its lasting home. When a Jira epic key is passed, it also creates the tickets as issues under that epic, skipping any that already exist, and creates each ticket's page (its PIV record for the whole lifecycle) under "Ticket plans <EPIC>" below the PRD, or a short "PIV record" Jira comment when the epic has no PRD page. --pages-only creates the missing pages for an epic that is already sliced.
 argument-hint: "[jira-epic-key OR confluence-page-id OR local-doc-path] [optional-jira-epic-key] [--pages-only] [--no-tracker] [--tracker-dry-run]"
 ---
 
@@ -39,11 +39,12 @@ Below, **the epic key** means the key from `$1` (case 3) or `$2`, whichever was 
 
 Flags (anywhere in the arguments):
 - `--pages-only`: the epic is already sliced and filed. Skip Steps 2-5 and the issue creation in Step 6; read the
-  committed breakdown on the planning branch and run Step 6b (ticket pages) for every child of the epic. Use it to
-  give an existing epic's tickets their pages, or after a run whose page step failed partway. Here an epic with no
-  PRD page is not a stop (Step 1): Step 6b uses the Jira fallback. Without a committed breakdown, each ticket's scope
-  comes from its Jira description. It never republishes the breakdown's Confluence page (Step 6.6 is skipped): the
-  page ids go into the repo breakdown and the Jira link comments only.
+  breakdown page (`Spec: <epic name> - Ticket Breakdown` under the PRD, `getConfluencePage` in markdown, saved) and
+  run Step 6b (ticket pages) for every child of the epic. Use it to give an existing epic's tickets their pages, or
+  after a run whose page step failed partway. Here an epic with no PRD page is not a stop (Step 1): Step 6b uses the
+  Jira fallback. Without a breakdown page, each ticket's scope comes from its Jira description. It never republishes
+  the breakdown page (Step 6.6 is skipped): the page ids are recorded in the Jira link comments only, which is where
+  `ticket-page` finds them.
 - `--no-tracker`: no ticket pages and no `PIV record` comments (Step 6b is skipped; say so).
 - `--tracker-dry-run`: Step 6b only reads and prints what it would create (`ticket-page --dry-run`); the breakdown,
   the issues and everything else run as usual unless `--pages-only` is also given, which makes the whole run
@@ -105,7 +106,8 @@ Map dependencies between tickets. **Independent tickets** — ones that don't to
 
 ### Step 4 — Write the ticket breakdown
 
-Write to `docs/specs/<epic-slug>.md`:
+Write the working copy to `.claude/work/<EPIC>/breakdown.md` in the current checkout (`.claude/work/<epic-slug>/`
+without an epic key):
 
 ```
 # Spec: <epic name>
@@ -133,14 +135,14 @@ epic by default. If a ticket would need AI-layer process changes (skills, agents
 `feature/v9-ai-<slug>` ticket. Updates that keep `CLAUDE.md`/`.claude/context/` factually correct stay inside the ticket
 that changes those facts.
 
-Write the breakdown on the epic's planning branch `feature/v9-<EPIC>-planning` (create it if needed). It sits next to
-the PRD copy and its review reports.
+The working copy is gitignored and never committed, on any branch (there is no planning branch,
+`.claude/context/branching.md`). Its lasting home is the breakdown page (Step 5), which later skills read.
 
 ### Step 5 — Publish the breakdown back to Confluence
 
-The breakdown is a PM artifact, so it belongs where the PM works, not only in the repo. If the PRD came from
-Confluence (i.e. `$1` was a page id, or an epic key that resolved to a PRD page), publish the breakdown as a
-**child page of the PRD**:
+The breakdown page is the breakdown's only lasting copy (the local file is a working copy). If the PRD came from
+Confluence (i.e. `$1` was a page id, or an epic key that resolved to a PRD page), or `$2` names an epic whose PRD page
+is found as in Step 1, publish the breakdown as a **child page of the PRD**:
 
 1. Obtain the `cloudId` via `mcp__atlassian__getAccessibleAtlassianResources` if not already fetched.
 2. Look for an existing page titled `Spec: <epic name> - Ticket Breakdown` in the same space
@@ -153,11 +155,12 @@ Confluence (i.e. `$1` was a page id, or an epic key that resolved to a PRD page)
    If one already exists, call `mcp__atlassian__updateConfluencePage` instead, incrementing its version.
 4. Report the resulting page id and URL back to the user.
 
-If `$1` was a local file path rather than a Confluence page id, **skip this step** and say so. Do not invent a
-space to publish into.
+If there is no PRD page, **skip this step** and say so: the breakdown then exists only as the local working copy and
+is not kept (the tickets filed in Step 6 carry their scope in their Jira descriptions). Do not invent a space to
+publish into.
 
-> Publishing is additive. The repo copy at `docs/specs/<epic-slug>.md` stays the source the PIV loop reads;
-> the Confluence page is the shareable view for people who do not live in the repo.
+> The page is the source the PIV loop reads (through each ticket page's Ticket section, and `plan-feature`); the
+> local working copy is only a draft of what was published.
 
 ### Step 6 — File the tickets in Jira
 
@@ -176,8 +179,8 @@ the job. Create the tickets for real:
    - `summary` = the ticket title from your breakdown
    - `description` = scope, acceptance criteria, files likely touched, the `Depends on:` line, and the `Branch:`
      line with the real key filled in (`feature/v9-<NEW-KEY>-<slug>`)
-   After creating the issues, put the real keys into `docs/specs/<epic-slug>.md` (each ticket heading's
-   `` `<KEY>` `` and its `Branch:` line) and commit it on the planning branch, so Step 6b can find each entry by key.
+   After creating the issues, put the real keys into the working copy (each ticket heading's `` `<KEY>` `` and its
+   `Branch:` line), so Step 6b can find each entry by key; Step 6.6 publishes them.
 5. Run **Step 6b** for every ticket created here and every existing child that has no page yet.
 6. Update the breakdown's Confluence page (Step 5) **once**, with the keys and the `Ticket page:` lines. First check
    its version (CQL `id = <id>`, `expand: "content.version"`): if it moved since Step 5 published it, someone edited
@@ -197,7 +200,7 @@ inputs (pass `--dry-run` for `--tracker-dry-run`; `--no-tracker` skips the step)
 **Which tickets.** Every ticket created in Step 6, and every existing child of the epic whose Jira status is **To Do
 or In Progress** that has no page yet. Children in **In Review, Done** or any other status are skipped and listed in
 the report as "skipped (status <s>)": their work is largely recorded elsewhere, and a page made now could only say
-so. (Default set by the coordinator in the ticket-pages review, round 1; the owner may change it.) A page for an
+so. (Owner decision (2026-10-16); it applies to the Jira fallback too.) A page for an
 existing child is a **backfill**: it is marked as one and claims nothing about the ticket's past (step 3).
 
 1. **Where.** The PRD page from Step 1 (an epic key or page id), else look it up as in Step 1 (a local file plus
@@ -214,7 +217,8 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
    - exit 0: the ticket has a page (from an earlier `spec` run or from `plan-feature`; same title rule). Leave its
      body as it is and report it, but complete its records: `missing_link_comment: true` (a run that failed after the
      create, or a page `plan-feature` made before the link step) → post the link comment (`ticket-page` step 5);
-     an entry in the breakdown without its `**Ticket page:**` line → add it (step 4). If the output says
+     an entry in the breakdown working copy without its `**Ticket page:**` line → add it (step 4; not with
+     `--pages-only`). If the output says
      `not_listed` (the page is recorded but not under this container, as for a ticket moved from another epic),
      confirm it with CQL `id = <id>`: if it exists, report "page kept under <its container>"; if it is gone, run
      `find` again with `--gone <id>`. `stale_records` follow the one rule in `ticket-page` step 2.6: the listed page
@@ -223,14 +227,18 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
    - exit 2: several pages, or `find` can't tell (no listing, an incomplete listing, comments it can't read). Report
      the ticket with the reason and create nothing for it.
    In the fallback, `find --fallback --comments <issue.json>` instead: exit 0 (a `PIV record` comment exists) →
-   post nothing, but add the breakdown's `**Ticket page:** none (…)` line if it is missing; 3 → post; 2 → report and
+   post nothing, but add the working copy's `**Ticket page:** none (…)` line if it is missing; 3 → post; 2 → report and
    post nothing. The status rule above applies to these repairs too.
 3. **The page.**
-   - Ticket section from the committed breakdown: `ticket_page.py ticket --repo <planning worktree> --key <KEY>
-     --breakdown docs/specs/<epic-slug>.md --branch feature/v9-<EPIC>-planning [--backfill] --out
-     <scratch>/<KEY>.md`. Exit 3 (no entry for the key) → the Jira description (`--text`, `--source "the Jira
-     description of <KEY>"`); exit 2 (several entries match) → the Jira description too, and report it.
-   - The branch, checked, never assumed: `git -C <planning worktree> branch --list <branch>` and `git ls-remote
+   - Ticket section from the breakdown: `ticket_page.py ticket --repo <checkout> --key <KEY> --breakdown
+     <.claude/work/<EPIC>/breakdown.md, or with --pages-only the saved breakdown page> --source "the epic breakdown
+     page \`<title>\` (Confluence page <id>, <as published by this spec run | version <N> as read>)" [--backfill]
+     --out <scratch>/<KEY>.md` (the working copy carries the keys Step 6.6 publishes, so name no version for it).
+     Exit 3
+ (no entry for the key, or no breakdown page) → the Jira
+     description (`--text`, `--source "the Jira description of <KEY>"`); exit 2 (several entries match) → the Jira
+     description too, and report it.
+   - The branch, checked, never assumed: `git -C <checkout> branch --list <branch>` and `git ls-remote
      --heads origin <branch>`. Found → `branch_state: exists`; checked and absent → `absent`; not checkable (no
      branch named, no remote) → leave it out (the header says "not checked").
    - meta: status `Planned` for a ticket created in this run; for a backfill status `Backfilled`, `backfilled` =
@@ -241,9 +249,10 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
      as its "search once more"; after the batch, list the container **once more** and report any ticket that now has
      two pages (a concurrent run).
 4. **Record the id** where later skills find it without a worktree: the ticket's Jira link comment (`Ticket page:
-   … (Confluence page id <id>)`, posted by `create`) and the ticket's entry in the breakdown (`- **Ticket page:**
-   Confluence page <id> (<url>)`, or the fallback line). Commit the breakdown on the planning branch ("Records the
-   <EPIC> ticket pages"). `plan-feature` later finds the page from the link comment, else by the title search under
+   … (Confluence page id <id>)`, posted by `create`) and the ticket's entry in the breakdown working copy (`-
+   **Ticket page:** Confluence page <id> (<url>)`, or the fallback line), which Step 6.6 publishes to the breakdown
+   page (not with `--pages-only`: the link comment is then the record). Nothing is committed. `plan-feature` later
+   finds the page from the link comment, else by the title search under
    the container (`title ~ "Plan: <KEY>"` filtered on the `Plan: <KEY> - ` prefix, so a renamed summary still
    matches), and fills it; nothing is recorded in a ticket worktree here (none exists yet).
 5. A failure (Atlassian down, a refused render) never stops the run: report the ticket and the error; a re-run (or
@@ -252,7 +261,7 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
 **Cost and prompts.** Per ticket: one `getJiraIssue` with all comments (large on a long-running ticket), the
 skeleton render (local), **two writes**: the `createConfluencePage` and the link comment (`addCommentToJiraIssue`),
 each through its own permission prompt, and the local verify. Per batch: the container listing before and after,
-and the breakdown commit. In the fallback, one write per ticket (the comment). Example: backfilling AIUE-8 with the
+and the breakdown page update (Step 6.6). In the fallback, one write per ticket (the comment). Example: backfilling AIUE-8 with the
 default status rule creates pages for its five To Do children (AIUE-48, 51, 67, 69, 71): 10 writes and prompts,
 5 issue reads; the 14 In Review children are skipped (12 of them have no page). Without the rule it would have been 17 pages, 34 prompts.
 
@@ -264,8 +273,8 @@ default status rule creates pages for its five To Do children (AIUE-48, 51, 67, 
 
 ## Output
 
-1. A ticket breakdown at `docs/specs/<epic-slug>.md` (always).
-2. A Confluence child page under the PRD (when the PRD came from Confluence, either by page id or by epic key).
+1. A ticket breakdown working copy at `.claude/work/<EPIC>/breakdown.md` (always; local, never committed).
+2. The breakdown's Confluence child page under the PRD, its lasting home (whenever a PRD page is known).
 3. Real Jira issues under the epic, when an epic key was known (Step 6). Existing children are never duplicated.
 4. One ticket page per ticket under `Ticket plans: <EPIC>` (a child of the PRD), linked from the ticket and recorded
    in the breakdown, or a `PIV record` Jira comment when there is no PRD page (Step 6b), for new tickets and for
@@ -278,4 +287,7 @@ plan through the `ticket-page` skill; `execute`, `validate` and the review gates
 ## Notes
 
 - Issue management: the course standardizes on Jira (via Atlassian MCP); GitHub Issues, Asana, and Archon's task system are equivalent — the slicing logic is the same.
+- The epic's progress log, when one is kept, is a Confluence child page of the PRD titled `Progress: <EPIC>` (dated,
+  append-only entries; owner decisions attributed as in `close-epic`), never a repo file (`branching.md`).
+
 - Greenfield: the same slicing applies to MVP phases instead of epic tickets.

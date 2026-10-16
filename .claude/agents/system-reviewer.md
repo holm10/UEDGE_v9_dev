@@ -63,8 +63,10 @@ Based on patterns across divergences — not one-offs — suggest specific, acti
 
 ## Output
 
-Provide your analysis in this structure (and, if asked, save it to
-`.claude/system-reviews/[feature-name]-review.md`):
+Provide your analysis in this structure (and, if asked, save it to the local working folder,
+`.claude/work/<KEY>/system-review.md`: a working document, never committed; the main session records its actions on
+the ticket page and files them as `ai-layer` issues):
+
 
 **Meta Information** — plan path, execution report path, date.
 

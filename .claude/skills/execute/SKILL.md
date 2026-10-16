@@ -1,14 +1,15 @@
 ---
 name: execute
 description: Executes an implementation plan task-by-task with validation at every step. Use when you have a completed feature plan and want to implement it in one pass.
-argument-hint: [path-to-plan] [--no-tracker] [--tracker-dry-run]
+argument-hint: [path-to-plan, default .claude/work/<KEY>/plan.md] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Execute: Implement from Plan
 
 ## Plan to Execute
 
-Read plan file: `$ARGUMENTS`
+Read plan file: `$ARGUMENTS` (default `.claude/work/<KEY>/plan.md` in the ticket's worktree: a local working copy,
+never committed).
 
 ## Execution Instructions
 
@@ -17,6 +18,13 @@ Read plan file: `$ARGUMENTS`
 - Check the branch first: you must be on the plan's **Branch / worktree** (`git branch --show-current`). If you
   aren't, `cd` into that worktree. If it doesn't exist, create it as in `plan-feature` Phase 0b. Never execute on a protected
   or AI-layer branch (`.claude/context/branching.md`)
+- **No plan file?** In a fresh worktree or on another machine the working copy isn't there (it is never committed).
+  For a Jira ticket, rebuild it from the ticket page: read the page (`getConfluencePage`, `contentFormat:
+  "markdown"`, saved), then `uv run .claude/skills/ticket-page/ticket_page.py extract-plan --current <saved page> --out
+  .claude/work/<KEY>/plan.md`, and record it as the published copy (`ticket_page.py state --repo <worktree> --key
+  <KEY> --save-plan .claude/work/<KEY>/plan.md --set page_id=<id> plan_source="page version <N>"`). Say in the report
+  that the plan was rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for
+  the plan (or run `plan-feature`)
 - Read the ENTIRE plan carefully
 - Read `CLAUDE.md` and every `.claude/context/` module the plan references
 - Note the plan's **type** (physics / refactor / numerics / bug fix / Python-build) and whether default results
@@ -52,13 +60,16 @@ For EACH task in "Step by Step Tasks":
 - At the start: `ticket-page <KEY> status Executing`. Per task, nothing is sent; keep notes for the summary.
 - A deviation from the plan or an unexpected finding: `ticket-page <KEY> log "Findings and decisions" "Agent: …"`
   (queued). An owner decision: the same with `Owner: … (source)` and `--flush`.
-- If the plan has to change (an amendment), revise and commit it first, then `log Progress "Plan amended (<sha>):
-  <why>"` and `ticket-page <KEY> publish`.
+- If the plan has to change (an amendment), revise the working copy first (never commit it), then `log Progress
+  "Plan amended: <why>"` and `ticket-page <KEY> publish` (the page records the new date and sha256).
 - At the end (after step 4): **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
   <first>..<last>; <deviations or none>" --flush`. It also sends the validate entries queued during execution.
 - Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
   queued for the end-of-execute flush.
-- A failed ticket-page call never stops execution: note it in the report; the entries stay queued.
+- A failed ticket-page call never stops execution: note it in the report; the entries stay queued, and with the
+  working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
+  it before a flush that leaves nothing queued.
+
 
 ### 3. Implement Testing Strategy
 

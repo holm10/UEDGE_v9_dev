@@ -9,15 +9,20 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 
 ## Prerequisites
 
-- RCA document at `docs/rca/issue-$ARGUMENTS.md` (create it with the `rca` skill first if missing).
+- RCA at `.claude/work/issue-$ARGUMENTS/rca.md` in the issue's worktree (a local working copy, never committed;
+  create it with the `rca` skill first). If the worktree has no copy (a fresh worktree, another machine), rebuild it
+  from its published copy: with a Jira key, `ticket_page.py extract-plan --current <the ticket page as read> --out
+  <that path>` (the page's RCA section); otherwise from the RCA comment on the GitHub issue (`gh issue view
+  $ARGUMENTS --comments`). Neither exists → run `rca` again.
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
 - Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key); a GitHub issue with no
-  Jira key gets no record. With an epic PRD page, the RCA is this ticket's plan: once it is committed, run
-  `ticket-page <KEY> publish --rca docs/rca/issue-$ARGUMENTS.md` (it fills the ticket's page that `spec` created,
-  or creates it if there is none; the page mirrors the RCA under `## RCA`, and the `**Ticket page**` line goes in the
-  RCA's header). Without one, the same call posts a short `PIV record: plan` comment
-  summarising the RCA. `--no-tracker` skips the record; `--tracker-dry-run` only shows it. The allowed tools above
+  Jira key gets no record (its RCA is a comment on the GitHub issue, posted by `rca`). With an epic PRD page, the RCA
+  is this ticket's plan: `rca` has normally published it already; if not (or after a revision), run `ticket-page
+  <KEY> publish --rca .claude/work/issue-$ARGUMENTS/rca.md` (it fills the ticket's page that `spec` created, or
+  creates it if there is none; the page mirrors the RCA under `## RCA`, cited by publish date and sha256; nothing is
+  committed). Without one, the same call posts a short `PIV record: plan` comment summarising the RCA.
+  `--no-tracker` skips the record; `--tracker-dry-run` only shows it. The allowed tools above
   pre-approve the helper and the Atlassian reads; writes to Jira and Confluence still go through the normal
   permission prompt.
 - Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
@@ -108,6 +113,11 @@ Fixes <short description> (#$ARGUMENTS)
 
 Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
 
+**Where the record goes without a Jira key.** The review reports and responses are local working files
+(`.claude/work/issue-$ARGUMENTS/reviews/`, never committed), and there is no ticket page. Put the review outcome
+(verdict, rounds, open or deferred findings, criteria not independently verified) and the reproduction before/after
+in the PR description; post it on the issue only when the user asks.
+
 ## 5b. Ticket record after the commit
 
 With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed` and `ticket-page <KEY> log Progress
@@ -120,5 +130,9 @@ issues (see `system-review`), never edits on this branch.
 
 ## Notes
 
-- If the RCA turns out to be wrong, update it with the new findings before changing more code.
+- If the RCA turns out to be wrong, update the working copy with the new findings before changing more code, and
+  publish the revision (`ticket-page <KEY> publish --rca …`, or, for a GitHub issue only, a new comment on the issue
+  that starts "Revises the RCA above:", asking first as `rca` does).
+- Flush the ticket page (nothing queued) before the worktree is removed: the working folder goes with it.
+
 - Extra problems found along the way go into separate issues/RCAs, not this fix.

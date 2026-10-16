@@ -46,7 +46,11 @@ git log --oneline -10
 git log --oneline v9-develop..HEAD
 ```
 
-Also list open work products: `docs/physics_specs/`, `docs/reviews/`, `docs/rca/`, `.claude/plans/`.
+Also list open work products: physics specs (`docs/physics_specs/`, committed) and the local working folder
+(`ls .claude/work/`: plans, reviews, RCAs and other working documents in progress; gitignored, so `git status` doesn't
+show them). For a ticket worktree, check the `ticket-page` outbox (`uv run
+.claude/skills/ticket-page/ticket_page.py queue --repo . --key <KEY> --list`): queued entries are not on the page yet
+and must be flushed before the worktree is removed.
 
 Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
 (`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD` and report any
@@ -61,6 +65,8 @@ Keep it short and scannable:
 - **Rules that bite here** — the specific hard rules / gotchas / context-module points that apply
   (e.g. threadprivate, refactor-vs-physics defaults, MPPL hazards).
 - **Branch state** — branch and its kind (protected / AI layer / ticket), ahead of `v9-develop` by N, uncommitted
-  changes, worktrees, open specs/plans/reviews, branch-policy violations. If the task doesn't match the branch kind
+  changes, worktrees, open specs and working documents, queued ticket-page entries, branch-policy violations. If the
+  task doesn't match the branch kind
+
   (product work on an AI-layer branch or the reverse), say which branch and worktree to switch to.
 - **Suggested next step** — `plan-feature`, the physics pipeline, `rca`, or a direct small change.

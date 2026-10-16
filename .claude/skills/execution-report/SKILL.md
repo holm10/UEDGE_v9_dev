@@ -18,11 +18,19 @@ You have just finished implementing a feature. Before moving on, reflect on:
 
 ## Generate Report
 
-Save to: `.claude/execution-reports/[feature-name].md`
+Save to: `.claude/work/<KEY>/execution-report.md` in the ticket's worktree (`<slug>` without a ticket). It is a
+working document: gitignored, never committed (`.claude/context/branching.md`).
+
+For a Jira ticket, put its lasting content on the ticket page once it is written: `ticket-page <KEY> log "Findings and
+decisions" "Agent: execution report: <each divergence in a line: planned / actual / why>; skipped: <items or none>;
+deferred MINORs: <ids or none>; recommendations: <one line each>" --flush` (it runs after the commit's flush, so it
+flushes itself). `--no-tracker` skips it. Without a ticket record the report stays local: say so, and put anything a
+later reader needs in the PR description.
 
 ### Meta Information
 
-- Plan file: [path to plan that guided this implementation]
+- Plan file: [path to the plan's working copy, and its published sha256 on the ticket page if any]
+
 - Files added: [list with paths]
 - Files modified: [list with paths]
 - Lines changed: +X -Y

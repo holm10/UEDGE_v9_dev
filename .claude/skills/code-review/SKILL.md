@@ -85,7 +85,10 @@ the call sites or building. Drop anything you cannot substantiate.
 
 ## Output
 
-**Locally:** save the report to `.claude/code-reviews/<short-name>.md`.
+**Locally:** save the report to `.claude/work/<KEY>/code-review.md` (`<slug>` without a ticket): a working document,
+gitignored and never committed. Fixes it leads to are recorded where the work is (commits; the ticket page through
+`execute` or the review loop).
+
 **In CI (pull request):** post the same content as a single PR comment and do not modify files.
 
 ```

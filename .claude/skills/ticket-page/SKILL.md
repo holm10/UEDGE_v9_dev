@@ -220,8 +220,10 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
   1. Ticket section: `ticket_page.py ticket --repo <checkout> --key <KEY> --breakdown <file> --source "the epic
      breakdown page \`<title>\` (Confluence page <id>, version <N>)" [--backfill] --out <scratch>/ticket.md`. The
      breakdown file is the breakdown page as read (`getConfluencePage`, `contentFormat: "markdown"`; a saved tool
-     result works as it is), or `spec`'s working copy `.claude/work/<EPIC>/breakdown.md` of the version it just
-     published (the source still names the page and that version). The ticket's entry is found by `` `<KEY>` `` in
+     result works as it is; the source then names its version), or `spec`'s working copy
+     `.claude/work/<EPIC>/breakdown.md` of what it publishes (the source names the page "as published by this spec
+     run"). The ticket's entry
+ is found by `` `<KEY>` `` in
      its heading, else by a `Branch:` line (plain or bold) naming `v9-<KEY>-` or `v9-ai-<KEY>-` among the entry's own
      lines, else by the key in a heading that names no other key. Exit 3 (no entry, e.g. a ticket added after the
      breakdown, or an epic without a breakdown page) or exit 2 (several entries match; report it) → write the Jira

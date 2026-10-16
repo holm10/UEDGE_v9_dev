@@ -11,15 +11,22 @@ description: Creates a git commit for the current work with an explicit file lis
 2. Check the branch and the change class (`.claude/context/branching.md`). After staging (step 3), run
    `uv run .claude/hooks/change_kind.py --staged` and resolve every VIOLATION before committing:
    - protected branch (`main`, `develop`, `v9-main`, `v9-develop`) → stop and create the ticket branch;
-   - product files or ticket artifacts on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`) → unstage them and
-     commit them on their ticket branch;
+   - a working document on any branch (anything in `.claude/work/`, a plan, review report or response, validation
+     record, RCA, execution or system review, PRD copy, breakdown, progress log or close-out record, also under the
+     old paths `.claude/plans/`, `docs/{prds,specs,reviews,rca}/`) → unstage it. It is never committed: its lasting
+     content belongs on the ticket page (`ticket-page`) or the epic's Confluence pages. Physics specs
+     (`docs/physics_specs/`) are product files and are committed with the physics change;
+   - product files on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`) → unstage them and commit them on their
+     ticket branch;
    - AI-layer process files on a ticket branch → if they only keep `CLAUDE.md`/`.claude/context/` accurate about
      code this branch changes, add the trailer `AI-layer: code-facts`. Otherwise unstage them and move them to a
      `feature/v9-ai-<slug>` branch.
    The PreToolUse hook runs the same check on `git commit` and blocks violations, so fix them here instead of
    working around the block. **Never** add the trailer to get a process change through.
 3. **Stage explicitly** by path: only files that belong to this change. Never `git add -A` / `git add .`.
-   Do not stage `logs/`, build output, generated `.F` files, scratch scripts, or large data files unless asked.
+   Do not stage `logs/`, build output, generated `.F` files, scratch scripts, large data files unless asked, or
+   working documents (`.claude/work/` and the old working paths are gitignored; never `git add -f` them).
+
    New `.f`/`.c` sources need `git add -f` (gitignored patterns).
 4. Write the message in the repo's style:
    - Subject: imperative, capitalised, no tag prefix, ≤ 72 chars — "Fixes …", "Adds …", "Updates …",

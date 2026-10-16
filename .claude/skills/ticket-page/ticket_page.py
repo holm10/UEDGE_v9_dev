@@ -299,7 +299,12 @@ def entry_text(e):
 STUB = "Plan page for {key}; content follows."
 TICKET = "Ticket"
 PLAN_BACKFILLED = ("_Not mirrored here yet: this page was created after the ticket was filed (see Backfilled above);"
-                   " the plan, if any, is on the ticket branch. The next `publish` from that branch mirrors it here._")
+                   " the plan, if any, is a working copy in the ticket's worktree (or, for older tickets, committed on"
+                   " its branch). The next `publish` from that worktree mirrors it here._")
+# The same placeholder as pages made before plans left git carry it (extract-plan must not take it for a plan).
+OLD_PLAN_BACKFILLED = ("_Not mirrored here yet: this page was created after the ticket was filed (see Backfilled"
+                       " above); the plan, if any, is on the ticket branch. The next `publish` from that branch mirrors"
+                       " it here._")
 PLAN_PLACEHOLDER = ("_Not written yet: `plan-feature` mirrors the ticket's plan here (`implement-fix` mirrors its RCA"
                     " under an RCA heading instead)._")
 
@@ -499,8 +504,9 @@ def cmd_render(a):
             header.append(
                 f"> **Backfilled:** {backfilled} · page created by `{meta['skill']}` after the ticket was filed"
                 + (f" (Jira status then: {meta['jira_status']})" if meta.get("jira_status") else "")
-                + "; the Ticket section is the scope as read then (its source line names the revision); the plan, if"
-                " any, is on the ticket branch and not yet mirrored here; earlier history is in the Jira comments.")
+                + "; the Ticket section is the scope as read then (its source line names where it was read); the"
+                " plan, if any, is in the ticket's worktree (older tickets: on its branch) and not yet mirrored here;"
+                " earlier history is in the Jira comments.")
         header += [
             attribution,
             ("> This page is the ticket's PIV record from now on." if backfilled else
@@ -988,7 +994,8 @@ def cmd_extract_plan(a):
                 start, title = i + 1, t
                 break
     body = "\n".join(lines[start:]).strip() if start is not None else ""
-    if not body or norm(body) in (norm(PLAN_PLACEHOLDER), norm(PLAN_BACKFILLED)):
+    if not body or norm(body) in (norm(PLAN_PLACEHOLDER), norm(PLAN_BACKFILLED), norm(OLD_PLAN_BACKFILLED)):
+
         print("ticket_page: the page has no plan mirrored yet (no Plan/RCA section, or only its placeholder)",
               file=sys.stderr)
         return 3
