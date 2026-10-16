@@ -18,6 +18,11 @@ their scope are in `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md`, §Linux cha
 | `run_ubuntu.sh` | Ubuntu: the import check without `LDFLAGS`, then the AIUE-56 build with `LDFLAGS=-fopenmp`, the FMA scan, and Te box and full problem at K=5 |
 | `gate_flows.py GATE LINKROOT HARNESS NAME=FLOW…` | runs the AIUE-56 C1 gate (`docs/reviews/AIUE-56-c1-gate.py` on `1553e75`) on every jac group |
 | `gate_summary.py FILE` | summarises the gate output per group |
+| `run_ci_replay.sh NAME COMMIT [SET]` | AIUE-57: replays the steps of `.github/workflows/build-test-omp.yml` in the Ubuntu image (clone at COMMIT, the workflow's pip line and build command, `ci/gen_dir.sh`, `ci/run_omp_ci.sh SET` with `OMP_CI_CORES=4`); `RUN_TREE=DIR` runs another clone's CI scripts against this build (negative control). Usage in its header |
+
+The AIUE-56 gate script judges the raw captured Jacobians when the build has the AIUE-47 capture hook, which is not
+the matrix its bound was set on; on such builds use `tests/deterministic_omp/ci/jac_bound.py` (the same bound on the
+scaled `post_exmain` Jacobian; it accepts `--harness` and the check-directory layout, so `gate_flows.py` can call it).
 
 ## Run order (as run)
 

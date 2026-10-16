@@ -2,15 +2,16 @@ name: OpenMP determinism - OpenMP Jacobian vs serial
 
 # AIUE-57 (epic AIUE-8). Builds the default OpenMP UEDGE and runs the AIUE-52 test flow
 # (tests/deterministic_omp/harness/cli.py flow) through tests/deterministic_omp/ci/run_omp_ci.sh,
-# which runs the same steps locally. The Jacobian arm gates (bitwise by default); the
-# Jacobian + parallel RHS arm is report-only. See tests/deterministic_omp/README.md, "CI".
+# which runs the same steps locally. Gated (exit != 0 turns the job red): the Jacobian arm, bitwise
+# against serial (on Linux x86-64 the AIUE-61 fixed partition equals serial bit for bit), with the
+# C1 bound on the scaled post_exmain Jacobian as a backstop (ci/jac_bound.py), and the Forthon
+# common-block check (ci/common_check.py). Report-only: the Jacobian + parallel RHS arm (its known
+# defects are epic AIUE-70). See tests/deterministic_omp/README.md, "CI".
 #
-# DO NOT MERGE until BOTH hold:
-#   1. the OpenMP Jacobian fix (AIUE-56) is merged (on the pre-fix code this job is red on every run), and
-#   2. the gate can be green on the AIUE-56 code: either decision 9 adds a tolerance gate, or AIUE-61
-#      removes the remaining round-off difference (C2/M2, ~1e-7 relative in Te rows). The AIUE-56 build is
-#      still red under the default bitwise gate.
-# Merged earlier, it would turn every push and pull request red.
+# Merge condition: with or after bugfix/v9-openmp-determinism-fix (the fixes this job tests), and
+# only once the first native ubuntu-latest run of the PR is green and inside the 20-min budget
+# (all earlier Linux evidence ran emulated). If native x86-64 shows C2-like round-off entries, the
+# owner decides; OMP_CI_JAC_TOLERANCE cannot rescue the --itermx flows.
 
 on:
   push:
@@ -44,10 +45,9 @@ jobs:
       OMP_CI_SET: ${{ github.event_name == 'schedule' && 'nightly' || inputs.set || 'pr' }}
       OMP_CI_OUT: ${{ github.workspace }}/omp-ci-out
       OMP_CI_GATE: jac
-      # Gate-mode switch (decision 9). Empty: the Jacobian arm gates bitwise. A value is passed to the
-      # flow as --jac-tolerance once the harness has a tolerance comparator; until then it stops with exit 2.
-      # Under --itermx 3 that comparator must also cover yldot and fnrm (the Newton path moves), or the gated
-      # flows must be one-evaluation ones.
+      # Gate mode. Empty (keep it so on this Linux runner): the Jacobian arm gates bitwise. A value V in
+      # (0, 1e-6] switches run_omp_ci.sh to tolerance mode (a Jacobian-only, deterministic difference within
+      # V x serial row max passes); it exists for macOS replays, where C2 leaves round-off differences.
       OMP_CI_JAC_TOLERANCE: ""
     steps:
     - uses: actions/checkout@v4
@@ -72,7 +72,12 @@ jobs:
         python -m pip install -v .
         echo "OMP_CI_BUILD_S=$(( $(date +%s) - t0 ))" >> "$GITHUB_ENV"
 
-    - name: Unit tests, smoke test and OpenMP test flow
+    - name: Locate the generated sources (common-block check)
+      run: |
+        gen=$(bash tests/deterministic_omp/ci/gen_dir.sh .)
+        echo "OMP_CI_GEN_DIR=$gen" >> "$GITHUB_ENV"
+
+    - name: Unit tests, smoke test, common-block check, OpenMP test flow and C1 bound
       env:
         PYTHON: python
       run: |
@@ -102,6 +107,7 @@ jobs:
           omp-ci-out/ci.log
           omp-ci-out/**/summary.md
           omp-ci-out/**/flow.json
+          omp-ci-out/**/bound.json
           omp-ci-out/**/run.log
           omp-ci-out/**/record.json
           omp-ci-out/**/spec.json
