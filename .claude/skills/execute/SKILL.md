@@ -1,7 +1,7 @@
 ---
 name: execute
 description: Executes an implementation plan task-by-task with validation at every step. Use when you have a completed feature plan and want to implement it in one pass.
-argument-hint: [path-to-plan]
+argument-hint: [path-to-plan] [--no-tracker] [--dry-run]
 ---
 
 # Execute: Implement from Plan
@@ -47,6 +47,15 @@ For EACH task in "Step by Step Tasks":
 - After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix the `.m`
   source for any error reported in the generated `.F`
 - Run the task's VALIDATE command before moving on
+
+#### d. Log it on the ticket record
+- For a Jira ticket, run `ticket-page <KEY> log Progress "Task <n> done: <what>, commit <sha>"` (the first time also
+  `status Executing`). A deviation from the plan, an unexpected finding, or an owner decision goes to
+  `log "Findings and decisions" "…"` with who decided (`ticket-page` → Attribution). One short entry per task or
+  commit; never paste diffs or logs.
+- If the plan has to change (an amendment), revise and commit it first, then `ticket-page <KEY> publish` with
+  `log Progress "Plan amended (<sha>): <why>"`.
+- A failed ticket-page call never stops execution: note it in the report; the next call resends the queued entries.
 
 ### 3. Implement Testing Strategy
 
@@ -101,7 +110,7 @@ caller the ready-to-use reviewer prompt that loop describes.
 
 ## Output Report
 
-Provide summary:
+Provide summary (and the ticket record's status: page URL or Jira comments, and any entries still queued):
 
 ### Completed Tasks
 - List of all tasks completed

@@ -1,6 +1,6 @@
 ---
 name: close-epic
-description: Closes out a Jira epic. Gathers everything the epic produced (Jira epic and children with comments, the PRD and its Confluence child pages and comments, the planning branch's breakdown and progress log, every ticket branch or merge, review reports and responses, RCA documents, physics specs, execution and system-review reports), saves a snapshot of the Jira and Confluence sources, checks it against the PRD's success criteria, and writes a detailed close-out record of what changed, the results, the decisions and who took them, the discussion, deviations and deferred work. The record passes an adversarial uedge-reviewer gate, is published as a child page of the PRD and linked from the epic. The epic moves to Done only when the owner confirms. Use when an epic's tickets are finished, or with --dry-run for a read-only draft of an epic in progress.
+description: Closes out a Jira epic. Gathers everything the epic produced (Jira epic and children with comments, the PRD and its Confluence child pages and comments, the per-ticket plan pages under "Ticket plans" for the epic, the planning branch's breakdown and progress log, every ticket branch or merge, review reports and responses, RCA documents, physics specs, execution and system-review reports), saves a snapshot of the Jira and Confluence sources, checks it against the PRD's success criteria, and writes a detailed close-out record of what changed, the results, the decisions and who took them, the discussion, deviations and deferred work. The record passes an adversarial uedge-reviewer gate, is published as a child page of the PRD and linked from the epic. The epic moves to Done only when the owner confirms. Use when an epic's tickets are finished, or with --dry-run for a read-only draft of an epic in progress.
 argument-hint: "<jira-epic-key> [--dry-run]"
 ---
 
@@ -9,7 +9,7 @@ argument-hint: "<jira-epic-key> [--dry-run]"
 ## Overview
 
 The last step of the epic flow: `create-prd` → `spec` → one PIV loop per ticket → **`close-epic`**. An epic's
-history is spread over Jira (status, comments), Confluence (PRD, breakdown, comments), the planning branch (PRD copy,
+history is spread over Jira (status, comments), Confluence (PRD, breakdown, the ticket pages, comments), the planning branch (PRD copy,
 breakdown, progress log, PRD reviews) and one branch or merge per ticket (plans, reviews, RCAs, validation records).
 This skill collects it into one record that someone who wasn't there can read: what the epic set out to do, what it
 changed, what it measured, what was decided by whom and why, and what is left.
@@ -83,7 +83,8 @@ fields you use (no paraphrase; avatar and `self` URLs may be dropped):
 | `jira-children.json` | every child: key, summary, type, status and status category, resolution, created, updated |
 | `jira-comments.md` | every child comment used: issue key, comment id, created, body verbatim (markdown avoids JSON-escaping long bodies) |
 | `jira-transitions.json` | the epic's transitions (id, name, target status category) |
-| `confluence-pages.json` | PRD and breakdown (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
+| `confluence-pages.json` | PRD, breakdown, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
+| `confluence-ticket-pages.md` | per ticket page: page id, version, and the header and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out: it mirrors the plan file on the ticket's branch; record instead the plan commit the header cites and whether it matches the branch's plan |
 | `confluence-prd.md`, `confluence-breakdown.md` | the page bodies as read. If a body matches the repo copy, store instead the repo copy's path and blob hash (`git rev-parse <rev>:<path>`), how you compared them, and every difference |
 | `confluence-comments.json` | footer and inline comments (open and resolved, with replies) on those pages, or `[]` |
 | `snapshot.md` | header: UTC time of the gather; `origin/v9-develop` sha; the planning branch tip; every ticket branch, merge commit or prototype worktree with its tip and `git status --short` line count; each Jira issue's `updated` |
@@ -126,11 +127,19 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    diff it against the local copy and list any difference in section 10. Extract: the success criteria (section 11),
    the binding decisions and assumptions (appendix), the default-results statement (section 9), the out-of-scope
    list, the review history, and the MINORs the PRD carried to the tickets.
-3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`) and any existing
-   `Close-out: <EPIC-KEY>` page (same exact-prefix rule). `getConfluencePage` on the breakdown (it can be newer than
-   the repo copy).
-4. `getConfluencePageFooterComments` and `getConfluencePageInlineComments` (`resolutionStatus` open **and**
-   resolved, `includeReplies: true`) on the PRD and the breakdown page.
+3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`), the
+   `Ticket plans: <EPIC-KEY>` container (exact title) and any existing `Close-out: <EPIC-KEY>` page (same exact-prefix
+   rule). `getConfluencePage` on the breakdown (it can be newer than the repo copy).
+4. **Ticket pages** (written by the `ticket-page` skill): `getConfluencePageDescendants` on the container → one
+   `Plan: <KEY> - …` page per ticket; `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
+   a dated index of each ticket's progress, validation results, review verdicts and decisions: use them to find the
+   records, and cite the repo record (report, validation file, commit) for every claim, with the page as a second
+   source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the source it
+   cites does (the attribution table above). Tickets without an epic PRD page keep the same log as `PIV record:`
+   comments on the Jira ticket, which step 4 of Jira already reads. A ticket with work but no page or PIV comments
+   is noted in section 10, not an open item.
+5. `getConfluencePageFooterComments` and `getConfluencePageInlineComments` (`resolutionStatus` open **and**
+   resolved, `includeReplies: true`) on the PRD, the breakdown page and the ticket pages.
 
 **Planning branch** `feature/v9-<EPIC-KEY>-planning` (find its worktree with `git worktree list`; otherwise read with
 `git show`):

@@ -1,7 +1,7 @@
 ---
 name: validate
 description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch, and the OpenMP serial-vs-parallel check when RHS/Jacobian code changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
-argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp]
+argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp] [--no-tracker]
 ---
 
 # Validate
@@ -96,3 +96,10 @@ Overall: ✅ READY / ❌ NOT READY
 ```
 
 Quote failing output verbatim. Never loosen tolerances or skip a suite to get green.
+
+## Ticket record
+
+On a ticket branch with a Jira key (from the branch name), run `ticket-page <KEY> log Validation "<entry>"` with
+`status Validating`: the report block's lines with the branch tip, and for each ❌ the failing output verbatim,
+trimmed to the failing part (the first error, the mismatching fnrm or variable lines). Skip it with `--no-tracker`.
+A failed call is noted under the report and never changes the verdict.

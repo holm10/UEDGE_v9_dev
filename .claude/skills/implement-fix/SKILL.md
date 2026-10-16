@@ -12,6 +12,9 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 - RCA document at `docs/rca/issue-$ARGUMENTS.md` (create it with the `rca` skill first if missing).
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
+- Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key). Then run the
+  `ticket-page` skill as `execute` and `validate` do (a page under the epic's PRD, or short Jira comments when the
+  ticket has no epic PRD page); a GitHub issue with no Jira key gets no record. `--no-tracker` turns it off.
 - Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
   issue is not on `origin`.
 
@@ -52,6 +55,8 @@ short plan) **before writing code**.
 4. Run the `validate` skill with the suites matching the area.
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
+
+With a Jira key, log the reproduction before/after (`log Progress`) and the validate result (`log Validation`).
 
 ## 4b. AI-layer facts
 
