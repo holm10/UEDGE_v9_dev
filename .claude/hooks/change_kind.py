@@ -75,7 +75,7 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
                "summarise them on the ticket page; if they really belong in the PR, say why in its description")
 
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
-HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|.*jac[^/]*$|.*\.v$|.*\.m$|setup\.py$|Makefile\.Forthon$|"
+HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|.*jac[^/]*$|.*\.v$|.*\.m$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
 
 
