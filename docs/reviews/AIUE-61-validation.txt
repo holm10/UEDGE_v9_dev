@@ -57,12 +57,40 @@ G8  PASS  NC3, NC4 below.
 G9a PASS  (CheckPandf1 part report-only, owner decision 2026-10-15 15:35, epic AIUE-70.) D_only, 125 files, one
           process each: AIUE-61-omp 121 pass / 4 fail, per-file IDENTICAL to AIUE-60-omp; AIUE-61-serial 120 / 5,
           IDENTICAL to AIUE-60-serial. CheckJac (gating): "CHECK OK jac iterm 4" on both builds.
-          CheckPandf1 (report only): AIUE-61-omp "CHECK OK pandf1 iterm 2"; AIUE-60-omp "CHECK FAILED pandf1
-          RuntimeError diff in rhsnk" with the same two lines as before:
-            >>>>   76   2032.0288514119870   2032.0288330644739   9.0291597447081350E-009
-            >>>>  132  -48175.314616658346  -48175.314617835662   2.4438147107762436E-011
-          (On the AIUE-56 base, AIUE-61 failed this check too; on the combined tree it passes. Not investigated here:
-          RHS arm, epic AIUE-70.)
+          CheckPandf1 (report only). CORRECTED after implementation review round 2 (I2-M1): the protocol's single
+          sample "CHECK OK pandf1 iterm 2" (a log with no Fortran output) does NOT reproduce. Repeated runs
+          (AIUE-61-ompcheck_rep.sh, D_only default case, 4 threads, env -i, GFORTRAN_UNBUFFERED_ALL=y, no timeout
+          wrapper; outputs scratch-AIUE-61/final/i2m1b/):
+            AIUE-61-omp_pandf1_1 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-61-omp_pandf1_2 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 1
+            AIUE-61-omp_pandf1_3 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 1
+            AIUE-61-omp_pandf1_4 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-61-omp_pandf1_5 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-60-omp_pandf1_1 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420
+            AIUE-60-omp_pandf1_2 exit=139 CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420 (SIGSEGV after)
+            AIUE-60-omp_pandf1_3 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420
+            AIUE-60-omp_pandf1_4 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-60-omp_pandf1_5 exit=133 (SIGTRAP; no CHECK line)
+            every FAILED run, both builds:
+              >>>>   76   2032.0288514119870   2032.0288330644739   9.0291597447081350E-009
+              >>>>  132  -48175.314616658346  -48175.314617835662   2.4438147107762436E-011
+            jac (gating): 5/5 exit=0 "CHECK OK jac iterm 4" on each build.
+          The SIGTRAP is not AIUE-61's: it occurs on AIUE-60-omp too (2/5; plus one SIGSEGV after the CHECK line), at
+          different points of the run (two runs before any solver output, others after the first exmain).
+          No timeout wrapper is involved (env -i straight into python). Under lldb (7 AIUE-61 runs, i2m1_lldb/try1-7):
+          every run "CHECK FAILED ... diff in rhsnk" with the same two lines; three of them then stopped at exit with
+          EXC_BAD_ACCESS in HDF5's teardown (libhdf5 H5FL_garbage_coll <- H5FL_term_package <- H5_term_library <- exit),
+          a symptom of earlier heap corruption (macOS libmalloc traps with SIGTRAP when it detects corruption).
+          Cause, found with the bounds-checked build (AIUE-61-chk, 2/2 runs, i2m1_chk/):
+            "At line 175 of file ../../ppp/omp_parallel.F90
+             Fortran runtime error: Index '1' of dimension 3 of array 'ylimsxpt' above upper bound of 0"
+          i.e. MakeXptChunks (parallel-RHS chunk setup, InitOMPPandf1, OMPParallelPandf1=1 only) writes ylimsxpt(:,:,1,:)
+          into an array allocated with MAXVAL(Nxptchunks)=0 X-point chunks on this small grid (Nxptchunks defaults to
+          int(iysptrx1/5)). Pre-existing (untouched by AIUE-61: git diff 1553e75 -- ppp/omp_parallel.F90 has no
+          ylimsxpt line; fedca33 "Adds working X-point chunking"). Hand-off to epic AIUE-70 (below).
+          The reviewer's hypothesis (one chunk -> the RHS outcome varies with the thread that built it) is not borne
+          out: all 9 completed AIUE-61 runs (2 repeats + 7 under lldb) fail identically to AIUE-60; the one "CHECK OK" sample is best explained
+          by the heap corruption.
 G9b PASS  D_only default case (neq 420): default (1 chunk) and min 1 (64 chunks), 4 threads K=3 and 2 threads:
           identical (9f5f1b184b7f3bb1) and 0 entries different from serial.
 G10 PASS  checkbounds build: tebox 1 chunk (4 threads); tebox 2 chunks at 8 threads K=5 (55abc672f0ba7dbe x5); full
@@ -97,6 +125,16 @@ R4 sensitivity (ttjstor, 3 interleaved repeats each, paired with AIUE-60 default
    Mid-size effect of Q5 (8-16 chunks stand in for neq ~ 2 400-4 800 at the default min length 300): with fewer
    chunks than about 4 per thread the dynamic tail dominates (8 threads: +43 % with 16 chunks, +112 % with 8).
    Te box: default 1 chunk ttjstor 0.06-0.10 s; 25 chunks 0.18-0.57 s (reset cost).
+   What the stand-in measures (I2-m1): forcing 8/16 chunks onto the FULL grid (chunks of 5 544/2 772 columns, reset
+   about 22-26 ms = under 1 % of a chunk) measures pure load imbalance of the dynamic tail; a real problem of neq
+   2 400-4 800 has 300-column chunks, a cheaper reset and a different column-cost profile, so x1.43/x2.12 can be too
+   high or too low. A real mid-size case is left to the follow-up ticket the coordinator files.
+   D_only default case (neq 420, 1 chunk by the Q5 rule), first-Jacobian ttjstor (AIUE-61-ompcheck.py time, 3 interleaved
+   runs each, quiet rule; final/r4_donly2/): T=4 NEW 0.0467-0.0468 s vs OLD 0.0152-0.0163 s (x2.9); T=8 NEW 0.0508-0.0550
+   s vs OLD 0.0146-0.0161 s (x3.4): small problems no longer parallelise the Jacobian (a few tens of ms per Jacobian).
+   Owner-directed documentation (R4): OMPJacMinChunkLen stays 300 for this ticket; ppp.v and openmp-jacobian.md now
+   say that problems with neq up to ~5 000 at 8 threads may build the Jacobian up to ~2x slower (neq<600 ~3x) than
+   OMPJacFixedChunks=0, with the knobs (smaller OMPJacMinChunkLen, or OMPJacFixedChunks=0).
 R5 Linux x86-64 (Debian 12, gfortran 12.2.0, AIUE-62 image aiue62:amd64, emulated by Rosetta on this Mac, --cpus 5,
    one container; AIUE-61-linux.sh). Build: b717734 with LDFLAGS=-fopenmp (AIUE-64 is not on this branch), CI command
    `python -m pip install -v .`, 191 s. Harness 8ee189d inside the container. Flows (jac arm, gate none):
@@ -228,3 +266,20 @@ AIUE-60-combined tree (AIUE-60 adds threadprivate scalars).
   Compile-checked in the scratch venv AIUE-61-probe; it is part of the final combined-tree build and run. The
   preliminary results above were obtained with 155e562 (without this print change).
 - I1-m1: the OMPJacFixedChunks description in ppp/ppp.v now names the unvalidated paths (line-neutral).
+
+## After implementation review round 2 (I2-M1, I2-m1, I2-m2; owner-directed R4 docs)
+- I2-M1: G9a's CheckPandf1 line corrected (above); 20 repeated self-check runs + 7 lldb runs + 2 bounds-checked runs.
+- AIUE-70 hand-off (for the owner / epic AIUE-70, parallel RHS): with OMPParallelPandf1=1 on a grid whose
+  iysptrx1 < 5 (Nxptchunks default 0; e.g. pytests D_only 8x4), MakeXptChunks writes past ylimsxpt (and the arrays
+  allocated beside it) at ppp/omp_parallel.F90:175: heap corruption, seen as random SIGTRAP (exit 133) or SIGSEGV
+  (exit 139), including at process exit in HDF5 teardown, on AIUE-60 and AIUE-61 alike. Independently, CheckPandf1 on
+  that case reports "diff in rhsnk" at iv 76 and 132 on every completed run of both builds.
+- PR line: "With OMPParallelPandf1=1 (not the default) the parallel-RHS self-check on small grids is affected by a
+  pre-existing out-of-bounds write in MakeXptChunks (AIUE-70); AIUE-61 doesn't change it."
+- I2-m1: R4 additions above. I2-m2: AIUE-61-ompcheck.py docstring matches the amended G9a (CheckJac gates, CheckPandf1
+  report only) and the caller records the exit status (AIUE-61-ompcheck_rep.sh).
+- ppp.v (OMPJacMinChunkLen description, line-neutral) and openmp-jacobian.md: the small-problem cost and knobs. The
+  .v change is description text only; compile-checked in the scratch venv AIUE-61-probe, full-problem hash unchanged
+  (see the line below). The gates above were run on b717734, before this description change.
+  Compile check of the description change (scratch venv AIUE-61-probe from the worktree): no warnings in ppp/*; full
+  problem, 4 threads: hash 8761cd9e36658ee1, 64 chunks (unchanged); ppp.getvardoc('OMPJacMinChunkLen') shows the new text.
