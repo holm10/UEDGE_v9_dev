@@ -64,8 +64,19 @@ C1 gate        FAIL docs/reviews/AIUE-56-c1-gate.py --harness tests/deterministi
                     raw row max 7.92e5. The OpenMP Jacobian is bitwise the one AIUE-61 validated (hash above); the gate
                     now also judges the raw matrix because AIUE-47's capture hook is in the build (the gate uses
                     captured[k] when present). AIUE-56/61 builds had no hook, so the C1 bound was only ever applied to
-                    the 1/suscal-scaled matrix. Needs an owner decision: is the pre-registered C1 bound meant for the raw
-                    matrix (then this is the C2 difference failing it), or only for post_exmain?
+                    the 1/suscal-scaled matrix.
+               PASS (decision) Coordinator decision, relayed after the run: the pre-registered C1 bound applies to the
+                    scaled post_exmain Jacobian. That is the matrix every AIUE-56/AIUE-61 gate evaluation used (no
+                    capture hook in those builds) and the one the solver uses. The raw captured[k] matrix is unscaled
+                    (its row max mixes column units), so its row-max-relative deviation (1.98e-4) is not the quantity
+                    the bound was set on. Per-matrix evaluation: post_exmain PASS, worst 4.59e-09 in every full run
+                    (t2, t4 x5, t8), identical to AIUE-61's G6; the matrix is bitwise AIUE-61's (hash 8761cd9e36658ee1).
+                    Raw numbers, for the record: captured[0] 118 entries over the bound, worst |a-b|/rowmax 1.98e-4 at
+                    row 11840 col 14104 (serial 157.117, OpenMP 0, raw row max 7.92e5); 114 of them present in serial
+                    and exactly zero (dropped) in OpenMP, 4 value differences; all Te rows, ni/ng columns.
+                    Tool issue: AIUE-56-c1-gate.py prefers captured[k] whenever the build has the AIUE-47 capture
+                    hook, so on any build with the hook it judges the raw matrix. To be fixed under AIUE-57 (its CI
+                    job uses the gate).
 G-common       OK   AIUE-60-common-check.py --venv venvs/omp-determinism-omp --gen build/temp.*:
                     "RESULT: PASS (first definer bbbpy 728 B; others apipy 96 B)"
 G-iotable      OK   AIUE-60-iotable-probe.py check, base venvs/AIUE-56-omp, new omp-determinism-omp, --harness this
@@ -75,5 +86,6 @@ Capture hook   OK   record.json capture: full t4 run0 count 1, source jac_calc_p
                     serial count 1, jac_calc; tebox run0 count 1. raw * (1/suscal)[col] == post_exmain bitwise in all
                     three.
 
-Overall: every check passes except the AIUE-56 C1 gate on the full problem's raw (captured) Jacobian. Clean-up (phase B)
-not done, pending the owner's decision on the C1 gate.
+Overall: PASS. Every check passes; the C1 gate passes on the scaled post_exmain Jacobian, the matrix the bound was
+set on (decision above). The raw-matrix FAIL is a gate-tool issue for AIUE-57. Clean-up (phase B) done after the
+decision.
