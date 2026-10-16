@@ -80,17 +80,20 @@ it with `MakeTests.py` on the `pytests` branch in a separate PR and explain the 
 
 - `build-test-wheel.yml` builds with `--serial`, Python 3.11, `numpy==1.26.4`; it does not exercise OpenMP.
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
-  (`pip install -v .`, Python 3.11, `numpy==1.26.4`) and runs `tests/deterministic_omp/ci/run_omp_ci.sh`, which runs
-  the harness unit tests, a smoke test and the OpenMP test flow (`tests/deterministic_omp/README.md`, "CI").
-  Triggers: `pull_request`, `push` to `v9-develop`/`main` only, and a nightly `schedule` (default branch only).
-  PR set: `tebox1` (2, 4 threads, K=3, `jac`, one evaluation: locates the defect cell), `tebox` (2, 4 threads, K=5,
-  both arms, `--itermx 3`) and `full` (2, 4 threads, K=2, `jac`, `--itermx 3`); nightly: `--all` one evaluation K=2
-  and `--itermx 3` K=3. Gate: the `jac` arm, bitwise (`OMP_CI_JAC_TOLERANCE` is the switch for a future tolerance
-  gate, which under `--itermx 3` must also cover `yldot`/`fnrm`); `jacrhs` is report-only.
-  **Merge condition:** only after AIUE-56 (the OpenMP Jacobian fix) **and** once the gate can be green on that code,
-  i.e. after decision 9 (a tolerance gate) or AIUE-61 (C2/M2 removed). The AIUE-56 build is still red under the
-  bitwise gate; merged earlier, the job turns every push and PR red. Same steps locally:
-  `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`.
+  (`pip install -v .`, Python 3.11, `numpy==1.26.4`; no `LDFLAGS` since AIUE-64) and runs
+  `tests/deterministic_omp/ci/run_omp_ci.sh`: harness and CI unit tests, a smoke test, the common-block check
+  (`tests/deterministic_omp/ci/common_check.py`), the OpenMP test flow, the C1 bound
+  (`tests/deterministic_omp/ci/jac_bound.py`) and `tests/deterministic_omp/ci/report.py`
+  (`tests/deterministic_omp/README.md`, "CI"). Triggers: `pull_request`, `push` to `v9-develop`/`main` only, and a
+  nightly `schedule` (default branch only). PR set: `tebox1` (2, 4 threads, K=3, `jac`, one evaluation),
+  `tebox` (2, 4 threads, K=5, both arms, `--itermx 3`), both Te-box flows with `OMPJacMinChunkLen=1` (25 chunks),
+  `up1` (4 threads, K=3, `jac`, one evaluation) and `full` (2, 4 threads, K=2, `jac`, `--itermx 3`); nightly:
+  `--all` one evaluation K=2, Te box 25 chunks at 2/4/8 threads, and `--all` `--itermx 3` K=3. Gate: the `jac` arm,
+  bitwise, plus the C1 bound on the scaled `post_exmain` Jacobian and the common-block check; `jacrhs` is
+  report-only (epic AIUE-70). `OMP_CI_JAC_TOLERANCE` (≤ 1e-6, empty in the workflow) is a tolerance mode for macOS
+  replays. Merges with or after `bugfix/v9-openmp-determinism-fix`, once its first native PR run is green within
+  20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
+  image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - In `build-test-wheel.yml` the "Install pip dependencies" step runs `pip install forthon>=0.10.7 ...` unquoted: the
   shell redirects to a file named `=0.10.7`, so Forthon is installed unpinned. (`build-test-omp.yml` quotes it.)
 - Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
