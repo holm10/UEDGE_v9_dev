@@ -1,0 +1,62 @@
+AIUE-46 validation — trimmed vs original case data
+Build: --serial build of v9-develop 0fac655 (venvs/base-serial), macOS arm64, gfortran 15, Homebrew LLVM clang.
+Originals: SHA-256 e0e4d590…abaf5 (b0p1.hdf5), 0283e4b9…032bc (save_input_mod4.h5); see README 'Provenance of the data'.
+
+Procedure (re-runnable): for each of {original data, trimmed data} x {full problem ftol=1e20, Te box, itermx=3},
+copy input_mod4.py, gridue.hdf5, mist.dat and the two HDF5 files to a fresh directory and run, in a fresh process,
+  UEDGE_OMP_RATES_DIR=<repo>/builder/test/Forthon_cases/Forthon_case5 OMP_NUM_THREADS=1 HOME=<empty> \
+  python -I <repo>/tests/deterministic_omp/tools/fingerprint.py [--tebox | --itermx 3]
+then compare the two fingerprint.json files byte for byte and the 'iter=' lines of the logs (grep -a).
+The script used is reproduced at the end of this file.
+
+## Results (fingerprint.py with yldot hashed before get_fnrm, after review I1-m3)
+== full: fingerprint IDENTICAL
+{"fnrm": "0x1.eb37d428ec4f0p+0", "jac": "b974ef0b0a4811b26d274228f2600168026f9445ee175b132cdbced19680089f", "jaci": "1a8dfbb156e445708fee55ca9e5d77dc0333e2b6e41ab02d8b67f47f6451a206", "jacj": "2eae17debdcbe582db0f27849feeccc73777584c6d797e1f9cdce105caed52db", "neq": 44352, "nnz": 3190290, "sfscal": "f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd", "suscal": "9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79", "yldot": "64e38678fcdbcd59db7c770be09c308736d7fcc381a857896437441ffc0fa3ba"}
+printed fnrm lines identical:
+ iter=   0 fnrm=      271985200.1005400     nfe=      1
+ iter=   0 fnrm=      1.918820629111277     nfe=      1
+== tebox: fingerprint IDENTICAL
+{"fnrm": "0x1.49db83f93d961p-2", "jac": "db5e6000717764548c15e12956f1346b4fb98664d6dd876b0abbbdac98867d59", "jaci": "995b8308b75049482615534a7d9e089f77ffdfd3d9bd7aca6365c05fc1d1662b", "jacj": "47a3c6d78fa85b06cde77235e3b4d57b5e0972333d54cdcc430796354ff09345", "neq": 25, "nnz": 169, "sfscal": "a05a8a84813a63671f6378449827c32274f219968729a9be63ea27825eb2f14a", "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "7e6456885465c003edb633ed1811148030c34b7cc73bbae08f4107d675830dec"}
+printed fnrm lines identical:
+ iter=   0 fnrm=      271985200.1005400     nfe=      1
+ iter=   0 fnrm=     0.3221264477609989     nfe=      1
+== iter3: fingerprint IDENTICAL
+{"fnrm": "0x1.c32f8166a1af7p+0", "jac": "1f6d700b12965b14e2207e689600db96a6c0c6067dd8e83bb2da068488dd85e3", "jaci": "89d1d14f7b135607058550a5a1e26bc03db106508f3a55623e339452ad2531ec", "jacj": "87837d99b57d117aa994b08da5e2a597e05dcaa66a7dd9a85e7a572cdb93d66a", "neq": 44352, "nnz": 3190290, "sfscal": "f3a8cc611d0dcde2ce0e261c77a5fa1f3469a75f25ea4d0c188a6f5cea6df6fd", "suscal": "9fcc4ec4e0f00d1124b3a503088c9ed005cabece070c04e46c8e0b794fd0fe79", "yldot": "f5c858b4fef3ca3ad2dc2ce4249f0722387fa58890d597344a8dbe56df068a3a"}
+printed fnrm lines identical:
+ iter=   0 fnrm=      271985200.1005400     nfe=      1
+ iter=   0 fnrm=      1.918820629111277     nfe=      1
+ iter=   1 fnrm=      1.836097068513709     nfe=     62
+ iter=   2 fnrm=      1.782757715864211     nfe=    134
+ iter=   3 fnrm=      1.762443625980891     nfe=    225
+
+## Reproduction with the OpenMP build (Te box, OMPParallelJac=1, OMP_NUM_THREADS=4, OMP_STACKSIZE=512M), 3 fresh runs, original fingerprint version:
+run 1: {"fnrm": "0x1.64d74c6e09155p-3", "jac": "cdfb3b7858a1d3e191359fdf0b8b3d6c7cef0d2b8a9b8f49ff93d348a7788ea8", "jaci": "0b7f76d5de2356c6f2a3b98546d02df16107a7ab53859979e035f15c19895225", "jacj": "4f767a2451def5aaaf0eddd314c7586a894e3785ac43adc8788cf99958d65d2c", "neq": 25, "nnz": 182, "sfscal": "1e79e92ebd51ab95371cd097e228beda66f3b83b86a90ca8b8e6a0bbee3d4b1e", "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "7e6456885465c003edb633ed1811148030c34b7cc73bbae08f4107d675830dec"}
+run 2: {"fnrm": "0x1.4c28a55c0c62bp-3", "jac": "5d17d1c3ad387a94a89554ffa2f5fac426aa1918ea2407d938702d23cf49eb2d", "jaci": "81ba64ad9c479cba9b2266bbe7fd8d40d3e043187291151e7673a6e32bcecaec", "jacj": "f0f5fc82049e312d69f60f33e9f45e79e618570f04412c8a3fcf6ff8c57aff8c", "neq": 25, "nnz": 179, "sfscal": "d05eaef7ba118b6dd48e34cad2dfcb792321cc6aa1b46bd00a8d3c9b6d42fb24", "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "7e6456885465c003edb633ed1811148030c34b7cc73bbae08f4107d675830dec"}
+run 3: {"fnrm": "0x1.270889388bc7ap-3", "jac": "f80dd9de42f80d51f2e3c25bc68d4748718fda47eef31ec519151d8059337e05", "jaci": "a79d39e9d69a1490ad278565977583c5e3078e8090cd5029746c882bd92a5872", "jacj": "fef3ff93c0ac63106efe068156796a1a921123f47e4f0922cd69daa7b5a1bba5", "neq": 25, "nnz": 177, "sfscal": "aa77cbdf42f80d43d74a0fab1b078307c174a8f62ff3f38d97240f93d40abaf8", "suscal": "1ae48ba55680df7d8870390b19325fe055d82e2c0b8c396fe33d9e8ef6e4edd8", "yldot": "7e6456885465c003edb633ed1811148030c34b7cc73bbae08f4107d675830dec"}
+
+## Committed sizes (bytes)
+   1055304  b0p1.hdf5
+    593152  save_input_mod4.h5
+   1034816  gridue.hdf5
+   1995690  mist.dat
+      7651  input_mod4.py
+total of the five data/deck files: 4686613 bytes
+
+## Comparison script
+```zsh
+#!/bin/zsh
+SP=/private/tmp/claude-501/-Users-holma-Documents-uedge-src-UEDGE-v9-dev/2129e705-3f07-427f-a973-d2dbc3c7ccdb/scratchpad
+PY=/Users/holma/Documents/uedge/src/uedge-wt/venvs/base-serial/bin/python
+FP=/Users/holma/Documents/uedge/src/uedge-wt/AIUE-46/tests/deterministic_omp/tools/fingerprint.py
+export UEDGE_OMP_RATES_DIR=/Users/holma/Documents/uedge/src/UEDGE_v9_dev/builder/test/Forthon_cases/Forthon_case5 OMP_NUM_THREADS=1 HOME=/tmp/emptyhome
+for v in orig trim; do for t in full tebox iter3; do
+  d=$SP/tc_${v}_$t; mkdir -p $d; cp $SP/run_$v/*.hdf5 $SP/run_$v/*.h5 $SP/run_$v/mist.dat $SP/run_$v/input_mod4.py $d/
+  case $t in full) a="";; tebox) a="--tebox";; iter3) a="--itermx 3";; esac
+  (cd $d && $PY -I $FP ${=a} > out.log 2>&1) &
+done; done; wait
+for t in full tebox iter3; do
+  if cmp -s $SP/tc_orig_$t/fingerprint.json $SP/tc_trim_$t/fingerprint.json; then r=IDENTICAL; else r=DIFFERENT; fi
+  echo "== $t: fingerprint $r"; cat $SP/tc_trim_$t/fingerprint.json; echo
+  diff <(grep -a "iter=" $SP/tc_orig_$t/out.log) <(grep -a "iter=" $SP/tc_trim_$t/out.log) > /dev/null && echo "printed fnrm lines identical:" && grep -a "iter=" $SP/tc_trim_$t/out.log
+done
+```

@@ -35,7 +35,7 @@ pip install . -C "--build-option=--checkbounds"
 # Smoke test
 python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 
-# Regression tests live on a separate branch (upstream/pytests), not in this repo
+# Regression tests live on a separate branch (upstream/pytests); tests/deterministic_omp/ holds only the OpenMP reproducer
 git worktree add ../uedge-pytests upstream/pytests
 pip install pytest pytest-isolate
 cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s

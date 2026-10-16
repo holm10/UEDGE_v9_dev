@@ -1,0 +1,9 @@
+# Scratch output of the owner's scripts and of local runs
+run*.txt
+log.txt
+testjac.hdf5
+firstjac*.hdf5
+secondjac*.hdf5
+fingerprint.json
+to_tom/
+__pycache__/
