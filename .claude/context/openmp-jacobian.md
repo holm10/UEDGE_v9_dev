@@ -53,6 +53,10 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
     (`bbb/odesetup.m:6727-6745`). Not validated: `nxpt=2` and coupled walls (still racy, AIUE-69, see "Known
     OpenMP-unsafe paths"), limiter sputtering and `istabon=5,6` (made thread-safe by AIUE-60, not tested here).
   - The three inputs take effect at the next `exmain` (`InitOMPJac` runs from `allocate`).
+  - Cost: the full problem (64 chunks) is within about 3 % of the old partition at 2-8 threads. Smaller problems get
+    fewer chunks (`neq/300`): with neq up to about 5 000 at 8 threads the Jacobian may take up to about 2x the old
+    partition's time, and below neq 600 (one chunk, e.g. the D_only pytests case) about 3x, a few tens of ms. Lower
+    `OMPJacMinChunkLen` (each chunk then pays one more full `pandf`) or set `OMPJacFixedChunks=0`.
   - `OMPJacFixedChunks=0` restores the earlier partition (`OMPJacNchunks`, `OMPAutoBalance`; it varies from run to
     run).
   - `OMPJacChunkReset=0` (debug, `ppp/ppp.v:41`) skips the reset, and the Jacobian then depends on the thread count.
