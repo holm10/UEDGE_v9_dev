@@ -1,7 +1,7 @@
 ---
 name: execute
 description: Executes an implementation plan task-by-task with validation at every step. Use when you have a completed feature plan and want to implement it in one pass.
-argument-hint: [path-to-plan] [--no-tracker] [--dry-run]
+argument-hint: [path-to-plan] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Execute: Implement from Plan
@@ -48,14 +48,15 @@ For EACH task in "Step by Step Tasks":
   source for any error reported in the generated `.F`
 - Run the task's VALIDATE command before moving on
 
-#### d. Log it on the ticket record
-- For a Jira ticket, run `ticket-page <KEY> log Progress "Task <n> done: <what>, commit <sha>"` (the first time also
-  `status Executing`). A deviation from the plan, an unexpected finding, or an owner decision goes to
-  `log "Findings and decisions" "…"` with who decided (`ticket-page` → Attribution). One short entry per task or
-  commit; never paste diffs or logs.
-- If the plan has to change (an amendment), revise and commit it first, then `ticket-page <KEY> publish` with
-  `log Progress "Plan amended (<sha>): <why>"`.
-- A failed ticket-page call never stops execution: note it in the report; the next call resends the queued entries.
+#### d. Ticket record (Jira tickets; `--no-tracker` skips it, `--tracker-dry-run` only shows it)
+- At the start: `ticket-page <KEY> status Executing`. Per task, nothing is sent; keep notes for the summary.
+- A deviation from the plan or an unexpected finding: `ticket-page <KEY> log "Findings and decisions" "Agent: …"`
+  (queued). An owner decision: the same with `Owner: … (source)` and `--flush`.
+- If the plan has to change (an amendment), revise and commit it first, then `log Progress "Plan amended (<sha>):
+  <why>"` and `ticket-page <KEY> publish`.
+- At the end (after step 4): **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
+  <first>..<last>; <deviations or none>" --flush`. It also sends the validate entries queued during execution.
+- A failed ticket-page call never stops execution: note it in the report; the entries stay queued.
 
 ### 3. Implement Testing Strategy
 

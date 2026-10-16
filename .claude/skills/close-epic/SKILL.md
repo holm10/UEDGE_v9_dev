@@ -130,8 +130,9 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
 3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`), the
    `Ticket plans: <EPIC-KEY>` container (exact title) and any existing `Close-out: <EPIC-KEY>` page (same exact-prefix
    rule). `getConfluencePage` on the breakdown (it can be newer than the repo copy).
-4. **Ticket pages** (written by the `ticket-page` skill): `getConfluencePageDescendants` on the container → one
-   `Plan: <KEY> - …` page per ticket; `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
+4. **Ticket pages** (written by the `ticket-page` skill): `searchConfluenceUsingCql` with `type = page AND parent =
+   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket (mirroring
+   its plan, or its RCA for an `implement-fix` ticket); `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
    a dated index of each ticket's progress, validation results, review verdicts and decisions: use them to find the
    records, and cite the repo record (report, validation file, commit) for every claim, with the page as a second
    source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the source it

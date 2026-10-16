@@ -1,7 +1,7 @@
 ---
 name: end-to-end-feature
 description: Autonomously develops a complete feature or Jira ticket from priming through planning, execution, an adversarial uedge-reviewer gate, and commit by chaining the core PIV-loop skills. Use when you want a full hands-off feature build from a single description or ticket key.
-argument-hint: [ticket-key or feature-description] [--no-tracker]
+argument-hint: [ticket-key or feature-description] [--no-tracker] [--tracker-dry-run]
 ---
 
 # End-to-End Feature Development
@@ -18,11 +18,12 @@ After Step 1, `cd` into that worktree and stay there for every later step.
 `docs/specs/<epic-slug>.md` (it lives on the epic's planning branch: `git show feature/v9-<EPIC>-planning:docs/specs/<file>`).
 The acceptance criteria are what the reviewer checks against, so quote them verbatim.
 
-**Ticket record.** For a Jira key, every step keeps the ticket's hosted record current through the `ticket-page`
-skill: `plan-feature` publishes the plan (a page under the epic's PRD, `Ticket plans: <EPIC>` → `Plan: <KEY> - …`, or
-short Jira comments when there is no epic PRD page), `execute` and `validate` log progress and validation, and the
-review loop below logs each verdict. `--no-tracker` turns it off for the whole run. Atlassian failures never stop a
-step; the queued entries go out with the next call.
+**Ticket record.** For a Jira key, the run keeps the ticket's hosted record through the `ticket-page` skill:
+`plan-feature` publishes the plan (a page under the epic's PRD, `Ticket plans: <EPIC>` → `Plan: <KEY> - …`, or short
+`PIV record` Jira comments when there is no epic PRD page), and entries are sent only at milestones: each closed review
+round, the end of `execute`, an escalation or owner decision, the commit (`ticket-page` → "When to flush"). Pass
+`--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
+review loop. Atlassian failures never stop a step; the entries stay queued for the next flush.
 
 **Stacking.** A ticket may start on a parent ticket's branch while the parent is still in review. When the parent
 changes (review fixes, rebase), rebase the child onto it and re-run the child's validation before its review.
@@ -108,7 +109,7 @@ to your caller: the work state, the validation output, and the ready-to-use revi
 runs the loop. Whoever runs the loop also decides who applies the fixes: itself, or the implementing agent (resumed
 with the findings). The one applying fixes re-validates before the next round. After a hand-off, the caller also
 owns the rest of this skill for that ticket: Step 4 (commit the reports), Step 5 (Learn) and the Final Summary.
-Whoever runs the loop also logs it to the ticket record (steps 2, 4 and the escalation).
+Whoever runs the loop also records it on the ticket record (steps 3, 4 and the escalation).
 
 1. **Prompt.** The reviewer can't see this conversation, so its prompt must be self-contained:
    - `stage` (`plan` or `implementation`), round number, ticket key (or feature name), branch and worktree path;
@@ -124,16 +125,17 @@ Whoever runs the loop also logs it to the ticket record (steps 2, 4 and the esca
    - the **absolute** report path: `<worktree>/docs/reviews/<KEY>-<stage>-round<N>.md` (a relative path can land in
      another checkout);
    - on rounds 2+: the previous report path and the response file (step 4).
-2. Wait for the completion notification, then read the report. Log it: `ticket-page <KEY> log Reviews "Reviewer:
+2. Wait for the completion notification, then read the report. Queue it: `ticket-page <KEY> log Reviews "Reviewer:
    <stage> round <N> <VERDICT> (<B> BLOCKER / <M> MAJOR / <m> MINOR), report docs/reviews/<KEY>-<stage>-round<N>.md"`
    (round 1 also `status Plan review` or `status Implementation review`).
-3. **APPROVE** → done with this stage (implementation stage: also `ticket-page <KEY> status Approved`). MINOR findings may be fixed: typo-level and documentation-only fixes need
+3. **APPROVE** → done with this stage; `ticket-page <KEY> flush` (implementation stage: `status Approved` first). MINOR findings may be fixed: typo-level and documentation-only fixes need
    only the validation they touch; any other change after APPROVE (code, tests, data, behaviour) needs a new round
    with a fresh reviewer on the changed diff. List deferred MINORs in the execution report.
 4. **REVISE** → fix every BLOCKER and MAJOR, or rebut it with evidence. Write the response to
    `docs/reviews/<KEY>-<stage>-round<N>-response.md` (finding → fixed where / rebutted why). Re-validate (implementation
-   stage). Log the response (`log Reviews "Agent: round <N> response, <n> fixed / <n> rebutted, <path>"`; a revised
-   plan is also re-published, as `plan-feature` says). Start round N+1 with a fresh reviewer.
+   stage). Record the response: `log Reviews "Agent: round <N> response, <n> fixed / <n> rebutted, <path>"`, then
+   flush (`ticket-page <KEY> flush`; for a revised plan, `publish` as `plan-feature` says is the flush). Start round
+   N+1 with a fresh reviewer.
    An implementation finding that shows the **plan** is wrong: revise the plan first, and for a high-risk plan
    (Step 2b list) re-run a plan round before changing the code.
 5. **REJECT** → stop and escalate (below).
@@ -142,9 +144,10 @@ Whoever runs the loop also logs it to the ticket record (steps 2, 4 and the esca
    branch). Criteria the reviewer marked *not independently verified* go into the PR description and the ticket, for
    the owner.
 
-**Escalation.** Log it first: `ticket-page <KEY> log "Findings and decisions" "Escalated: <open findings or the
-decision needed>"` with `status Escalated`; the owner's answer, when it comes, is logged the same way as an Owner
-entry with its source. When a person is available, show them the open BLOCKER/MAJOR findings and ask how to proceed. When
+**Escalation.** Record it first: `ticket-page <KEY> status Escalated` and `log "Findings and decisions" "Escalated:
+<open findings or the decision needed>" --flush`; the owner's answer, when it comes, is recorded the same way as an
+Owner entry with its source. For a ticket on the Jira fallback that `PIV record` comment is the escalation comment
+below: don't post a second one. When a person is available, show them the open BLOCKER/MAJOR findings and ask how to proceed. When
 running **unattended** (the user said they can't give feedback): leave the commits on the ticket branch as they are,
 record the open findings in the execution report and on the ticket (Jira comment, if a key is known), keep the ticket
 In Progress, and move on only to tickets that don't depend on it. Do the same for any decision the PRD or ticket
@@ -155,8 +158,8 @@ reserves for the owner: prepare the evidence and the options, and stop at the de
 ## Step 4: Commit - Save Changes
 
 Commit what is not yet committed (the review reports and responses, any last fixes) with the `commit` skill
-(`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> log Progress "Committed <sha>: <subject>"` with
-`status Committed`.
+(`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committed` and `log Progress "Committed <sha>:
+<subject>" --flush`.
 
 ---
 

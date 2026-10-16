@@ -1,8 +1,8 @@
 ---
 name: implement-fix
 description: Implements a UEDGE bug fix for a GitHub issue from its RCA document, verifies it on the reproducing case, and runs the validate gate. Use after an RCA document exists and you are ready to fix the issue.
-argument-hint: [github-issue-id]
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*)
+argument-hint: [github-issue-id] [--no-tracker] [--tracker-dry-run]
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*), Bash(uv:*), mcp__atlassian__getAccessibleAtlassianResources, mcp__atlassian__getJiraIssue, mcp__atlassian__searchConfluenceUsingCql, mcp__atlassian__getConfluencePage
 ---
 
 # Implement Fix: GitHub Issue #$ARGUMENTS
@@ -12,9 +12,13 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 - RCA document at `docs/rca/issue-$ARGUMENTS.md` (create it with the `rca` skill first if missing).
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
-- Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key). Then run the
-  `ticket-page` skill as `execute` and `validate` do (a page under the epic's PRD, or short Jira comments when the
-  ticket has no epic PRD page); a GitHub issue with no Jira key gets no record. `--no-tracker` turns it off.
+- Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key); a GitHub issue with no
+  Jira key gets no record. With an epic PRD page, the RCA is this ticket's plan: once it is committed, run
+  `ticket-page <KEY> publish --rca docs/rca/issue-$ARGUMENTS.md` (the page mirrors the RCA under `## RCA`, and the
+  `**Ticket page**` line goes in the RCA's header). Without one, the same call posts a short `PIV record: plan` comment
+  summarising the RCA. `--no-tracker` skips the record; `--tracker-dry-run` only shows it. The allowed tools above
+  pre-approve the helper and the Atlassian reads; writes to Jira and Confluence still go through the normal
+  permission prompt.
 - Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
   issue is not on `origin`.
 
@@ -56,7 +60,8 @@ short plan) **before writing code**.
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
-With a Jira key, log the reproduction before/after (`log Progress`) and the validate result (`log Validation`).
+With a Jira key, queue the reproduction before/after (`log Progress`); `validate` queues its result. They go out
+with the implementation review's flush (4c) and the final commit's flush.
 
 ## 4b. AI-layer facts
 
@@ -100,6 +105,11 @@ Fixes <short description> (#$ARGUMENTS)
 ```
 
 Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
+
+## 5b. Ticket record after the commit
+
+With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed` and `ticket-page <KEY> log Progress
+"Committed <sha>: <subject>" --flush`.
 
 ## 6. Process lessons
 

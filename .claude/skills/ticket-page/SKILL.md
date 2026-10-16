@@ -1,44 +1,53 @@
 ---
 name: ticket-page
-description: Keeps a ticket's hosted PIV record. For a Jira ticket under an epic with a PRD page, it creates or updates a Confluence page under the PRD (container "Ticket plans <EPIC>", page "Plan <KEY> - <summary>") that mirrors the ticket's plan and holds append-only Progress, Validation, Reviews and Findings-and-decisions sections, and links it from the ticket once. A ticket with no epic or no PRD page gets brief dated Jira comments instead. Called by plan-feature, execute, validate, implement-fix and the end-to-end-feature review gates; never blocks them. Supports --dry-run and --no-tracker.
-argument-hint: "<KEY> publish|log <Section> <text>|status <status> [--plan <path>] [--dry-run] [--no-tracker]"
+description: Keeps a ticket's hosted PIV record. For a Jira ticket under an epic with a PRD page, it keeps a Confluence page under the PRD (container "Ticket plans <EPIC>", page "Plan <KEY> - <summary>") that mirrors the ticket's plan (or RCA) and holds append-only Progress, Validation, Reviews and Findings-and-decisions sections, linked once from the ticket. A ticket with no epic or no PRD page gets a few short "PIV record" Jira comments instead. Entries are queued locally and sent only at milestones. Called by plan-feature, execute, validate, implement-fix and the end-to-end-feature review loop; never blocks them. Supports --dry-run and --no-tracker.
+argument-hint: "<KEY> publish [--plan <path> | --rca <path>] | log <Section> <text> [--flush] | flush | status <status> [<note>] [--dry-run] [--no-tracker]"
 ---
 
 # Ticket page: the hosted record of a ticket's PIV loop
 
 ## Why
 
-The plan file and the review reports live on the ticket branch, which may sit in a local worktree for days. The ticket
-page is the copy on the platform: the plan, what was done, what was measured, what the reviewers said and what was
-decided, readable by anyone with the Jira ticket and still there if the worktree or the session is lost. The repo
-stays the source of truth; the page mirrors it and logs the steps.
+The plan, the review reports and the validation records live on the ticket branch, which may sit in a local worktree
+for days. The ticket record is the copy on the platform: the plan, what was done, what was measured, what the
+reviewers said and what was decided, readable from the Jira ticket and still there if the worktree or the session is
+lost. The repo stays the source of truth; the page mirrors it and logs the steps.
 
-## Callers
-
-| Caller | When | Call |
-|---|---|---|
-| `plan-feature` | after the plan is written and committed; again after every revision (re-plan, amendment) | `publish` (+ `log Progress "Plan revised: <why>"` on a revision) |
-| plan review (`end-to-end-feature` loop, `stage: plan`) | after each round | `log Reviews …` |
-| `execute` | after each task or commit; when it deviates from the plan | `log Progress …`, `log Findings and decisions …` |
-| `validate` | after each run | `log Validation …` |
-| implementation review (`stage: implementation`) | after each round | `log Reviews …` |
-| any step | an owner decision, an escalation, an amendment | `log Findings and decisions …`, `status …` |
-| `implement-fix` | only when the GitHub issue maps to a Jira ticket (the RCA or the user names the key) | as `execute`/`validate` |
-
-A caller runs this skill as one step and continues whatever happens here (see **Failures**).
-
-## Arguments
+## Calls
 
 - `<KEY>`: the Jira key (`AIUE-61`). Without one there is nothing to record: say so and return.
-- `publish`: create or update the page from the committed plan (`--plan <repo-relative path>`, default: the
-  plan whose `**Branch / worktree**` line names the current branch, in `.claude/plans/`).
-- `log <Section> <text>`: append one dated entry. `<Section>` is `Progress`, `Validation`, `Reviews` or
-  `Findings and decisions`.
-- `status <status>`: set the header status, one of `Planning`, `Plan review`, `Executing`, `Validating`,
-  `Implementation review`, `Approved`, `Escalated`, `Committed`. Can be combined with `publish` or `log`.
-- `--dry-run`: Atlassian reads only, no writes to Atlassian, the repo, or the outbox; print what would be written.
-- `--no-tracker` (alias `--no-confluence`): do nothing and say "ticket record skipped (--no-tracker)". A caller
-  passes it on when its own arguments contain it.
+- `publish`: mirror the committed plan (`--plan <repo-relative path>`; default: the plan in `.claude/plans/` whose
+  `**Branch / worktree**` line names the current branch) or, for `implement-fix`, the RCA (`--rca docs/rca/<file>.md`).
+  Run it when the plan is written and each time it is revised or amended. It flushes.
+- `log <Section> <text>`: queue one dated entry locally. `<Section>` is `Progress`, `Validation`, `Reviews` or
+  `Findings and decisions`. **No Atlassian call** unless `--flush` is given.
+- `flush`: send the queued entries (and the current status) now. Only at the milestones below.
+- `status <status> [<note>]`: one of `Planning`, `Plan review`, `Executing`, `Validating`, `Implementation review`,
+  `Approved`, `Escalated`, `Committed`, with an optional short note. Stored locally; goes out with the next flush.
+- `--dry-run`: Atlassian reads only. Nothing is written to Atlassian, the repo or the local store; print what would
+  be written. Callers pass it as `--tracker-dry-run`, so it is never mistaken for "don't write code".
+- `--no-tracker` (alias `--no-confluence`): do nothing and say "ticket record skipped (--no-tracker)". Callers pass it
+  on, also to sub-agents and to whoever they hand a review loop to.
+
+## When to flush (milestones)
+
+| Milestone | Who | What goes out |
+|---|---|---|
+| Plan (or RCA) written, revised or amended | `plan-feature`, `implement-fix`, the review loop | `publish` |
+| A review round closes: APPROVE, or REVISE once its response is written | the review loop | the verdict and the response; for a plan revision this flush is the `publish` |
+| End of `execute` | `execute` | **one** Progress summary (tasks, commits, deviations), the validate entries queued during it |
+| `validate` run on its own (not inside `execute`, `implement-fix` or `end-to-end-feature`) | `validate` | its result |
+| An owner decision or an escalation | whoever records it | the Findings and decisions entry, `status Escalated` |
+| The final commit | `commit` step of `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed` |
+
+Everything else is `log` without `--flush`. Per-task entries are not logged at all; `execute` sends one summary.
+
+**Cost.** The Confluence update tool takes the whole page body, which the model has to emit: for AIUE-61 that is
+48.5 KB, about 14k output tokens per flush. A flush also makes a small version check (one CQL search) and reads the
+whole page (about 50 KB in) only when someone else wrote since this worktree's last flush. A ticket with one plan
+round and one implementation round flushes 5 times (publish, plan verdict, end of execute, implementation verdict,
+commit), about 70k output tokens; each extra review round adds one flush. The Jira fallback costs little (comments of
+at most 1500 characters).
 
 ## Configuration
 
@@ -46,91 +55,95 @@ A caller runs this skill as one step and continues whatever happens here (see **
 |---|---|
 | Container page | child of the epic's PRD page, title `Ticket plans: <EPIC>`, one per epic |
 | Ticket page | child of the container, title `Plan: <KEY> - <Jira summary without trailing period>` |
-| Page id in the repo | the plan's Summary line `**Ticket page**: Confluence page <id> (<url>)` |
-| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `sanitize`; `--help`) |
-| Outbox (unsent entries) | `<git dir of the worktree>/ticket-page-outbox/<KEY>.jsonl`, untracked |
+| Page id in the repo | the plan's (or RCA's) Summary line `**Ticket page**: Confluence page <id> (<url>)`, or `**Ticket page**: none (no epic PRD page); PIV record in Jira comments on <KEY>` |
+| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `state`, `verify`, `sanitize`; `--help`) |
+| Local store (untracked, per worktree) | `<git dir>/ticket-page-outbox/`: `<KEY>.jsonl` (queued), `<KEY>.sent.jsonl` (every entry sent, append-only), `<KEY>.state.json` (page id, last version written, plan revision, status, fallback comment ids), `<KEY>.last-body.md` (the last body sent). `git worktree remove` deletes it, so flush before removing a worktree |
 | Scratch for bodies | the session scratchpad, or `${TMPDIR:-/tmp}/ticket-page/` |
-| Jira fallback comment cap | about 1500 characters per comment |
+| Jira fallback | at most 8 `PIV record` comments per ticket, each at most 1500 characters |
 
-The exact titles and the lookup under the PRD and the container (step 2) are what keep the pages single. Don't rely
-on Confluence to refuse a duplicate title.
+## Process: Confluence route
 
-## Process
+### 1. Queue
 
-### 1. Queue the entry first
+For `log` (not in a dry run): `ticket_page.py queue --repo <worktree> --key <KEY> --add "<Section>" "<caller>" "<text>"`.
+The helper dates the entry, replaces local absolute paths, and refuses secret-like strings (exit 1, naming only the
+kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<status> status_note=<note>`. Without
+`--flush`, stop here.
 
-For `log` (not in a dry run), queue the entry before any Atlassian call, so a failure later can't lose it:
+### 2. Resolve (reads only; skipped when the state file has the page id and the plan line agrees)
 
-```bash
-uv run .claude/skills/ticket-page/ticket_page.py queue --repo <worktree> --key <KEY> \
-  --add "<Section>" "<caller skill>" "<text>"
-```
-
-The helper dates the entry, replaces local absolute paths, and refuses secret-like strings (exit 1: rewrite the
-text). Entries from earlier failed runs are still in the outbox and go out with this one.
-
-### 2. Resolve (reads only)
-
-1. `getAccessibleAtlassianResources` → `cloudId`. No Atlassian MCP → stop here, note "ticket record not updated:
-   Atlassian not connected (entries kept in the outbox)".
-2. `getJiraIssue` on `<KEY>` with `fields: ["summary", "status", "parent", "issuetype", "comment"]`,
-   `responseContentFormat: "markdown"`. The epic is `fields.parent` when its `issuetype` is `Epic`.
-3. **PRD page** (as `spec` and `close-epic` find it): `searchConfluenceUsingCql` with
-   `type = page AND title ~ "PRD: <EPIC>"`, keeping only titles that are exactly `PRD: <EPIC>` or start with
-   `PRD: <EPIC> - ` (so `AIUE-8` doesn't match `AIUE-80`); else the epic's `PRD: ... (Confluence page id ...)`
-   comment. Several matches → ask which one.
+1. `getAccessibleAtlassianResources` → `cloudId`. No Atlassian MCP → stop, note "ticket record not updated:
+   Atlassian not connected (entries kept queued)".
+2. `getJiraIssue` on `<KEY>` (`fields: ["summary", "status", "parent", "issuetype", "comment"]`,
+   `responseContentFormat: "markdown"`). The epic is `fields.parent` when its type is `Epic`.
+3. **PRD page**, as `spec` and `close-epic` find it: `searchConfluenceUsingCql` with `type = page AND title ~ "PRD:
+   <EPIC>"`, keeping titles that are exactly `PRD: <EPIC>` or start with `PRD: <EPIC> - `; else the epic's `PRD: ...
+   (Confluence page id ...)` comment.
 4. **No epic, or no PRD page** → the **Jira fallback** below. Never invent a Confluence location.
-5. **Container:** `getConfluencePageDescendants` on the PRD (`depth: 1`), exact title `Ticket plans: <EPIC>`.
-6. **Ticket page:** the id in the plan's `**Ticket page**` line, confirmed with `getConfluencePage` (title starts
-   with `Plan: <KEY> - `). Otherwise `getConfluencePageDescendants` on the container, keeping only titles that
-   start with `Plan: <KEY> - `. Two or more → stop and ask; never pick one silently.
+5. **Container**: CQL `type = page AND parent = <PRD id> AND title = "Ticket plans: <EPIC>"`.
+6. **Ticket page**: the id in the plan's `**Ticket page**` line or the state file, confirmed by CQL `id = <id>`
+   (title starts with `Plan: <KEY> - `); else CQL `type = page AND parent = <container id> AND title ~ "Plan: <KEY>"`,
+   keeping titles that start with `Plan: <KEY> - `. CQL with exact titles avoids paging through children; if a search
+   says there are more results, follow `next`.
+7. Two PRD pages, two containers or two ticket pages → **stop and ask**; in an unattended run, report it, write
+   nothing and leave the entries queued. Never pick one silently.
 
-### 3. Build the body
+### 3. Check the version, then build the body
 
-Write `meta.json` in the scratch directory: `key`, `key_url` (`https://<site>/browse/<KEY>`), `summary`, `epic`,
-`epic_url`, `prd_title`, `prd_url`, `branch`, `status` (the new one, else the page's current one, else `Planning`),
-`updated` (today's local date), `skill` (the caller), and `page_id`/`page_url` once known.
+1. **Version check** (existing page): CQL `id = <page id>` with `expand: "content.version"` (plain `version` returns
+   no number); the number is `content.version.number`. If the version equals
+   `state.version`, the page is what this worktree last sent: render with `--local` (it reads `<KEY>.last-body.md`).
+   Otherwise read the page (`getConfluencePage`, `contentFormat: "markdown"`) and pass it as `--current`: a saved tool
+   result file works as it is (plain or MCP-wrapped JSON); otherwise save the part before `## Plan` (or `## RCA`).
+2. Write `meta.json` in the scratch directory: `key`, `key_url`, `summary`, `epic`, `epic_url`, `prd_title`,
+   `prd_url`, `branch`, `status`, `status_note` (from the state file), `updated` (today, local date), `skill`
+   (the caller), and `page_id`/`page_url` once known. A missing key stops the render (exit 2).
+3. Render:
 
-If the page exists, read it (`getConfluencePage`, `contentFormat: "markdown"`) and save the part **before** the
-`## Plan` heading to `<scratch>/current.md`: the log sections are taken from there, the plan never is. If the tool
-saved its (large) result to a file instead, pass that file as it is: `--current` also takes the tool's JSON and stops
-at `## Plan`. Then:
+   ```bash
+   uv run .claude/skills/ticket-page/ticket_page.py render --repo <worktree> --plan <path> [--plan-title RCA] \
+     --plan-rev <rev> --meta <scratch>/meta.json (--local | --current <file>) --out <scratch>/body.md
+   ```
 
-```bash
-uv run .claude/skills/ticket-page/ticket_page.py render --repo <worktree> --plan <plan path> --rev HEAD \
-  --meta <scratch>/meta.json [--current <scratch>/current.md] --out <scratch>/body.md
-```
-
-The body is (no H1: Confluence shows the title): a header (Jira link, epic, PRD, branch, plan path and commit, this
-page, status, last updated by which skill, the "posted by an agent" attribution line); the four log sections
-(earlier entries kept, outbox entries not already on the page appended, compared ignoring markdown formatting, so
-a retry never duplicates one: Confluence returns `_x_` as `*x*` and re-spaces tables); and `## Plan`, the plan
-**as committed at `--rev`** with its headings demoted two levels. The header cites the commit that last changed the
-plan file. Commit the plan before `publish`; an uncommitted edit is not mirrored. Local absolute paths become
-`{worktree}`, `{worktrees}`, `{home}` or `{local}/<name>`; a secret-like string stops the render (exit 1).
+   `--plan-rev` is the commit just made on `publish`, and `state.plan_rev` on any other flush, so the mirror only
+   moves on `publish`. The body has no H1 (Confluence shows the title): a header (Jira link, epic, PRD, branch tip,
+   the commit that last changed the plan, this page, status, last updated by which skill, the "posted by an agent"
+   line), the four log sections, and `## Plan` (or `## RCA`), the file as committed with headings demoted two levels.
+   The log sections keep every entry of the current page, re-add any entry of the sent log the page lost, and append
+   the queued entries; entries are compared ignoring formatting and line wrapping (Confluence returns `_x_` as `*x*`
+   and drops continuation indents), so a retry never duplicates one. Local paths become `{worktree}`, `{worktrees}`,
+   `{home}`, `{local}/<name>`; a secret-like string stops the render (exit 1).
+   **Safety:** for an existing page, `render` refuses (exit 2) without `--current` or `--local`, when `--current` is
+   in storage (HTML) form, and when `--current` has none of the four section headings. Never work around it by
+   dropping `page_id`.
 
 ### 4. Write
 
-- **Dry run:** print the resolution (epic, PRD page, container found or "would be created", page found or "would
-  be created", the title), the body path, its header and log sections, and the Jira comment that would be added.
-  Pass the entry with `render --entry "<Section>" "<caller>" "<text>"` instead of `queue`, so nothing is written to
-  the worktree's git directory (the outbox is only read, to show what is pending). Stop.
-- **Container missing:** `createConfluencePage` with the PRD's `spaceId`, `parentId` = PRD id, title
-  `Ticket plans: <EPIC>`, `contentFormat: "markdown"`, body: "Ticket plans for epic [<EPIC>](<epic url>), one child
-  page per ticket. Created and updated by the ticket-page skill (plan-feature, execute, validate, review gates).
-  The repo plan file on each ticket branch is the source of truth."
-- **Page missing:** `createConfluencePage` with `parentId` = container id, the exact title,
-  `contentFormat: "markdown"` and a **one-line stub body** ("Plan page for <KEY>; content follows."). The create
-  call returns the whole stored body, which for a full plan is too large for the tool output, so never create with
-  the full body. Then set `page_id`/`page_url` in `meta.json`, render, and `updateConfluencePage` with the full body:
-  the first real version already shows the page's own id.
-- **Page exists:** `updateConfluencePage` with the body, `contentFormat: "markdown"`, and a `versionMessage` naming
-  the caller and what changed ("validate: D_only PASS", "plan revised to <sha>"). Confluence bumps the version. If the
-  Jira summary changed, pass the new `title`.
-- Check that the version you got back is exactly one more than the one you read. More than one means another agent
-  wrote in between and the update tool overwrites without a version check, so its entries may be gone: read the
-  page again, render again with the same outbox (entries already there are skipped) and update once more. Then
-  `queue --clear` (not in a dry run). The container must still have exactly one `Plan: <KEY> - ` child.
+- **Dry run:** print the resolution (epic, PRD page, container and page found or "would be created", the title), the
+  version check, the body's header and log sections, and the Jira comment that would be added. Pass new entries with
+  `render --entry "<Section>" "<caller>" "<text>"` instead of queueing them, and `--outbox <scratch>` if the real store
+  doesn't exist. Stop.
+- **Container missing:** `createConfluencePage` (PRD's `spaceId`, `parentId` = PRD id, title `Ticket plans: <EPIC>`,
+  `contentFormat: "markdown"`), body: "Ticket plans for epic [<EPIC>](<epic url>), one child page per ticket, kept by
+  the ticket-page skill (posted by an agent through the owner's account). The repo plan file on each ticket branch is
+  the source of truth." Then repeat the container search: if there are now two (a sibling ticket created one at the
+  same time), stop as in step 2.7.
+- **Page missing:** `createConfluencePage` (`parentId` = container id, the exact title, `contentFormat: "markdown"`,
+  a **one-line stub body** "Plan page for <KEY>; content follows."). The create call returns the whole stored body,
+  so never create with the full body. Then add the `**Ticket page**` line to the plan (or RCA), commit it ("Records
+  the <KEY> ticket page"), and render from that commit, so the page cites the plan as it now is.
+- **Update:** `updateConfluencePage` (`contentFormat: "markdown"`, `versionMessage` naming the caller and the
+  milestone, the new `title` if the Jira summary changed) with the body **exactly as rendered**.
+- **Verify:** `ticket_page.py verify --body <scratch>/body.md --page-id <id> --repo <worktree>` compares the body the
+  update call sent (from the PostToolUse hook log) with the rendered file. Mismatch (exit 1) → update again with the
+  file's content. No log (exit 3) → note "transcription unverified". Then record what is on the page:
+  `state --set version=<returned version> plan_rev=<rev> page_id=<id> --save-body <scratch>/body.md`, then
+  `queue --mark-sent`.
+- **Another writer:** the update tool has no version check. If the returned version is more than one above the one
+  checked in step 3, an update in between was overwritten. Entries it carried from this worktree are in the sent log
+  and come back on the next render. Entries from another worktree can't be recovered here: queue
+  `Findings and decisions` "Possible lost entries: versions <N+1>..<M-1> were overwritten by a concurrent update;
+  compare the page history", read the page, render with `--current` and flush once more.
 
 ### 5. Link it from the ticket (once)
 
@@ -138,72 +151,81 @@ If no comment on `<KEY>` contains the page id, `addCommentToJiraIssue` (`content
 
 ```markdown
 Plan page: [<page title>](<page url>) (Confluence page id `<id>`), under [Ticket plans: <EPIC>](<container url>).
-It mirrors the plan in `<plan path>` and logs progress, validation, reviews and decisions for this ticket.
+It mirrors `<plan path>` and logs progress, validation, reviews and decisions for this ticket.
+_Posted by an agent (ticket-page skill) through the owner's account._
 ```
-
-### 6. Record the page id in the plan (`publish`, first time only)
-
-Add `**Ticket page**: Confluence page <id> (<url>)` to the plan's Summary, after `**Branch / worktree**`, and commit
-it on the ticket branch ("Records the <KEY> ticket page"). Later calls find the page by id; the title search is the
-fallback.
 
 ## Jira fallback: no epic, or no PRD page
 
-Keep the record in the ticket itself, briefly, as one comment per step. Never paste the plan or a report: summarise
-and point to the repo file.
+Keep the record in the ticket itself, briefly: never paste the plan or a report; summarise and point to the repo
+file. Same milestones as above; **one comment per flush**, combining the queued entries, each at most 1500
+characters (check with `ticket_page.py sanitize --repo <worktree>`, which also replaces paths and refuses secrets;
+over the cap → summarise again).
 
-- **`publish`** → one comment, at most about 1500 characters:
+- **`publish`**:
 
   ```markdown
-  **PIV record: plan** (<date>, <caller>; posted by an agent)
+  **PIV record: plan** (<date>, <caller>) · _posted by an agent through the owner's account_
   Goal: <one sentence>.
   Approach:
   - <3–5 bullets>
   Branch `<branch>`, plan `<plan path>` at `<sha>`. Default results: <unchanged / changed: which>.
-  No epic PRD page, so the record is kept in these comments.
+  No epic PRD page, so the record is kept in these comments (at most 8).
   ```
 
-  A revised plan gets a new comment `**PIV record: plan revised**` with what changed, not an edit of the old one.
-- **`log`** → one comment per call: `**PIV record: <Section>** (<date>, <caller>)` and one to three lines: status,
-  key results or the verdict with counts and the report path, decisions with their attribution. Entries still in the
-  outbox from failed calls go out first, one comment each, oldest first; then `queue --clear`.
-- `status` alone posts nothing; the status goes into the next comment's first line.
-- `publish` also adds `**Ticket page**: none (no epic PRD page); PIV record in Jira comments on <KEY>` to the plan's
-  Summary (step 6). Later `log` calls take this route without resolving again; `publish` always resolves, so a ticket
-  whose epic gains a PRD page moves to a page (its first Progress entry links the earlier Jira comments).
-- Before posting, run the text through `ticket_page.py sanitize --repo <worktree>` (paths, secrets, the cap). Over
-  the cap → summarise again. Skip a comment whose text already exists on the ticket (retries).
-- Past about ten PIV comments on one ticket, add one line to the next comment suggesting the ticket be put under an
-  epic so it gets a page.
+  Write `**Ticket page**: none (no epic PRD page); PIV record in Jira comments on <KEY>` into the plan (or RCA) and
+  commit it whether or not the post succeeds. If it fails, save the text to `<store>/<KEY>.fallback-plan.md`; the next
+  flush posts it first. A revised plan gets a `**PIV record: plan revised**` comment with what changed.
+- **Other flushes**:
+  `**PIV record: <milestone>** (<date>, <caller>) · _posted by an agent through the owner's account_` and one line per
+  queued entry: status, key results or the verdict with counts and the report path, decisions with their attribution.
+- **Cap.** Count the ticket's `**PIV record` comments (`state.fallback_count`, checked against the ticket's comments).
+  The 8th is `**PIV record: running summary (updated in place)**`; later milestones update it with
+  `addCommentToJiraIssue` and its `commentId` (`state.fallback_summary_id`), rewriting it to stay within 1500
+  characters (latest status, then one line per milestone, oldest dropped first with "earlier: see comments above").
+  If the update fails, post nothing more and say so in the caller's report.
+- **Escalation.** In the fallback, the `PIV record` escalation comment is the Jira escalation comment that
+  `end-to-end-feature` asks for: post one comment, not two.
+- `queue --mark-sent` after each successful post, so the sent log also records the fallback.
 - Dry run: print the comment that would be posted; post nothing.
+- `publish` always resolves again, so a ticket whose epic gains a PRD page moves to a page; its first Progress entry
+  links the earlier Jira comments.
 
 ## Attribution
 
-Agents post through the owner's account, so the author field proves nothing. In entries, mark who: **Owner** only
-when a source records it as the owner's (the owner in this session, a progress-log line saying the owner decided, a
-Jira comment headed as owner decisions and matched by the progress log) and cite that source; **Reviewer** for a
-review report; **Agent** for the agent's own choices; otherwise **attribution unverified**. These are the
-`close-epic` rules, so the epic record can reuse the entries.
+Agents post through the owner's account, so the author field proves nothing. Every page and comment carries "posted
+by an agent". In entries, mark who: **Owner** only when a source records it as the owner's (the owner in this
+session, a progress-log line saying the owner decided, a Jira comment headed as owner decisions and matched by the
+progress log), and cite it; quote or paraphrase the source without adding to it. **Reviewer** for a review report,
+**Agent** for the agent's own choices, otherwise **attribution unverified**. These are the `close-epic` rules.
 
 ## What goes in an entry
 
 Short, dated, factual, with repo-relative paths and commit hashes:
 
 ```text
-Progress:                Task 3 done (`ppp/omp_parallel.F90`), commit `155e562`.
-                         Plan revised to revision 3 (`6703d6a`): round-2 minors folded in.
+Progress:                execute: tasks 1-6 done (`ppp/ppp.v`, `ppp/omp_parallel.F90`), commits c95342e..a72694b.
+                         Plan amended (`572c2c8`): AIUE-60 references updated.
 Validation:              the validate report block's lines; failing output verbatim, trimmed to the failing part.
 Reviews:                 Reviewer: plan round 1 REVISE (1 BLOCKER / 3 MAJOR / 6 MINOR), report `docs/reviews/<KEY>-plan-round1.md`.
 Findings and decisions:  Owner: <decision> (source) / Agent: <choice, why> / Reviewer: <finding that changed direction>.
 ```
 
+## Corrections
+
+The log sections are append-only: a later entry corrects an earlier one. Removing or rewording an entry happens only
+on the owner's or the coordinator's request: edit a copy of the current page's log part, render it with `--current`,
+send it with a `versionMessage` that says what was corrected and why, and say so in a Progress entry (a new one, or
+the corrected entry itself when that entry is what was wrong).
+
 ## Failures
 
-Atlassian failures never block the caller. Report the error verbatim in the caller's output as
-"ticket record not updated: <error>; <n> entries kept in the outbox". The entries stay in the outbox and the next
-call sends them. Don't retry into another page or space. A failed `publish` is retried by the next step's call.
+Atlassian failures never block the caller. Report the error verbatim in the caller's output as "ticket record not
+updated: <error>; <n> entries kept queued". The entries stay queued and the next flush sends them. Don't retry into
+another page or space. In an unattended run, every "stop and ask" above becomes "report, write nothing, keep the
+entries queued".
 
 ## Output
 
-One line for the caller: `Ticket page <created|updated vN|unchanged|skipped (<why>)>: <title> <url>` (Jira fallback:
-`Jira PIV comment added: <id>`), plus any error verbatim and the outbox count.
+One line for the caller: `Ticket page <created|updated vN|queued (n entries)|skipped (<why>)>: <title> <url>`
+(fallback: `Jira PIV comment <added <id>|updated <id>|queued>`), the verify result, and any error verbatim.

@@ -99,7 +99,8 @@ Quote failing output verbatim. Never loosen tolerances or skip a suite to get gr
 
 ## Ticket record
 
-On a ticket branch with a Jira key (from the branch name), run `ticket-page <KEY> log Validation "<entry>"` with
-`status Validating`: the report block's lines with the branch tip, and for each ❌ the failing output verbatim,
-trimmed to the failing part (the first error, the mismatching fnrm or variable lines). Skip it with `--no-tracker`.
-A failed call is noted under the report and never changes the verdict.
+On a ticket branch with a Jira key (from the branch name), run `ticket-page <KEY> log Validation "<entry>"`: the
+report block's lines with the branch tip, and for each ❌ the failing output verbatim, trimmed to the failing part
+(the first error, the mismatching fnrm or variable lines). Add `--flush` only when `validate` was run on its own;
+inside `execute`, `implement-fix` or `end-to-end-feature` the entry is queued and goes out at their next milestone.
+Skip it with `--no-tracker`. A failed call is noted under the report and never changes the verdict.

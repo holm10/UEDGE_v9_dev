@@ -1,7 +1,7 @@
 ---
 name: plan-feature
 description: Creates a context-rich, one-pass implementation plan for a UEDGE change (refactor, numerics, OpenMP, build, Python layer, or wiring of an approved physics spec) through codebase analysis and research. Use before writing code for any non-trivial change.
-argument-hint: [feature-description] [--no-tracker] [--dry-run]
+argument-hint: [feature-description] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Plan a new task
@@ -158,18 +158,20 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 
 1. Commit the plan on the ticket branch (it is an artifact path): `git add .claude/plans/<file>.md`, then a commit
    such as "Adds the <KEY> plan: <short description>".
-2. For a Jira ticket, run the `ticket-page` skill: `<KEY> publish status Planning` (`Plan review` if the review below
-   is required), passing on `--dry-run` or `--no-tracker` if this skill got them. Under an epic with a PRD page it
-   creates or updates `Plan: <KEY> - <summary>` under `Ticket plans: <EPIC>` and links it from the ticket; without
-   one it posts a short plan comment on the ticket. It then fills the plan's `**Ticket page**` line and commits that.
-   A failure there is noted in the report and retried by the next step; it never stops planning.
+2. For a Jira ticket, run the `ticket-page` skill: `<KEY> status Planning` (`Plan review` if the review below is
+   required), then `<KEY> publish`. Pass on `--no-tracker` (skip the record) or `--tracker-dry-run` (as `--dry-run`:
+   show the record without writing it; the plan is still written and committed). Under an epic with a PRD page it
+   creates or updates `Plan: <KEY> - <summary>` under `Ticket plans: <EPIC>`, writes the plan's `**Ticket page**`
+   line and commits it before mirroring the plan, and links the page from the ticket once; without one it posts a
+   short `PIV record: plan` comment and writes `**Ticket page**: none (…)`. A failure there is noted in the report
+   and retried at the next flush; it never stops planning.
 
 ## Adversarial plan review
 
 If the plan touches the `pandf` tree, `ppp/`, Jacobian or preconditioner code, a `.v` file, or the build
 (`setup.py`, `Makefile.Forthon`), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` before any code is written.
-The loop logs each verdict to the ticket record; after a revision, commit the plan and run `ticket-page <KEY> publish`
-again with `log Progress "Plan revised (<sha>): <what changed>"`.
+The loop records each round on the ticket record. A revision is committed and published: `ticket-page <KEY> log
+Progress "Plan revised (<sha>): <what changed>"`, then `ticket-page <KEY> publish`, which is that round's flush.
 
 ## Report
 
