@@ -65,7 +65,7 @@ Agent frontmatter fixes the model where an agent is always one kind of work (`ue
 |---|---|
 | RCA, design and planning of L tickets, physics, implementation of L tickets | `opus` (default) |
 | Review of the `pandf` tree, Jacobian, `ppp/`, `.v`, build, physics (plan or implementation, round 1) | `opus` (the reviewer's default) |
-| Review of an AI-layer change, of S/M tickets outside the high-risk areas, any verification round | `sonnet` |
+| Review of an AI-layer change, of S/M tickets outside the high-risk areas, and verification rounds whose fix diff stays outside the high-risk areas | `sonnet` |
 | Mechanical work: merging or rebasing branches, moving or consolidating documents, backfilling records, applying a listed set of minor fixes | `sonnet` |
 
 ## Report caps
