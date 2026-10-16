@@ -11,7 +11,7 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
   * runnable by hand, by the `commit`/`validate` skills, or by CI:
 
         uv run .claude/hooks/change_kind.py --staged              # what is staged now
-        uv run .claude/hooks/change_kind.py --range v9-develop..HEAD   # every file a branch touches
+        uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD   # every file a branch touches
 
     Exit 0 = clean, 1 = violations (printed), 2 = could not run (not a git repo, bad range).
 
@@ -82,12 +82,20 @@ def branch_kind(branch: str) -> str:
     return "ticket"
 
 
-def violations(branch: str, paths, message: str = "", deleted=()):
+def _clean(p):
+    p = p.strip()
+    return p[2:] if p.startswith("./") else p
+
+
+def violations(branch: str, paths, message: str = "", deleted=(), renamed=None):
     """Return a list of human-readable violations for committing `paths` on `branch`.
-    `deleted` names the paths among them that the commit deletes: removing a tracked working document is allowed."""
+    `deleted` names the paths among them that the commit deletes: removing a tracked working document is allowed.
+    `renamed` maps a renamed path's new name to its old one: moving a working document out to another path is
+    refused like adding it (copy it as a new file on purpose instead)."""
     kind = branch_kind(branch)
-    paths = sorted(set(p.strip() for p in paths if p and p.strip()))
-    deleted = {p.strip()[2:] if p.strip().startswith("./") else p.strip() for p in deleted}
+    paths = sorted(set(_clean(p) for p in paths if p and p.strip()))
+    deleted = {_clean(p) for p in deleted}
+    renamed = {_clean(k): _clean(v) for k, v in (renamed or {}).items()}
     if kind == "protected":
         return [f"'{branch}' is protected: never commit to it. Create feature/v9-* or bugfix/v9-* "
                 f"(see .claude/context/branching.md)."]
@@ -95,9 +103,16 @@ def violations(branch: str, paths, message: str = "", deleted=()):
     for p in paths:
         by_kind.setdefault(path_kind(p), []).append(p)
     out = []
-    working = [p for p in by_kind.get("working", []) if (p[2:] if p.startswith("./") else p) not in deleted]
+    working = [p for p in by_kind.get("working", []) if p not in deleted]
     if working:
         out.append(f"'{branch}': {WORKING_HINT}. Unstage: " + ", ".join(working))
+    moved = [f"{old} -> {new}" for new, old in sorted(renamed.items())
+             if path_kind(old) == "working" and path_kind(new) != "working" and new in paths]
+    if moved:
+        out.append(f"'{branch}': a working document is being moved into the repo ({', '.join(moved)}). Working "
+                   f"documents are never committed; if this file really belongs in the repo (for example a physics "
+                   f"spec), add it as a new file on purpose and say why in the commit message, and delete the old "
+                   f"one in a separate step")
     if kind == "ai":
         bad = by_kind.get("product", [])
         if bad:
@@ -127,55 +142,88 @@ def current_branch(cwd=None) -> str:
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd).strip()
 
 
-def _name_status(out):
-    """(paths, deleted) from `git diff --name-status` output (a rename counts as its new path)."""
-    paths, deleted = [], []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 2:
+class Changes:
+    """The paths a commit or range touches, which of them it deletes, and renames (new path -> old path)."""
+
+    def __init__(self, paths=None, deleted=None, renamed=None):
+        self.paths, self.deleted, self.renamed = list(paths or []), list(deleted or []), dict(renamed or {})
+
+    def __iter__(self):  # paths, deleted = changes
+        return iter((self.paths, self.deleted))
+
+    def add(self, other):
+        self.paths += other.paths
+        self.deleted += other.deleted
+        self.renamed.update(other.renamed)
+        return self
+
+
+def name_status_z(out):
+    """Changes from `git diff --name-status -z` output: STATUS NUL path NUL, or for a rename or copy
+    STATUS NUL old NUL new NUL. NUL-separated, so paths with spaces or quotes come through as they are."""
+    ch, fields, i = Changes(), out.split("\0"), 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        if status[0] in "RC" and i + 2 < len(fields):
+            old, new = fields[i + 1], fields[i + 2]
+            ch.paths.append(new)
+            if status[0] == "R":
+                ch.renamed[new] = old
+            i += 3
             continue
-        status, path = parts[0], parts[-1]
-        paths.append(path)
-        if status.startswith("D"):
-            deleted.append(path)
-    return paths, deleted
+        path = fields[i + 1] if i + 1 < len(fields) else ""
+        if path:
+            ch.paths.append(path)
+            if status.startswith("D"):
+                ch.deleted.append(path)
+        i += 2
+    return ch
 
 
 def staged_changes(cwd=None):
-    return _name_status(_git(["diff", "--cached", "--name-status"], cwd))
+    return name_status_z(_git(["diff", "--cached", "--name-status", "-z", "-M"], cwd))
 
 
 def staged_paths(cwd=None):
-    return staged_changes(cwd)[0]
+    return staged_changes(cwd).paths
 
 
 def modified_tracked_changes(cwd=None):
-    return _name_status(_git(["diff", "--name-status"], cwd))
+    return name_status_z(_git(["diff", "--name-status", "-z", "-M"], cwd))
 
 
 def modified_tracked_paths(cwd=None):
-    return modified_tracked_changes(cwd)[0]
+    return modified_tracked_changes(cwd).paths
 
 
 def range_changes(rng, cwd=None):
-    return _name_status(_git(["diff", "--name-status", rng], cwd))
+    return name_status_z(_git(["diff", "--name-status", "-z", "-M", rng], cwd))
 
 
 def range_paths(rng, cwd=None):
-    return range_changes(rng, cwd)[0]
+    return range_changes(rng, cwd).paths
+
+
+def is_tracked(path, cwd=None) -> bool:
+    try:
+        _git(["ls-files", "--error-unmatch", "--", path], cwd)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--staged", action="store_true", help="check the staged files (default)")
-    g.add_argument("--range", help="check every file changed in a git range, e.g. v9-develop..HEAD")
+    g.add_argument("--range", help="check every file changed in a git range, e.g. origin/v9-develop...HEAD "
+                   "(three dots: the branch's own changes since it forked)")
     ap.add_argument("--branch", help="branch to check against (default: current branch)")
     ap.add_argument("--message", default="", help="commit message (for the code-facts trailer)")
     a = ap.parse_args()
     try:
         branch = a.branch or current_branch()
-        paths, deleted = range_changes(a.range) if a.range else staged_changes()
+        ch = range_changes(a.range) if a.range else staged_changes()
     except subprocess.CalledProcessError as e:
         print(e.stderr.strip() or str(e), file=sys.stderr)
         return 2
@@ -183,13 +231,15 @@ def main() -> int:
     if a.range and not message:
         # On a range, the trailer may sit in any commit of the branch.
         try:
-            message = _git(["log", "--format=%B", a.range])
+            # A three-dot range (what CI and the skills use) names the branch's own commits on its right side.
+            message = _git(["log", "--format=%B", *(["--right-only"] if "..." in a.range else []), a.range])
         except subprocess.CalledProcessError:
             message = ""
     print(f"branch: {branch} ({branch_kind(branch)})")
-    for p in sorted(set(paths)):
-        print(f"  {path_kind(p):8s} {p}" + ("  (deleted)" if p in deleted else ""))
-    v = violations(branch, paths, message, deleted)
+    for p in sorted(set(ch.paths)):
+        print(f"  {path_kind(p):8s} {p}" + ("  (deleted)" if p in ch.deleted else "")
+              + (f"  (renamed from {ch.renamed[p]})" if p in ch.renamed else ""))
+    v = violations(branch, ch.paths, message, ch.deleted, ch.renamed)
     for line in v:
         print("VIOLATION: " + line)
     if not v:
