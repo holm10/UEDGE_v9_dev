@@ -274,8 +274,8 @@ AIUE-60-combined tree (AIUE-60 adds threadprivate scalars).
   allocated beside it) at ppp/omp_parallel.F90:175: heap corruption, seen as random SIGTRAP (exit 133) or SIGSEGV
   (exit 139), including at process exit in HDF5 teardown, on AIUE-60 and AIUE-61 alike. Independently, CheckPandf1 on
   that case reports "diff in rhsnk" at iv 76 and 132 on every completed run of both builds.
-- PR line: "With OMPParallelPandf1=1 (not the default) the parallel-RHS self-check on small grids is affected by a
-  pre-existing out-of-bounds write in MakeXptChunks (AIUE-70); AIUE-61 doesn't change it."
+- PR line: "With OMPParallelPandf1=1 (not the default), any run on a grid with iysptrx1<5 hits a pre-existing
+  out-of-bounds write in MakeXptChunks (AIUE-74 under AIUE-70); AIUE-61 doesn't change it." (wording per review round 3, I3-m1)
 - I2-m1: R4 additions above. I2-m2: AIUE-61-ompcheck.py docstring matches the amended G9a (CheckJac gates, CheckPandf1
   report only) and the caller records the exit status (AIUE-61-ompcheck_rep.sh).
 - ppp.v (OMPJacMinChunkLen description, line-neutral) and openmp-jacobian.md: the small-problem cost and knobs. The

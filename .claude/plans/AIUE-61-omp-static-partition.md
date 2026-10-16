@@ -459,8 +459,8 @@ failure is a FAIL, whatever its cause** (Guarantee and its scope).
       trade-off against the old default's occasional bitwise agreement; that small problems no longer parallelise the
       Jacobian, or only partly (under the Q5 rule a problem with neq < 300·T can't use all T threads, and below 600
       it runs as one chunk; R4's mid-size numbers); that problems with neq up to ~5 000 at 8 threads may build the Jacobian up to ~2x slower (neq < 600 ~3x, D_only)
-      than OMPJacFixedChunks=0, with the knobs; that the parallel-RHS self-check on small grids is affected by a
-      pre-existing out-of-bounds write in MakeXptChunks (AIUE-70, implementation review I2-M1); that the resets add CPU time summed over threads to the full-RHS timers (which can then
+      than OMPJacFixedChunks=0, with the knobs; that any OMPParallelPandf1=1 run on a grid with iysptrx1<5 hits a
+      pre-existing out-of-bounds write in MakeXptChunks (AIUE-74 under AIUE-70, implementation review I2-M1); that the resets add CPU time summed over threads to the full-RHS timers (which can then
       exceed wall time); findings F-61-1
       and F-61-2
 
