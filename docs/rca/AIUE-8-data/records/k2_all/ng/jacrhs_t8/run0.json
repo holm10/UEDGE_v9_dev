@@ -1,0 +1,48 @@
+{
+ "capture": {
+  "hook": false
+ },
+ "elapsed_s": 4.59,
+ "fnrm_final_hex": "0x1.0d47001529e29p-36",
+ "ijactot": 1,
+ "iterations": [
+  {
+   "fnrm_printed": "0.1530664491221214E-10",
+   "iter": 0,
+   "nfe": 1,
+   "omp": true
+  }
+ ],
+ "label": "ng_jacrhs_t8_it0",
+ "neq": 3168,
+ "nnz_post": 26881,
+ "numvar": 1,
+ "post_exmain_jacobian": "sfsetnk Jacobian scaled by 1/suscal (ftol=1e20: no psetnk row normalisation or reordering)",
+ "provenance": {
+  "Nthreads": 8,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 1,
+  "OMP_NUM_THREADS": "8",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 1,
+  "commit": "fbe0adfbc455907244fef7f127bd62250f92223d",
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.12",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": true,
+ "spec": {
+  "arm": "jacrhs",
+  "itermx": null,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "ng",
+  "rhs_probe": true,
+  "threads": 8
+ }
+}
