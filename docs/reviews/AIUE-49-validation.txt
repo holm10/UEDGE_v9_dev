@@ -1,0 +1,189 @@
+AIUE-49 validation (part 1: post-exmain Jacobians), builds of v9-develop 0fac655, macOS arm64, gfortran 15
+
+## unit tests
+20 passed in 0.09s
+
+## h_tebox_serial: {'arm': 'serial', 'itermx': None, 'omp_stacksize': '512M', 'ppp': {}, 'preset': 'tebox', 'rhs_probe': True, 'threads': 1} repeats 2 agree True
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run1)] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+
+## h_tebox1: {'arm': 'jac', 'itermx': None, 'omp_stacksize': '512M', 'ppp': {}, 'preset': 'tebox', 'rhs_probe': True, 'threads': 4} repeats 2 agree False
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 46 mismatch(es) (value 28, only-a 0, only-b 18); pairs te/te: 46; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+  sfscal: 19 mismatch(es); by equation {'te': 19}; first at te(ix=3,iy=18)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: 1 mismatch(es): 0x1.49db83f93d961p-2 vs 0x1.59213bb232104p-3
+  fnrm_printed: 1 mismatch(es): [[0, '0.3221264477609989']] vs [[0, '0.1685204185253114']]
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 44 mismatch(es) (value 33, only-a 0, only-b 11); pairs te/te: 44; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+  sfscal: 19 mismatch(es); by equation {'te': 19}; first at te(ix=3,iy=18)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: 1 mismatch(es): 0x1.49db83f93d961p-2 vs 0x1.3ddd2feea5075p-3
+  fnrm_printed: 1 mismatch(es): [[0, '0.3221264477609989']] vs [[0, '0.1552070374206128']]
+[determinism (run0 vs run1)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 50 mismatch(es) (value 25, only-a 16, only-b 9); pairs te/te: 50; first value row te(ix=4,iy=18) col te(ix=4,iy=18)
+  sfscal: 14 mismatch(es); by equation {'te': 14}; first at te(ix=4,iy=18)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: 1 mismatch(es): 0x1.59213bb232104p-3 vs 0x1.3ddd2feea5075p-3
+  fnrm_printed: 1 mismatch(es): [[0, '0.1685204185253114']] vs [[0, '0.1552070374206128']]
+
+## h_full_jac4: {'arm': 'jac', 'itermx': None, 'omp_stacksize': '512M', 'ppp': {}, 'preset': 'full', 'rhs_probe': True, 'threads': 4} repeats 2 agree False
+[agreement with serial] full_serial_t1_it0 vs full_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 678603 mismatch(es) (value 180809, only-a 0, only-b 497794); pairs te/ng: 49267, te/ni: 387007, te/phi: 48674, te/te: 48467, te/ti: 48396, te/up: 96792; first value row te(ix=1,iy=1) col ni[0](ix=1,iy=1)
+  sfscal: 2940 mismatch(es); by equation {'te': 2940}; first at te(ix=1,iy=1)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: 1 mismatch(es): 0x1.eb37d428ec4f0p+0 vs 0x1.89113a162ee05p+0
+  fnrm_printed: 1 mismatch(es): [[0, '1.918820629111277']] vs [[0, '1.535419111648367']]
+[agreement with serial] full_serial_t1_it0 vs full_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 678371 mismatch(es) (value 180815, only-a 0, only-b 497556); pairs te/ng: 48471, te/ni: 388091, te/phi: 48357, te/te: 48040, te/ti: 48649, te/up: 96763; first value row te(ix=1,iy=1) col ni[1](ix=1,iy=1)
+  sfscal: 2940 mismatch(es); by equation {'te': 2940}; first at te(ix=1,iy=1)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: 1 mismatch(es): 0x1.eb37d428ec4f0p+0 vs 0x1.89113a162ee05p+0
+  fnrm_printed: 1 mismatch(es): [[0, '1.918820629111277']] vs [[0, '1.535419111648367']]
+[determinism (run0 vs run1)] full_jac_t4_it0 vs full_jac_t4_it0: MISMATCH
+  jacobian:post_exmain: 345226 mismatch(es) (value 92008, only-a 126728, only-b 126490); pairs te/ng: 24600, te/ni: 199490, te/phi: 22599, te/te: 25653, te/ti: 24659, te/up: 48225; first value row te(ix=1,iy=1) col ni[0](ix=1,iy=1)
+  sfscal: 1103 mismatch(es); by equation {'te': 1103}; first at te(ix=1,iy=1)
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+
+# Part 2: with the AIUE-47 capture hook (venvs AIUE-47-serial / AIUE-47-omp, branch feature/v9-AIUE-47-raw-jacobian-capture)
+
+## unit tests: 21 passed in 0.12s
+
+## h_tebox_serial_cap3
+spec {'arm': 'serial', 'capture': 16, 'itermx': 3, 'omp_stacksize': '512M', 'ppp': {}, 'preset': 'tebox', 'rhs_probe': True, 'threads': 1} repeats 2 agree True
+serial capture {'caller': ['sfsetnk', 'psetnk'], 'count': 2, 'hook': True, 'seen': 2, 'seq': [1, 2], 'slots': 16, 'source': ['jac_calc', 'jac_calc']}
+run0 capture {'caller': ['sfsetnk', 'psetnk'], 'count': 2, 'hook': True, 'seen': 2, 'seq': [1, 2], 'slots': 16, 'source': ['jac_calc', 'jac_calc']}
+[agreement with serial] tebox_serial_t1_it3 vs tebox_serial_t1_it3: AGREE
+  jacobian:captured[0]: equal
+  jacobian:captured[1]: equal
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[agreement with serial] tebox_serial_t1_it3 vs tebox_serial_t1_it3: AGREE
+  jacobian:captured[0]: equal
+  jacobian:captured[1]: equal
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+[determinism (run0 vs run1)] tebox_serial_t1_it3 vs tebox_serial_t1_it3: AGREE
+  jacobian:captured[0]: equal
+  jacobian:captured[1]: equal
+  jacobian:post_exmain: equal
+  sfscal: equal
+  suscal: equal
+  yldot: equal
+  yldot_probe: equal
+  fnrm_final: equal
+  fnrm_printed: equal
+
+## h_tebox_cap3
+spec {'arm': 'jac', 'capture': 16, 'itermx': 3, 'omp_stacksize': '512M', 'ppp': {}, 'preset': 'tebox', 'rhs_probe': True, 'threads': 4} repeats 2 agree False
+serial capture {'caller': ['sfsetnk', 'psetnk'], 'count': 2, 'hook': True, 'seen': 2, 'seq': [1, 2], 'slots': 16, 'source': ['jac_calc', 'jac_calc']}
+run0 capture {'caller': ['sfsetnk', 'psetnk'], 'count': 2, 'hook': True, 'seen': 2, 'seq': [1, 2], 'slots': 16, 'source': ['jac_calc_parallel', 'jac_calc_parallel']}
+[agreement with serial] tebox_serial_t1_it3 vs tebox_jac_t4_it3: MISMATCH
+  jacobian:captured[0]: 42 mismatch(es) (value 30, only-a 0, only-b 12); pairs te/te: 42; first value row te(ix=4,iy=18) col te(ix=4,iy=18)
+  jacobian:captured[1]: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  jacobian:post_exmain: 57 mismatch(es) (value 57, only-a 0, only-b 0); pairs te/te: 57; first value row te(ix=5,iy=18) col te(ix=4,iy=20)
+  sfscal: 18 mismatch(es); by equation {'te': 18}; first at te(ix=4,iy=18)
+  suscal: equal
+  yldot: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  fnrm_final: 1 mismatch(es): 0x1.a586ab9f9b5ccp-32 vs 0x1.8e4ccf15b38f6p-36
+  fnrm_printed: 1 mismatch(es): [[0, '0.3221264477609989'], [1, '0.1295818223118249E-01'], [2, '0.3022148351236412E-04'], [3, '0.3833757148333837E-09']] vs [[0, '0.1387032573212814'], [1, '0.6584996603777665E-02'], [2, '0.6196292202160734E-05'], [3, '0.2264073571398288E-10']]
+[agreement with serial] tebox_serial_t1_it3 vs tebox_jac_t4_it3: MISMATCH
+  jacobian:captured[0]: 39 mismatch(es) (value 32, only-a 0, only-b 7); pairs te/te: 39; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+  jacobian:captured[1]: 1 mismatch(es) (value 1, only-a 0, only-b 0); pairs te/te: 1; first value row te(ix=4,iy=20) col te(ix=4,iy=21)
+  jacobian:post_exmain: 46 mismatch(es) (value 46, only-a 0, only-b 0); pairs te/te: 46; first value row te(ix=5,iy=18) col te(ix=4,iy=20)
+  sfscal: 18 mismatch(es); by equation {'te': 18}; first at te(ix=3,iy=18)
+  suscal: equal
+  yldot: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  fnrm_final: 1 mismatch(es): 0x1.a586ab9f9b5ccp-32 vs 0x1.5a01fff4a2316p-32
+  fnrm_printed: 1 mismatch(es): [[0, '0.3221264477609989'], [1, '0.1295818223118249E-01'], [2, '0.3022148351236412E-04'], [3, '0.3833757148333837E-09']] vs [[0, '0.1586859089740692'], [1, '0.8728610241907105E-02'], [2, '0.2314004686417733E-04'], [3, '0.3146922716246151E-09']]
+[determinism (run0 vs run1)] tebox_jac_t4_it3 vs tebox_jac_t4_it3: MISMATCH
+  jacobian:captured[0]: 41 mismatch(es) (value 26, only-a 10, only-b 5); pairs te/te: 41; first value row te(ix=3,iy=18) col te(ix=3,iy=18)
+  jacobian:captured[1]: equal
+  jacobian:post_exmain: 31 mismatch(es) (value 31, only-a 0, only-b 0); pairs te/te: 31; first value row te(ix=7,iy=18) col te(ix=4,iy=20)
+  sfscal: 11 mismatch(es); by equation {'te': 11}; first at te(ix=3,iy=18)
+  suscal: equal
+  yldot: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  yldot_probe: 25 mismatch(es); by equation {'te': 25}; first at te(ix=3,iy=18)
+  fnrm_final: 1 mismatch(es): 0x1.8e4ccf15b38f6p-36 vs 0x1.5a01fff4a2316p-32
+  fnrm_printed: 1 mismatch(es): [[0, '0.1387032573212814'], [1, '0.6584996603777665E-02'], [2, '0.6196292202160734E-05'], [3, '0.2264073571398288E-10']] vs [[0, '0.1586859089740692'], [1, '0.8728610241907105E-02'], [2, '0.2314004686417733E-04'], [3, '0.3146922716246151E-09']]
+
+# Part 3: after review round 1 (strict comparator, arm checks, exit codes, provenance)
+
+## unit tests: 29 passed in 0.67s
+
+## live runs (exit codes)
+### ss
+note: --arm serial compares serial runs with each other (a determinism check of the build)
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+[agreement with serial] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+[determinism (run0 vs run1)] tebox_serial_t1_it0 vs tebox_serial_t1_it0: AGREE
+### b1
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: ERROR
+  ERROR: b (tebox_jac_t4_it0): jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?)
+  ERROR: b (tebox_jac_t4_it0): jac arm run with a build that has no OpenMP runtime
+CHECK tebox_jac_t4_it0: ERROR
+### jac
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jac_t4_it0: MISMATCH
+[determinism (run0 vs run1)] tebox_jac_t4_it0 vs tebox_jac_t4_it0: MISMATCH
+CHECK tebox_jac_t4_it0: MISMATCH
+### rhs
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+[agreement with serial] tebox_serial_t1_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+[determinism (run0 vs run1)] tebox_jacrhs_t4_it0 vs tebox_jacrhs_t4_it0: MISMATCH
+CHECK tebox_jacrhs_t4_it0: MISMATCH
+### tephi
+te_phi_serial_t1_it0: neq 6336, fnrm ['1.890747266414930'], 27.53 s
+
+# Part 4: after review round 2 minors
+unit tests: 32 passed in 0.72s
+tebox serial check: CHECK tebox_serial_t1_it0: AGREE (exit 0)
+tebox jac check, base-omp: CHECK tebox_jac_t4_it0: MISMATCH (exit 1)
