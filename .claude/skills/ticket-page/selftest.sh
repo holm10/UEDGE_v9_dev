@@ -2,7 +2,9 @@
 # End-to-end test of ticket_page.py (the ticket-page skill's helper) in a throwaway git repo, with no Atlassian calls:
 # new page (stub -> Ticket page line -> --new-page first fill -> verify -> --local -> --current after a simulated
 # Confluence round trip), the refusals, verify after a failed update and one retry, a dry run, the RCA mirror and the
-# Jira-fallback text checks. Atlassian responses and the PostToolUse hook log are simulated.
+# Jira-fallback text checks; then (J) the page `spec` creates when it files a ticket: Ticket section from the
+# breakdown, skeleton, verified create, lookup by plan-feature, plan publish, execute / validate / review flushes, and
+# the Ticket-section safety checks. Atlassian responses and the PostToolUse hook log are simulated.
 # Usage: .claude/skills/ticket-page/selftest.sh [workdir]   (default: a new temporary directory)
 set -u
 H="$(cd "$(dirname "$0")" && pwd)/ticket_page.py"; W="${1:-$(mktemp -d)}"; mkdir -p "$W"; cd "$W" || exit 2
@@ -157,5 +159,148 @@ echo "== I. short roots only as path prefixes (review I3-m3)"
 printf 'the /p option, /g flag, /global setting, /data-set, /project-x, /p.value, /work and /nfs\n' > "$W/words.txt"
 $T sanitize --repo "$R" --max-chars 0 < "$W/words.txt" > "$W/words.out"; cmp -s "$W/words.txt" "$W/words.out"; ok $? 0 "I1 lone short roots left alone"
 printf '/p/lustre1/someone/a /g/g19/someone/b /global/homes/s/someone/c /data/someone/d /work/someone/e /usr/WS1/someone/f\n' | $T sanitize --repo "$R" --max-chars 0 | grep -q someone; ok $? 1 "I2 short roots with a path segment masked"
+echo "== J. page created by spec, then the whole lifecycle on it"
+PL="$W/planning"; git init -q "$PL" && git -C "$PL" checkout -q -b feature/v9-T-0-planning; mkdir -p "$PL/docs/specs"
+cat > "$PL/docs/specs/T-0-demo.md" <<'EOF'
+# Spec: T-0 - Demo
+
+## Tickets
+### Phase 1
+
+#### T1 — Coordinate with T-9 · `T-2`
+- **Scope:** talk to T-9.
+- **Branch:** none.
+
+#### T2 — Demo feature · `T-1`
+- **Scope:** add the demo, see /Users/someone/x.
+- **Acceptance:**
+  - it works;
+  - it is documented.
+## Not a ticket
+- **Depends on:** none.
+
+#### T3 — Other · `T-10`
+- **Branch:** `feature/v9-T-10-other`.
+EOF
+git -C "$PL" add -A && git -C "$PL" -c user.email=t@t -c user.name=t commit -qm breakdown
+TK="$T ticket --repo $PL --breakdown docs/specs/T-0-demo.md --branch feature/v9-T-0-planning"
+$TK --key T-1 --out "$W/tk1.md" >/dev/null; ok $? 0 "J1 Ticket section from the breakdown entry (by key)"
+grep -q 'it is documented' "$W/tk1.md" && ! grep -q 'Not a ticket' "$W/tk1.md" && ! grep -q 'Other' "$W/tk1.md"; ok $? 0 "J1 the entry ends at the next heading of its level or higher"
+grep -q 'T-0-demo.md` at `' "$W/tk1.md" && ! grep -q '/Users/someone' "$W/tk1.md"; ok $? 0 "J1 source line cites the commit; paths masked"
+$TK --key T-9 --out "$W/x.md" 2>/dev/null; ok $? 3 "J2 a key that only appears in another entry's title text is not matched (T-9)"
+$TK --key T-3 --out "$W/x.md" 2>/dev/null; ok $? 3 "J2 no entry: exit 3 (use the Jira description)"
+printf 'Fix the thing.\n\n## Acceptance\n- done\n' > "$W/desc.md"
+$T ticket --repo "$PL" --key T-3 --text "$W/desc.md" --source "the Jira description of T-3" --out "$W/tk3.md" >/dev/null; ok $? 0 "J2 Ticket section from a Jira description"
+grep -q '^### Acceptance' "$W/tk3.md"; ok $? 0 "J2 headings in the text demoted below H2"
+SM(){ python3 - "$W/smeta.json" "$1" <<'EOF'
+import json,sys
+d=dict(key="T-1",key_url="https://x/browse/T-1",summary="Demo",epic="T-0",epic_url="https://x/browse/T-0",
+ prd_title="PRD: T-0 - Demo",prd_url="https://x/wiki/1",branch="feature/v9-T-1-demo",status="Planned",
+ updated="2026-10-16",skill="spec")
+if sys.argv[2]: d.update(page_id=sys.argv[2], page_url="https://x/wiki/"+sys.argv[2])
+json.dump(d,open(sys.argv[1],'w'))
+EOF
+}
+SM ""; SS="$W/st-spec"
+$T render --repo "$PL" --meta "$W/smeta.json" --outbox "$SS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J3 skeleton without --ticket refused"
+$T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --outbox "$SS" --out "$W/sk.md" >/dev/null; ok $? 0 "J3 skeleton render (spec, before the create)"
+for h in '## Ticket' '## Progress' '## Validation' '## Reviews' '## Findings and decisions' '## Plan'; do grep -qx "$h" "$W/sk.md" || echo "missing $h"; done | grep -q missing; ok $? 1 "J3 skeleton has Ticket, the four logs and Plan"
+grep -q 'Not written yet' "$W/sk.md" && grep -q 'Status:\*\* Planned' "$W/sk.md" && grep -q 'planned, not created yet' "$W/sk.md"; ok $? 0 "J3 Plan placeholder, status Planned, branch planned"
+[ ! -e "$SS" ]; ok $? 0 "J3 the skeleton render wrote nothing to the store"
+SM 950
+$T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --current "$W/sk.md" --outbox "$SS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J4 the skeleton never rewrites an existing page"
+fakecreate(){ python3 - "$W/hook.jsonl" "$1" "$2" "$3" <<'EOF'
+import json,sys
+log,title,bodyf,pid=sys.argv[1:]
+rec={"hook_event_name":"PostToolUse","tool_name":"mcp__atlassian__createConfluencePage",
+     "tool_input":{"parentId":"800","title":title,"body":open(bodyf).read()},
+     "tool_response":[{"type":"text","text":json.dumps({"id":pid,"version":{"number":1},"body":{"storage":{"value":"<p/>"}}})}]}
+open(log,"a").write(json.dumps(rec)+"\n")
+EOF
+}
+fakecreate "Plan: T-1 - Demo" "$W/sk.md" 950
+$T verify --body "$W/sk.md" --created --title "Plan: T-1 - Demo" --parent-id 800 --log "$W/hook.jsonl" | grep -q 'page id 950'; ok $? 0 "J5 verify the create (body and new page id)"
+cp "$W/sk.md" "$W/skbad.md"; echo typo >> "$W/skbad.md"; fakecreate "Plan: T-1 - Demo" "$W/skbad.md" 951
+$T verify --body "$W/sk.md" --created --title "Plan: T-1 - Demo" --log "$W/hook.jsonl" 2>/dev/null; ok $? 1 "J5 a mistyped create is detected"
+$T verify --body "$W/sk.md" --created --title "Plan: T-2 - Other" --log "$W/hook.jsonl" 2>/dev/null; ok $? 3 "J5 no logged create with that title: unverified"
+# The page as Confluence returns it (markdown round trip), and the lookups plan-feature makes.
+python3 - "$W/sk.md" "$W/spage.json" <<'EOF'
+import json,re,sys
+s=open(sys.argv[1]).read(); s=re.sub(r"^  ", "", s, flags=re.M).replace("_No entries yet._","*No entries yet.*")
+s=re.sub(r"^- ", "* ", s, flags=re.M)
+json.dump([{"type":"text","text":json.dumps({"id":"950","title":"Plan: T-1 - Demo","body":s})}],open(sys.argv[2],"w"))
+EOF
+cat > "$W/cql.json" <<'EOF'
+{"results":[{"content":{"id":"950","title":"Plan: T-1 - Demo"}},{"content":{"id":"960","title":"Plan: T-10 - Other"}},
+ {"content":{"id":"970","title":"Plan: T-1x - near miss"}}],"size":3}
+EOF
+cat > "$W/issue.json" <<'EOF'
+{"key":"T-1","fields":{"comment":{"comments":[{"id":"1","body":"Ticket page: [Plan: T-1 - Demo](https://x/wiki/950) (Confluence page id `950`), under [Ticket plans: T-0](https://x/wiki/800)."}]}}}
+EOF
+$T find --key T-1 --search "$W/cql.json" > "$W/f1.json"; ok $? 0 "J6 lookup by CQL title finds the spec-created page"
+grep -q '"950"' "$W/f1.json" && ! grep -q '"960"\|"970"' "$W/f1.json"; ok $? 0 "J6 only page 950 (not T-10, not T-1x)"
+$T find --key T-1 --comments "$W/issue.json" | grep -q 'Jira link comment'; ok $? 0 "J6 lookup by the Jira link comment (no worktree record yet)"
+$T find --key T-2 --search "$W/cql.json" >/dev/null 2>&1; ok $? 3 "J6 no page: exit 3 (plan-feature creates it)"
+sed 's/"970","title":"Plan: T-1x - near miss"/"971","title":"Plan: T-1 - Demo (copy)"/' "$W/cql.json" > "$W/cql2.json"
+$T find --key T-1 --search "$W/cql2.json" >/dev/null 2>&1; ok $? 2 "J6 two pages for one ticket: stop and ask"
+# plan-feature in the ticket worktree: fresh store, the page read back, the plan's Ticket page line committed.
+TS="$W/st-ticket"; meta 950
+python3 -c "import re,sys;p=sys.argv[1];s=open(p).read();open(p,'w').write(re.sub(r'(?m)^\*\*Ticket page\*\*: Confluence page 900.*$','**Ticket page**: Confluence page 950 (https://x/wiki/950)',s))" "$R/$P"
+git -C "$R" -c user.email=t@t -c user.name=t commit -qam "Records the T-1 ticket page"; REV2=$(git -C "$R" rev-parse --short HEAD)
+$T find --key T-1 --plan "$R/$P" --comments "$W/issue.json" --search "$W/cql.json" >/dev/null; ok $? 0 "J7 plan line, comment and CQL agree"
+$T queue --repo "$R" --key T-1 --outbox "$TS" --add Progress plan-feature "Plan published ($REV2)." >/dev/null
+$T render --repo "$R" --plan $P --plan-rev $REV2 --meta "$W/meta.json" --current "$W/spage.json" --outbox "$TS" --out "$W/p1.md" > "$W/out.txt"; ok $? 0 "J7 plan-feature fills the spec-created page with --current (no --new-page)"
+grep -q 'Ticket section carried over' "$W/out.txt" && grep -q 'it is documented' "$W/p1.md"; ok $? 0 "J7 Ticket section kept"
+grep -q 'Not written yet' "$W/p1.md"; ok $? 1 "J7 the Plan placeholder is replaced by the mirror"
+grep -q '^#### Tasks' "$W/p1.md" && grep -q 'Plan published' "$W/p1.md"; ok $? 0 "J7 plan mirrored, Progress entry added"
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/spage.json" --new-page --outbox "$TS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J7 --new-page refused on a spec-created page (not a stub)"
+fakelog 950 "$W/p1.md" 2
+$T verify --body "$W/p1.md" --page-id 950 --after-version 1 --log "$W/hook.jsonl" >/dev/null; ok $? 0 "J8 verify the plan publish (v2)"
+$T state --repo "$R" --key T-1 --outbox "$TS" --set version=2 plan_rev=$REV2 page_id=950 --save-body "$W/p1.md" >/dev/null
+$T queue --repo "$R" --key T-1 --outbox "$TS" --mark-sent >/dev/null
+# execute (with validate queued inside it): --local flush
+$T queue --repo "$R" --key T-1 --outbox "$TS" --add Validation validate "build ok, smoke test ok at abc1234" >/dev/null
+$T queue --repo "$R" --key T-1 --outbox "$TS" --add Progress execute "execute: tasks 1-3 done, commits a..b; no deviations" >/dev/null
+$T render --repo "$R" --plan $P --plan-rev $REV2 --meta "$W/meta.json" --local --page-version 2 --outbox "$TS" --out "$W/p2.md" >/dev/null; ok $? 0 "J9 end-of-execute flush (--local)"
+grep -q 'it is documented' "$W/p2.md" && grep -q 'tasks 1-3 done' "$W/p2.md" && grep -q 'smoke test ok at abc1234' "$W/p2.md"; ok $? 0 "J9 Ticket section, Progress and Validation present"
+fakelog 950 "$W/p2.md" 3; $T verify --body "$W/p2.md" --page-id 950 --after-version 2 --log "$W/hook.jsonl" >/dev/null; ok $? 0 "J9 verify v3"
+$T state --repo "$R" --key T-1 --outbox "$TS" --set version=3 --save-body "$W/p2.md" >/dev/null; $T queue --repo "$R" --key T-1 --outbox "$TS" --mark-sent >/dev/null
+# a standalone validate flush after someone else edited the page: --current round trip
+python3 - "$W/p2.md" "$W/p2rt.md" <<'EOF'
+import re,sys
+s=open(sys.argv[1]).read(); s=re.sub(r"^  ", "", s, flags=re.M); s=re.sub(r"^- ", "* ", s, flags=re.M)
+open(sys.argv[2],"w").write(s)
+EOF
+$T queue --repo "$R" --key T-1 --outbox "$TS" --add Validation validate "FAIL D_only: fnrm 1.2e-3 vs 1.1e-3" >/dev/null
+$T render --repo "$R" --plan $P --plan-rev $REV2 --meta "$W/meta.json" --current "$W/p2rt.md" --outbox "$TS" --out "$W/p3.md" > "$W/out.txt"; ok $? 0 "J10 standalone validate flush (--current after a round trip)"
+grep -q '1 new, 0 restored' "$W/out.txt" && grep -q 'it is documented' "$W/p3.md"; ok $? 0 "J10 one new entry, nothing duplicated, Ticket kept"
+fakelog 950 "$W/p3.md" 4; $T state --repo "$R" --key T-1 --outbox "$TS" --set version=4 --save-body "$W/p3.md" >/dev/null; $T queue --repo "$R" --key T-1 --outbox "$TS" --mark-sent >/dev/null
+# review flush; then the Ticket-section safety check
+$T queue --repo "$R" --key T-1 --outbox "$TS" --add Reviews loop "Reviewer: implementation round 1 APPROVE (0/0/2)." >/dev/null
+$T render --repo "$R" --plan $P --plan-rev $REV2 --meta "$W/meta.json" --local --page-version 4 --outbox "$TS" --out "$W/p4.md" >/dev/null; ok $? 0 "J11 review flush (--local)"
+python3 - "$W/p4.md" <<'EOF'
+import sys
+s=open(sys.argv[1]).read(); c=s.count
+assert c("## Ticket\n")==1 and c("## Plan\n")==1 and c("Plan published")==1 and c("tasks 1-3 done")==1 and c("fnrm 1.2e-3")==1 and c("APPROVE (0/0/2)")==1, "counts"
+assert s.index("## Ticket")<s.index("## Progress")<s.index("## Validation")<s.index("## Reviews")<s.index("## Findings and decisions")<s.index("## Plan")
+EOF
+ok $? 0 "J11 one page: every section once, in order, every entry once"
+$T state --repo "$R" --key T-1 --outbox "$TS" --save-body "$W/p4.md" >/dev/null
+python3 - "$W/p4.md" "$W/noticket.md" <<'EOF'
+import sys
+s=open(sys.argv[1]).read(); i=s.index("## Ticket"); j=s.index("## Progress"); s=s[:i]+s[j:]; s=s[:s.index("\n## Plan\n")]
+open(sys.argv[2],"w").write(s)
+EOF
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/noticket.md" --outbox "$TS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J12 a page that lost its Ticket section is refused"
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/noticket.md" --ticket "$W/tk1.md" --outbox "$TS" --out "$W/x.md" >/dev/null; ok $? 0 "J12 accepted with --ticket (rebuilt section)"
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/noticket.md" --allow-fewer --outbox "$TS" --out "$W/x.md" >/dev/null; ok $? 0 "J12 accepted with --allow-fewer (deliberate removal)"
+# legacy page (created by plan-feature before spec made pages): no Ticket section, nothing refused
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/rt.md" --allow-fewer --outbox "$W/st-legacy" --out "$W/lg.md" >/dev/null; ok $? 0 "J13 legacy page without a Ticket section renders"
+grep -q '^## Ticket' "$W/lg.md"; ok $? 1 "J13 no Ticket section invented"
+# a legacy stub found by spec: filled with the skeleton via --new-page
+SM 990; $T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --current "$W/stub.md" --new-page --outbox "$W/st-stub" --out "$W/x.md" >/dev/null; ok $? 0 "J14 spec fills a legacy stub with the skeleton (--new-page)"
+# Jira fallback: the 'ticket filed' comment
+printf '**PIV record: ticket filed** (2026-10-16, spec) · _posted by an agent through the owner account_\nScope: add the demo, see /Users/someone/x.\nAcceptance: it works; it is documented.\nBranch `feature/v9-T-1-demo` (planned); breakdown `docs/specs/T-0-demo.md` at `abc1234`.\nNo epic PRD page, so the record is kept in these comments (at most 8).\n' | $T sanitize --repo "$PL" > "$W/fb2.txt"; ok $? 0 "J15 fallback 'ticket filed' comment within the cap"
+grep -q '/Users/someone' "$W/fb2.txt"; ok $? 1 "J15 paths masked"
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

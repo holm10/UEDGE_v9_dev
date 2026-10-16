@@ -8,26 +8,41 @@ Deterministic helpers for the `ticket-page` skill (`.claude/skills/ticket-page/S
 The skill makes the Atlassian calls; this script only builds and checks text, so a dry run and a real run write the
 same thing.
 
-  render    Build the ticket page body: header, the four log sections and the plan (or RCA) mirrored from a
-            committed revision. Log sections = the current page's entries, plus any entry of the local sent log that
-            the page lost, plus the outbox, plus --entry. For an existing page it refuses (exit 2) unless it gets a
-            current page with all four log headings and at least the entries this worktree last sent, or --local
-            with the version this worktree last wrote, or --new-page with exactly the stub of a page just created.
+  render    Build the ticket page body: header, the Ticket section (the ticket's scope as filed), the four log
+            sections and the plan (or RCA) mirrored from a committed revision. Without --plan it builds the skeleton
+            that `spec` creates a page with (Ticket section, empty logs, a Plan placeholder); it never rewrites an
+            existing page except a legacy stub. Log sections = the current page's entries, plus any entry of the
+            local sent log that the page lost, plus the outbox, plus --entry. The Ticket section is --ticket, else
+            the current page's (or the last body's) carried over. For an existing page it refuses (exit 2) unless it
+            gets a current page with all four log headings and at least the entries (and the Ticket section) this
+            worktree last sent, or --local with the version this worktree last wrote, or --new-page with exactly
+            the stub of a page just created.
+  ticket    Build the Ticket section: the ticket's entry in the committed epic breakdown (found by key), or a given
+            text (the Jira description) with its source.
+  find      Find a ticket's page id from the plan's Ticket page line, the ticket's Jira link comment and a CQL
+            listing of the container (title prefix "Plan: <KEY> - "); exit 2 on several pages, 3 on none.
   queue     The per-ticket outbox (entries not yet sent) and sent log (every entry that reached the page or Jira),
             both untracked, in the worktree's git directory: add, list, mark sent, list sent.
   state     Small per-ticket state: page id, last version written, plan revision, fallback comment ids and count.
-  verify    Check that the body the last updateConfluencePage call sent for a page equals the rendered file (up to
-            trailing whitespace), using the PostToolUse hook log (logs/post_tool_use.jsonl); prints the version.
+  verify    Check that the body the last updateConfluencePage call sent for a page (or, with --created, the last
+            createConfluencePage call with that title) equals the rendered file (up to trailing whitespace), using
+            the PostToolUse hook log (logs/post_tool_use.jsonl); prints the version (and the new page id).
   sanitize  Read text on stdin, replace local absolute paths, refuse secret-like strings, enforce a length cap.
 
 Usage:
-  ticket_page.py render --repo WT --plan PATH [--plan-rev REV] [--plan-title Plan|RCA] --meta meta.json
+  ticket_page.py render --repo WT [--plan PATH [--plan-rev REV] [--plan-title Plan|RCA]] --meta meta.json
+                        [--ticket ticket.md]
                         [--current page.md|page.json [--new-page] [--allow-fewer] | --local --page-version N]
                         [--entry SECTION SOURCE TEXT]... [--outbox DIR] [--date YYYY-MM-DD] --out body.md
+                        (no --plan: the skeleton; needs --ticket, and no page_id unless --new-page on a stub)
+  ticket_page.py ticket --repo WT --key KEY (--breakdown PATH [--rev REV] | --text FILE --source TEXT) --out ticket.md
+                        (exit 3: no breakdown entry for KEY; exit 2: several)
+  ticket_page.py find   --key KEY [--plan FILE] [--comments issue.json] [--search cql.json ...]
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
                         (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
-  ticket_page.py verify --body body.md --page-id ID [--after-version N] [--log PATH] [--repo WT]
+  ticket_page.py verify --body body.md (--page-id ID [--after-version N] | --created --title T [--parent-id P])
+                        [--log PATH] [--repo WT]
   ticket_page.py stub --key KEY        (prints the one-line body to create a new ticket page with)
   ticket_page.py summary --repo WT --key KEY [--outbox DIR] (--check | --returned-id ID | --failed | --superseded-by ID)
                                        (Jira fallback: running-summary bookkeeping; exit 1 = stopped, make no call)
@@ -226,6 +241,14 @@ def load_current(path):
     die("can't find a markdown page body in --current")
 
 
+def load_json(path):
+    """A saved tool result: plain JSON or the MCP content-array form [{"type": "text", "text": "{...}"}]."""
+    data = json.loads(Path(path).read_text())
+    if isinstance(data, list) and data and all(isinstance(x, dict) and "text" in x for x in data):
+        data = json.loads("".join(x["text"] for x in data))
+    return data
+
+
 def parse_sections(md, plan_title):
     """Return ({section: [entries]}, set of log headings found) for the part of a page before the mirror.
     Only the four log headings and the mirror's heading are boundaries; any other heading-like line (for example a
@@ -259,6 +282,41 @@ def entry_text(e):
 
 
 STUB = "Plan page for {key}; content follows."
+TICKET = "Ticket"
+PLAN_PLACEHOLDER = ("_Not written yet: `plan-feature` mirrors the ticket's plan here (`implement-fix` mirrors its RCA"
+                    " under an RCA heading instead)._")
+
+
+def _heading(ln):
+    """(level, title) of an H1/H2 line, title stripped of '*' and trailing '#', or (0, None)."""
+    m = re.match(r"^(#{1,2})\s+(.*?)\s*#*\s*$", ln)
+    return (len(m.group(1)), m.group(2).strip().strip("*").strip()) if m else (0, None)
+
+
+def parse_ticket(md):
+    """The Ticket section of a page (the text between '## Ticket' and the next log or mirror heading), or None."""
+    out, inside = [], False
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            _, title = _heading(ln)
+            if title == TICKET:
+                inside = True
+                continue
+            if title in SECTIONS or title in ("Plan", "RCA"):
+                if inside:
+                    break
+                continue
+        if inside:
+            out.append(ln)
+    text = "\n".join(out).strip()
+    return text or None
+
+
+def demote_below_h2(md):
+    """Shift headings (outside fences) so none is H1 or H2: the section must not end at one of its own lines."""
+    levels = [len(m.group(1)) for ln, f in split_fences(md.splitlines()) if not f
+              for m in [re.match(r"^(#{1,6})\s", ln)] if m]
+    return demote(md, max(0, 3 - min(levels))) if levels else md
 
 
 # ---------------------------------------------------------------- local files
@@ -282,6 +340,13 @@ def cmd_render(a):
     missing = [k for k in META_KEYS if not meta.get(k)]
     if missing:
         die("meta.json is missing " + ", ".join(missing))
+    skeleton = not a.plan
+    if skeleton:
+        if not a.ticket:
+            die("the skeleton (no --plan) needs --ticket (the Ticket section, from: ticket_page.py ticket)")
+        if a.local or (meta.get("page_id") and not a.new_page):
+            die("the skeleton is only for creating a page (or filling a legacy stub with --new-page): an existing "
+                "page is never rewritten with it; plan-feature fills the page with --plan")
     if meta.get("page_id") and not (a.current or a.local):
         die("the page exists (meta has page_id): pass --current (the page read with contentFormat \"markdown\"), "
             "--local --page-version N, or for the first fill of a just-created stub --new-page --current <stub>")
@@ -296,13 +361,17 @@ def cmd_render(a):
         print(f"ticket_page: note: the state file's version {state['version']} belongs to page "
               f"{state.get('page_id')}, not {meta['page_id']}; treating the page as new", file=sys.stderr)
     rev = a.plan_rev or "HEAD"
-    tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
-    # The commit that last changed the mirrored file at that revision, so the header doesn't move with other commits.
-    sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.plan).strip() or git(
-        a.repo, "rev-parse", "--short", rev).strip()
-    plan = git(a.repo, "show", f"{rev}:{a.plan}")
+    tip = sha = plan = None
+    if not skeleton:
+        tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
+        # The commit that last changed the mirrored file at that revision, so the header doesn't move with other
+        # commits.
+        sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.plan).strip() or git(
+            a.repo, "rev-parse", "--short", rev).strip()
+        plan = git(a.repo, "show", f"{rev}:{a.plan}")
 
     logs = {s: [] for s in SECTIONS}
+    carried_ticket = None
     current = a.current
     if a.local:  # the page is what this worktree last sent: the helper checks the version the caller read
         if a.page_version is None:
@@ -330,6 +399,7 @@ def cmd_render(a):
                                 f"; this worktree recorded version {recorded} of this page, so check the page "
                                 "history first, then reset with: state --set version="))
         logs, seen = parse_sections(load_current(current), a.plan_title)
+        carried_ticket = parse_ticket(load_current(current))
         if meta.get("page_id") and len(seen) < len(SECTIONS):
             die("--current lacks the log section heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS
                                                                           if s not in seen)
@@ -361,35 +431,61 @@ def cmd_render(a):
         if fewer:
             die("the page has fewer entries than this worktree last sent in " + ", ".join(fewer)
                 + "; read the page again; if a person removed them on purpose, pass --allow-fewer")
+        if not a.ticket and not carried_ticket and parse_ticket(load_current(last)):
+            die("the page lacks the Ticket section this worktree last sent; read the page again, or pass --ticket "
+                "(rebuilt with: ticket_page.py ticket), or --allow-fewer if a person removed it on purpose")
     added = merge(pending + extra)
 
+    ticket_md = Path(a.ticket).read_text().strip() if a.ticket else carried_ticket
     page_ref = f"[page {meta['page_id']}]({meta['page_url']})" if meta.get("page_id") else "not yet created"
     status = meta["status"] + (f" ({meta['status_note']})" if meta.get("status_note") else "")
-    header = [
-        f"> **Jira:** [{key}]({meta['key_url']}) - {meta['summary']} · **Epic:** [{meta['epic']}]({meta['epic_url']})"
-        f" · **PRD:** [{meta['prd_title']}]({meta['prd_url']})",
-        f"> **Branch:** `{meta['branch']}` at `{tip}` · **{a.plan_title}:** `{a.plan}` as of `{sha}` · "
-        f"**This page:** {page_ref}",
-        f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
-        "> **Posted by an agent** through the owner's Atlassian account. Entries are the agent's unless marked"
-        " Owner or Reviewer; an owner decision is marked Owner only when a source records it as the owner's"
-        " (attribution rules in `close-epic`).",
-        f"> The {'RCA' if a.plan_title == 'RCA' else 'plan'} file in the repo is the source of truth; the"
-        f" {a.plan_title} section mirrors it"
-        " as of the commit above (local paths shown as `{worktree}`, `{local}`). The four log sections are"
-        " append-only.",
-    ]
+    attribution = ("> **Posted by an agent** through the owner's Atlassian account. Entries are the agent's unless"
+                   " marked Owner or Reviewer; an owner decision is marked Owner only when a source records it as the"
+                   " owner's (attribution rules in `close-epic`).")
+    jira = (f"> **Jira:** [{key}]({meta['key_url']}) - {meta['summary']} · **Epic:** [{meta['epic']}]"
+            f"({meta['epic_url']}) · **PRD:** [{meta['prd_title']}]({meta['prd_url']})")
+    if skeleton:
+        header = [
+            jira,
+            f"> **Branch:** `{meta['branch']}` (planned, not created yet) · **Plan:** not written yet"
+            + (f" · **This page:** {page_ref}" if meta.get("page_id") else ""),
+            f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
+            attribution,
+            "> This page is the ticket's PIV record, created when the ticket was filed. The Ticket section is its"
+            " scope as filed; `plan-feature` mirrors the plan into the Plan section, and `execute`, `validate` and"
+            " the review gates add to the four log sections, which are append-only.",
+        ]
+    else:
+        header = [
+            jira,
+            f"> **Branch:** `{meta['branch']}` at `{tip}` · **{a.plan_title}:** `{a.plan}` as of `{sha}` · "
+            f"**This page:** {page_ref}",
+            f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
+            attribution,
+            f"> The {'RCA' if a.plan_title == 'RCA' else 'plan'} file in the repo is the source of truth; the"
+            f" {a.plan_title} section mirrors it"
+            " as of the commit above (local paths shown as `{worktree}`, `{local}`)."
+            + (" The Ticket section is the ticket's scope as filed." if ticket_md else "")
+            + " The four log sections are append-only.",
+        ]
     # No H1: Confluence shows the page title. Separate quote paragraphs: the import joins consecutive quote lines.
     body = [x for h in header for x in (h, ">")][:-1] + [""]
+    if ticket_md:
+        body += [f"## {TICKET}", "", demote_below_h2(ticket_md), ""]
     for s in SECTIONS:
         body += [f"## {s}", ""] + (logs[s] or [EMPTY]) + [""]
-    body += [f"## {a.plan_title}", "", demote(plan.strip(), 2), ""]
+    if skeleton:
+        body += ["## Plan", "", PLAN_PLACEHOLDER, ""]
+    else:
+        body += [f"## {a.plan_title}", "", demote(plan.strip(), 2), ""]
     text = sanitize("\n".join(body), a.repo)
     refuse_secrets(text, "the page body")
     Path(a.out).write_text(text)
     digest = hashlib.sha256(text.rstrip().encode()).hexdigest()[:16]
-    print(f"ticket_page: wrote {a.out} ({len(text)} chars, sha256 {digest}; {a.plan_title} {a.plan} as of {sha}; "
-          + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
+    print(f"ticket_page: wrote {a.out} ({len(text)} chars, sha256 {digest}; "
+          + ("skeleton; " if skeleton else f"{a.plan_title} {a.plan} as of {sha}; ")
+          + ("Ticket section " + ("given" if a.ticket else "carried over") if ticket_md else "no Ticket section")
+          + "; " + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
           + f"; {added} new, {restored} restored from the sent log)")
     return 0
 
@@ -459,8 +555,56 @@ def _log_candidates(a):
     return [c for c in dict.fromkeys(cands) if c.exists()]
 
 
+def _response_json(d):
+    try:
+        r = d.get("tool_response")
+        if isinstance(r, list):
+            r = json.loads("".join(x.get("text", "") for x in r if isinstance(x, dict)))
+        return r if isinstance(r, dict) else {}
+    except ValueError:
+        return {}
+
+
+def verify_created(a, want):
+    """The last logged createConfluencePage call with this title (and parent): compare its body, print the new id."""
+    for logp in _log_candidates(a):
+        with logp.open() as f:
+            lines = f.readlines()
+        for ln in reversed(lines):
+            if "createConfluencePage" not in ln:
+                continue
+            try:
+                d = json.loads(ln)
+            except ValueError:
+                continue
+            ti = d.get("tool_input") or {}
+            if not str(d.get("tool_name", "")).endswith("createConfluencePage") or ti.get("title") != a.title:
+                continue
+            if a.parent_id and str(ti.get("parentId")) != a.parent_id:
+                continue
+            resp = _response_json(d)
+            pid = str(resp.get("id") or "")
+            sent = str(ti.get("body", "")).rstrip()
+            if sent == want:
+                print(f"ticket_page: verified: the create of '{a.title}' sent the rendered body ({len(sent)} chars); "
+                      f"page id {pid or 'unknown'}, version 1")
+                return 0
+            first = next((i for i, (x, y) in enumerate(zip(sent, want)) if x != y), min(len(sent), len(want)))
+            print(f"ticket_page: MISMATCH: the create of '{a.title}' (page id {pid or 'unknown'}) sent {len(sent)} "
+                  f"chars, the rendered body has {len(want)}; first difference at char {first}", file=sys.stderr)
+            return 1
+    print(f"ticket_page: no logged createConfluencePage call titled '{a.title}'; unverified", file=sys.stderr)
+    return 3
+
+
 def cmd_verify(a):
     want = Path(a.body).read_text().rstrip()
+    if a.created:
+        if not a.title:
+            die("--created needs --title")
+        return verify_created(a, want)
+    if not a.page_id:
+        die("verify needs --page-id (or --created --title)")
     for logp in _log_candidates(a):
         with logp.open() as f:
             lines = f.readlines()
@@ -540,6 +684,114 @@ def cmd_summary(a):
     die("summary needs --check, --returned-id, --failed or --superseded-by")
 
 
+KEY_TOKEN = r"(?<![A-Za-z0-9-]){key}(?![0-9])"
+
+
+def cmd_ticket(a):
+    """The Ticket section: the ticket's entry in the committed breakdown, or a given text, with its source line."""
+    if a.breakdown:
+        rev = a.rev or "HEAD"
+        doc = git(a.repo, "show", f"{rev}:{a.breakdown}")
+        sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.breakdown).strip() or rev
+        lines = doc.splitlines()
+        heads = [(i, len(m.group(1)), m.group(2).strip()) for i, (ln, f) in enumerate(split_fences(lines)) if not f
+                 for m in [re.match(r"^(#{2,6})\s+(.*)$", ln)] if m]
+        tok = KEY_TOKEN.format(key=re.escape(a.key))
+
+        def body(h):
+            i, lvl, _ = h
+            end = next((j for j, l2, _ in heads if j > i and l2 <= lvl), len(lines))
+            return "\n".join(lines[i + 1:end]).strip()
+        tiers = [
+            [h for h in heads if h[1] >= 3 and re.search(r"`" + re.escape(a.key) + r"`", h[2])],
+            [h for h in heads if h[1] >= 3 and re.search(r"\*\*Branch:?\*\*:?.*v9-" + re.escape(a.key) + r"-",
+                                                          body(h))],
+            # A plain mention only in a heading that names no ticket key of its own: "Coordinate with AIUE-9 ·
+            # `AIUE-48`" is AIUE-48's entry, not AIUE-9's.
+            [h for h in heads if h[1] >= 3 and re.search(tok, h[2])
+             and not re.search(r"`[A-Za-z][A-Za-z0-9]*-[0-9]+`", h[2])],
+        ]
+        found = next((t for t in tiers if t), [])
+        if not found:
+            print(f"ticket_page: no entry for {a.key} in {a.breakdown} at {sha}; build the section from the Jira "
+                  "description (--text, --source)", file=sys.stderr)
+            return 3
+        if len(found) > 1:
+            die(f"several breakdown entries match {a.key}: " + "; ".join(h[2] for h in found))
+        h = found[0]
+        title = re.sub(r"[`*]", "", h[2])
+        src = (f"_Scope as filed: the ticket's entry \"{title}\" in the epic breakdown `{a.breakdown}` at `{sha}`"
+               f"{' on `' + a.branch + '`' if a.branch else ''}. The breakdown is the source of truth; a later change"
+               " to it is not copied here automatically._")
+        text = body(h)
+    else:
+        if not (a.text and a.source):
+            die("ticket needs --breakdown, or --text with --source")
+        text = Path(a.text).read_text().strip()
+        src = f"_Scope as filed: {a.source}._"
+    out = sanitize(src + "\n\n" + demote_below_h2(text) + "\n", a.repo)
+    refuse_secrets(out, "the Ticket section")
+    Path(a.out).write_text(out)
+    print(f"ticket_page: wrote {a.out} ({len(out)} chars)")
+    return 0
+
+
+def _search_hits(path):
+    data = load_json(path)
+    res = data.get("results", []) if isinstance(data, dict) else data
+    out = []
+    for r in res or []:
+        c = r.get("content", r) if isinstance(r, dict) else {}
+        if c.get("id") and (c.get("title") or r.get("title")):
+            out.append((str(c["id"]), c.get("title") or r.get("title")))
+    return out
+
+
+def cmd_find(a):
+    """Resolve a ticket's page id: the plan's Ticket page line, the Jira link comment, then the CQL listing."""
+    prefix = f"Plan: {a.key} - "
+    found = {}  # id -> how
+    piv = 0
+    if a.plan:
+        m = re.search(r"\*\*Ticket page\*\*:\s*Confluence page (\d+)", Path(a.plan).read_text())
+        if m:
+            found.setdefault(m.group(1), []).append("plan line")
+    if a.comments:
+        data = load_json(a.comments)
+        f = data.get("fields", {}) if isinstance(data, dict) else {}
+        comments = (f.get("comment") or {}).get("comments") or data.get("comments") or []
+        ids = set()
+        for c in comments:
+            b = c.get("body") if isinstance(c.get("body"), str) else json.dumps(c.get("body"))
+            if b.lstrip().startswith("**PIV record"):
+                piv += 1
+            m = re.match(r"\s*(?:Ticket|Plan) page:.*?Confluence page id `?(\d+)`?", b, re.S)
+            if m:
+                ids.add(m.group(1))
+        for i in ids:
+            found.setdefault(i, []).append("Jira link comment")
+    listed = []
+    for sp in a.search or []:
+        listed += [(i, t) for i, t in _search_hits(sp) if t.startswith(prefix)]
+    listed = list(dict.fromkeys(listed))
+    for i, t in listed:
+        found.setdefault(i, []).append(f"CQL title '{t}'")
+    report = {"key": a.key, "candidates": {i: v for i, v in found.items()}, "piv_record_comments": piv}
+    if a.search:
+        recorded = [i for i, v in found.items() if not any(x.startswith("CQL") for x in v)]
+        if recorded:
+            report["note"] = (f"recorded id(s) {', '.join(recorded)} not among the listed pages titled '{prefix}...': "
+                              "deleted, moved or renamed? confirm with CQL id = <id>")
+    print(json.dumps(report, indent=1))
+    if len(found) > 1:
+        print(f"ticket_page: several pages for {a.key}: stop and ask; never pick one silently", file=sys.stderr)
+        return 2
+    if not found:
+        print(f"ticket_page: no page for {a.key}", file=sys.stderr)
+        return 3
+    return 0
+
+
 def cmd_stub(a):
     print(STUB.format(key=a.key))
     return 0
@@ -559,10 +811,11 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("render")
     r.add_argument("--repo", required=True)
-    r.add_argument("--plan", required=True, help="repo-relative path of the plan (or RCA) file")
+    r.add_argument("--plan", help="repo-relative path of the plan (or RCA) file; without it: the skeleton")
     r.add_argument("--plan-rev", help="revision to mirror it from (default HEAD)")
     r.add_argument("--plan-title", default="Plan", choices=["Plan", "RCA"])
     r.add_argument("--meta", required=True)
+    r.add_argument("--ticket", help="the Ticket section (from: ticket_page.py ticket); default: carried over")
     g = r.add_mutually_exclusive_group()
     g.add_argument("--current")
     g.add_argument("--local", action="store_true")
@@ -593,7 +846,10 @@ def main():
     s.add_argument("--save-body", metavar="BODY", help="record BODY as the last body sent (after a verified update)")
     v = sub.add_parser("verify")
     v.add_argument("--body", required=True)
-    v.add_argument("--page-id", required=True)
+    v.add_argument("--page-id")
+    v.add_argument("--created", action="store_true", help="check the last createConfluencePage call with --title")
+    v.add_argument("--title")
+    v.add_argument("--parent-id")
     v.add_argument("--log")
     v.add_argument("--after-version", type=int,
                    help="the version checked before the update: only a logged update that returned a later version "
@@ -608,6 +864,20 @@ def main():
     smg.add_argument("--returned-id")
     smg.add_argument("--failed", action="store_true")
     smg.add_argument("--superseded-by")
+    tk = sub.add_parser("ticket")
+    tk.add_argument("--repo", required=True)
+    tk.add_argument("--key", required=True)
+    tk.add_argument("--breakdown", help="repo-relative path of the epic breakdown (docs/specs/<file>.md)")
+    tk.add_argument("--rev", help="revision to read it from (default HEAD)")
+    tk.add_argument("--branch", help="the branch it is on, for the source line (the epic's planning branch)")
+    tk.add_argument("--text", help="file with the scope text, when the breakdown has no entry")
+    tk.add_argument("--source", help="where --text comes from, e.g. 'the Jira description of AIUE-61'")
+    tk.add_argument("--out", required=True)
+    fd = sub.add_parser("find")
+    fd.add_argument("--key", required=True)
+    fd.add_argument("--plan", help="the plan or RCA file (its **Ticket page** line)")
+    fd.add_argument("--comments", help="the getJiraIssue result with fields.comment")
+    fd.add_argument("--search", action="append", help="a searchConfluenceUsingCql result (repeatable)")
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
@@ -616,7 +886,8 @@ def main():
     a = ap.parse_args()
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
-                "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize}[a.cmd](a)
+                "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize, "ticket": cmd_ticket,
+                "find": cmd_find}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:
