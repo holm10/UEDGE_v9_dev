@@ -1,0 +1,25 @@
+{
+ "content": {
+  "totalCount": 1,
+  "nodes": [
+   {
+    "id": "1540097",
+    "type": "page",
+    "subtype": "",
+    "status": "current",
+    "title": "PRD: AIUE-8 - Synthetic epic title",
+    "lastModified": "about 4 hours ago",
+    "summary": "Synthetic summary",
+    "space": {
+     "key": "SD",
+     "name": "Software Development"
+    },
+    "_links": {
+     "webui": "/spaces/SD/pages/1540097/Synthetic-title"
+    },
+    "webUrl": "https://example.atlassian.net/wiki/spaces/SD/pages/1540097/Synthetic-title"
+   }
+  ],
+  "webUrl": "https://example.atlassian.net/wiki/search?cql=type%20%3D%20page%20AND%20title%20~%20%22PRD%3A%20AIUE-8%22"
+ }
+}

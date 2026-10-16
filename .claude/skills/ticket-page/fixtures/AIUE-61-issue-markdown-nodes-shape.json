@@ -1,0 +1,88 @@
+{
+ "issues": {
+  "nodes": [
+   {
+    "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+    "id": "10070",
+    "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issue/10070",
+    "key": "AIUE-61",
+    "fields": {
+     "summary": "Synthetic summary",
+     "description": "Synthetic description for the selftest.",
+     "parent": {
+      "id": "10017",
+      "key": "AIUE-8",
+      "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issue/10017",
+      "fields": {
+       "summary": "Synthetic summary",
+       "status": {
+        "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/status/10004",
+        "description": "",
+        "iconUrl": "https://example.atlassian.net/images/icons/statuses/generic.png",
+        "name": "To Do",
+        "id": "10004",
+        "statusCategory": {
+         "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/statuscategory/2",
+         "id": 2,
+         "key": "new",
+         "colorName": "blue-gray",
+         "name": "To Do"
+        }
+       },
+       "priority": {
+        "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/priority/3",
+        "iconUrl": "https://example.atlassian.net/images/icons/priorities/medium_new.svg",
+        "name": "Medium",
+        "id": "3"
+       },
+       "issuetype": {
+        "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issuetype/10006",
+        "id": "10006",
+        "description": "Epics track collections of related bugs, stories, and tasks.",
+        "iconUrl": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+        "name": "Epic",
+        "subtask": false,
+        "avatarId": 10307,
+        "entityId": "6d4f39de-a9e5-4b87-ab0b-ea7f4203570f",
+        "hierarchyLevel": 1
+       }
+      }
+     },
+     "comment": {
+      "comments": [
+       {
+        "id": "10015",
+        "body": "**Synthetic comment 10015.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+        "created": "2026-10-15T12:23:48.198-0700",
+        "updated": "2026-10-15T12:23:48.198-0700"
+       }
+      ],
+      "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issue/10070/comment",
+      "maxResults": 1,
+      "total": 1,
+      "startAt": 0
+     },
+     "issuelinks": [],
+     "status": {
+      "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/status/10005",
+      "description": "This work item is being actively worked on at the moment by the assignee.",
+      "iconUrl": "https://example.atlassian.net/images/icons/statuses/generic.png",
+      "name": "In Progress",
+      "id": "10005",
+      "statusCategory": {
+       "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/statuscategory/4",
+       "id": 4,
+       "key": "indeterminate",
+       "colorName": "yellow",
+       "name": "In Progress"
+      }
+     }
+    },
+    "webUrl": "https://example.atlassian.net/browse/AIUE-61"
+   }
+  ]
+ },
+ "context": {
+  "note": "session context removed from the fixture"
+ }
+}

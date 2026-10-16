@@ -1,0 +1,76 @@
+{
+ "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+ "id": "10070",
+ "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issue/10070",
+ "key": "AIUE-61",
+ "fields": {
+  "comment": {
+   "comments": [
+    {
+     "id": "10015",
+     "body": "**Synthetic comment 10015.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+     "created": "2026-10-15T12:23:48.198-0700",
+     "updated": "2026-10-15T12:23:48.198-0700"
+    },
+    {
+     "id": "10021",
+     "body": "**Synthetic comment 10021.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+     "created": "2026-10-15T14:02:54.480-0700",
+     "updated": "2026-10-15T14:02:54.480-0700"
+    },
+    {
+     "id": "10031",
+     "body": "Plan page: [Plan: AIUE-61 - Synthetic ticket title](https://example.atlassian.net/wiki/spaces/SD/pages/2293761) (Confluence page id `2293761`), under [Ticket plans: AIUE-8](https://example.atlassian.net/wiki/spaces/SD/pages/2260993).  \nSynthetic link comment for the selftest. (Posted by an agent, ticket-page skill.)",
+     "created": "2026-10-15T17:46:32.729-0700",
+     "updated": "2026-10-15T17:46:32.729-0700"
+    },
+    {
+     "id": "10033",
+     "body": "**Synthetic comment 10033.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+     "created": "2026-10-15T20:50:09.297-0700",
+     "updated": "2026-10-15T20:50:09.297-0700"
+    }
+   ]
+  },
+  "status": {
+   "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/status/10006",
+   "description": "",
+   "iconUrl": "https://example.atlassian.net/images/icons/statuses/generic.png",
+   "name": "In Review",
+   "id": "10006",
+   "statusCategory": {
+    "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/statuscategory/4",
+    "id": 4,
+    "key": "indeterminate",
+    "colorName": "yellow",
+    "name": "In Progress"
+   }
+  }
+ },
+ "comments": [
+  {
+   "id": "10015",
+   "body": "**Synthetic comment 10015.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+   "created": "2026-10-15T12:23:48.198-0700",
+   "updated": "2026-10-15T12:23:48.198-0700"
+  },
+  {
+   "id": "10021",
+   "body": "**Synthetic comment 10021.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+   "created": "2026-10-15T14:02:54.480-0700",
+   "updated": "2026-10-15T14:02:54.480-0700"
+  },
+  {
+   "id": "10031",
+   "body": "Plan page: [Plan: AIUE-61 - Synthetic ticket title](https://example.atlassian.net/wiki/spaces/SD/pages/2293761) (Confluence page id `2293761`), under [Ticket plans: AIUE-8](https://example.atlassian.net/wiki/spaces/SD/pages/2260993).  \nSynthetic link comment for the selftest. (Posted by an agent, ticket-page skill.)",
+   "created": "2026-10-15T17:46:32.729-0700",
+   "updated": "2026-10-15T17:46:32.729-0700"
+  },
+  {
+   "id": "10033",
+   "body": "**Synthetic comment 10033.** Neutral text that replaces the original comment in this fixture (`code span`).\n\n* **Item one:** plain text.\n* **Item two:** more plain text.",
+   "created": "2026-10-15T20:50:09.297-0700",
+   "updated": "2026-10-15T20:50:09.297-0700"
+  }
+ ]
+}

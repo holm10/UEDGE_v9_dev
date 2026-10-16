@@ -42,7 +42,8 @@ Flags (anywhere in the arguments):
   committed breakdown on the planning branch and run Step 6b (ticket pages) for every child of the epic. Use it to
   give an existing epic's tickets their pages, or after a run whose page step failed partway. Here an epic with no
   PRD page is not a stop (Step 1): Step 6b uses the Jira fallback. Without a committed breakdown, each ticket's scope
-  comes from its Jira description.
+  comes from its Jira description. It never republishes the breakdown's Confluence page (Step 6.6 is skipped): the
+  page ids go into the repo breakdown and the Jira link comments only.
 - `--no-tracker`: no ticket pages and no `PIV record` comments (Step 6b is skipped; say so).
 - `--tracker-dry-run`: Step 6b only reads and prints what it would create (`ticket-page --dry-run`); the breakdown,
   the issues and everything else run as usual unless `--pages-only` is also given, which makes the whole run
@@ -116,7 +117,7 @@ Write to `docs/specs/<epic-slug>.md`:
    - Files touched (estimate)
    - Depends on: <none / TICKET-x>
    - Branch: `feature/v9-<KEY>-<slug>` (fill in the key after Step 6) · base: `v9-develop` | `<parent ticket branch>` (stacked)
-   - Ticket page: Confluence page <id> (<url>) (filled in by Step 6b) | none (no epic PRD page); PIV record in Jira comments on <KEY>
+   - **Ticket page:** Confluence page <id> (<url>) (filled in by Step 6b) | none (no epic PRD page); PIV record in Jira comments on <KEY>
    ### TICKET-2 — ...
 ## Dependency graph
    <text or mermaid graph showing the order + parallel groups>
@@ -178,7 +179,9 @@ the job. Create the tickets for real:
    After creating the issues, put the real keys into `docs/specs/<epic-slug>.md` (each ticket heading's
    `` `<KEY>` `` and its `Branch:` line) and commit it on the planning branch, so Step 6b can find each entry by key.
 5. Run **Step 6b** for every ticket created here and every existing child that has no page yet.
-6. Update the breakdown's Confluence page (Step 5) **once**, with the keys and the `Ticket page:` lines.
+6. Update the breakdown's Confluence page (Step 5) **once**, with the keys and the `Ticket page:` lines. First check
+   its version (CQL `id = <id>`, `expand: "content.version"`): if it moved since Step 5 published it, someone edited
+   it there; don't overwrite it, report it. Skipped with `--pages-only`.
 7. Report a table of the tickets: key, summary, URL, created or already present, and the ticket page (created,
    already present, or the Jira `PIV record` comment), plus anything that failed.
 
@@ -189,38 +192,75 @@ If no epic key is known, skip this step and tell the user which epic key to pass
 Every ticket gets **one** record for its whole life, created here, and every later skill writes to it: `plan-feature`
 (or `implement-fix`) mirrors the plan (or RCA) into it, `execute`, `validate` and the review gates log to it, the
 commit closes it (`.claude/skills/ticket-page/SKILL.md`). Run `ticket-page <KEY> create` for each ticket, with these
-inputs (pass `--dry-run` for `--tracker-dry-run`; `--no-tracker` skips the step):
+inputs (pass `--dry-run` for `--tracker-dry-run`; `--no-tracker` skips the step).
+
+**Which tickets.** Every ticket created in Step 6, and every existing child of the epic whose Jira status is **To Do
+or In Progress** that has no page yet. Children in **In Review, Done** or any other status are skipped and listed in
+the report as "skipped (status <s>)": their work is largely recorded elsewhere, and a page made now could only say
+so. (Default set by the coordinator in the ticket-pages review, round 1; the owner may change it.) A page for an
+existing child is a **backfill**: it is marked as one and claims nothing about the ticket's past (step 3).
 
 1. **Where.** The PRD page from Step 1 (an epic key or page id), else look it up as in Step 1 (a local file plus
    `$2`). The container is `Ticket plans: <EPIC>` under the PRD (CQL `type = page AND parent = <PRD id> AND title =
    "Ticket plans: <EPIC>"`); create it once if missing (`ticket-page` → "Container missing"). **No PRD page** → the
-   Jira fallback: one short `**PIV record: ticket filed**` comment per ticket, with the ticket's scope, acceptance,
-   dependencies, planned branch and the breakdown path (`ticket-page` → "Jira fallback", `create`).
-2. **Existing pages first.** List the container's children once (CQL `type = page AND parent = <container id>`,
-   following `next`) and save the result; read each ticket's comments (`getJiraIssue` with `fields: ["comment",
-   "status"]`, saved). `ticket_page.py find --key <KEY> --comments <issue.json> --search <children.json>` then says,
-   per ticket: one page (created by an earlier `spec` run or by `plan-feature`, same title rule) → leave it as it is
-   and report it; several → report them and create nothing for that ticket; none → create it. In the fallback, a
-   ticket that already has a `**PIV record` comment (`piv_record_comments` > 0) is left as it is. A child whose
-   status category is Done is reported and skipped.
-3. **The page.** Ticket section from the committed breakdown: `ticket_page.py ticket --repo <planning worktree>
-   --key <KEY> --breakdown docs/specs/<epic-slug>.md --branch feature/v9-<EPIC>-planning --out <scratch>/<KEY>.md`;
-   exit 3 (a child the breakdown doesn't list) → its Jira description (`--text`, `--source "the Jira description of
-   <KEY>"`). Then the skeleton: header (ticket, epic, PRD, planned branch, status `Planned`; a child filed before this
-   step: status note "page created after the ticket; Jira status <status>, earlier history in the Jira comments"),
-   `## Ticket`, the empty Progress, Validation, Reviews and Findings and decisions sections, and a Plan placeholder.
-   Create, verify, re-check for duplicates and post the link comment exactly as `ticket-page` → "Create" says.
+   Jira fallback: one short `PIV record` comment per ticket (`ticket-page` → "Jira fallback", `create`): `ticket
+   filed` for a ticket created in this run, `record started` for a backfill.
+2. **Existing records first.** List the container's children **once before the batch** (CQL `type = page AND parent =
+   <container id>`, following `next`; save every page of the result). Statuses come from the children listing
+   (`parent = <EPIC>`, `fields: ["summary", "status"]`). For each ticket the status rule keeps, read **all** its
+   comments: `getJiraIssue` with `fields: ["comment", "status"]` and `responseContentFormat: "markdown"`, saved
+   as it comes back (the helper also reads ADF bodies; a paged comment list means fetching the rest). Then
+   `ticket_page.py find --key <KEY> --comments <issue.json> --search <children.json> [--search <next page>…]`:
+   - exit 0: the ticket has a page (from an earlier `spec` run or from `plan-feature`; same title rule). Leave its
+     body as it is and report it, but complete its records: `missing_link_comment: true` (a run that failed after the
+     create, or a page `plan-feature` made before the link step) → post the link comment (`ticket-page` step 5);
+     an entry in the breakdown without its `**Ticket page:**` line → add it (step 4). If the output says
+     `not_listed` (the page is recorded but not under this container, as for a ticket moved from another epic),
+     confirm it with CQL `id = <id>`: if it exists, report "page kept under <its container>"; if it is gone, run
+     `find` again with `--gone <id>`. `stale_records` follow the one rule in `ticket-page` step 2.6: the listed page
+     wins; confirm each stale id once; gone → fine; still exists → two existing pages, report and write nothing.
+   - exit 3: no page → create it (step 3).
+   - exit 2: several pages, or `find` can't tell (no listing, an incomplete listing, comments it can't read). Report
+     the ticket with the reason and create nothing for it.
+   In the fallback, `find --fallback --comments <issue.json>` instead: exit 0 (a `PIV record` comment exists) →
+   post nothing, but add the breakdown's `**Ticket page:** none (…)` line if it is missing; 3 → post; 2 → report and
+   post nothing. The status rule above applies to these repairs too.
+3. **The page.**
+   - Ticket section from the committed breakdown: `ticket_page.py ticket --repo <planning worktree> --key <KEY>
+     --breakdown docs/specs/<epic-slug>.md --branch feature/v9-<EPIC>-planning [--backfill] --out
+     <scratch>/<KEY>.md`. Exit 3 (no entry for the key) → the Jira description (`--text`, `--source "the Jira
+     description of <KEY>"`); exit 2 (several entries match) → the Jira description too, and report it.
+   - The branch, checked, never assumed: `git -C <planning worktree> branch --list <branch>` and `git ls-remote
+     --heads origin <branch>`. Found → `branch_state: exists`; checked and absent → `absent`; not checkable (no
+     branch named, no remote) → leave it out (the header says "not checked").
+   - meta: status `Planned` for a ticket created in this run; for a backfill status `Backfilled`, `backfilled` =
+     today, `jira_status` = its status, `skill` `spec --pages-only` (or `spec`), and `ticket --backfill`, so the
+     Ticket section says "as read on <date>", not "as filed". The skeleton then says the plan is "not mirrored here",
+     not "not written yet", and carries a `**Backfilled:**` header field that `close-epic` reads.
+   - Create, verify and post the link comment exactly as `ticket-page` → "Create" says, using the listing from step 2
+     as its "search once more"; after the batch, list the container **once more** and report any ticket that now has
+     two pages (a concurrent run).
 4. **Record the id** where later skills find it without a worktree: the ticket's Jira link comment (`Ticket page:
    … (Confluence page id <id>)`, posted by `create`) and the ticket's entry in the breakdown (`- **Ticket page:**
    Confluence page <id> (<url>)`, or the fallback line). Commit the breakdown on the planning branch ("Records the
-   <EPIC> ticket pages"). `plan-feature` later finds the page from the link comment, else by the exact-title search
-   under the container, and fills it; nothing is recorded in a ticket worktree here (none exists yet).
+   <EPIC> ticket pages"). `plan-feature` later finds the page from the link comment, else by the title search under
+   the container (`title ~ "Plan: <KEY>"` filtered on the `Plan: <KEY> - ` prefix, so a renamed summary still
+   matches), and fills it; nothing is recorded in a ticket worktree here (none exists yet).
 5. A failure (Atlassian down, a refused render) never stops the run: report the ticket and the error; a re-run (or
    `--pages-only`) creates only what is still missing.
 
+**Cost and prompts.** Per ticket: one `getJiraIssue` with all comments (large on a long-running ticket), the
+skeleton render (local), **two writes**: the `createConfluencePage` and the link comment (`addCommentToJiraIssue`),
+each through its own permission prompt, and the local verify. Per batch: the container listing before and after,
+and the breakdown commit. In the fallback, one write per ticket (the comment). Example: backfilling AIUE-8 with the
+default status rule creates pages for its five To Do children (AIUE-48, 51, 67, 69, 71): 10 writes and prompts,
+5 issue reads; the 14 In Review children are skipped (12 of them have no page). Without the rule it would have been 17 pages, 34 prompts.
+
 > Order matters: write the breakdown document first (Step 4), publish to Confluence (Step 5), then create
 > issues, then their pages (Step 6b). If issue or page creation fails partway, the breakdown still exists and the run
-> is re-runnable, because step 3 and Step 6b.2 make creation idempotent: a ticket never gets a second issue or page.
+> is re-runnable: step 3 and Step 6b.2 skip what already exists, so a re-run never adds a second issue or page. Two
+> runs at the same time can still create two pages for one ticket; the listing after the batch detects it, and it is
+> reported for a person to resolve.
 
 ## Output
 
@@ -228,7 +268,8 @@ inputs (pass `--dry-run` for `--tracker-dry-run`; `--no-tracker` skips the step)
 2. A Confluence child page under the PRD (when the PRD came from Confluence, either by page id or by epic key).
 3. Real Jira issues under the epic, when an epic key was known (Step 6). Existing children are never duplicated.
 4. One ticket page per ticket under `Ticket plans: <EPIC>` (a child of the PRD), linked from the ticket and recorded
-   in the breakdown, or a `PIV record: ticket filed` Jira comment when there is no PRD page (Step 6b).
+   in the breakdown, or a `PIV record` Jira comment when there is no PRD page (Step 6b), for new tickets and for
+   existing To Do / In Progress children; a table of what was created, already present, and skipped (with why).
 
 Each ticket then enters its own PIV loop starting at `/prime` → `/plan-feature`, which fills that same page with the
 plan through the `ticket-page` skill; `execute`, `validate` and the review gates log to it. When the tickets are done,

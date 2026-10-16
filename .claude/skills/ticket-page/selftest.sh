@@ -4,7 +4,10 @@
 # Confluence round trip), the refusals, verify after a failed update and one retry, a dry run, the RCA mirror and the
 # Jira-fallback text checks; then (J) the page `spec` creates when it files a ticket: Ticket section from the
 # breakdown, skeleton, verified create, lookup by plan-feature, plan publish, execute / validate / review flushes, and
-# the Ticket-section safety checks. Atlassian responses and the PostToolUse hook log are simulated.
+# the Ticket-section safety checks; (K) find on real read-only Jira/Confluence responses (fixtures/), its evidence
+# rules, stale and moved records, the breakdown Branch-line match and the backfill header; (L) paged listings,
+# the stale-record rule and the missing link comment. Other Atlassian responses
+# and the PostToolUse hook log are simulated.
 # Usage: .claude/skills/ticket-page/selftest.sh [workdir]   (default: a new temporary directory)
 set -u
 H="$(cd "$(dirname "$0")" && pwd)/ticket_page.py"; W="${1:-$(mktemp -d)}"; mkdir -p "$W"; cd "$W" || exit 2
@@ -196,7 +199,7 @@ SM(){ python3 - "$W/smeta.json" "$1" <<'EOF'
 import json,sys
 d=dict(key="T-1",key_url="https://x/browse/T-1",summary="Demo",epic="T-0",epic_url="https://x/browse/T-0",
  prd_title="PRD: T-0 - Demo",prd_url="https://x/wiki/1",branch="feature/v9-T-1-demo",status="Planned",
- updated="2026-10-16",skill="spec")
+ updated="2026-10-16",skill="spec",branch_state="absent")
 if sys.argv[2]: d.update(page_id=sys.argv[2], page_url="https://x/wiki/"+sys.argv[2])
 json.dump(d,open(sys.argv[1],'w'))
 EOF
@@ -205,7 +208,7 @@ SM ""; SS="$W/st-spec"
 $T render --repo "$PL" --meta "$W/smeta.json" --outbox "$SS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J3 skeleton without --ticket refused"
 $T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --outbox "$SS" --out "$W/sk.md" >/dev/null; ok $? 0 "J3 skeleton render (spec, before the create)"
 for h in '## Ticket' '## Progress' '## Validation' '## Reviews' '## Findings and decisions' '## Plan'; do grep -qx "$h" "$W/sk.md" || echo "missing $h"; done | grep -q missing; ok $? 1 "J3 skeleton has Ticket, the four logs and Plan"
-grep -q 'Not written yet' "$W/sk.md" && grep -q 'Status:\*\* Planned' "$W/sk.md" && grep -q 'planned, not created yet' "$W/sk.md"; ok $? 0 "J3 Plan placeholder, status Planned, branch planned"
+grep -q 'Not written yet' "$W/sk.md" && grep -q 'Status:\*\* Planned' "$W/sk.md" && grep -q 'checked: not created yet' "$W/sk.md" && ! grep -q 'Backfilled' "$W/sk.md"; ok $? 0 "J3 Plan placeholder, status Planned, branch checked absent, not backfilled"
 [ ! -e "$SS" ]; ok $? 0 "J3 the skeleton render wrote nothing to the store"
 SM 950
 $T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --current "$W/sk.md" --outbox "$SS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J4 the skeleton never rewrites an existing page"
@@ -240,7 +243,8 @@ EOF
 $T find --key T-1 --search "$W/cql.json" > "$W/f1.json"; ok $? 0 "J6 lookup by CQL title finds the spec-created page"
 grep -q '"950"' "$W/f1.json" && ! grep -q '"960"\|"970"' "$W/f1.json"; ok $? 0 "J6 only page 950 (not T-10, not T-1x)"
 $T find --key T-1 --comments "$W/issue.json" | grep -q 'Jira link comment'; ok $? 0 "J6 lookup by the Jira link comment (no worktree record yet)"
-$T find --key T-2 --search "$W/cql.json" >/dev/null 2>&1; ok $? 3 "J6 no page: exit 3 (plan-feature creates it)"
+echo '{"key":"T-2","fields":{"comment":{"comments":[],"total":0}}}' > "$W/issue-none.json"
+$T find --key T-2 --search "$W/cql.json" --comments "$W/issue-none.json" >/dev/null 2>&1; ok $? 3 "J6 no page (complete listing and comments): exit 3, create it"
 sed 's/"970","title":"Plan: T-1x - near miss"/"971","title":"Plan: T-1 - Demo (copy)"/' "$W/cql.json" > "$W/cql2.json"
 $T find --key T-1 --search "$W/cql2.json" >/dev/null 2>&1; ok $? 2 "J6 two pages for one ticket: stop and ask"
 # plan-feature in the ticket worktree: fresh store, the page read back, the plan's Ticket page line committed.
@@ -298,9 +302,107 @@ $T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/noticket.md"
 $T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/rt.md" --allow-fewer --outbox "$W/st-legacy" --out "$W/lg.md" >/dev/null; ok $? 0 "J13 legacy page without a Ticket section renders"
 grep -q '^## Ticket' "$W/lg.md"; ok $? 1 "J13 no Ticket section invented"
 # a legacy stub found by spec: filled with the skeleton via --new-page
-SM 990; $T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --current "$W/stub.md" --new-page --outbox "$W/st-stub" --out "$W/x.md" >/dev/null; ok $? 0 "J14 spec fills a legacy stub with the skeleton (--new-page)"
+SM 990; $T render --repo "$PL" --meta "$W/smeta.json" --ticket "$W/tk1.md" --current "$W/stub.md" --new-page --outbox "$W/st-stub" --out "$W/x.md" >/dev/null; ok $? 0 "J14 the helper accepts the skeleton on a legacy stub with --new-page (no skill relies on it)"
 # Jira fallback: the 'ticket filed' comment
 printf '**PIV record: ticket filed** (2026-10-16, spec) · _posted by an agent through the owner account_\nScope: add the demo, see /Users/someone/x.\nAcceptance: it works; it is documented.\nBranch `feature/v9-T-1-demo` (planned); breakdown `docs/specs/T-0-demo.md` at `abc1234`.\nNo epic PRD page, so the record is kept in these comments (at most 8).\n' | $T sanitize --repo "$PL" > "$W/fb2.txt"; ok $? 0 "J15 fallback 'ticket filed' comment within the cap"
 grep -q '/Users/someone' "$W/fb2.txt"; ok $? 1 "J15 paths masked"
+echo "== K. find on real responses, evidence rules, stale records, Branch tier, backfill (review round 1)"
+FX="$(cd "$(dirname "$H")" && pwd)/fixtures"   # real read-only responses, author/session fields removed
+REALCQL="$FX/AIUE-8-container-children-cql.json"
+$T find --key AIUE-61 --comments "$FX/AIUE-61-issue-markdown.json" --search "$REALCQL" > "$W/k1.json"; ok $? 0 "K1 real markdown issue + real listing: AIUE-61 found"
+grep -q '"page_id": "2293761"' "$W/k1.json" && grep -q 'Jira link comment' "$W/k1.json"; ok $? 0 "K1 the legacy 'Plan page:' link comment is read (page 2293761)"
+grep -q '"piv_record_comments": 0' "$W/k1.json"; ok $? 0 "K1 PIV record comments counted (0)"
+$T find --key AIUE-61 --comments "$FX/AIUE-61-issue-markdown-nodes-shape.json" --search "$REALCQL" | grep -q '"piv_record_comments": 0'; ok $? 0 "K2 the issues.nodes response shape is read (an older read, before the link comment: found by the listing)"
+$T find --key AIUE-61 --comments "$FX/AIUE-61-issue-adf.json" --search "$REALCQL" | grep -q 'Jira link comment'; ok $? 0 "K3 real ADF comment bodies are flattened (link comment found)"
+echo '{"fields":{"comment":{"comments":[],"total":0}}}' > "$W/k-none.json"
+$T find --key AIUE-8 --search "$FX/PRD-AIUE-8-cql-nodes-shape.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 3 "K4 the content.nodes CQL shape is read (complete, no Plan page: none)"
+$T find --key AIUE-46 --comments "$W/k-none.json" --search "$REALCQL" >/dev/null 2>&1; ok $? 3 "K4 a child with no page in the real listing: none"
+$T find --key T-1 >/dev/null 2>&1; ok $? 2 "K5 no inputs: can't tell (2), never 'create'"
+$T find --key T-1 --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "K5 comments without a listing: can't tell"
+$T find --key T-2 --search "$W/cql.json" >/dev/null 2>&1; ok $? 2 "K5 a listing without the comments: can't tell"
+echo '{"fields":{"comment":{"comments":[{"id":"1","body":42}]}}}' > "$W/k-bad.json"
+$T find --key T-2 --search "$W/cql.json" --comments "$W/k-bad.json" >/dev/null 2>&1; ok $? 2 "K5 a comment body in an unknown form: can't tell"
+echo '{"fields":{"comment":{"comments":[{"id":"1","body":"x"}],"total":5,"maxResults":1}}}' > "$W/k-paged.json"
+$T find --key T-2 --search "$W/cql.json" --comments "$W/k-paged.json" >/dev/null 2>&1; ok $? 2 "K5 a paged comment list (1 of 5): can't tell"
+echo '{"results":[{"content":{"id":"950","title":"Plan: T-1 - Demo"}}],"size":1,"totalSize":3}' > "$W/k-part.json"
+$T find --key T-2 --search "$W/k-part.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "K5 an incomplete listing (1 of 3): can't tell"
+echo '{"fields":{"comment":{"comments":[{"id":"1","body":"**PIV record: ticket filed** (2026-10-16, spec)"}]}}}' > "$W/k-piv.json"
+$T find --key T-1 --fallback --comments "$W/k-piv.json" | grep -q '"piv_record_comments": 1'; ok $? 0 "K6 fallback: a markdown PIV record comment counted"
+$T find --key T-1 --fallback --comments "$W/k-piv.json" >/dev/null 2>&1; ok $? 0 "K6 fallback: record exists, post nothing (exit 0)"
+python3 - "$W/k-piv-adf.json" <<'EOF'
+import json,sys
+b={"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"PIV record: ticket filed","marks":[{"type":"strong"}]},{"type":"text","text":" (2026-10-16, spec)"}]}]}
+json.dump({"fields":{"comment":{"comments":[{"id":"1","body":b}],"total":1}}},open(sys.argv[1],"w"))
+EOF
+$T find --key T-1 --fallback --comments "$W/k-piv-adf.json" | grep -q '"piv_record_comments": 1'; ok $? 0 "K6 fallback: an ADF PIV record comment counted"
+$T find --key T-1 --fallback --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 3 "K6 fallback: no PIV record comment: post it (3)"
+$T find --key T-1 --fallback >/dev/null 2>&1; ok $? 2 "K6 fallback without comments: can't tell"
+python3 -c "
+import json;json.dump({'fields':{'comment':{'comments':[{'id':str(i),'body':'**PIV record: m%d** x'%i} for i in range(8)],'total':8}}},open('$W/k-cap.json','w'))"
+$T find --key T-1 --fallback --comments "$W/k-cap.json" | grep -q '"piv_cap_reached": true'; ok $? 0 "K6 8 PIV record comments: cap reached reported"
+cat > "$W/k-two.json" <<'EOF'
+{"fields":{"comment":{"comments":[{"id":"1","body":"Ticket page: [Plan: T-1 - Demo](https://x/100) (Confluence page id `100`)."},{"id":"2","body":"Ticket page: [Plan: T-1 - Demo](https://x/200) (Confluence page id `200`)."}]}}}
+EOF
+echo '{"results":[{"content":{"id":"200","title":"Plan: T-1 - Demo"}}],"totalSize":1}' > "$W/k-200.json"
+$T find --key T-1 --comments "$W/k-two.json" --search "$W/k-200.json" > "$W/k7.json" 2>/dev/null; ok $? 0 "K7 recreated page: the listed id wins (no endless stop)"
+grep -q '"page_id": "200"' "$W/k7.json" && grep -q '"100"' "$W/k7.json" && grep -q stale_records "$W/k7.json"; ok $? 0 "K7 the stale link comment (100) is reported"
+echo '{"fields":{"comment":{"comments":[{"id":"1","body":"Ticket page: [x](https://x/100) (Confluence page id `100`)."}]}}}' > "$W/k-100.json"
+echo '{"results":[],"totalSize":0}' > "$W/k-empty.json"
+$T find --key T-1 --comments "$W/k-100.json" --search "$W/k-empty.json" | grep -q '"not_listed": true'; ok $? 0 "K7 recorded but not under this container (moved ticket): found, flagged to confirm"
+$T find --key T-1 --comments "$W/k-100.json" --search "$W/k-empty.json" --gone 100 >/dev/null 2>&1; ok $? 3 "K7 after CQL confirms it gone (--gone): none"
+mkdir -p "$PL/docs/specs"; cat > "$PL/docs/specs/T-5-branch.md" <<'EOF'
+# Spec: T-5
+
+### Phase 1
+
+#### T1 — First thing
+- Scope: a.
+- Branch: `feature/v9-T-46-first` · base `v9-develop`
+
+#### T2 — Process change
+- **Branch:** `feature/v9-ai-T-47-skills`
+
+#### T3 — Twin
+- **Branch**: `feature/v9-T-48-x`
+
+#### T4 — Twin again
+- **Branch**: `feature/v9-T-48-y`
+EOF
+git -C "$PL" add -A && git -C "$PL" -c user.email=t@t -c user.name=t commit -qm branch-tier
+TB="$T ticket --repo $PL --breakdown docs/specs/T-5-branch.md"
+$TB --key T-46 --out "$W/kb.md" >/dev/null 2>&1; ok $? 0 "K8 plain '- Branch:' line under a phase heading: one entry, not 'several'"
+grep -q 'First thing' "$W/kb.md" && ! grep -q 'Process change' "$W/kb.md"; ok $? 0 "K8 the entry is T1 alone"
+$TB --key T-47 --out "$W/kb.md" >/dev/null 2>&1 && grep -q 'Process change' "$W/kb.md"; ok $? 0 "K8 a feature/v9-ai-<KEY> branch matches"
+$TB --key T-4 --out "$W/kb.md" >/dev/null 2>&1; ok $? 3 "K8 T-4 does not match T-46/T-47/T-48"
+$TB --key T-48 --out "$W/kb.md" >/dev/null 2>&1; ok $? 2 "K8 two entries with the key: several (2)"
+$T verify --body "$W/sk.md" --created --title "Plan: T-1 - Demo" --parent-id 999 --log "$W/hook.jsonl" >/dev/null 2>&1; ok $? 3 "K9 verify --created with another --parent-id: no match"
+# backfill: a page created after the ticket was filed, ticket In Progress, branch exists
+$TK --key T-1 --backfill --date 2026-10-16 --out "$W/kbt.md" >/dev/null
+python3 - "$W/kbm.json" <<'EOF'
+import json,sys
+json.dump(dict(key="T-1",key_url="https://x/browse/T-1",summary="Demo",epic="T-0",epic_url="https://x/browse/T-0",
+ prd_title="PRD: T-0 - Demo",prd_url="https://x/wiki/1",branch="feature/v9-T-1-demo",status="Backfilled",
+ updated="2026-10-16",skill="spec --pages-only",backfilled="2026-10-16",branch_state="exists",jira_status="In Progress"),
+ open(sys.argv[1],"w"))
+EOF
+$T render --repo "$PL" --meta "$W/kbm.json" --ticket "$W/kbt.md" --outbox "$W/st-bf" --out "$W/kbf.md" >/dev/null; ok $? 0 "K10 backfill skeleton render"
+grep -q '^> \*\*Backfilled:\*\* 2026-10-16' "$W/kbf.md" && grep -q 'Jira status then: In Progress' "$W/kbf.md" && grep -q 'Not mirrored here yet' "$W/kbf.md" && grep -q 'Scope as read on 2026-10-16' "$W/kbf.md"; ok $? 0 "K10 Backfilled field, Jira status, 'not mirrored' placeholder, 'as read on'"
+grep -qiE 'not created yet|created when the ticket was filed|Scope as filed|not written yet|\(planned' "$W/kbf.md"; ok $? 1 "K10 no false claim (planned / not created / as filed / not written)"
+python3 -c "import json;d=json.load(open('$W/kbm.json'));d.pop('branch_state');d.pop('backfilled');d['status']='Planned';json.dump(d,open('$W/kbm2.json','w'))"
+$T render --repo "$PL" --meta "$W/kbm2.json" --ticket "$W/tk1.md" --outbox "$W/st-bf" --out "$W/knc.md" >/dev/null; grep -q '(not checked)' "$W/knc.md" && ! grep -q 'not created yet' "$W/knc.md"; ok $? 0 "K11 branch not checked: no 'not created yet' claim"
+echo "== L. review round 2: paged listings, stale rule, missing link comment"
+echo '{"results":[{"content":{"id":"7","title":"Plan: T-1 - Demo"}}],"size":1,"_links":{"next":"/rest/api/search?cursor=abc"}}' > "$W/l-p1.json"
+echo '{"results":[{"content":{"id":"8","title":"Plan: T-1 - Demo (copy)"}}],"size":1,"_links":{}}' > "$W/l-p2.json"
+echo '{"results":[{"content":{"id":"9","title":"Plan: T-3 - Other"}}],"size":1,"_links":{"next":"/rest/api/search?cursor=x"}}' > "$W/l-p3.json"
+$T find --key T-2 --search "$W/l-p3.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "L1 a page linking 'next' (no totalSize): incomplete, can't tell (not 'none')"
+$T find --key T-1 --search "$W/l-p1.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "L1 a hit on page 1 of 2 is not trusted: a duplicate may be on page 2"
+$T find --key T-1 --search "$W/l-p1.json" --search "$W/l-p2.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "L1 both pages given: the duplicate is found (several)"
+echo '{"content":{"totalCount":1,"nodes":[{"id":"7","title":"Plan: T-1 - Demo"}],"pageInfo":{"hasNextPage":true}}}' > "$W/l-n1.json"
+$T find --key T-1 --search "$W/l-n1.json" --comments "$W/k-none.json" >/dev/null 2>&1; ok $? 2 "L1 nodes shape with hasNextPage: incomplete"
+$T find --key T-1 --comments "$W/k-two.json" --search "$W/k-200.json" | grep -q 'listed page 200 wins'; ok $? 0 "L2 stale record: the note says the listed page wins and how to confirm the stale id"
+$T find --key T-1 --comments "$W/k-two.json" --search "$W/k-200.json" --gone 100 | grep -q stale_records; ok $? 1 "L2 a stale id confirmed gone (--gone) is dropped"
+$T find --key T-1 --comments "$W/k-none.json" --search "$W/k-200.json" | grep -q '"missing_link_comment": true'; ok $? 0 "L3 page found without its link comment: flagged for the re-run to post it"
+$T find --key AIUE-61 --comments "$FX/AIUE-61-issue-markdown.json" --search "$REALCQL" | grep -q '"missing_link_comment": false'; ok $? 0 "L3 page with its link comment: nothing missing"
+$T find --key T-1 --comments "$W/k-100.json" --search "$W/k-200.json" | grep -q '"missing_link_comment": true'; ok $? 0 "L3 a link comment naming only a stale page: the current page's link is missing"
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

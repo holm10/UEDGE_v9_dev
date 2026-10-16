@@ -133,8 +133,13 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
 4. **Ticket pages** (written by the `ticket-page` skill): `searchConfluenceUsingCql` with `type = page AND parent =
    <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket, created by
    `spec` when the ticket was filed (or by `plan-feature` for a ticket filed otherwise), mirroring its plan, or its RCA
-   for an `implement-fix` ticket; a page whose Plan section is still the placeholder (status `Planned`) belongs to a
-   ticket that was never planned. `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
+   for an `implement-fix` ticket. `getConfluencePage` (`contentFormat: "markdown"`) on each. A Plan section that is
+   still the placeholder means only "plan not mirrored": never infer "never planned" from it. On a page with a
+   `**Backfilled:**` header field (made after the ticket was filed), or for a ticket whose Jira status is beyond To
+   Do, look for the plan on the ticket branch and write "plan not mirrored on the ticket page"; only a To Do ticket
+   with no plan anywhere counts as not planned. A ticket moved in from another epic keeps its page under that epic's
+   container: for each child with no page here, take the id from its `Ticket page:`/`Plan page:` link comment,
+   confirm it with CQL `id = <id>`, and include that page, noting where it lives. Their log sections are
    a dated index of each ticket's progress, validation results, review verdicts and decisions: use them to find the
    records, and cite the repo record (report, validation file, commit) for every claim, with the page as a second
    source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the source it

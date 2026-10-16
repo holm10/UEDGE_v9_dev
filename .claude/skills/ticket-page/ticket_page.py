@@ -35,9 +35,12 @@ Usage:
                         [--current page.md|page.json [--new-page] [--allow-fewer] | --local --page-version N]
                         [--entry SECTION SOURCE TEXT]... [--outbox DIR] [--date YYYY-MM-DD] --out body.md
                         (no --plan: the skeleton; needs --ticket, and no page_id unless --new-page on a stub)
-  ticket_page.py ticket --repo WT --key KEY (--breakdown PATH [--rev REV] | --text FILE --source TEXT) --out ticket.md
+  ticket_page.py ticket --repo WT --key KEY (--breakdown PATH [--rev REV] | --text FILE --source TEXT) [--backfill]
+                        --out ticket.md
                         (exit 3: no breakdown entry for KEY; exit 2: several)
-  ticket_page.py find   --key KEY [--plan FILE] [--comments issue.json] [--search cql.json ...]
+  ticket_page.py find   --key KEY [--plan FILE] [--comments issue.json] [--search cql.json ...] [--gone ID ...]
+                        [--fallback]   (exit 0 found; 3 none, only on a complete listing and comment list
+                        (--fallback: the comment list); 2 several or can't tell: stop and report)
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
                         (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
@@ -49,7 +52,8 @@ Usage:
   ticket_page.py sanitize --repo WT [--max-chars 1500] < text > text
 
 meta.json keys: key, key_url, summary, epic, epic_url, prd_title, prd_url, branch, status, updated, skill;
-optional: page_id, page_url, status_note.
+optional: page_id, page_url, status_note; for the skeleton: branch_state (absent | exists, as checked; otherwise
+"not checked"), backfilled (the date, for a page created after the ticket was filed), jira_status.
 
 Exit codes: 0 ok; 1 refused (secret-like string, over the cap, verify mismatch); 2 could not run or unsafe input
 (missing meta key, unparseable current page, git error); 3 verify found no logged call (unverified).
@@ -283,6 +287,8 @@ def entry_text(e):
 
 STUB = "Plan page for {key}; content follows."
 TICKET = "Ticket"
+PLAN_BACKFILLED = ("_Not mirrored here yet: this page was created after the ticket was filed (see Backfilled above);"
+                   " the plan, if any, is on the ticket branch. The next `publish` from that branch mirrors it here._")
 PLAN_PLACEHOLDER = ("_Not written yet: `plan-feature` mirrors the ticket's plan here (`implement-fix` mirrors its RCA"
                     " under an RCA heading instead)._")
 
@@ -445,15 +451,30 @@ def cmd_render(a):
     jira = (f"> **Jira:** [{key}]({meta['key_url']}) - {meta['summary']} · **Epic:** [{meta['epic']}]"
             f"({meta['epic_url']}) · **PRD:** [{meta['prd_title']}]({meta['prd_url']})")
     if skeleton:
+        backfilled = meta.get("backfilled")
+        bstate = {"absent": " (planned; checked: not created yet)",
+                  "exists": " (exists; its plan, if any, is not mirrored here yet)"}.get(meta.get("branch_state"),
+                                                                                     " (not checked)")
         header = [
             jira,
-            f"> **Branch:** `{meta['branch']}` (planned, not created yet) · **Plan:** not written yet"
+            f"> **Branch:** `{meta['branch']}`{bstate} · **Plan:** "
+            + ("not mirrored here" if backfilled else "not written yet")
             + (f" · **This page:** {page_ref}" if meta.get("page_id") else ""),
             f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
+        ]
+        if backfilled:
+            header.append(
+                f"> **Backfilled:** {backfilled} · page created by `{meta['skill']}` after the ticket was filed"
+                + (f" (Jira status then: {meta['jira_status']})" if meta.get("jira_status") else "")
+                + "; the Ticket section is the scope as read then (its source line names the revision); the plan, if"
+                " any, is on the ticket branch and not yet mirrored here; earlier history is in the Jira comments.")
+        header += [
             attribution,
-            "> This page is the ticket's PIV record, created when the ticket was filed. The Ticket section is its"
-            " scope as filed; `plan-feature` mirrors the plan into the Plan section, and `execute`, `validate` and"
-            " the review gates add to the four log sections, which are append-only.",
+            ("> This page is the ticket's PIV record from now on." if backfilled else
+             "> This page is the ticket's PIV record, created when the ticket was filed. The Ticket section is its"
+             " scope as filed.")
+            + " `plan-feature` mirrors the plan into the Plan section, and `execute`, `validate` and the review gates"
+            " add to the four log sections, which are append-only.",
         ]
     else:
         header = [
@@ -475,7 +496,7 @@ def cmd_render(a):
     for s in SECTIONS:
         body += [f"## {s}", ""] + (logs[s] or [EMPTY]) + [""]
     if skeleton:
-        body += ["## Plan", "", PLAN_PLACEHOLDER, ""]
+        body += ["## Plan", "", PLAN_BACKFILLED if meta.get("backfilled") else PLAN_PLACEHOLDER, ""]
     else:
         body += [f"## {a.plan_title}", "", demote(plan.strip(), 2), ""]
     text = sanitize("\n".join(body), a.repo)
@@ -702,10 +723,15 @@ def cmd_ticket(a):
             i, lvl, _ = h
             end = next((j for j, l2, _ in heads if j > i and l2 <= lvl), len(lines))
             return "\n".join(lines[i + 1:end]).strip()
+
+        def own_lines(h):  # up to the next heading of any level: an entry's own lines, not its children's
+            i = h[0]
+            end = next((j for j, _, _ in heads if j > i), len(lines))
+            return lines[i + 1:end]
+        branch = re.compile(r"^\s*[-*+]\s*\**Branch\**\s*:?\s*\**:?.*\bv9-(?:ai-)?" + re.escape(a.key) + r"-")
         tiers = [
             [h for h in heads if h[1] >= 3 and re.search(r"`" + re.escape(a.key) + r"`", h[2])],
-            [h for h in heads if h[1] >= 3 and re.search(r"\*\*Branch:?\*\*:?.*v9-" + re.escape(a.key) + r"-",
-                                                          body(h))],
+            [h for h in heads if h[1] >= 3 and any(branch.search(x) for x in own_lines(h))],
             # A plain mention only in a heading that names no ticket key of its own: "Coordinate with AIUE-9 ·
             # `AIUE-48`" is AIUE-48's entry, not AIUE-9's.
             [h for h in heads if h[1] >= 3 and re.search(tok, h[2])
@@ -720,15 +746,18 @@ def cmd_ticket(a):
             die(f"several breakdown entries match {a.key}: " + "; ".join(h[2] for h in found))
         h = found[0]
         title = re.sub(r"[`*]", "", h[2])
-        src = (f"_Scope as filed: the ticket's entry \"{title}\" in the epic breakdown `{a.breakdown}` at `{sha}`"
-               f"{' on `' + a.branch + '`' if a.branch else ''}. The breakdown is the source of truth; a later change"
-               " to it is not copied here automatically._")
+        where = (f"the ticket's entry \"{title}\" in the epic breakdown `{a.breakdown}` at `{sha}`"
+                 f"{' on `' + a.branch + '`' if a.branch else ''}")
+        src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
+               f"was filed: {where}._" if a.backfill else f"_Scope as filed: {where}._") + (
+            " _The breakdown is the source of truth; a later change to it is not copied here automatically._")
         text = body(h)
     else:
         if not (a.text and a.source):
             die("ticket needs --breakdown, or --text with --source")
         text = Path(a.text).read_text().strip()
-        src = f"_Scope as filed: {a.source}._"
+        src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
+               f"was filed: {a.source}._" if a.backfill else f"_Scope as filed: {a.source}._")
     out = sanitize(src + "\n\n" + demote_below_h2(text) + "\n", a.repo)
     refuse_secrets(out, "the Ticket section")
     Path(a.out).write_text(out)
@@ -737,59 +766,167 @@ def cmd_ticket(a):
 
 
 def _search_hits(path):
+    """(hits, total, has_next) from a searchConfluenceUsingCql result: the REST form (results[].content, totalSize,
+    _links.next) or the GraphQL-like form (content.nodes, totalCount, pageInfo.hasNextPage). total is None when the
+    result doesn't say; has_next is True when it links a further page of results."""
     data = load_json(path)
-    res = data.get("results", []) if isinstance(data, dict) else data
+    if isinstance(data, dict) and isinstance(data.get("content"), dict) and "nodes" in data["content"]:
+        c = data["content"]
+        nodes, total = c.get("nodes") or [], c.get("totalCount")
+        has_next = bool((c.get("pageInfo") or {}).get("hasNextPage"))
+        return [(str(n["id"]), n["title"]) for n in nodes if n.get("id") and n.get("title")], total, has_next
+    if not isinstance(data, dict) or "results" not in data:
+        die(f"{path}: not a searchConfluenceUsingCql result (no 'results' or 'content.nodes')")
     out = []
-    for r in res or []:
+    for r in data.get("results") or []:
         c = r.get("content", r) if isinstance(r, dict) else {}
         if c.get("id") and (c.get("title") or r.get("title")):
             out.append((str(c["id"]), c.get("title") or r.get("title")))
-    return out
+    return out, data.get("totalSize"), bool((data.get("_links") or {}).get("next") or data.get("next"))
+
+
+def adf_text(n):
+    """Atlassian Document Format to the markdown the link and PIV-record patterns expect (strong -> **, code -> `)."""
+    if isinstance(n, list):
+        return "".join(adf_text(x) for x in n)
+    if not isinstance(n, dict):
+        return ""
+    t = n.get("type")
+    if t == "text":
+        txt, marks = n.get("text", ""), {m.get("type") for m in n.get("marks") or []}
+        txt = f"`{txt}`" if "code" in marks else txt
+        return f"**{txt}**" if "strong" in marks else txt
+    if t == "hardBreak":
+        return "\n"
+    if t in ("inlineCard", "blockCard"):
+        return (n.get("attrs") or {}).get("url", "")
+    inner = adf_text(n.get("content") or [])
+    return inner + "\n" if t in ("paragraph", "heading", "listItem", "blockquote", "codeBlock") else inner
+
+
+def _jira_comments(path, key):
+    """(comment bodies as text, problem). problem is set when the list can't be trusted to be complete."""
+    data = load_json(path)
+    if isinstance(data, dict) and isinstance(data.get("issues"), dict):  # {"issues": {"nodes": [issue]}}
+        nodes = [x for x in data["issues"].get("nodes") or [] if x.get("key") in (key, None)]
+        if len(nodes) != 1:
+            return None, f"{len(nodes)} issues for {key} in the response"
+        data = nodes[0]
+    if not isinstance(data, dict):
+        return None, "not a getJiraIssue result"
+    block = (data.get("fields") or {}).get("comment")
+    if isinstance(block, dict) and isinstance(block.get("comments"), list):
+        comments = block["comments"]
+        total = block.get("total")
+        if isinstance(total, int) and total > len(comments):
+            return None, f"the response holds {len(comments)} of {total} comments (paged); read them all"
+    elif isinstance(data.get("comments"), list):
+        comments = data["comments"]
+    else:
+        return None, "no comment list (read the issue with fields [\"comment\"])"
+    out = []
+    for c in comments:
+        b = c.get("body")
+        if isinstance(b, str):
+            out.append(b)
+        elif isinstance(b, dict) and b.get("type") == "doc":
+            out.append(adf_text(b))
+        else:
+            return None, f"comment {c.get('id')} has a body in an unknown form"
+    return out, None
 
 
 def cmd_find(a):
-    """Resolve a ticket's page id: the plan's Ticket page line, the Jira link comment, then the CQL listing."""
+    """Resolve a ticket's page id (or, with --fallback, whether its PIV record comments exist). Exit 0 found, 3 none
+    (only when the evidence to conclude that was given: a complete container listing, or for --fallback a complete
+    comment list), 2 several or can't tell (stop and report)."""
     prefix = f"Plan: {a.key} - "
-    found = {}  # id -> how
-    piv = 0
+    gone = set(a.gone or [])
+    report = {"key": a.key}
+
+    def done(code, msg):
+        print(json.dumps(report, indent=1))
+        print(f"ticket_page: {msg}", file=sys.stderr)
+        return code
+    recorded = {}  # id -> [how]
     if a.plan:
         m = re.search(r"\*\*Ticket page\*\*:\s*Confluence page (\d+)", Path(a.plan).read_text())
         if m:
-            found.setdefault(m.group(1), []).append("plan line")
+            recorded.setdefault(m.group(1), []).append("plan line")
+    comments_ok = False
     if a.comments:
-        data = load_json(a.comments)
-        f = data.get("fields", {}) if isinstance(data, dict) else {}
-        comments = (f.get("comment") or {}).get("comments") or data.get("comments") or []
-        ids = set()
-        for c in comments:
-            b = c.get("body") if isinstance(c.get("body"), str) else json.dumps(c.get("body"))
-            if b.lstrip().startswith("**PIV record"):
-                piv += 1
-            m = re.match(r"\s*(?:Ticket|Plan) page:.*?Confluence page id `?(\d+)`?", b, re.S)
+        bodies, problem = _jira_comments(a.comments, a.key)
+        if problem:
+            report["reason"] = problem
+            return done(2, f"can't tell from the comments: {problem}")
+        comments_ok = True
+        piv = sum(1 for b in bodies if b.lstrip().startswith("**PIV record"))
+        report.update(piv_record_comments=piv, piv_cap_reached=piv >= 8)
+        for b in bodies:
+            m = re.match(r"\s*\**(?:Ticket|Plan) page:\**.*?Confluence page id\s*`?(\d+)`?", b, re.S)
             if m:
-                ids.add(m.group(1))
-        for i in ids:
-            found.setdefault(i, []).append("Jira link comment")
-    listed = []
+                recorded.setdefault(m.group(1), []).append("Jira link comment")
+    if a.fallback:
+        if not comments_ok:
+            report["reason"] = "no comment list given"
+            return done(2, "--fallback needs --comments (the getJiraIssue result with all comments, markdown)")
+        if report["piv_record_comments"]:
+            return done(0, f"{a.key} already has {report['piv_record_comments']} PIV record comment(s)")
+        return done(3, f"{a.key} has no PIV record comment")
+    # Complete = the files given hold every page: at least one of them links no further page, and together they hold
+    # as many results as any of them says there are.
+    listed, totals, last_pages = [], [], 0
     for sp in a.search or []:
-        listed += [(i, t) for i, t in _search_hits(sp) if t.startswith(prefix)]
-    listed = list(dict.fromkeys(listed))
-    for i, t in listed:
-        found.setdefault(i, []).append(f"CQL title '{t}'")
-    report = {"key": a.key, "candidates": {i: v for i, v in found.items()}, "piv_record_comments": piv}
-    if a.search:
-        recorded = [i for i, v in found.items() if not any(x.startswith("CQL") for x in v)]
-        if recorded:
-            report["note"] = (f"recorded id(s) {', '.join(recorded)} not among the listed pages titled '{prefix}...': "
-                              "deleted, moved or renamed? confirm with CQL id = <id>")
-    print(json.dumps(report, indent=1))
-    if len(found) > 1:
-        print(f"ticket_page: several pages for {a.key}: stop and ask; never pick one silently", file=sys.stderr)
-        return 2
-    if not found:
-        print(f"ticket_page: no page for {a.key}", file=sys.stderr)
-        return 3
-    return 0
+        hits, total, has_next = _search_hits(sp)
+        listed += hits
+        totals += [total] if total is not None else []
+        last_pages += 0 if has_next else 1
+    complete = bool(a.search) and last_pages > 0 and (not totals or len(dict.fromkeys(listed)) >= max(totals))
+    report["listing_complete"] = complete
+    if a.search and not complete:
+        report["reason"] = "the container listing is incomplete (a further page is linked, or fewer results than the "\
+                           "total): pass every page of it"
+        return done(2, "can't tell from an incomplete listing: follow next and pass every page")
+    mine = list(dict.fromkeys((i, t) for i, t in listed if t.startswith(prefix) and i not in gone))
+    linked = {i for i, v in recorded.items() if "Jira link comment" in v and i not in gone}
+    for i in list(recorded):
+        if i in gone:
+            del recorded[i]
+    report["listed"] = {i: t for i, t in mine}
+    report["recorded"] = recorded
+    if len({i for i, _ in mine}) > 1:
+        return done(2, f"several pages for {a.key} under the container: stop and ask; never pick one silently")
+    if mine:
+        pid = mine[0][0]
+        report["page_id"] = pid
+        stale = [i for i in recorded if i != pid]
+        if a.comments:
+            report["missing_link_comment"] = pid not in linked
+        if stale:
+            report["stale_records"] = stale
+            report["note"] = (f"the listed page {pid} wins; recorded id(s) {', '.join(stale)} name another page. "
+                              "Confirm each once with CQL id = <id>: gone (an earlier page deleted and created again) "
+                              "-> fine, pass --gone <id> to drop it; still exists -> two existing pages: stop and ask")
+        return done(0, f"page {pid}")
+    if len(recorded) > 1:
+        return done(2, f"several recorded ids for {a.key} ({', '.join(recorded)}) and none listed: stop and ask")
+    if recorded:
+        pid = next(iter(recorded))
+        report.update(page_id=pid, not_listed=bool(a.search))
+        if a.comments:
+            report["missing_link_comment"] = pid not in linked
+        if a.search:
+            report["note"] = (f"page {pid} is recorded but not under this container: confirm with CQL id = {pid}. If "
+                              "it exists (a ticket moved from another epic keeps its page there), use it; if it is "
+                              f"gone, run find again with --gone {pid}")
+        return done(0, f"page {pid} (recorded{', not listed' if a.search else ''})")
+    if not a.search:
+        report["reason"] = "no container listing given"
+        return done(2, "can't conclude that there is no page without the container listing (--search)")
+    if a.comments is None:
+        report["reason"] = "no comments given"
+        return done(2, "pass the ticket's comments too (--comments): its link comment may name a page elsewhere")
+    return done(3, f"no page for {a.key}")
 
 
 def cmd_stub(a):
@@ -872,12 +1009,19 @@ def main():
     tk.add_argument("--branch", help="the branch it is on, for the source line (the epic's planning branch)")
     tk.add_argument("--text", help="file with the scope text, when the breakdown has no entry")
     tk.add_argument("--source", help="where --text comes from, e.g. 'the Jira description of AIUE-61'")
+    tk.add_argument("--backfill", action="store_true",
+                    help="the page is created after the ticket was filed: say 'as read on <date>', not 'as filed'")
+    tk.add_argument("--date")
     tk.add_argument("--out", required=True)
     fd = sub.add_parser("find")
     fd.add_argument("--key", required=True)
     fd.add_argument("--plan", help="the plan or RCA file (its **Ticket page** line)")
     fd.add_argument("--comments", help="the getJiraIssue result with fields.comment")
-    fd.add_argument("--search", action="append", help="a searchConfluenceUsingCql result (repeatable)")
+    fd.add_argument("--search", action="append", help="a searchConfluenceUsingCql result (repeatable, one per page "
+                    "of results)")
+    fd.add_argument("--gone", action="append", help="an id confirmed deleted (CQL id = <id> found nothing)")
+    fd.add_argument("--fallback", action="store_true",
+                    help="Jira fallback: exit 0 if the ticket has PIV record comments, 3 if none (needs --comments)")
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
