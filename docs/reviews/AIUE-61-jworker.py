@@ -15,13 +15,13 @@ for k, v in ARMS[arm].items():
 ppp.Nthreads = threads
 for k, v in extra.get("ppp", {}).items():
     setattr(ppp, k, v)
+bbb.ftol = 1e20  # one Jacobian; an extra "bbb" setting (e.g. ftol, itermx for timing over Newton iterations) wins
 for k, v in extra.get("bbb", {}).items():
     setattr(bbb, k, v)
-bbb.ftol = 1e20
 t0 = time.time()
 bbb.exmain()
 out = {"preset": preset, "arm": arm, "threads": threads, "extra": extra, "wall": time.time() - t0,
-       "ttjstor": float(com.ttjstor), "iterm": int(bbb.iterm)}
+       "ttjstor": float(com.ttjstor), "iterm": int(bbb.iterm), "ijactot": int(bbb.ijactot)}
 neq = int(bbb.neq); nnz = int(bbb.jaci[neq]) - 1
 h = hashlib.sha256()
 for a in (bbb.jac[:nnz], bbb.jacj[:nnz], bbb.jaci[:neq + 1]):

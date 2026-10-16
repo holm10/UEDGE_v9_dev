@@ -1,6 +1,6 @@
 #!/bin/bash
 # AIUE-61 validation protocol (plan .claude/plans/AIUE-61-omp-static-partition.md, "Validation protocol").
-# Usage: AIUE-61-run_protocol.sh OUTDIR PHASE...     phases: g0 g1 ctl g2 g3 g4 g5 g6 g9 g10 g10nc5 g10b
+# Usage: AIUE-61-run_protocol.sh OUTDIR PHASE...     phases: g0 g1 g1b gcommon giotable ctl g2 g3 g4 g5 g6 g9 g9a g10 g10nc5 g10b r2
 # Shared machine: at most 2 UEDGE processes at a time, at most 4 threads each; 8-thread runs one at a time.
 # Preliminary run (AIUE-56 base): every phase except G7/R2/R4/R5. The final run repeats it on the AIUE-60-combined tree.
 set -u
@@ -10,7 +10,10 @@ V=$W/venvs
 NEW=$V/AIUE-61-omp/bin/python          # built from $W/AIUE-61-omp (detached at the product commit)
 NEWS=$V/AIUE-61-serial/bin/python      # built from $W/AIUE-61-serial (same commit)
 CHK=$V/AIUE-61-chk/bin/python          # OpenMP + --checkbounds
-OLD=$V/AIUE-56-omp/bin/python          # the old default (C1-fixed)
+OLD=$V/${AIUE61_OLD:-AIUE-56-omp}/bin/python   # the base build's default (AIUE-56-omp; combined tree: AIUE-60-omp)
+OLDS=$V/${AIUE61_OLDS:-AIUE-56-serial}/bin/python
+G0B_EXPECT=${AIUE61_G0B_EXPECT:-}      # combined tree: the pre-registered exact WRITTEN set (comma list)
+A60=$W/AIUE-60/docs/reviews            # AIUE-60 gate scripts (G-common, G-iotable)
 HD=$W/AIUE-57/tests/deterministic_omp  # reviewed harness core 8ee189d
 H=$HD/harness/cli.py
 SC=$W/AIUE-53/tests/deterministic_omp/harness/serial_check.py   # 15ae327
@@ -44,11 +47,35 @@ jww() { jw "$@" & local p=$! n=0
 for PHASE in "$@"; do log "== phase $PHASE"; case $PHASE in
 g0)  # G0a, G0b (1 thread each, two at a time)
   "$L" $NEWS "$OUT/g0a" 1 "$R/AIUE-61-state_probe.py" >> "$LOG" 2>&1 &
-  "$L" $NEWS "$OUT/g0b" 1 "$R/AIUE-61-shared-full.py" "$T50" "$W/AIUE-61-serial" >> "$LOG" 2>&1 &
+  "$L" $NEWS "$OUT/g0b" 1 "$R/AIUE-61-shared-full.py" "$T50" "$W/AIUE-61-serial" $G0B_EXPECT >> "$LOG" 2>&1 &
   wait ;;
 g1)  # defaults unchanged, complete gate (base-* = v9-develop product 0fac655)
   $NEW $SC --base-python $V/base-serial/bin/python --new-python $NEWS --base-omp-python $V/base-omp/bin/python \
     --new-omp-python $NEW --jobs 2 --out "$OUT/g1" > "$OUT/g1.txt" 2>&1; log "g1 exit $? :: $(grep RESULT "$OUT/g1.txt")" ;;
+g1b) # informational: AIUE-61 against the AIUE-60 base (stacked, so --partial-ok)
+  $NEW $SC --base-python $OLDS --new-python $NEWS --base-omp-python $OLD --new-omp-python $NEW --jobs 2 --partial-ok \
+    --out "$OUT/g1b" > "$OUT/g1b.txt" 2>&1; log "g1b exit $? :: $(grep RESULT "$OUT/g1b.txt")" ;;
+gcommon) # AIUE-60 G-common on the combined OpenMP build (generated sources of the same build)
+  python3 -I "$A60/AIUE-60-common-check.py" --venv $V/AIUE-61-omp --gen "$(ls -d $W/AIUE-61-omp/build/temp.*)" \
+    > "$OUT/gcommon.txt" 2>&1; log "gcommon exit $? :: $(tail -1 "$OUT/gcommon.txt")" ;;
+giotable) # AIUE-60 G-iotable: /iotable/ changes as in the base build (AIUE-56-omp: words 11 and 12)
+  python3 -I "$A60/AIUE-60-iotable-probe.py" check --base-python $V/AIUE-56-omp/bin/python --new-python $NEW \
+    --out "$OUT/giotable" > "$OUT/giotable.txt" 2>&1; log "giotable exit $? :: $(tail -1 "$OUT/giotable.txt")" ;;
+r2) # dtreal=1e-9, 5 steps (deterministic, convergence not required): 4 threads K=2, 2 and 8 threads K=1
+  cw() { "$L" $NEW "$OUT/r2/$1" $2 "$R/AIUE-61-conv_worker.py" full jac $2 5 '{"bbb": {"dtreal": 1e-9}, "ppp": '"$FIX"'}' >> "$LOG" 2>&1; }
+  cw t4_a 4 & cw t2 2 & wait
+  cw t4_b 4
+  cw t8 8 ;;
+g9a) # D_only per file (new vs the base build, both build kinds) and the OpenMP check (CheckJac gating, CheckPandf1
+      # report-only per the owner decision of 2026-10-15 15:35); one process at a time
+  CASE=/Users/holma/Documents/uedge/src/uedge-pytests/pytests/unittests/D_only/nonog/default
+  "$R/AIUE-61-donly.sh" "$OUT/g9a" donly_newomp $NEW; "$R/AIUE-61-donly.sh" "$OUT/g9a" donly_oldomp $OLD
+  "$R/AIUE-61-donly.sh" "$OUT/g9a" donly_newserial $NEWS; "$R/AIUE-61-donly.sh" "$OUT/g9a" donly_oldserial $OLDS
+  for b in new old; do py=$NEW; [ $b = old ] && py=$OLD; for m in pandf1 jac; do d=$OUT/g9a/ompcheck_${b}_$m
+    mkdir -p $d/home; cp -R $CASE/. $d/
+    (cd $d && env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 HOME=$d/home OMP_NUM_THREADS=4 OMP_STACKSIZE=512M \
+      $py -I "$R/AIUE-61-ompcheck.py" $m 4 > run.log 2>&1)
+    log "ompcheck $b $m: $(tr -d '\000' < $d/run.log | grep -a 'CHECK ' | tail -1)"; done; done ;;
 ctl) # controls NC1, NC3, NC4, C-isjr, C-guard (<= 4 threads, two at a time); NC2 alone at 8 threads
   chk nc1_t2 $NEW full 2 2 '{"OMPJacFixedChunks": 1, "OMPJacChunkReset": 0}' &
   chk nc1_t4 $NEW full 4 2 '{"OMPJacFixedChunks": 1, "OMPJacChunkReset": 0}' & wait

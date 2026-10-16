@@ -8,7 +8,8 @@ in a forked child, a full pandf runs with yl(neq+1)=1, and the variable is WRITT
 sentinel. Character variables are not tested. A child that runs longer than 60 s
 (a sentinel on a loop bound or tolerance) is reported as "timeout" in errors.
 Usage (through AIUE-61-launch.sh, 1 thread; serial or OpenMP build with the switches 0):
-    AIUE-61-shared-full.py HARNESS_DIR AIUE50_TOOLS_DIR SRC_TREE   -> shared_full.json
+    AIUE-61-shared-full.py HARNESS_DIR AIUE50_TOOLS_DIR SRC_TREE [EXPECTED,COMMA,LIST]   -> shared_full.json
+  With EXPECTED (combined tree, pre-registered): PASS iff WRITTEN equals that set exactly.
 PASS (plan G0b): WRITTEN is a subset of AIUE-60 Probe S Parts A and B (on the combined tree: of whatever AIUE-60 leaves
 non-threadprivate). Anything else: stop and report.
 """
@@ -106,4 +107,10 @@ res["in_part_A"] = sorted(w & PART_A)
 res["in_part_B"] = sorted(w & PART_B)
 res["outside_probe_S"] = sorted(w - PART_A - PART_B)
 res["G0b"] = "PASS" if not res["outside_probe_S"] else "STOP: outside Probe S"
+if len(sys.argv) > 4:  # combined tree: a pre-registered exact WRITTEN set (comma list)
+    exp = set(sys.argv[4].split(","))
+    res["expected"] = sorted(exp)
+    res["missing_from_expected"] = sorted(exp - w)
+    res["unexpected"] = sorted(w - exp)
+    res["G0b"] = "PASS" if w == exp else "STOP: WRITTEN differs from the pre-registered set"
 json.dump(res, open("shared_full.json", "w"), indent=1, sort_keys=True)
