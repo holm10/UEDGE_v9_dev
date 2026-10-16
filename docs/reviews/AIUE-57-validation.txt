@@ -368,3 +368,13 @@ Not confirmable here (first native PR run): native ubuntu-latest x86-64 (all Lin
 Python 3.11 from setup-python (3.12 here), the PR wall time against the 20-min budget (emulated: build 175 s + script
 481 s; estimate 15-22 min), build/temp.* on the runner, the nightly schedule, the ticket's 20/20 red-run criterion,
 annotations and the step summary.
+
+9a. After implementation review round 1 (APPROVE 0/0/6; docs/reviews/AIUE-57-rework-implementation-round1.md)
+----------------------------------------------------------------------------------------------------------------
+Minor fixes (response: docs/reviews/AIUE-57-rework-implementation-round1-response.md). V6b's missing diagnostic is
+now covered by ci/ppp_keys.py, checked on the macOS builds (CI-script-only change; the Docker records above stand):
+  pre-fix venvs/base-omp, tebox1 flow with its ppp: "ppp_keys: ERROR: the build has no such ppp variable: flow tebox1:
+    ppp.OMPJacMinChunkLen (exit 2)", "run_omp_ci.sh: ppp check failed (exit 2)"
+  combined venvs/omp-determinism-omp: "ppp_keys: OK (OMPJacMinChunkLen, OMPJacVerbose)"
+The combined-branch Docker replay after the merge re-runs the whole pr set with these changes
+(docs/reviews/omp-determinism-merge-validation.txt).
