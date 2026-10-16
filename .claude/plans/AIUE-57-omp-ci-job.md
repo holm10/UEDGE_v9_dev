@@ -12,7 +12,7 @@ test_common_check.py}` (new); `tests/deterministic_omp/linux/{run_ci_replay.sh,R
 `tests/deterministic_omp/README.md` (CI section); `docs/reviews/AIUE-56-c1-gate.py` (docstring note only);
 `.claude/context/{testing,openmp-jacobian}.md` (code-facts); `docs/reviews/AIUE-57-validation.txt` (new section)
 **Branch / worktree**: `feature/v9-AIUE-57-omp-ci-job` @ `../uedge-wt/AIUE-57` (base: `bugfix/v9-openmp-determinism-fix` @ `9fa2a0e`; the AIUE-57 commits were rebased onto it, old base `3c03d1c`)
-**Ticket page**: pending (written by the ticket-page skill)
+**Ticket page**: Confluence page 2490370 (https://holm10uedge.atlassian.net/wiki/spaces/SD/pages/2490370/Plan+AIUE-57+-+OpenMP+CI+job+build-test-omp.yml)
 
 The rework is **Amendment 1** below. The original plan (approved, implemented, reviewed to APPROVE in round 2) follows
 it unchanged under "Original plan"; where the two disagree, Amendment 1 wins.
