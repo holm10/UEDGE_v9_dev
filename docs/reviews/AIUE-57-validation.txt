@@ -273,3 +273,98 @@ OMP CI RESULT: FAIL (exit 1)
     Not measured in CI.
 
 Still open: CI wall time; 20/20 CI runs; "green on the fixed code" (needs decision 9 or AIUE-61); Linux/libgomp.
+
+
+9. Rework on the combined branch (Amendment 1 + Revision 1; pre-registered V1-V11)
+-----------------------------------------------------------------------------------
+Branch feature/v9-AIUE-57-omp-ci-job rebased onto bugfix/v9-openmp-determinism-fix 9fa2a0e (old base 3c03d1c).
+Tree under test T = 97884a0 (product commit 8416361 + code-facts 97884a0; later commits are this record only).
+Plan: .claude/plans/AIUE-57-omp-ci-job.md (Amendment 1, Revision 1); review docs/reviews/AIUE-57-rework-plan-round1.md.
+Outputs: uedge-wt/logs/AIUE-57-rework/ (not committed). Docker: one container (aiue57-ci, image aiue62-ubuntu:amd64,
+Ubuntu 24.04, gcc/gfortran 13.3.0, Python 3.12.3, linux/amd64 emulated by Rosetta, --cpus 5 --memory 7g),
+used for V5, V6, V6b, V7, V11 one after another. macOS runs (V4, V8, V8b, V9) were not run during a Docker run.
+
+V1  PASS  python -m pytest -q tests/deterministic_omp/harness tests/deterministic_omp/ci: "173 passed"
+          (132 harness + 41 ci: 22 report, 10 jac_bound, 9 common_check). Same count inside the container (V5).
+V2  PASS  bash -n + shellcheck clean: ci/run_omp_ci.sh, ci/gen_dir.sh, linux/run_ci_replay.sh; actionlint
+          (uvx --from actionlint-py) exit 0; yaml.safe_load OK (triggers push [v9-develop, main], pull_request,
+          schedule, workflow_dispatch; steps incl. "Locate the generated sources (common-block check)").
+          Error paths: OMP_CI_JAC_TOLERANCE=abc and =1e-5 -> "is not a number in (0, 1e-6] (exit 2)", exit 2.
+V3  PASS  test_jac_bound.py: (a) raw captured[0] differs by 1.98e-4 x raw row max, post_exmain by 4.6e-9 -> PASS,
+          "captured[0]: raw (unscaled), not judged" printed; (b) post_exmain +2e-6 -> FAIL; (c) Te-row magnitude
+          x11 -> FAIL; (d) permuted post_exmain -> global-max bound (0.005 within 0.01; the same change in natural
+          order is 0.071 of the row max -> FAIL); (e) missing serial record.npz -> exit 2. Also: post_exmain_permuted
+          disagreement -> exit 2; flow layout (jac_t<N>/run<k> vs serial, jacrhs ignored, crashed run skipped);
+          check-dir mode with --harness.
+V4  PASS  merge-validation data uedge-wt/logs/omp-determinism/chk_full_t4 (macOS, full problem, 4 threads, 5 runs):
+          new  ci/jac_bound.py --harness tests/deterministic_omp: run0..run4 "PASS (post_exmain: worst magnitude
+               ratio 1, worst |a-b|/base 4.59e-09, 12275 entries differ)" + "captured[0]: raw (unscaled), not judged
+               ... (worst raw |a-b|/rowmax 1.983e-04; 12275 entries differ)"; BOUND PASS, exit 0.
+          old  docs/reviews/AIUE-56-c1-gate.py: run0..run4 "FAIL ... captured[0]: 118 entries exceed 1e-6 x serial
+               row max (worst |a-b|/rowmax 1.983e-04; 12275 entries differ)"; GATE FAIL, exit 1 (the tool issue).
+V5  PASS  CI replay of the rebased tip (linux/run_ci_replay.sh fix 97884a0 pr; OMP_CI_CORES=4):
+          build: "LDFLAGS=<unset>", setup.py "Linux OpenMP build: linking the Forthon extensions with LDFLAGS='-fopenmp'",
+          built in 175 s; import OK (smoke: "OMPParallelJac 0 OMPJacFixedChunks 1"); "173 passed";
+          OMP_CI_GEN_DIR=/work/ci-fix/build/temp.linux-x86_64-cpython-312 (ci/gen_dir.sh);
+          common-block (ELF, nm -D -S; first real Linux run of that branch): "RESULT: PASS (first definer bbbpy 728 B;
+          others apipy 96 B)".
+          Flows (exit, emulated wall): tebox1 0 (23 s), tebox 0 (81 s), up1 0 (28 s), full 0 (330 s).
+            tebox1 jac 2, 4: PASS 3/3 agree, deterministic;  tebox jac 2, 4: PASS 5/5;  tebox jacrhs 2, 4: PASS 5/5
+            (report-only);  up1 jac 4: PASS 3/3;  full jac 2, 4: PASS 2/2.
+          C1 bound: BOUND PASS in all four flows, worst |a-b|/base 0.0 (23 judged runs).
+          CHUNKS: NchunksJac 25 in every Te-box run (tebox1 jac t2/t4 3 of 3, tebox jac and jacrhs t2/t4 5 of 5).
+          "COMMON-BLOCK PASS", "OMP CI RESULT: PASS (exit 0)"; run_omp_ci.sh 481 s (emulated; not a CI estimate).
+V6  PASS  Negative control, pre-fix: e52a44d (origin/v9-develop) built with LDFLAGS=-fopenmp (built in 180 s); the CI
+          scripts of T (RUN_TREE=/work/ci-fix) with OMP_CI_FLOWS = the pr flows with the ppp field empty.
+          "OMP CI RESULT: FAIL (exit 1)". Per group, as pre-registered:
+            tebox1 jac 2: FAIL, first mismatch te(ix=4,iy=18), 0/3, "C1 bound (tol 1e-06): EXCEEDED in 3/3 runs, worst
+              |a-b|/base 2.58e+38, magnitude ratio 4.25e+37; post_exmain: max|J| Te rows 2.367e+43 vs serial 5.564e+05"
+            tebox1 jac 4: FAIL, first mismatch te(ix=3,iy=18), 0/3, C1 bound EXCEEDED in 3/3 runs (ratio 4.67e+37)
+            tebox jac 2, 4 (--itermx 3): FAIL 0/5, permuted positions, located by tebox1 (te(4,18), te(3,18));
+              bound (recorded): "within, worst |a-b|/base 2.22e-16" (the last Jacobian is correct, RCA E2)
+            full jac 2, 4 (--itermx 3): FAIL 0/2 (rows ng,ni,phi,te,ti,up after the Newton path moved); first
+              cell-mapped entry te(ix=1,iy=1) [sfscal]; bound (recorded): within
+            up1 jac 4: PASS 3/3 (as expected: pre-fix Linux up agreed at 4 threads)
+            tebox jacrhs 2, 4: FAIL 0/5, REPORT-ONLY
+          "FIRST MISMATCH: configuration tebox, arm jac, threads 2, equation te, cell (ix=4,iy=18) (flow tebox1)".
+V6b PARTIAL  Pre-fix build with the unmodified Te-box ppp (tebox1 flow only): exit 2, "OMP CI RESULT: ERROR (exit 2)",
+          "GATED [tebox1] configuration tebox, arm jac, threads 2: ERROR (cannot judge): serial reference failed:
+          ppppy.error: no such attribute; run0: ppppy.error: no such attribute; ..." and "GATED [C1 bound] ERROR
+          (cannot judge): ci/jac_bound.py exit codes 2". Exit code and fail-closed behaviour as registered; the
+          pre-registered "naming OMPJacMinChunkLen" is NOT met: Forthon's error text has no attribute name (the
+          traceback in record.json points at worker.py setattr(ppp, name, value); spec.json and the flow command in
+          ci.log carry the ppp JSON). Naming it would need a harness change (worker.py), out of this ticket's scope.
+V6c RECORDED  Common-block check on the pre-fix build: "RESULT: PASS (first definer bbbpy 712 B; others apipy 96 B)".
+          The expected FAIL did not occur: on origin/v9-develop only bbbpy and apipy define the block, bbb first and
+          larger (the FAIL in AIUE-60 was its pre-amendment build 02e6e60). The FAIL path is covered only by the unit
+          tests (test_common_check.py: first definer compy; later block larger), as pre-registered for this case.
+V7  PASS  Seeded race on T: scratch commit a215184 (T + `+threadprivate` removed from resee, bbb/bbb.v:2310; the scratch
+          branch was deleted after the run), replay with the two Te-box pr flows. "OMP CI RESULT: FAIL (exit 1)".
+            tebox1 jac 2: FAIL 0/3 (1 SIGSEGV), te(ix=3,iy=18), C1 bound EXCEEDED in 2/2 judged runs (ratio 8.8e+05)
+            tebox1 jac 4: FAIL 1/3 (2 SIGSEGV: "exited with -11 and wrote no record")
+            tebox  jac 2: FAIL 0/5 (3 SIGSEGV), te(ix=4,iy=18), bound EXCEEDED in 1/2 judged runs
+            tebox  jac 4: FAIL 0/5 (5 SIGSEGV)
+          Every Te-box jac group red; 15 of 16 jac runs red (11 crashes, 4 mismatches; 1 run agreed with serial).
+V8  PASS  macOS (venvs/omp-determinism-omp, the combined build; OMP_CI_GEN_DIR its build/temp.*), flow
+          tebox1|tebox|4|3|jac|none|{"OMPJacMinChunkLen": 1, "OMPJacVerbose": 1}:
+          bitwise: exit 1, "GATED [tebox1] configuration tebox, arm jac, threads 4: FAIL: first mismatch in equation te,
+          cell (ix=4,iy=20); 0/3 runs agree with serial; ...; C1 bound (tol 1e-06): within, worst |a-b|/base 5.62e-10"
+          (C2: 2 entries); NchunksJac 25 (3 of 3); COMMON-BLOCK PASS (macOS nm -m).
+          OMP_CI_JAC_TOLERANCE=1e-6: exit 0, "TOLERATED [tebox1] ... PASS (within tolerance 1e-06): only Jacobian
+          sections differ, deterministic, every run within the C1 bound", "OMP CI RESULT: PASS (exit 0)".
+V8b PASS  OMP_CI_JAC_TOLERANCE=2e-10 (half of V8's worst 5.62e-10, rounded down to one digit): exit 1, "C1 bound (tol
+          2e-10): EXCEEDED in 3/3 runs ... post_exmain: 2 entries exceed 2e-10 x serial row max (worst 5.623e-10);
+          not within tolerance 2e-10 (C1 bound)", "OMP CI RESULT: FAIL (exit 1)".
+V9  PASS  Tolerance 1e-6 on the pre-fix macOS build (venvs/base-omp; ppp field empty): exit 1, C1 bound EXCEEDED in
+          3/3 runs (worst 2.58e+38, ratio 4.25e+37), "not within tolerance 1e-06 (a non-Jacobian section differs, a
+          run failed or the group is not deterministic)", "OMP CI RESULT: FAIL (exit 1)".
+V10 PASS  check_context_refs.py --changed origin/v9-develop: "OK" (note: 2 lock entries no longer cited);
+          change_kind.py --range 9fa2a0e..HEAD: "OK".
+V11 RECORDED (optional)  Legacy partition on T (up1l|up|4|3|jac|none|{"OMPJacFixedChunks": 0}): PASS 3/3, exit 0.
+          M3 did not appear on the legacy partition of the combined tree at 4 threads either (K=3), so up1's power to
+          catch an M3 recurrence is not demonstrated; up1 stays a cheap guard (first in the budget cut order).
+
+Not confirmable here (first native PR run): native ubuntu-latest x86-64 (all Linux runs above are Rosetta-emulated),
+Python 3.11 from setup-python (3.12 here), the PR wall time against the 20-min budget (emulated: build 175 s + script
+481 s; estimate 15-22 min), build/temp.* on the runner, the nightly schedule, the ticket's 20/20 red-run criterion,
+annotations and the step summary.
