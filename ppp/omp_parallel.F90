@@ -678,18 +678,24 @@ END SUBROUTINE InitOMPPandf1
     OMPTimeCopy=tick() 
     if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying data....'
     call pandf (-1, -1, neq, 0.0, yl, ylcopy)
-    if (OMPCopyArray.gt.0) then
-        if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying array....'
-        call OmpCopyPointerbbb
-        call OmpCopyPointercom
-        call OmpCopyPointerapi
-    endif
-
+    ! Copy the threadprivate scalars before the arrays. The generated OmpCopyPointer<var>
+    ! routines write array(1:n) on each worker with the worker's own copy of a threadprivate
+    ! bound n (e.g. nxdata_api for the api Imslwrk spline tables). Copied the other way round,
+    ! the workers still hold the DATA defaults of those bounds and copy only element 1, so
+    ! the impurity radiation (isimpon=7) is evaluated on zero tables (AIUE-8, root cause C1).
+    ! With OMPCopyScalar=0 and OMPCopyArray=1 (debug switches) that hazard comes back.
     if (OMPCopyScalar.gt.0) then
         if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying scalar....'
         call OmpCopyScalarbbb
         call OmpCopyScalarcom
         call OmpCopyScalarapi
+    endif
+
+    if (OMPCopyArray.gt.0) then
+        if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying array....'
+        call OmpCopyPointerbbb
+        call OmpCopyPointercom
+        call OmpCopyPointerapi
     endif
 
     !   We cannot use variables in the parallel construct declarations below when these variables are not in the scope of the subroutine
