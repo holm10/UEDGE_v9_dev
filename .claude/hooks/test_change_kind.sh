@@ -107,5 +107,22 @@ git -C "$R" checkout -q feature/v9-T-2-inflight
 ck --range v9-develop..HEAD; ok $? 1 "E3 a two-dot range after the base moved shows the base's changes (false violation)"
 ck --range v9-develop...HEAD; ok $? 0 "E4 the three-dot range shows only the branch's own changes"
 
+echo "== F. PR size budget (--range; warnings only)"
+budget(){ git -C "$R" checkout -q -b "$1" v9-develop; shift; mkdir -p "$R/bud"; "$@"; git -C "$R" add -f bud
+  git -C "$R" -c core.hooksPath=/dev/null commit -qm budget; ck --range v9-develop...HEAD; }
+budget feature/v9-T-3-small sh -c "echo x > '$R/bud/a.txt'"; ok $? 0 "F1 a small branch passes"
+grep -q 'WARNING: PR size budget' "$W/out.txt"; ok $? 1 "F1 no budget warning"
+budget feature/v9-T-4-many sh -c "for i in \$(seq 1 41); do echo x > '$R/bud/r'\$i.md; done"; ok $? 0 "F2 41 added report files: still exit 0"
+grep -q 'adds 41 files' "$W/out.txt" && grep -q 'not a failure' "$W/out.txt"; ok $? 0 "F2 warned: too many files, with the hint"
+budget feature/v9-T-5-code sh -c "for i in \$(seq 1 41); do echo 'x=1' > '$R/bud/m'\$i.py; done"; ok $? 0 "F3 41 added source files"
+grep -q 'WARNING: PR size budget' "$W/out.txt"; ok $? 1 "F3 source and test code is not counted"
+budget feature/v9-T-6-lines sh -c "seq 1 3001 > '$R/bud/table.txt'"; grep -q '3001 lines' "$W/out.txt"; ok $? 0 "F4 3001 added lines in one file: warned"
+budget feature/v9-T-7-big sh -c "head -c 1100000 /dev/zero | tr '\\0' x > '$R/bud/blob.bin'"; grep -q 'over 1 MB: bud/blob.bin' "$W/out.txt"; ok $? 0 "F5 a file over 1 MB: warned"
+budget feature/v9-T-8-data sh -c "for f in r.npz s.hdf5 t.log u.json; do echo x > '$R/bud/'\$f; done"; ok $? 0 "F6 data-like files: still exit 0"
+grep -q 'data-like files added (4)' "$W/out.txt"; ok $? 0 "F6 warned: npz, hdf5, log and json named"
+git -C "$R" checkout -q feature/v9-T-8-data; stage .claude/work/T-8/plan.md; git -C "$R" -c core.hooksPath=/dev/null commit -qm plan
+ck --range v9-develop...HEAD; ok $? 1 "F7 a violation still fails with budget warnings present"
+clean
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

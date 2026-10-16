@@ -14,6 +14,9 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
         uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD   # every file a branch touches
 
     Exit 0 = clean, 1 = violations (printed), 2 = could not run (not a git repo, bad range).
+    With --range it also checks the PR size budget and prints `WARNING: PR size budget: ...` lines (never a violation,
+    never a change of the exit code): too many added files or lines outside product source and tests, an added file
+    over the size cap, or data-like files. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
 
 Path classes
   working   .claude/work/** (the local working folder) and the legacy working-document paths .claude/plans/**,
@@ -59,6 +62,16 @@ WORKING_HINT = ("working documents are never committed (plans, reviews and respo
 CODE_FACTS = re.compile(r"^(CLAUDE\.md$|\.claude/context/)")
 PROCESS = re.compile(r"^(CLAUDE\.md$|\.mcp\.json$|\.claude/|\.githooks/|\.github/workflows/claude-[^/]*\.ya?ml$)")
 SHARED = {".gitignore"}
+
+# PR size budget (--range only; warnings, never violations). Source and test code is not counted: the budget is for
+# what rides along with it (reports, raw data, generated files). PR #2 carried 1,282 such files.
+BUDGET_MAX_FILES = 40            # added files outside source/test code
+BUDGET_MAX_LINES = 3000          # added lines in files outside source/test code
+BUDGET_MAX_FILE_BYTES = 1_000_000  # any single added file
+CODE = re.compile(r"\.(m|v|F|F90|f|f90|c|h|py|sh)$")
+DATA_LIKE = re.compile(r"\.(npz|npy|hdf5|h5|pkl|pickle|log)$|^(?!\.claude/).*\.jsonl?$", re.IGNORECASE)
+BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated files in .claude/work/<KEY>/ or a scratch directory and "
+               "summarise them on the ticket page; if they really belong in the PR, say why in its description")
 
 
 def path_kind(path: str) -> str:
@@ -204,6 +217,36 @@ def range_paths(rng, cwd=None):
     return range_changes(rng, cwd).paths
 
 
+def budget_warnings(rng, cwd=None):
+    """PR size budget warnings for the files a range adds (see the BUDGET_* constants)."""
+    right = (rng.split("...")[-1] if "..." in rng else rng.split("..")[-1] if ".." in rng else "") or "HEAD"
+    added = [p for p in _git(["diff", "--name-only", "--no-renames", "--diff-filter=A", "-z", rng], cwd).split("\0")
+             if p]
+    lines = 0
+    for rec in _git(["diff", "--numstat", "--no-renames", "-z", rng], cwd).split("\0"):
+        parts = rec.split("\t")
+        if len(parts) == 3 and parts[0].isdigit() and not CODE.search(parts[2]):
+            lines += int(parts[0])
+    counted = [p for p in added if not CODE.search(p)]
+    sizes = {}
+    for rec in _git(["ls-tree", "-r", "-l", "-z", right], cwd).split("\0"):
+        meta, _, path = rec.partition("\t")
+        if path and meta.split()[-1].isdigit():
+            sizes[path] = int(meta.split()[-1])
+    out = []
+    if len(counted) > BUDGET_MAX_FILES or lines > BUDGET_MAX_LINES:
+        out.append(f"the branch adds {len(counted)} files and {lines} lines outside source and test code (budget "
+                   f"{BUDGET_MAX_FILES} files / {BUDGET_MAX_LINES} lines)")
+    big = [f"{p} ({sizes[p] // 1000} kB)" for p in added if sizes.get(p, 0) > BUDGET_MAX_FILE_BYTES]
+    if big:
+        out.append(f"added files over {BUDGET_MAX_FILE_BYTES // 1_000_000} MB: {', '.join(big)}")
+    data = [p for p in added if DATA_LIKE.search(p)]
+    if data:
+        shown = ", ".join(data[:10]) + (f" and {len(data) - 10} more" if len(data) > 10 else "")
+        out.append(f"data-like files added ({len(data)}): {shown}")
+    return out + [BUDGET_HINT] if out else out
+
+
 def is_tracked(path, cwd=None) -> bool:
     try:
         _git(["ls-files", "--error-unmatch", "--", path], cwd)
@@ -244,6 +287,12 @@ def main() -> int:
         print("VIOLATION: " + line)
     if not v:
         print("OK")
+    if a.range:
+        try:
+            for w in budget_warnings(a.range):
+                print("WARNING: PR size budget: " + w)
+        except (subprocess.CalledProcessError, ValueError, IndexError) as e:
+            print(f"WARNING: PR size budget not checked ({e})")
     return 1 if v else 0
 
 
