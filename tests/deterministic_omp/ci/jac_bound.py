@@ -118,12 +118,17 @@ def judge(serial, run, tol):
         r_max = np.abs(r[2][te_rows[r[0]]]).max(initial=0.0)
     else:
         s_max, r_max = np.abs(s[2]).max(initial=0.0), np.abs(r[2]).max(initial=0.0)
-    ratio = r_max / s_max if s_max > 0 else (np.inf if r_max > 0 else 0.0)
+    if s_max > 0:
+        ratio = r_max / s_max
+    elif r_max > 0:
+        ratio = np.inf
+    else:
+        ratio = None  # no Te rows (or an all-zero matrix): the magnitude check does not apply
     rel, differ = deviation(neq, s, r, loc)
     over = int(np.count_nonzero(rel > tol))
     worst = float(rel.max(initial=0.0))
     problems = []
-    if ratio > MAX_RATIO:
+    if ratio is not None and ratio > MAX_RATIO:
         problems.append("post_exmain: max|J| {} {:.3e} vs serial {:.3e} (x{:.3g} > {:g})".format(
             "Te rows" if loc else "(permuted, all rows)", r_max, s_max, ratio, MAX_RATIO))
     if over:
@@ -140,7 +145,7 @@ def judge(serial, run, tol):
             raw.append({"k": k, "worst_dev": float(crel.max(initial=0.0)), "differ": cdiff})
         except KeyError as err:
             raw.append({"k": k, "note": "missing array {}".format(err)})
-    return {"pass": not problems, "worst_ratio": float(ratio), "worst_dev": worst, "over": over, "differ": differ,
+    return {"pass": not problems, "worst_ratio": None if ratio is None else float(ratio), "worst_dev": worst, "over": over, "differ": differ,
             "permuted": permuted, "raw": raw, "problems": problems}
 
 
@@ -149,8 +154,9 @@ def describe(name, res):
         return "{}: ERROR (cannot judge): {}".format(name, res["error"])
     if "skipped" in res:
         return "{}: skipped ({})".format(name, res["skipped"])
-    text = "{}: {} (post_exmain{}: worst magnitude ratio {:.3g}, worst |a-b|/base {:.3g}, {} entries differ)".format(
-        name, "PASS" if res["pass"] else "FAIL", ", permuted" if res["permuted"] else "", res["worst_ratio"],
+    ratio = "n/a (no Te rows)" if res["worst_ratio"] is None else "{:.3g}".format(res["worst_ratio"])
+    text = "{}: {} (post_exmain{}: worst magnitude ratio {}, worst |a-b|/base {:.3g}, {} entries differ)".format(
+        name, "PASS" if res["pass"] else "FAIL", ", permuted" if res["permuted"] else "", ratio,
         res["worst_dev"], res["differ"])
     for p in res["problems"]:
         text += "\n    " + p
@@ -189,7 +195,10 @@ def flow_mode(flow, tol):
             out["groups"][key] = entry
             if serial is None:
                 continue
-            for r in run_dirs(os.path.join(cdir, g)):
+            runs = run_dirs(os.path.join(cdir, g))
+            if not runs:
+                entry["error"] = "no run directories in {}/{} (nothing to judge)".format(cfg, g)
+            for r in runs:
                 rdir = os.path.join(cdir, g, r)
                 if not has_record(rdir):
                     entry["runs"][r] = {"skipped": "no record (the run failed; the flow counts it)"}
@@ -234,7 +243,10 @@ def check_mode(dirs, tol, harness):
     for d in dirs:
         try:
             serial = load(os.path.join(d, "serial"))
-            for r in run_dirs(d):
+            runs = run_dirs(d)
+            if not runs:
+                raise CannotJudge("no run directories (nothing to judge)")
+            for r in runs:
                 res = judge(serial, load(os.path.join(d, r)), tol)
                 arm = check_arm_problems(harness, os.path.join(d, r))
                 if arm:

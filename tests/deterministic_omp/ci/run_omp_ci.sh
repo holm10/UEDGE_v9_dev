@@ -41,7 +41,8 @@
 #                          enables the common-block check (the workflow always sets it); unset: skipped
 #   OMP_CI_JAC_TOLERANCE   Empty (default): the Jacobian arm gates bitwise, with the C1 bound (1e-6 x serial row
 #                          max on the scaled post_exmain Jacobian) as a backstop. A value V in (0, 1e-6]:
-#                          tolerance mode: a jac group that differs from serial only in Jacobian sections,
+#                          tolerance mode (one-evaluation flows only; --itermx flows stay bitwise): a jac group
+#                          that differs from serial only in Jacobian sections,
 #                          is deterministic and has every run within V counts as PASS (for macOS, where C2
 #                          leaves round-off differences; never set on the Linux CI runner).
 #
@@ -119,6 +120,11 @@ mkdir -p "$SMOKE/home"
 if ! (cd "$SMOKE" && HOME="$SMOKE/home" OMP_NUM_THREADS=1 "$PY" -I -c \
         "import uedge; from uedge import bbb, ppp; print('uedge_ver', bbb.uedge_ver, 'OMPParallelJac', ppp.OMPParallelJac, 'OMPJacFixedChunks', getattr(ppp, 'OMPJacFixedChunks', 'n/a'))"); then
     echo "run_omp_ci.sh: smoke test failed (exit 2)"
+    exit 2
+fi
+# every key of the flows' ppp fields must exist in this build (names the key instead of "no such attribute")
+if ! (cd "$SMOKE" && HOME="$SMOKE/home" OMP_NUM_THREADS=1 "$PY" -I "$HERE/ppp_keys.py" "$FLOWS"); then
+    echo "run_omp_ci.sh: ppp check failed (exit 2)"
     exit 2
 fi
 

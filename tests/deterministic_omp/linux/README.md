@@ -23,6 +23,7 @@ their scope are in `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md`, §Linux cha
 The AIUE-56 gate script judges the raw captured Jacobians when the build has the AIUE-47 capture hook, which is not
 the matrix its bound was set on; on such builds use `tests/deterministic_omp/ci/jac_bound.py` (the same bound on the
 scaled `post_exmain` Jacobian; it accepts `--harness` and the check-directory layout, so `gate_flows.py` can call it).
+`gate_summary.py` parses only the AIUE-56 script's output format; read `jac_bound.py`'s per-run lines directly.
 
 ## Run order (as run)
 

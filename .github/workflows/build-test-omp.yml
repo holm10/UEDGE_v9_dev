@@ -3,7 +3,7 @@ name: OpenMP determinism - OpenMP Jacobian vs serial
 # AIUE-57 (epic AIUE-8). Builds the default OpenMP UEDGE and runs the AIUE-52 test flow
 # (tests/deterministic_omp/harness/cli.py flow) through tests/deterministic_omp/ci/run_omp_ci.sh,
 # which runs the same steps locally. Gated (exit != 0 turns the job red): the Jacobian arm, bitwise
-# against serial (on Linux x86-64 the AIUE-61 fixed partition equals serial bit for bit), with the
+# against serial (on emulated Linux x86-64 the AIUE-61 fixed partition equals serial bit for bit), with the
 # C1 bound on the scaled post_exmain Jacobian as a backstop (ci/jac_bound.py), and the Forthon
 # common-block check (ci/common_check.py). Report-only: the Jacobian + parallel RHS arm (its known
 # defects are epic AIUE-70). See tests/deterministic_omp/README.md, "CI".

@@ -345,7 +345,8 @@ PYTHON=... OMP_CI_JAC_TOLERANCE=1e-6 ... run_omp_ci.sh pr       # macOS: toleran
 ```
 
 Steps: the harness and CI unit tests (`harness/`, `ci/`, no build needed); an import smoke test (empty `HOME`,
-`python -I`); the **common-block check** (`ci/common_check.py`, AIUE-60's G-common check: the Forthon `--omp`
+`python -I`); a pre-flight check that every key of the flows' `ppp` fields exists in the build (`ci/ppp_keys.py`;
+exit 2 naming the key); the **common-block check** (`ci/common_check.py`, AIUE-60's G-common check: the Forthon `--omp`
 common block `/ompcommonscalarcopy/` must be defined first by `bbbpy` and no later definition may be larger), run when
 `OMP_CI_GEN_DIR` names the build's generated sources (the workflow sets it with `ci/gen_dir.sh`, which requires
 exactly one `build/temp.*` with `bbb_p.F90`); the AIUE-52 flow for the selected set; the **C1 bound**
@@ -387,12 +388,12 @@ The workflow has `permissions: contents: read`.
   the flow passed bitwise; a failing group's line says `C1 bound: within` (round-off class) or `EXCEEDED` (a real
   defect such as C1). A missing `bound.json`, group or run entry, or a bound error is exit 2 (fail closed).
 - **Tolerance mode (`OMP_CI_JAC_TOLERANCE`, for macOS).** Empty (the workflow's value): bitwise. A value V in
-  (0, 1e-6] (capped at the registered C1 bound): a `jac` group that FAILed bitwise counts as **PASS (within
+  (0, 1e-6] (capped at the registered C1 bound): in a **one-evaluation** flow (where `post_exmain` is the only
+  Jacobian; `--itermx` flows always stay bitwise), a `jac` group that FAILed bitwise counts as **PASS (within
   tolerance V)** only if no run failed, the group is deterministic, every failing section is a Jacobian section,
   and every run is within the bound computed with V; otherwise it stays FAIL. On macOS arm64 the C2 round-off
   remains (full problem 12 275 Te-row entries, worst 4.59e-9 × row max; Te box with 25 chunks 2 entries, 5.6e-10),
-  so local replays there need it. It cannot rescue an `--itermx` flow whose Jacobian difference moves the Newton
-  path (`yldot`/`fnrm` then differ, a non-Jacobian section): such a group stays FAIL by design.
+  so local replays there need it; on macOS the `--itermx` flows therefore stay red in this mode as well.
 - **Common-block check.** Its result (PASS, FAIL, ERROR or skipped) is in the summary (`COMMON-BLOCK` line) and in
   the exit code; the flows run whatever it says, so the summary always shows both.
 - **What a failure says.** First one `FIRST MISMATCH` line (and an `::error::` annotation) for the job: the
@@ -432,6 +433,12 @@ The workflow has `permissions: contents: read`.
 - **Merge condition.** The workflow merges with or after `bugfix/v9-openmp-determinism-fix` (the fixes it tests), and
   only once the first native `ubuntu-latest` run of its PR is green and inside the budget (all earlier Linux
   evidence ran emulated). If native x86-64 shows C2-like round-off entries, the owner decides.
+- **The nightly set is not yet validated on Linux.** Linux bitwise equality with the fixed partition has been shown
+  (emulated) for the Te box (25 chunks), `full` and `up` only; the other `--all` configurations (`te`, `ti`, `ni`,
+  `ng`, `te_phi`) at 2/4/8 threads, and the nightly `--itermx 3` runs, were never run on Linux. A red first nightly
+  is therefore not necessarily a regression: read its summary (bound `within` = round-off class, `EXCEEDED` = a
+  defect) and let the owner decide (fix, make that configuration report-only, or accept a tolerance). A manual
+  `workflow_dispatch` with `set: nightly` right after the merge gives that answer early.
 - **Scheduled runs** start only from the repository's default branch; until the workflow is there, use the manual
   `workflow_dispatch` with `set: nightly`.
 - Exit codes of `run_omp_ci.sh`: 0 the gated arm agrees (or is within tolerance), within the bound, common block

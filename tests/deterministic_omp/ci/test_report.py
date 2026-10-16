@@ -284,3 +284,19 @@ def test_chunk_counts_from_run_logs(tmp_path, capsys):
     assert report.main([a]) == 0
     out = capsys.readouterr().out
     assert "CHUNKS [tebox1] configuration tebox, arm jac, threads 4: NchunksJac 25 (2 of 3 runs printed it)" in out
+
+
+def test_tolerance_mode_does_not_apply_to_itermx_flows(tmp_path, capsys):
+    a = _flow(tmp_path, "tebox", 1, [JAC_ONLY], itermx=3)  # Jacobian-only, deterministic, bound within
+    assert _tol(a) == 1
+    out = capsys.readouterr().out
+    assert "tolerance mode applies to one-evaluation flows only" in out and "TOLERATED" not in out
+
+
+def test_bound_line_without_te_rows_says_na(tmp_path, capsys):
+    b = _bound_for([PASS_T4], run_pass=False)
+    for r in b["groups"]["tebox/jac_t4"]["runs"].values():
+        r["worst_ratio"] = None
+    a = _flow(tmp_path, "t", 0, [PASS_T4], itermx=None, bound=b)
+    assert report.main([a]) == 1
+    assert "magnitude ratio n/a (no Te rows)" in capsys.readouterr().out

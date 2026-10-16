@@ -17,9 +17,11 @@ bound.json that ci/jac_bound.py wrote). The script
   gated failure even when the flow passed it bitwise; a missing bound.json, group or run entry, or a
   bound ERROR is exit 2 (fail closed). The bound judges post_exmain, the LAST Jacobian of each run (in
   --itermx flows the last, permuted one; the flow compares every Jacobian bitwise);
-* --gate-mode "tolerance V" (OMP_CI_JAC_TOLERANCE): a gated jac group that FAILed bitwise counts as
+* --gate-mode "tolerance V" (OMP_CI_JAC_TOLERANCE): in a one-evaluation flow (settings.itermx null; there
+  post_exmain is the only Jacobian), a gated jac group that FAILed bitwise counts as
   PASS (within tolerance) only if no run failed, it is deterministic, every failing section is a Jacobian
-  section, and every run has a bound.json entry within the bound (computed with --tol V). The exit code is
+  section, and every run has a bound.json entry within the bound (computed with --tol V); --itermx flows stay
+  bitwise (the bound sees only their last Jacobian). The exit code is
   then recomputed from the adjusted verdicts; flow ERRORs (2), missing flow.json, iteration problems, bound
   and common-block codes are kept;
 * --common-code: the result of ci/common_check.py (0 PASS, 1 FAIL, 2 ERROR; omitted = skipped), shown in
@@ -123,12 +125,13 @@ def bound_status(bound, g):
     if not judged:
         return "pass", "C1 bound: no run to judge (every run failed)", False
     worst = max(float(res.get("worst_dev", 0.0)) for res in judged.values())
-    ratio = max(float(res.get("worst_ratio", 0.0)) for res in judged.values())
+    ratios = [float(res["worst_ratio"]) for res in judged.values() if res.get("worst_ratio") is not None]
+    ratio = "{:.3g}".format(max(ratios)) if ratios else "n/a (no Te rows)"
     fails = sorted(r for r, res in judged.items() if res.get("pass") is not True)
     tol = bound.get("tol")
     if fails:
         first = judged[fails[0]].get("problems") or ["(no detail)"]
-        return "fail", "C1 bound (tol {}): EXCEEDED in {}/{} runs, worst |a-b|/base {:.3g}, magnitude ratio {:.3g}; {}"\
+        return "fail", "C1 bound (tol {}): EXCEEDED in {}/{} runs, worst |a-b|/base {:.3g}, magnitude ratio {}; {}"\
             .format(tol, len(fails), len(judged), worst, ratio, first[0]), complete
     return "pass", "C1 bound (tol {}): within, worst |a-b|/base {:.3g}".format(tol, worst), complete
 
@@ -203,7 +206,11 @@ def problem_lines(name, flow, located=None, bound=None, tolerance=None):
                 text += "; " + bs[1]
                 if bs[0] == "error":
                     code = 2
-            if tolerance is not None and is_gated and code == 1:
+            one_eval = flow.get("settings", {}).get("itermx") is None
+            if tolerance is not None and is_gated and code == 1 and not one_eval:
+                text += ("; not within tolerance: tolerance mode applies to one-evaluation flows only (under --itermx "
+                         "the bound sees only the last Jacobian)")
+            elif tolerance is not None and is_gated and code == 1:
                 if tolerable(g) and bs is not None and bs[0] == "pass" and bs[2]:
                     tolerated, code = True, 0
                     text = ("PASS (within tolerance {:g}): only Jacobian sections differ, deterministic, every run "

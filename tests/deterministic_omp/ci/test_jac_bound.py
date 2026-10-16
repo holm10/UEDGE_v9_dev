@@ -154,3 +154,27 @@ def test_check_dir_mode_accepts_harness_and_judges_post_exmain(tmp_path, capsys)
     out = capsys.readouterr().out
     assert "captured[0]: raw (unscaled), not judged" in out
     assert code == 1 and "check_arm" in out  # synthetic records have no provenance: check_arm objects
+
+
+def test_nothing_to_judge_is_exit_2(tmp_path):
+    flow = tmp_path / "flow"
+    _write(str(flow / "tebox" / "serial"))
+    os.makedirs(str(flow / "tebox" / "jac_t2"))  # a group without run directories
+    assert jac_bound.main(["--flow", str(flow)]) == 2
+    assert "no run directories" in json.load(open(str(flow / "bound.json")))["groups"]["tebox/jac_t2"]["error"]
+    d = tmp_path / "chk"
+    _write(str(d / "serial"))  # a check directory with only the serial reference
+    assert jac_bound.main([str(d)]) == 2
+
+
+def test_no_te_rows_prints_na_not_zero(tmp_path, capsys):
+    eq = EQ.copy()
+    try:
+        EQ[:] = 0  # no Te rows (e.g. the up configuration)
+        flow = _flow(tmp_path, VALS.copy(), cfg="up", group="jac_t4")
+    finally:
+        EQ[:] = eq
+    assert jac_bound.main(["--flow", flow]) == 0
+    assert "worst magnitude ratio n/a (no Te rows)" in capsys.readouterr().out
+    r = json.load(open(os.path.join(flow, "bound.json")))["groups"]["up/jac_t4"]["runs"]["run0"]
+    assert r["worst_ratio"] is None
