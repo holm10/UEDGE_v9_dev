@@ -46,6 +46,10 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   `queue --list` empty) before removing a worktree; anything not on the page by then is gone.
 - **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
   any branch, pointing to the ticket page.
+- **Tickets started before this rule** may track a plan or reviews on their branch (`.claude/plans/`,
+  `docs/reviews/`). Copy the plan to `.claude/work/<KEY>/plan.md` and work on that copy (`ticket-page publish`
+  mirrors it); a tracked working document may be deleted in a commit (`git rm`), never changed or added.
+
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
