@@ -20,9 +20,10 @@ Three guarantees ship here:
      xargs, find -exec), is blocked.
 
   3. A `git commit` must respect the branch policy (`.claude/context/branching.md`,
-     checked by `change_kind.py`): nothing on protected branches, no product files on
-     AI-layer branches, no AI-layer process files on ticket branches unless the message
-     carries the `AI-layer: code-facts` trailer.
+     checked by `change_kind.py`): nothing on protected branches, no ticket or epic working
+     documents on any branch (they live in the gitignored `.claude/work/` and on Confluence),
+     no product files on AI-layer branches, no AI-layer process files on ticket branches
+     unless the message carries the `AI-layer: code-facts` trailer.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
 exits 0, so a bug in this script can never brick your session.
@@ -207,17 +208,52 @@ GIT_COMMIT = re.compile(GIT + r"commit\b(?P<args>[^\n;&|]*)")
 GIT_ADD = re.compile(GIT + r"add\s+(?P<args>[^\n;&|]*)")
 GIT_NEW_BRANCH = re.compile(GIT + r"(?:checkout\s+-[bB]|switch\s+-[cC])\s+(?P<b>[^\s;&|]+)")
 CD = re.compile(r"(?:^|[;&|]\s*)cd\s+(?P<d>[^\s;&|]+)")
+# A here-document body (<<EOF ... EOF, <<'EOF', <<-EOF): text, not commands, so it is dropped before matching the git
+# commands above. Only the body goes: the rest of the opening line (cat <<EOF | git commit -F -) is a command and is
+# kept. A herestring (<<<) is not a here-document, and an empty body (the terminator on the next line) is matched, so
+# a match never runs on and swallows later commands. The commit message itself (git commit -F - <<'EOF') stays in the
+# full command for the trailer check. Limitation: commands fed to a shell through a here-document (bash <<EOF ...
+# EOF, ssh host <<EOF) are not seen (fail open).
+HEREDOC = re.compile(r"(?<!<)<<(?!<)-?[ \t]*(['\"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)\1(?P<rest>[^\n]*)\n"
+                     r"(?:.*?\n)??[ \t]*(?P=tag)[ \t]*(?=\n|$)", re.S)
+
+
+def strip_heredocs(command: str) -> str:
+    return HEREDOC.sub(lambda m: "<<heredoc" + m.group("rest"), command)
+
+
+def _porcelain_z(workdir):
+    """Changes from `git status --porcelain -z -uall` (what `git add -A` would stage): NUL-separated entries
+    'XY path', a rename followed by its old path as the next field."""
+    import subprocess
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import change_kind as ck
+    out = subprocess.run(["git", "status", "--porcelain", "-z", "-uall"], cwd=workdir,
+                         capture_output=True, text=True, check=True).stdout
+    ch, fields, i = ck.Changes(), out.split("\0"), 0
+    while i < len(fields) and fields[i]:
+        xy, path = fields[i][:2], fields[i][3:]
+        ch.paths.append(path)
+        if "D" in xy:
+            ch.deleted.append(path)
+        if "R" in xy or "C" in xy:
+            if "R" in xy and i + 1 < len(fields):
+                ch.renamed[path] = fields[i + 1]
+            i += 2
+            continue
+        i += 1
+    return ch
 
 
 def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     """Reason string if a `git commit` would break the branch policy (.claude/context/branching.md)."""
     if tool_name != "Bash":
         return None
-    command = tool_input.get("command", "")
+    full = tool_input.get("command", "")
+    command = strip_heredocs(full)
     m = GIT_COMMIT.search(command)
     if not m:
         return None
-    import subprocess
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import change_kind as ck
 
@@ -234,7 +270,7 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     for b in GIT_NEW_BRANCH.finditer(head):
         branch = b.group("b")
 
-    paths = ck.staged_paths(workdir)
+    ch = ck.staged_changes(workdir)
     for a in GIT_ADD.finditer(head):
         try:
             args = shlex.split(a.group("args"))
@@ -242,17 +278,19 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
             args = a.group("args").split()
         files = [x for x in args if not x.startswith("-")]
         if any(x in (".", "-A", "--all") for x in args) or any(os.path.isdir(os.path.join(workdir, f)) for f in files):
-            out = subprocess.run(["git", "status", "--porcelain", "-uall"], cwd=workdir,
-                                 capture_output=True, text=True, check=True).stdout
-            paths += [line[3:].split(" -> ")[-1] for line in out.splitlines()]
+            ch.add(_porcelain_z(workdir))
         else:
-            paths += files
+            ch.paths += files
+            # Adding a path that no longer exists stages its deletion, but only for a tracked path: a file the same
+            # command creates first (echo > x && git add x) doesn't exist yet when the hook runs and is an addition.
+            ch.deleted += [f for f in files
+                           if not os.path.lexists(os.path.join(workdir, f)) and ck.is_tracked(f, workdir)]
     commit_args = m.group("args").split()
     if "--all" in commit_args or any(x.startswith("-") and not x.startswith("--") and "a" in x
                                      for x in commit_args if not x.startswith("-m")):
-        paths += ck.modified_tracked_paths(workdir)
+        ch.add(ck.modified_tracked_changes(workdir))
 
-    problems = ck.violations(branch, paths, command)
+    problems = ck.violations(branch, ch.paths, full, ch.deleted, ch.renamed)
     return " ".join(problems) if problems else None
 
 

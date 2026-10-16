@@ -1,7 +1,7 @@
 ---
 name: system-review
 description: Performs a meta-level review of how well an implementation followed its plan, classifying divergences and recommending AI-Layer improvements. Use after an execution report exists to find bugs in the process, not the code.
-argument-hint: [plan-file] [execution-report-file]
+argument-hint: [plan-file, default .claude/work/<KEY>/plan.md] [execution-report-file, default .claude/work/<KEY>/execution-report.md]
 ---
 
 # System Review
@@ -106,7 +106,8 @@ code-facts correction (allowed on the ticket branch with the trailer `AI-layer: 
 
 ## Output Format
 
-Save your analysis to: `.claude/system-reviews/[feature-name]-review.md`
+Save your analysis to: `.claude/work/<KEY>/system-review.md` (`<slug>` without a ticket). It is a working document:
+gitignored, never committed. Its lasting content is the filed `ai-layer` issues and the ticket page entry below.
 
 ### Report Structure:
 
@@ -183,12 +184,16 @@ Don't apply any of these actions yourself. Each one is a **process change** and 
    - Otherwise create a `Task` in project `AIUE` with label `ai-layer`, summary `AI layer: <action>`, and a
      description holding the evidence (the divergence, plan and report paths), the target file(s), and the proposed
      change.
-2. If Jira isn't available, append the actions to `.claude/system-reviews/backlog.md` (a record file, allowed on any
-   branch) with date, feature, target file and proposed change.
+2. If Jira isn't available, append the actions to `.claude/work/<KEY>/ai-layer-backlog.md` (local, never committed)
+   with date, feature, target file and proposed change, and queue them on the ticket page (below), which keeps them
+   until Atlassian is back; file them as issues at the next session that has Jira. Without a ticket record, give
+   them to the user in the output: the local file is lost with the worktree.
 3. Code-facts corrections (a context module that is simply wrong about the code) are the exception: fix them on the
    current branch with the trailer `AI-layer: code-facts`, and list them here as done.
 
-List the filed issue keys (or backlog entries) in the report.
+List the filed issue keys (or backlog entries) in the report. For a Jira ticket, record them on the ticket page:
+`ticket-page <KEY> log "Findings and decisions" "Agent: system review <score>/10; ai-layer issues <keys> (or not
+filed yet: <one line per action>)" --flush`.
 
 #### Key Learnings
 

@@ -1,0 +1,142 @@
+{
+ "results": [
+  {
+   "content": {
+    "id": "2490370",
+    "type": "page",
+    "ari": "ari:cloud:confluence:00000000-0000-0000-0000-000000000000:page/2490370",
+    "base64EncodedAri": "YXJpOmNsb3VkOmNvbmZsdWVuY2U6MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOmNvbnRlbnQvMjQ5MDM3MA==",
+    "status": "current",
+    "title": "Plan: AIUE-57 - Second synthetic ticket title",
+    "history": {
+     "latest": true,
+     "createdDate": "2026-10-16T06:05:54.234Z",
+     "_expandable": {
+      "lastUpdated": "",
+      "previousVersion": "",
+      "contributors": "",
+      "nextVersion": ""
+     },
+     "_links": {
+      "self": "https://example.atlassian.net/wiki/rest/api/content/2490370/history"
+     }
+    },
+    "macroRenderedOutput": {},
+    "extensions": {
+     "position": 573
+    },
+    "_expandable": {
+     "container": "/rest/api/space/SD",
+     "metadata": "",
+     "restrictions": "/rest/api/content/2490370/restriction/byOperation",
+     "body": "",
+     "version": "",
+     "descendants": "/rest/api/content/2490370/descendant",
+     "space": "/rest/api/space/SD",
+     "childTypes": "",
+     "schedulePublishInfo": "",
+     "operations": "",
+     "schedulePublishDate": "",
+     "children": "/rest/api/content/2490370/child",
+     "ancestors": "",
+     "draftVersion": ""
+    },
+    "_links": {
+     "self": "https://example.atlassian.net/wiki/rest/api/content/2490370",
+     "tinyui": "/x/AgAm",
+     "editui": "/pages/resumedraft.action?draftId=2490370",
+     "webui": "/spaces/SD/pages/2490370/Synthetic-title",
+     "edituiv2": "/spaces/SD/pages/edit-v2/2490370"
+    }
+   },
+   "title": "Plan: AIUE-57 - Second synthetic ticket title",
+   "excerpt": "Synthetic excerpt.",
+   "url": "/spaces/SD/pages/2490370/Synthetic-title",
+   "resultGlobalContainer": {
+    "title": "Software Development",
+    "displayUrl": "/spaces/SD"
+   },
+   "breadcrumbs": [],
+   "entityType": "content",
+   "iconCssClass": "aui-icon content-type-page",
+   "lastModified": "2026-10-16T07:54:29.000Z",
+   "friendlyLastModified": "about 9 hours ago",
+   "score": 0
+  },
+  {
+   "content": {
+    "id": "2293761",
+    "type": "page",
+    "ari": "ari:cloud:confluence:00000000-0000-0000-0000-000000000000:page/2293761",
+    "base64EncodedAri": "YXJpOmNsb3VkOmNvbmZsdWVuY2U6MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOmNvbnRlbnQvMjI5Mzc2MQ==",
+    "status": "current",
+    "title": "Plan: AIUE-61 - Synthetic ticket title",
+    "history": {
+     "latest": true,
+     "createdDate": "2026-10-16T00:43:22.794Z",
+     "_expandable": {
+      "lastUpdated": "",
+      "previousVersion": "",
+      "contributors": "",
+      "nextVersion": ""
+     },
+     "_links": {
+      "self": "https://example.atlassian.net/wiki/rest/api/content/2293761/history"
+     }
+    },
+    "macroRenderedOutput": {},
+    "extensions": {
+     "position": 542
+    },
+    "_expandable": {
+     "container": "/rest/api/space/SD",
+     "metadata": "",
+     "restrictions": "/rest/api/content/2293761/restriction/byOperation",
+     "body": "",
+     "version": "",
+     "descendants": "/rest/api/content/2293761/descendant",
+     "space": "/rest/api/space/SD",
+     "childTypes": "",
+     "schedulePublishInfo": "",
+     "operations": "",
+     "schedulePublishDate": "",
+     "children": "/rest/api/content/2293761/child",
+     "ancestors": "",
+     "draftVersion": ""
+    },
+    "_links": {
+     "self": "https://example.atlassian.net/wiki/rest/api/content/2293761",
+     "tinyui": "/x/AQAj",
+     "editui": "/pages/resumedraft.action?draftId=2293761",
+     "webui": "/spaces/SD/pages/2293761/Synthetic-title",
+     "edituiv2": "/spaces/SD/pages/edit-v2/2293761"
+    }
+   },
+   "title": "Plan: AIUE-61 - Synthetic ticket title",
+   "excerpt": "Synthetic excerpt.",
+   "url": "/spaces/SD/pages/2293761/Synthetic-title",
+   "resultGlobalContainer": {
+    "title": "Software Development",
+    "displayUrl": "/spaces/SD"
+   },
+   "breadcrumbs": [],
+   "entityType": "content",
+   "iconCssClass": "aui-icon content-type-page",
+   "lastModified": "2026-10-16T03:03:19.000Z",
+   "friendlyLastModified": "yesterday at 8:03 PM",
+   "score": 0
+  }
+ ],
+ "start": 0,
+ "limit": 50,
+ "size": 2,
+ "totalSize": 2,
+ "cqlQuery": "type = page AND parent = 2260993",
+ "searchDuration": 458,
+ "archivedResultCount": 0,
+ "_links": {
+  "base": "https://example.atlassian.net/wiki",
+  "context": "/wiki",
+  "self": "https://example.atlassian.net/wiki/rest/api/search?expand=content%2Ccontent.history&cql=type+%3D+page+AND+parent+%3D+2260993"
+ }
+}

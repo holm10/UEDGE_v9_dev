@@ -1,6 +1,6 @@
 ---
 name: close-epic
-description: Closes out a Jira epic. Gathers everything the epic produced (Jira epic and children with comments, the PRD and its Confluence child pages and comments, the per-ticket plan pages under "Ticket plans" for the epic, the planning branch's breakdown and progress log, every ticket branch or merge, review reports and responses, RCA documents, physics specs, execution and system-review reports), saves a snapshot of the Jira and Confluence sources, checks it against the PRD's success criteria, and writes a detailed close-out record of what changed, the results, the decisions and who took them, the discussion, deviations and deferred work. The record passes an adversarial uedge-reviewer gate, is published as a child page of the PRD and linked from the epic. The epic moves to Done only when the owner confirms. Use when an epic's tickets are finished, or with --dry-run for a read-only draft of an epic in progress.
+description: Closes out a Jira epic. Gathers everything the epic produced (Jira epic and children with comments, the PRD and its Confluence child pages and comments - breakdown, PRD reviews, progress log - the per-ticket pages under "Ticket plans" for the epic with their plans, reviews, validation results and decisions, every ticket branch or merge and its git history, physics specs, and a legacy planning branch if one exists), saves a local snapshot of the Jira and Confluence sources, checks it against the PRD's success criteria, and writes a detailed close-out record of what changed, the results, the decisions and who took them, the discussion, deviations and deferred work. The record passes an adversarial uedge-reviewer gate, is published as a child page of the PRD and linked from the epic. The epic moves to Done only when the owner confirms. Use when an epic's tickets are finished, or with --dry-run for a read-only draft of an epic in progress.
 argument-hint: "<jira-epic-key> [--dry-run]"
 ---
 
@@ -9,8 +9,12 @@ argument-hint: "<jira-epic-key> [--dry-run]"
 ## Overview
 
 The last step of the epic flow: `create-prd` → `spec` → one PIV loop per ticket → **`close-epic`**. An epic's
-history is spread over Jira (status, comments), Confluence (PRD, breakdown, the ticket pages, comments), the planning branch (PRD copy,
-breakdown, progress log, PRD reviews) and one branch or merge per ticket (plans, reviews, RCAs, validation records).
+history is spread over Jira (status, comments), Confluence (the PRD and its children: `PRD reviews`, the breakdown,
+`Progress`, the ticket pages with each ticket's plan, reviews, validation results and decisions; comments) and git
+(one branch or merge per ticket, with its commits and physics specs). Ticket and epic working documents are never
+committed (`.claude/context/branching.md`), so the Confluence pages are where plans, reviews and validation records
+are found; epics started before that rule also left them on a planning branch and in ticket branches (legacy sources,
+read with `git show`).
 This skill collects it into one record that someone who wasn't there can read: what the epic set out to do, what it
 changed, what it measured, what was decided by whom and why, and what is left.
 
@@ -29,15 +33,17 @@ Four rules hold throughout:
 
 | Setting | Value |
 |---|---|
-| Record (repo copy) | `docs/specs/<EPIC-KEY>-closeout.md` on the planning branch `feature/v9-<EPIC-KEY>-planning` |
-| Sources snapshot | `docs/specs/<EPIC-KEY>-closeout-sources/` (same branch) |
-| Review reports | `docs/reviews/<EPIC-KEY>-closeout-round<N>.md` and `-response.md` (same branch) |
-| Confluence page | child of the PRD page, title `Close-out: <EPIC-KEY> - <epic summary without trailing period>` |
+| Record (local working copy) | `.claude/work/<EPIC-KEY>/closeout.md` in the current checkout |
+| Sources snapshot (local) | `.claude/work/<EPIC-KEY>/closeout-sources/` |
+| Review reports (local) | `.claude/work/<EPIC-KEY>/reviews/<EPIC-KEY>-closeout-round<N>.md` and `-response.md` |
+| Confluence page | child of the PRD page, title `Close-out: <EPIC-KEY> - <epic summary without trailing period>`: the record's lasting home |
 | Dry-run output | `<scratch>/closeout/<EPIC-KEY>-closeout-draft.md` and `<scratch>/closeout/<EPIC-KEY>-closeout-sources/`, where `<scratch>` is the session scratchpad directory, or `${TMPDIR:-/tmp}` if there is none |
 | Max review rounds before escalating to the owner | 3 |
 
-`docs/specs/` and `docs/reviews/` are epic-artifact paths in `change_kind.py`. The record and its snapshot never go
-on an AI-layer branch or a ticket branch.
+The local files are working documents: gitignored, never committed, on any branch (`change_kind.py` refuses them).
+The record's lasting copy is its Confluence page; the review rounds are summarised in its section 10; the snapshot
+stays local, and section 10 lists what it holds (read times, issue `updated` values, page ids and versions, comment
+ids) so the sources can be read again. Keep the local files until the page is published.
 
 ## Input
 
@@ -58,7 +64,8 @@ the owner a draft of an epic still in progress. In a dry run:
   `getConfluenceCommentChildren`, `searchConfluenceUsingCql`, `getConfluenceSpaces`. Any other Atlassian tool is
   forbidden, in particular `createConfluencePage`, `updateConfluencePage`, `addCommentToJiraIssue`,
   `transitionJiraIssue`, `editJiraIssue`, `createJiraIssue` and every comment-creating tool.
-- **No repo writes.** No file in any worktree is created or changed, nothing is staged or committed. `git fetch` is
+- **No repo writes.** No file in any worktree is created or changed (not even in `.claude/work/`), nothing is staged
+  or committed. `git fetch` is
   allowed (it only updates remote-tracking refs). Read other branches with `git show <rev>:<path>`. Helper scripts,
   the snapshot and the draft go in the dry-run output directory, never in the repo.
 - The draft's status is `Dry run - not reviewed, not published`.
@@ -83,11 +90,11 @@ fields you use (no paraphrase; avatar and `self` URLs may be dropped):
 | `jira-children.json` | every child: key, summary, type, status and status category, resolution, created, updated |
 | `jira-comments.md` | every child comment used: issue key, comment id, created, body verbatim (markdown avoids JSON-escaping long bodies) |
 | `jira-transitions.json` | the epic's transitions (id, name, target status category) |
-| `confluence-pages.json` | PRD, breakdown, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
-| `confluence-ticket-pages.md` | per ticket page: page id, version, and the header and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out: it mirrors the plan file on the ticket's branch; record instead the plan commit the header cites and whether it matches the branch's plan |
-| `confluence-prd.md`, `confluence-breakdown.md` | the page bodies as read. If a body matches the repo copy, store instead the repo copy's path and blob hash (`git rev-parse <rev>:<path>`), how you compared them, and every difference |
+| `confluence-pages.json` | PRD, `PRD reviews: <EPIC>`, breakdown, `Progress: <EPIC>`, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
+| `confluence-ticket-pages.md` | per ticket page: page id, version, and the header, the Ticket section (scope as filed by `spec`, absent on pages made before `spec` created them) and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out unless a criterion depends on it (then quote the part used): record the publish date and sha256 the header cites (older pages cite a plan commit instead) |
+| `confluence-prd.md`, `confluence-prd-reviews.md`, `confluence-breakdown.md`, `confluence-progress.md` | the page bodies as read (each page is the only copy: there is no repo copy to compare with) |
 | `confluence-comments.json` | footer and inline comments (open and resolved, with replies) on those pages, or `[]` |
-| `snapshot.md` | header: UTC time of the gather; `origin/v9-develop` sha; the planning branch tip; every ticket branch, merge commit or prototype worktree with its tip and `git status --short` line count; each Jira issue's `updated` |
+| `snapshot.md` | header: UTC time of the gather; `origin/v9-develop` sha; a legacy planning branch tip, if one exists; every ticket branch, merge commit or prototype worktree with its tip and `git status --short` line count; each Jira issue's `updated` |
 
 The record states its snapshot (section 10). Facts that change after it are the reviewer's to flag, not errors.
 
@@ -123,33 +130,40 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    only titles that are exactly `PRD: <EPIC-KEY>` or start with `PRD: <EPIC-KEY> - `, so `AIUE-8` does not match
    `AIUE-80`. If none, fall back to the epic comment `PRD: ... (Confluence page id ...)` that `create-prd` posts.
    No PRD at all → continue, but Step 3 can only use the breakdown and the tickets' own acceptance criteria; say so.
-2. `getConfluencePage` on the PRD (`contentFormat: "markdown"`). The page is the source of truth (as in `spec`);
-   diff it against the local copy and list any difference in section 10. Extract: the success criteria (section 11),
+2. `getConfluencePage` on the PRD (`contentFormat: "markdown"`). The page is the PRD (as in `spec`; a legacy
+   planning branch's copy, if any, is history only). Extract: the success criteria (section 11),
    the binding decisions and assumptions (appendix), the default-results statement (section 9), the out-of-scope
    list, the review history, and the MINORs the PRD carried to the tickets.
-3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`), the
-   `Ticket plans: <EPIC-KEY>` container (exact title) and any existing `Close-out: <EPIC-KEY>` page (same exact-prefix
-   rule). `getConfluencePage` on the breakdown (it can be newer than the repo copy).
+3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`), `PRD reviews:
+   <EPIC-KEY>`, `Progress: <EPIC-KEY>`, the `Ticket plans: <EPIC-KEY>` container (exact titles) and any existing
+   `Close-out: <EPIC-KEY>` page (same exact-prefix rule). `getConfluencePage` on the breakdown, the reviews page and
+   the progress page. The progress page is usually the best narrative source; read all of it, including every
+   "owner decisions" list and every owner follow-up section.
 4. **Ticket pages** (written by the `ticket-page` skill): `searchConfluenceUsingCql` with `type = page AND parent =
-   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket (mirroring
-   its plan, or its RCA for an `implement-fix` ticket); `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
-   a dated index of each ticket's progress, validation results, review verdicts and decisions: use them to find the
-   records, and cite the repo record (report, validation file, commit) for every claim, with the page as a second
-   source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the source it
-   cites does (the attribution table above). Tickets without an epic PRD page keep the same log as `PIV record:`
+   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket, created by
+   `spec` when the ticket was filed (or by `plan-feature` for a ticket filed otherwise), mirroring its plan, or its RCA
+   for an `implement-fix` ticket. `getConfluencePage` (`contentFormat: "markdown"`) on each. A Plan section that is
+   still the placeholder means only "plan not mirrored": never infer "never planned" from it. On a page with a
+   `**Backfilled:**` header field (made after the ticket was filed), or for a ticket whose Jira status is beyond To
+   Do, look for a plan in the ticket's Jira comments and, for legacy tickets, committed on its branch, and write
+   "plan not mirrored on the ticket page"; only a To Do ticket with no plan anywhere counts as not planned. A ticket moved in from another epic keeps its page under that epic's
+   container: for each child with no page here, take the id from its `Ticket page:`/`Plan page:` link comment,
+   confirm it with CQL `id = <id>`, and include that page, noting where it lives. Their log sections are
+   **the** record of each ticket's progress, validation results, review rounds (verdict, findings, responses) and
+   decisions: the working files they summarise were never committed. Cite the page entry (page id, version, section,
+   date) for those claims and git (commit, `rev:path`) for code claims; for legacy tickets, the committed reports are
+   a second source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the
+   source it cites does (the attribution table above). Tickets without an epic PRD page keep the same log as `PIV record:`
    comments on the Jira ticket, which step 4 of Jira already reads. A ticket with work but no page or PIV comments
    is noted in section 10, not an open item.
 5. `getConfluencePageFooterComments` and `getConfluencePageInlineComments` (`resolutionStatus` open **and**
    resolved, `includeReplies: true`) on the PRD, the breakdown page and the ticket pages.
 
-**Planning branch** `feature/v9-<EPIC-KEY>-planning` (find its worktree with `git worktree list`; otherwise read with
-`git show`):
-
-- `docs/prds/<EPIC-KEY>-*.md`, the PRD copy.
-- `docs/specs/*.md`: the breakdown (tickets, dependencies, planned `Branch:` lines) and the progress log if one
-  exists (e.g. `docs/specs/<EPIC-KEY>-progress.md`). The progress log is usually the best narrative source; read
-  all of it, including every "owner decisions" list and every owner follow-up section.
-- `docs/reviews/<EPIC-KEY>-prd-round*.md` and their responses, and reviews of AI-layer branches the epic produced.
+**Legacy planning branch** (epics started before working documents left git): if `feature/v9-<EPIC-KEY>-planning`
+exists (`git branch -a --list '*v9-<EPIC-KEY>-planning'`), or the tag `archive/AIUE-8-docs` holds the epic's files,
+read with `git show` the PRD copy (`docs/prds/<EPIC-KEY>-*.md`), the breakdown and the progress log
+(`docs/specs/*.md`) and the review reports (`docs/reviews/<EPIC-KEY>-*`) as historical sources, and read all of a
+progress log found there as for the progress page. Newer epics have no planning branch; nothing is written to one.
 
 **Tickets: find each child's work.** `git fetch origin` first. Compare against `origin/v9-develop`, never the local
 `v9-develop` (it can be behind). For each child key, in this order:
@@ -177,12 +191,15 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop | tail -1`.
 3. **Prototype worktrees.** `git worktree list --porcelain`, keeping `worktree` paths whose last component is
    `<KEY>` or starts with `<KEY>-`. For each: HEAD, branch or detached, and `git -C <path> status --short`.
-   Uncommitted changes in a prototype are an open item (they exist nowhere else), and so are commits reachable only
+   Uncommitted changes in a prototype are an open item (they exist nowhere else; working documents in its
+   `.claude/work/` are not, but entries still queued in its `ticket-page` outbox are: they are not on the page), and
+   so are commits reachable only
    from a detached HEAD (`git branch -a --contains <HEAD>` empty); list those commits (`git log --oneline
    <merge-base with origin/v9-develop>..<HEAD>`). Say what each worktree is when a record names it (a negative
    control or seeded race is deliberate; its open item is only the clean-up). Before writing "not named in a
-   record", grep the records for the worktree's name and its HEAD's short sha: `git grep -n -e '<name>' -e
-   '<sha7>' <rev> -- docs .claude/plans` for the planning tip and every ticket tip.
+   record", grep the records for the worktree's name and its HEAD's short sha: the snapshot's page bodies and
+   comments (`grep -rn -e '<name>' -e '<sha7>' <snapshot dir>`), and, for legacy records, `git grep -n -e '<name>' -e
+   '<sha7>' <rev> -- docs .claude/plans` for a legacy planning tip and every ticket tip.
 
    Agent work in progress outside the repo (a session scratchpad, a running study) is **in progress, not a source**:
    name it in section 8 if a record mentions it, and never cite its numbers as evidence.
@@ -203,26 +220,28 @@ they are gone, from the snapshot, the progress log or the Jira comments), and no
 entry. If the tips can't be recovered, say the range is shared and attribute nothing ticket by ticket.
 
 For an unmerged branch, `<parent>` is the **actual** base from git, not the breakdown's planned `Branch:` line:
-the branch with the most commits over `origin/v9-develop` among the epic's other ticket branches, its planning branch
-and any AI-layer branch it was based on, whose tip is an ancestor of this branch
+the branch with the most commits over `origin/v9-develop` among the epic's other ticket branches, a legacy planning
+branch and any AI-layer branch it was based on, whose tip is an ancestor of this branch
 (`git merge-base --is-ancestor <other> <branch>`), else `origin/v9-develop`. Record every ticket whose actual base
 differs from the breakdown, per ticket, as a deviation.
 
 From the range:
 
 - Size and areas: `--shortstat` and `--dirstat=files,5` on the diff.
-- Records the range adds: `--name-status` on the diff limited to `docs .claude/plans .claude/execution-reports
-  .claude/system-reviews`. That covers plans, review reports and responses (`docs/reviews/<KEY>-*`, including combined
-  files such as `<KEY>-plan-responses.md` and `<KEY>-validation.txt`), RCAs (`docs/rca/`), physics specs, execution
-  reports, system reviews and results files. Bulk run records (hundreds of JSON files under
-  `docs/rca/<EPIC>-data/records/`) are counted, not read. A document several tickets extend is read from the last
-  range in the stack.
-- **Reviews:** the verdict line and summary of each report (`git show <rev>:<file> | grep -m1 -E
-  '\*\*(APPROVE|REVISE|REJECT)'`); the response files for what was fixed, rebutted, deferred or left
+- Records the range adds: `--name-status` on the diff limited to `docs`: physics specs (`docs/physics_specs/`) and
+  other product documentation. Legacy tickets (before working documents left git) may also add plans, review reports
+  and responses, RCAs, execution and system reviews and results files under `docs .claude/plans
+  .claude/execution-reports .claude/system-reviews`; read them as a second source (bulk run records, e.g. hundreds of
+  JSON files under `docs/rca/<EPIC>-data/records/`, are counted, not read). A document several tickets extend is read
+  from the last range in the stack.
+- **Reviews:** each round's Reviews entries on the ticket page: the verdict, counts, findings, what the diff range
+  reviewed, and the response entry for what was fixed, rebutted, deferred or left. Legacy tickets: the verdict line of
+  each committed report (`git show <rev>:<file> | grep -m1 -E '\*\*(APPROVE|REVISE|REJECT)'`) and the response files
   (`grep -inE 'defer|rebut|owner|not done|left for|follow-up|not covered'`). Note approvals that came only after an
   owner-authorised round past the cap.
-- **Commits after the approving round.** List every commit that adds or follows the approving report, including
-  changes committed *together with* it (the reviewer saw the work before them), and give each one class:
+- **Commits after the approving round.** List every commit after the one the approving Reviews entry names as
+  reviewed (legacy: every commit that adds or follows the approving report, including changes committed *together
+  with* it, since the reviewer saw the work before them), and give each one class:
 
   | Class | What it is | Open item? |
   |---|---|---|
@@ -237,7 +256,8 @@ From the range:
   the source. Otherwise (sources, `.v`, build files, `pyproject.toml`, `setup.py`, rate or data files, `src/uedge/`,
   package `*.py`), take the statement from the ticket's validation record, validate output, implementation review or
   commit body ("bitwise unchanged on …", "cases X, Y moved because …") and cite it, including the commit it was
-  measured on. If none says, write "not recorded"; never infer it from the diff.
+  measured on (the ticket page's Validation entries, its implementation Reviews entry, or the commit body). If none
+  says, write "not recorded"; never infer it from the diff.
 - **Evidence across tickets.** Where a criterion rests on several unmerged tickets (two fixes, a fix and its test
   tool), say whether any record shows them tested together. If not, the criterion is at best **Partly met**, with
   the combined check as the missing part.
@@ -295,8 +315,9 @@ draft always has at least one open item: if the list is empty while a criterion 
 
 ### Step 4 — Write the record
 
-Write it to the record path (dry run: the dry-run path). On a real run, write it in the planning worktree; create the
-branch from `origin/v9-develop` if it doesn't exist (`.claude/context/branching.md`). Before writing a claim,
+Write it to the record path (dry run: the dry-run path). On a real run it is a local working copy in the current
+checkout, on any branch: nothing is committed and no branch is needed (`.claude/context/branching.md`). Before
+writing a claim,
 re-check it against its source (a tip with `git rev-parse`, a count in the record it cites, a Jira state in the
 snapshot); the reviewer will.
 
@@ -316,8 +337,8 @@ An epic the owner keeps open stays at `Close-out draft`.
 
 > **Jira epic:** [<EPIC-KEY>](https://<site>/browse/<EPIC-KEY>) · **PRD:** [<title>](<url>) (page <id>) · **Breakdown:** [<title>](<url>) (page <id>) · **This page:** <page id, or "not published">
 > **Status:** <one of the four above>
-> **Generated by:** close-epic on <date> · **Snapshot:** <UTC time>, planning tip `<sha>`, `origin/v9-develop` `<sha>` (`<snapshot path>`)
-> **Adversarial review:** <VERDICT> (round <N>, <B> blocker / <M> major / <m> minor raised in total) · report `docs/reviews/<EPIC-KEY>-closeout-round<N>.md`
+> **Generated by:** close-epic on <date> · **Snapshot:** <UTC time>, `origin/v9-develop` `<sha>` (local, not published; contents in section 10)
+> **Adversarial review:** <VERDICT> (round <N>, <B> blocker / <M> major / <m> minor raised in total; rounds in section 10)
 
 ## 1. Goal and outcome
    The goal in the PRD's words (2-3 lines); the outcome in 3-5 lines; one line on the completion verdict.
@@ -346,13 +367,14 @@ An epic the owner keeps open stays at `Close-out draft`.
    Everything from Step 3's not-done lists, with its source and the owner's choice once given (accepted-open /
    deferred to <KEY> / keeps the epic open).
 ## 9. AI-layer lessons
-   Existing execution reports and system reviews (paths), AI-layer branches the epic produced and their state,
-   `ai-layer` issues filed, process lessons recorded in the progress log. If there are no reports, say so and
-   recommend `execution-report` → `system-review`.
+   The execution-report and system-review entries on the ticket pages (Findings and decisions; legacy: committed
+   reports, by path), AI-layer branches the epic produced and their state, `ai-layer` issues filed, process lessons
+   recorded in the progress log. If there are none, say so and recommend `execution-report` → `system-review`.
 ## 10. Sources
-   The snapshot (time, tips, path); every record cited (Jira keys and comment ids, page ids and versions,
-   `rev:path`, commit hashes); the PRD page vs local copy diff; contradictions between sources; records that were
-   missing; the review history of this record.
+   The snapshot (time, tips, what it holds; it stays local); every record cited (Jira keys and comment ids, page ids,
+   versions and sections, `rev:path`, commit hashes); contradictions between sources; records that were missing; the
+   review history of this record, round by round (verdict, counts, each finding in one line and its response),
+   since the review reports are not kept.
 ```
 
 Keep it factual and dense; it is a record, not a sales document. No Mermaid (Confluence's markdown import doesn't
@@ -365,8 +387,9 @@ The author of the record (this session) can't review it independently. Spawn a *
 must be self-contained:
 
 - `stage: closeout`, the round number, the epic key, the record's absolute path, the snapshot directory, and the
-  absolute path for the report (`<planning worktree>/docs/reviews/<EPIC-KEY>-closeout-round<N>.md`);
-- the git sources: the planning worktree and the ticket branches, merges and prototype worktrees;
+  absolute path for the report (`<checkout>/.claude/work/<EPIC-KEY>/reviews/<EPIC-KEY>-closeout-round<N>.md`, local,
+  never committed);
+- the git sources: the ticket branches, merges and prototype worktrees (and a legacy planning branch, if any);
 - that the reviewer has no Atlassian access: it checks Jira and Confluence claims against the snapshot, git claims
   against the current tips, and lists what it could not verify in its "Not independently verified (environment)"
   section;
@@ -377,7 +400,7 @@ Then loop as `create-prd` Step 5 does: wait for the completion notification; rea
 **REVISE** → fix every BLOCKER and MAJOR (or rebut it in the response file), fresh reviewer for round N+1;
 **REJECT** → stop and show the owner; after round 3 without APPROVE, stop and ask the owner whether to keep revising
 or publish anyway (then add `- review open (N findings)` to the status line and a "## Open review findings"
-section). Record each round in section 10 (round, verdict, counts, report path). A text-only change after APPROVE
+section). Record each round in section 10 (round, verdict, counts, each finding in one line and its response). A text-only change after APPROVE
 needs no new round; any change to a claim, a class, a status or an item does, except recording the owner's Step 6
 answers, which is covered by the mechanical self-check in Step 7.
 
@@ -407,19 +430,18 @@ closed, which would leave a Done epic with an open child). Skip any that a `summ
 recorded owner answers pass a self-check: every open item in section 8 has an answer (close anyway, defer to <KEY>,
 or keep open); for "Closed by the owner", accepted + deferred = n and no item is kept open; every decision credited to
 the owner was confirmed in Step 6. If the check fails, fix the record or go back to Step 6. And the
-sources haven't moved: compare the planning tip, the ticket tips, the prototype worktrees, each Jira issue's
+sources haven't moved: compare the ticket tips (and a legacy planning tip), the prototype worktrees, each Jira issue's
 `updated` and each page's version with the snapshot. This is the only freshness check on Jira and Confluence: the
 reviewer can't query them. If anything changed, re-gather what moved, update the record and the snapshot, and go
 back through Step 5.
 
-1. **Commit the record** on the planning branch with the `commit` skill: the record, the snapshot directory, and its
-   review reports and responses, staged by path, `uv run .claude/hooks/change_kind.py --staged` clean. Message e.g.
-   "Adds the <EPIC-KEY> close-out record". Don't push unless asked.
+1. **Nothing is committed.** The record, the snapshot and the review reports stay in `.claude/work/<EPIC-KEY>/`
+   (gitignored); keep them until the page is published and its content checked.
 2. **Confluence page.** Body = the record. If Step 1 found a `Close-out: <EPIC-KEY>` child page,
    `updateConfluencePage` on it (`contentFormat: "markdown"`, `versionMessage` saying what changed; Confluence bumps
    the version). Otherwise `createConfluencePage` with the PRD's `spaceId`, `parentId` = the PRD page id, the title
    from Configuration, `contentFormat: "markdown"`. Never create a second close-out page. Then put the page id and
-   URL in the record's "This page" field, update the page once with it, and commit that one-line change.
+   URL in the record's "This page" field and update the page once with it.
 3. **Epic comment** (`contentFormat: "markdown"`):
 
    ```markdown
@@ -433,13 +455,13 @@ back through Step 5.
 4. **Transition the epic** only if the owner said yes in Step 6: `transitionJiraIssue` with the Done transition id
    from Step 1. Re-read the epic to confirm the new status. Children are not touched.
 
-If any Atlassian call fails, report the error verbatim, point to the committed record, and stop. Don't retry into a
-different space or page.
+If any Atlassian call fails, report the error verbatim, point to the local record (not committed; the only copy until
+the page is published, so keep it), and stop. Don't retry into a different space or page.
 
 ## Output
 
 1. Completion verdict and status line, with the not-done list.
-2. Record and snapshot paths (and commit hashes on a real run); dry run: the draft and snapshot paths.
+2. Record and snapshot paths (local, not committed); dry run: the draft and snapshot paths.
 3. Review outcome: verdict, rounds, report paths; or "not run (dry run)".
 4. Confluence page (title, id, URL, created or updated) and the epic comment, or what a real run would do.
 5. Epic status before and after; children's states (unchanged).

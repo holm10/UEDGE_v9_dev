@@ -51,9 +51,10 @@ REF = re.compile(rf"(?<![A-Za-z0-9_./-])(?P<path>{PATH}):(?P<nums>\d+(?:-\d+)?(?
 BARE = re.compile(r"`:(\d+)")
 # backticked path without line number
 TICKPATH = re.compile(rf"`(?P<path>{PATH})`")
-# paths that legitimately live outside this checkout or are created later
-EXTERNAL = ("pytests/", "../", "./", "~", "docs/", ".claude/plans/", ".claude/execution-reports/",
-            ".claude/system-reviews/", "logs/", "build/", "upstream/")
+# paths that legitimately live outside this checkout or are created later (.claude/work/ and the legacy
+# working-document paths are local and untracked: .claude/context/branching.md)
+EXTERNAL = ("pytests/", "../", "./", "~", "docs/", ".claude/work/", ".claude/plans/", ".claude/execution-reports/",
+            ".claude/system-reviews/", ".claude/code-reviews/", "logs/", "build/", "upstream/")
 
 
 def docs():

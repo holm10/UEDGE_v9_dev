@@ -1,0 +1,730 @@
+{
+ "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+ "id": "10070",
+ "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/issue/10070",
+ "key": "AIUE-61",
+ "fields": {
+  "comment": {
+   "comments": [
+    {
+     "id": "10015",
+     "body": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Synthetic comment 10015.",
+          "marks": [
+           {
+            "type": "strong"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " Neutral text that replaces the original comment in this fixture ("
+         },
+         {
+          "type": "text",
+          "text": "code span",
+          "marks": [
+           {
+            "type": "code"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": ")."
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item one:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " plain text."
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item two:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " more plain text."
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     "created": "2026-10-15T12:23:48.198-0700",
+     "updated": "2026-10-15T12:23:48.198-0700"
+    },
+    {
+     "id": "10021",
+     "body": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Synthetic comment 10021.",
+          "marks": [
+           {
+            "type": "strong"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " Neutral text that replaces the original comment in this fixture ("
+         },
+         {
+          "type": "text",
+          "text": "code span",
+          "marks": [
+           {
+            "type": "code"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": ")."
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item one:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " plain text."
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item two:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " more plain text."
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     "created": "2026-10-15T14:02:54.480-0700",
+     "updated": "2026-10-15T14:02:54.480-0700"
+    },
+    {
+     "id": "10031",
+     "body": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Plan page: "
+         },
+         {
+          "type": "text",
+          "text": "Plan: AIUE-61 - Synthetic ticket title",
+          "marks": [
+           {
+            "type": "link",
+            "attrs": {
+             "href": "https://example.atlassian.net/wiki/spaces/SD/pages/2293761"
+            }
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " (Confluence page id "
+         },
+         {
+          "type": "text",
+          "text": "2293761",
+          "marks": [
+           {
+            "type": "code"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": "), under "
+         },
+         {
+          "type": "text",
+          "text": "Ticket plans: AIUE-8",
+          "marks": [
+           {
+            "type": "link",
+            "attrs": {
+             "href": "https://example.atlassian.net/wiki/spaces/SD/pages/2260993"
+            }
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": ".  "
+         },
+         {
+          "type": "hardBreak"
+         },
+         {
+          "type": "text",
+          "text": "Synthetic link comment for the selftest. (Posted by an agent, ticket-page skill.)"
+         }
+        ]
+       }
+      ]
+     },
+     "created": "2026-10-15T17:46:32.729-0700",
+     "updated": "2026-10-15T17:46:32.729-0700"
+    },
+    {
+     "id": "10033",
+     "body": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+       {
+        "type": "paragraph",
+        "content": [
+         {
+          "type": "text",
+          "text": "Synthetic comment 10033.",
+          "marks": [
+           {
+            "type": "strong"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": " Neutral text that replaces the original comment in this fixture ("
+         },
+         {
+          "type": "text",
+          "text": "code span",
+          "marks": [
+           {
+            "type": "code"
+           }
+          ]
+         },
+         {
+          "type": "text",
+          "text": ")."
+         }
+        ]
+       },
+       {
+        "type": "bulletList",
+        "content": [
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item one:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " plain text."
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "type": "listItem",
+          "content": [
+           {
+            "type": "paragraph",
+            "content": [
+             {
+              "type": "text",
+              "text": "Item two:",
+              "marks": [
+               {
+                "type": "strong"
+               }
+              ]
+             },
+             {
+              "type": "text",
+              "text": " more plain text."
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     "created": "2026-10-15T20:50:09.297-0700",
+     "updated": "2026-10-15T20:50:09.297-0700"
+    }
+   ]
+  },
+  "status": {
+   "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/status/10006",
+   "description": "",
+   "iconUrl": "https://example.atlassian.net/images/icons/statuses/generic.png",
+   "name": "In Review",
+   "id": "10006",
+   "statusCategory": {
+    "self": "https://api.atlassian.com/ex/jira/00000000-0000-0000-0000-000000000000/rest/api/3/statuscategory/4",
+    "id": 4,
+    "key": "indeterminate",
+    "colorName": "yellow",
+    "name": "In Progress"
+   }
+  }
+ },
+ "comments": [
+  {
+   "id": "10015",
+   "body": {
+    "type": "doc",
+    "version": 1,
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Synthetic comment 10015.",
+        "marks": [
+         {
+          "type": "strong"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Neutral text that replaces the original comment in this fixture ("
+       },
+       {
+        "type": "text",
+        "text": "code span",
+        "marks": [
+         {
+          "type": "code"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": ")."
+       }
+      ]
+     },
+     {
+      "type": "bulletList",
+      "content": [
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item one:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " plain text."
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item two:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " more plain text."
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "created": "2026-10-15T12:23:48.198-0700",
+   "updated": "2026-10-15T12:23:48.198-0700"
+  },
+  {
+   "id": "10021",
+   "body": {
+    "type": "doc",
+    "version": 1,
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Synthetic comment 10021.",
+        "marks": [
+         {
+          "type": "strong"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Neutral text that replaces the original comment in this fixture ("
+       },
+       {
+        "type": "text",
+        "text": "code span",
+        "marks": [
+         {
+          "type": "code"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": ")."
+       }
+      ]
+     },
+     {
+      "type": "bulletList",
+      "content": [
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item one:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " plain text."
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item two:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " more plain text."
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "created": "2026-10-15T14:02:54.480-0700",
+   "updated": "2026-10-15T14:02:54.480-0700"
+  },
+  {
+   "id": "10031",
+   "body": {
+    "type": "doc",
+    "version": 1,
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Plan page: "
+       },
+       {
+        "type": "text",
+        "text": "Plan: AIUE-61 - Synthetic ticket title",
+        "marks": [
+         {
+          "type": "link",
+          "attrs": {
+           "href": "https://example.atlassian.net/wiki/spaces/SD/pages/2293761"
+          }
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " (Confluence page id "
+       },
+       {
+        "type": "text",
+        "text": "2293761",
+        "marks": [
+         {
+          "type": "code"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": "), under "
+       },
+       {
+        "type": "text",
+        "text": "Ticket plans: AIUE-8",
+        "marks": [
+         {
+          "type": "link",
+          "attrs": {
+           "href": "https://example.atlassian.net/wiki/spaces/SD/pages/2260993"
+          }
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": ".  "
+       },
+       {
+        "type": "hardBreak"
+       },
+       {
+        "type": "text",
+        "text": "Synthetic link comment for the selftest. (Posted by an agent, ticket-page skill.)"
+       }
+      ]
+     }
+    ]
+   },
+   "created": "2026-10-15T17:46:32.729-0700",
+   "updated": "2026-10-15T17:46:32.729-0700"
+  },
+  {
+   "id": "10033",
+   "body": {
+    "type": "doc",
+    "version": 1,
+    "content": [
+     {
+      "type": "paragraph",
+      "content": [
+       {
+        "type": "text",
+        "text": "Synthetic comment 10033.",
+        "marks": [
+         {
+          "type": "strong"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": " Neutral text that replaces the original comment in this fixture ("
+       },
+       {
+        "type": "text",
+        "text": "code span",
+        "marks": [
+         {
+          "type": "code"
+         }
+        ]
+       },
+       {
+        "type": "text",
+        "text": ")."
+       }
+      ]
+     },
+     {
+      "type": "bulletList",
+      "content": [
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item one:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " plain text."
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "type": "listItem",
+        "content": [
+         {
+          "type": "paragraph",
+          "content": [
+           {
+            "type": "text",
+            "text": "Item two:",
+            "marks": [
+             {
+              "type": "strong"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": " more plain text."
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "created": "2026-10-15T20:50:09.297-0700",
+   "updated": "2026-10-15T20:50:09.297-0700"
+  }
+ ]
+}

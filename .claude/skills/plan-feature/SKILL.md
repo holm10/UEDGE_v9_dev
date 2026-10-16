@@ -33,7 +33,8 @@ If the type is unclear, ask the user before continuing.
 Each ticket gets its own branch and worktree (`.claude/context/branching.md`). Do this before writing anything:
 
 1. Name it. Use `feature/v9-<KEY>-<slug>` for a Jira ticket (take the key and the branch from the ticket's `Branch:`
-   line in `docs/specs/` if `spec` wrote one), `bugfix/v9-<KEY>-<slug>` for a Jira bug,
+   line in its breakdown entry, i.e. the Ticket section of its page or the epic's breakdown page, if `spec` wrote one),
+   `bugfix/v9-<KEY>-<slug>` for a Jira bug,
    `bugfix/v9-issue-<N>-<slug>` for a GitHub issue, and `feature/v9-<slug>` when there is no ticket.
    **If the request changes the AI layer itself** (skills, agents, hooks, settings), use `feature/v9-ai-<slug>`
    and note that the plan is process work.
@@ -45,12 +46,15 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    git worktree add -b <branch> ../uedge-wt/<KEY-or-slug> <base>
    ```
 3. Tell the user the worktree path and that it needs its own venv before building
-   (`python -m venv .venv && . .venv/bin/activate`). Write the plan inside the worktree.
+   (`python -m venv .venv && . .venv/bin/activate`). Write the plan in the worktree's working folder
+   `.claude/work/<KEY>/` (gitignored; `<slug>` for work without a ticket).
 4. Never plan product work on an AI-layer branch, and never plan AI-layer process changes on a ticket branch.
 
 ## Phase 1: Understand the request
 
-- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High).
+- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High). For a Jira ticket,
+  the scope and acceptance criteria as filed are in the Ticket section of its page (from the epic's breakdown page on
+  Confluence) and its Jira description; `prime` reads the page.
 - Affected packages and equations (`isnion`, `isupon`, `isteon`, `istion`, `isngon`, `istgon`, `isphion`).
 - Whether default results are expected to change, and if so which cases.
 
@@ -84,7 +88,10 @@ literature belongs in the physics spec, not here.
 
 ## Phase 5: Write the plan
 
-Save to `.claude/plans/<kebab-case-name>.md` (create the directory if needed), using this template:
+Save to `.claude/work/<KEY>/plan.md` in the worktree (create the directory if needed; `<slug>` instead of `<KEY>`
+without a ticket), using the template below. It is a **working document**: gitignored, never committed
+(`.claude/context/branching.md`). For a Jira ticket its lasting copy is the Plan section of the ticket page (Phase
+6); without a ticket record it lives only in this worktree, so whatever must outlive it goes in the PR description.
 
 ```markdown
 # Feature: <name>
@@ -97,7 +104,7 @@ Validate the patterns and file references below before implementing.
 **Default results**: Unchanged | Changed — <which defaults, why, which reference cases move>
 **Packages / files**: <list>
 **Branch / worktree**: <branch> @ <worktree path> (base: <base>)
-**Ticket page**: Confluence page <id> (<url>) | none (no epic PRD page); PIV record in Jira comments on <KEY> | none (no Jira key)
+**Jira**: <KEY> | none
 
 ## Problem and solution
 <What is wrong or missing; how this change addresses it.>
@@ -154,26 +161,31 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 - Every task has a runnable validation step.
 - No generic placeholders left; no physics invented in a non-physics plan.
 
-## Phase 6: Commit the plan and publish the ticket record
+## Phase 6: Publish the plan to the ticket record (no commit)
 
-1. Commit the plan on the ticket branch (it is an artifact path): `git add .claude/plans/<file>.md`, then a commit
-   such as "Adds the <KEY> plan: <short description>".
+1. **Don't commit the plan.** It stays in `.claude/work/<KEY>/` (gitignored; `change_kind.py` refuses it on every
+   branch). Nothing is committed in this phase.
 2. For a Jira ticket, run the `ticket-page` skill: `<KEY> status Planning` (`Plan review` if the review below is
-   required), then `<KEY> publish`. Pass on `--no-tracker` (skip the record) or `--tracker-dry-run` (as `--dry-run`:
-   show the record without writing it; the plan is still written and committed). Under an epic with a PRD page it
-   creates or updates `Plan: <KEY> - <summary>` under `Ticket plans: <EPIC>`, writes the plan's `**Ticket page**`
-   line and commits it before mirroring the plan, and links the page from the ticket once; without one it posts a
-   short `PIV record: plan` comment and writes `**Ticket page**: none (…)`. A failure there is noted in the report
-   and retried at the next flush; it never stops planning.
+   required), then `<KEY> publish` (it mirrors `.claude/work/<KEY>/plan.md`). Pass on `--no-tracker` (skip the
+   record) or `--tracker-dry-run` (as `--dry-run`: show the record without writing it; the plan is still written).
+   Under an epic with a PRD page it fills **the ticket's existing page**, `Plan: <KEY> - <summary>` under `Ticket
+   plans: <EPIC>`, which `spec` created when it filed the ticket: it finds it from the worktree's state file, the
+   ticket's `Ticket page:` link comment, or the title search under the container (`title ~ "Plan: <KEY>"` filtered on
+   the `Plan: <KEY> - ` prefix), and creates it (the same skeleton `spec` makes) only when `find` concludes there is
+   none, never a second one. It records the page id in its state file and mirrors the plan into the page's Plan
+   section, cited by publish date and sha256; the Ticket section and any earlier entries stay. Without an epic PRD
+   page it posts a short `PIV record: plan` comment instead. A failure there is noted in the report and retried at
+   the next flush (the plan and the queued entries stay local until then); it never stops planning.
 
 ## Adversarial plan review
 
 If the plan touches the `pandf` tree, `ppp/`, Jacobian or preconditioner code, a `.v` file, or the build
 (`setup.py`, `Makefile.Forthon`), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` before any code is written.
-The loop records each round on the ticket record. A revision is committed and published: `ticket-page <KEY> log
-Progress "Plan revised (<sha>): <what changed>"`, then `ticket-page <KEY> publish`, which is that round's flush.
+The loop records each round on the ticket record. A revision is published, not committed: `ticket-page <KEY> log
+Progress "Plan revised: <what changed>"`, then `ticket-page <KEY> publish` (the page records the new date and
+sha256), which is that round's flush.
 
 ## Report
 
-Plan path, type and complexity, whether defaults change, key risks, the ticket record (page URL, Jira comment, or
-why it was skipped), and a confidence score (#/10) for one-pass execution.
+Plan path (local working copy, not committed), type and complexity, whether defaults change, key risks, the ticket
+record (page URL, Jira comment, or why it was skipped), and a confidence score (#/10) for one-pass execution.

@@ -25,3 +25,16 @@ logs/
 
 # Per-worktree virtualenvs (.claude/context/branching.md)
 .venv/
+
+# Ticket and epic working documents: never committed; their lasting content goes to the ticket's or the epic's
+# Confluence pages (.claude/context/branching.md). .claude/work/<KEY>/ is the working folder; the other paths are
+# where these documents used to be committed (change_kind.py refuses them too).
+.claude/work/
+.claude/plans/
+.claude/execution-reports/
+.claude/system-reviews/
+.claude/code-reviews/
+docs/prds/
+docs/specs/
+docs/reviews/
+docs/rca/

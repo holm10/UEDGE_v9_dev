@@ -72,8 +72,10 @@ session before you do.
 
 You are reviewing the record `close-epic` wrote of what an epic did. It becomes the permanent account of the epic, and
 the owner decides on closing the epic from it. Check that it is true and complete, not whether the epic's work was good.
-The main session gives you the record, its **sources snapshot** directory, the git sources (planning worktree, ticket
-branches, merge commits, prototype worktrees) and the owner's answers so far, which are binding.
+The main session gives you the record, its **sources snapshot** directory, the git sources (ticket branches, merge
+commits, prototype worktrees, and a legacy planning branch if the epic has one) and the owner's answers so far, which
+are binding. Plans, review reports and validation records are never committed (`.claude/context/branching.md`): the
+ticket pages' log sections, the progress page and the `PRD reviews` page in the snapshot are where they are recorded.
 
 You have no Atlassian access. Check Jira and Confluence claims against the snapshot files (`jira-*`,
 `confluence-*`), git claims against the current repository, and list every claim you could check neither way in the
@@ -82,11 +84,12 @@ with them shows the record is consistent with what was read, not that the reads 
 
 1. **Claims vs sources.** Re-check every fact you can: tips, bases, merge state and merge commits (`git rev-parse`,
    `git merge-base --is-ancestor`, `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop`),
-   Jira states and comment ids (snapshot), review verdicts (read the report), numbers against the record they cite.
+   Jira states and comment ids (snapshot), review verdicts (the ticket pages' Reviews entries in the snapshot; for
+   legacy tickets, the committed report), numbers against the record they cite.
    A claim that a criterion is met when its record shows otherwise is a BLOCKER. A wrong tip, state, verdict, or a
    number whose error changes what it shows, is MAJOR; a rounding or wording slip that changes nothing is MINOR.
-2. **Freshness (git only).** Compare the snapshot header's git part (planning tip, ticket tips, merges, prototype
-   worktree HEADs and dirty counts) with the current repository. Anything that moved after the snapshot is a finding
+2. **Freshness (git only).** Compare the snapshot header's git part (ticket tips, merges, prototype worktree HEADs
+   and dirty counts, a legacy planning tip) with the current repository. Anything that moved after the snapshot is a finding
    (MAJOR if it changes a class, an item or a decision; MINOR otherwise) naming what changed, so the author
    re-gathers it. Jira and Confluence freshness is the author's Step 7 re-check: check only that the snapshot is
    internally consistent (each issue's `updated` is no later than the read time, the record quotes the same states),
@@ -97,11 +100,13 @@ with them shows the record is consistent with what was read, not that the reads 
    passing on merged code; unmerged work is "Met (on unmerged branches)" and is described as what the branch
    contains, not as delivered; "Partly met" names the missing parts; "No evidence" is never Met. A criterion that
    rests on several unmerged tickets never tested together is at best "Partly met", with the combined check missing.
-4. **Open items.** Grep the response files, the progress log (every owner-decision list and follow-up section), the
-   snapshot comments and the prototype worktrees (`git -C <path> status --short`, `git branch -a --contains <HEAD>`)
-   for deferred findings, accepted gaps with no ticket, unanswered owner questions, merge conditions, uncommitted
-   work and commits on no branch. A worktree the record calls "not named in a record" must not be named by any
-   record: `git grep -n -e '<name>' -e '<sha7>' <rev> -- docs .claude/plans` over the planning and ticket tips.
+4. **Open items.** Grep the ticket pages' Reviews and Findings and decisions entries (responses included), the
+   progress page (every owner-decision list and follow-up section), the snapshot comments and the prototype worktrees
+   (`git -C <path> status --short`, `git branch -a --contains <HEAD>`) for deferred findings, accepted gaps with no
+   ticket, unanswered owner questions, merge conditions, uncommitted work and commits on no branch. A worktree the
+   record calls "not named in a record" must not be named by any record: `grep -rn -e '<name>' -e '<sha7>'` over the
+   snapshot directory, and for legacy records `git grep -n -e '<name>' -e '<sha7>' <rev> -- docs .claude/plans` over
+   a legacy planning tip and the ticket tips.
    Classify every commit that adds or follows an approving review (including changes committed with the report):
    **text only** (wording that adds or changes no claim) and **requested fix** (a document change that does what the
    approving review's findings asked and no more; check it against the findings and the response) are listed but not
@@ -128,8 +133,10 @@ claims throughout). Read only; never write to Jira, Confluence or the record.
 
 # Review: plan stage
 
-You are reviewing a ticket's implementation plan (`.claude/plans/<name>.md`) before any code is written. A wrong design
-caught here is cheap; caught after execution it is not.
+You are reviewing a ticket's implementation plan (the file the prompt names, normally
+`<worktree>/.claude/work/<KEY>/plan.md`: a local working copy, never committed; its published copy is the ticket
+page's Plan section) before any code is written. A wrong design caught here is cheap; caught after execution it is
+not.
 
 1. **Acceptance coverage** — Every acceptance criterion of the ticket maps to a task and a validation command that
    would fail if the criterion were not met. A criterion with no check is MAJOR.
@@ -196,4 +203,4 @@ End with exactly one verdict:
 
 # Output
 
-Write the review to the absolute path the prompt gives, normally `<worktree>/docs/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key, e.g. `docs/reviews/AIUE-5-prd-round1.md`, `docs/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed) with sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.
+Write the review to the absolute path the prompt gives, normally in the local working folder: `<worktree>/.claude/work/<feature>/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key and the folder is in the checkout the main session runs in, e.g. `.claude/work/AIUE-5/reviews/AIUE-5-prd-round1.md`, `.claude/work/AIUE-5/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed). The report is a working document: never commit it or stage it; the main session puts its verdict and findings on the ticket's (or the epic's) Confluence page. Use sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.

@@ -8,36 +8,71 @@ Deterministic helpers for the `ticket-page` skill (`.claude/skills/ticket-page/S
 The skill makes the Atlassian calls; this script only builds and checks text, so a dry run and a real run write the
 same thing.
 
-  render    Build the ticket page body: header, the four log sections and the plan (or RCA) mirrored from a
-            committed revision. Log sections = the current page's entries, plus any entry of the local sent log that
-            the page lost, plus the outbox, plus --entry. For an existing page it refuses (exit 2) unless it gets a
-            current page with all four log headings and at least the entries this worktree last sent, or --local
-            with the version this worktree last wrote, or --new-page with exactly the stub of a page just created.
+  render    Build the ticket page body: header, the Ticket section (the ticket's scope as filed), the four log
+            sections and the plan (or RCA): --plan mirrors the working copy (a local, untracked file, identified by
+            its sha256 and the publish date; no commit involved), --mirrored repeats the copy last published (kept in
+            the store by `state --save-plan`), so the Plan section only moves on publish. Without either it builds
+            the skeleton
+            that `spec` creates a page with (Ticket section, empty logs, a Plan placeholder); it never rewrites an
+            existing page except a legacy stub. Log sections = the current page's entries, plus any entry of the
+            local sent log that the page lost, plus the outbox, plus --entry. The Ticket section is --ticket, else
+            the current page's (or the last body's) carried over. For an existing page it refuses (exit 2) unless it
+            gets a current page with all four log headings and at least the entries (and the Ticket section) this
+            worktree last sent, or --local with the version this worktree last wrote, or --new-page with exactly
+            the stub of a page just created.
+  ticket    Build the Ticket section: the ticket's entry in the epic breakdown (a local file: the breakdown page as
+            read from Confluence, or spec's working copy of what it published; found by key), or a given text (the
+            Jira description), with its source.
+  progress  The epic's `Progress: <EPIC>` page: its skeleton (--new), or its entries plus this worktree's queued
+            epic entries (queue --epic), one dated line per ticket milestone.
+  extract-plan  Rebuild the plan (or RCA) working copy from the page's mirror (headings promoted back two levels),
+            for a worktree that has no local plan (a fresh worktree, another session).
+  find      Find a ticket's page id from the state file (--state-id), an older plan's Ticket page line, the ticket's
+            Jira link comment and a CQL
+            listing of the container (title prefix "Plan: <KEY> - "); exit 2 on several pages, 3 on none.
   queue     The per-ticket outbox (entries not yet sent) and sent log (every entry that reached the page or Jira),
             both untracked, in the worktree's git directory: add, list, mark sent, list sent.
-  state     Small per-ticket state: page id, last version written, plan revision, fallback comment ids and count.
-  verify    Check that the body the last updateConfluencePage call sent for a page equals the rendered file (up to
-            trailing whitespace), using the PostToolUse hook log (logs/post_tool_use.jsonl); prints the version.
+  state     Small per-ticket state: page id, last version written, the published plan's sha256, date and title (and
+            with --save-plan its copy), status, fallback comment ids and count.
+  verify    Check that the body the last updateConfluencePage call sent for a page (or, with --created, the last
+            createConfluencePage call with that title) equals the rendered file (up to trailing whitespace), using
+            the PostToolUse hook log (logs/post_tool_use.jsonl); prints the version (and the new page id).
   sanitize  Read text on stdin, replace local absolute paths, refuse secret-like strings, enforce a length cap.
 
 Usage:
-  ticket_page.py render --repo WT --plan PATH [--plan-rev REV] [--plan-title Plan|RCA] --meta meta.json
+  ticket_page.py render --repo WT [--plan FILE [--plan-title Plan|RCA] | --mirrored] --meta meta.json
+                        [--ticket ticket.md]
                         [--current page.md|page.json [--new-page] [--allow-fewer] | --local --page-version N]
                         [--entry SECTION SOURCE TEXT]... [--outbox DIR] [--date YYYY-MM-DD] --out body.md
+                        (neither --plan nor --mirrored: the skeleton; needs --ticket, and no page_id unless
+                        --new-page on a stub)
+  ticket_page.py ticket --repo WT --key KEY (--breakdown FILE | --text FILE) --source TEXT [--backfill] --out ticket.md
+                        (exit 3: no breakdown entry for KEY; exit 2: several)
+  ticket_page.py find   --key KEY [--state-id ID] [--plan FILE] [--comments issue.json] [--search cql.json ...] [--gone ID ...]
+                        [--fallback]   (exit 0 found; 3 none, only on a complete listing and comment list
+                        (--fallback: the comment list); 2 several or can't tell: stop and report)
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
-                        (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
+                        [--epic] (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
+                        (--epic: the epic Progress page's queue; SECTION is ignored, pass -)
+  ticket_page.py progress (--new --meta meta.json | --repo WT --key KEY --current page [--entry SOURCE TEXT]...)
+                        [--outbox DIR] --out body.md
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
-  ticket_page.py verify --body body.md --page-id ID [--after-version N] [--log PATH] [--repo WT]
+                        [--save-plan FILE --plan-title Plan|RCA [--date D]]
+  ticket_page.py extract-plan --current page.md|page.json --out FILE   (exit 3: the page has no plan mirrored yet)
+  ticket_page.py verify --body body.md (--page-id ID [--after-version N] | --created --title T [--parent-id P])
+                        [--log PATH] [--repo WT]
   ticket_page.py stub --key KEY        (prints the one-line body to create a new ticket page with)
   ticket_page.py summary --repo WT --key KEY [--outbox DIR] (--check | --returned-id ID | --failed | --superseded-by ID)
                                        (Jira fallback: running-summary bookkeeping; exit 1 = stopped, make no call)
   ticket_page.py sanitize --repo WT [--max-chars 1500] < text > text
 
 meta.json keys: key, key_url, summary, epic, epic_url, prd_title, prd_url, branch, status, updated, skill;
-optional: page_id, page_url, status_note.
+optional: page_id, page_url, status_note; for the skeleton: branch_state (absent | exists, as checked; otherwise
+"not checked"), backfilled (the date, for a page created after the ticket was filed), jira_status.
 
 Exit codes: 0 ok; 1 refused (secret-like string, over the cap, verify mismatch); 2 could not run or unsafe input
-(missing meta key, unparseable current page, git error); 3 verify found no logged call (unverified).
+(missing meta key, unparseable current page, git error); 3 verify found no logged call (unverified), find found no
+page, ticket found no breakdown entry, extract-plan found no mirrored plan.
 """
 import argparse
 import hashlib
@@ -163,6 +198,51 @@ def split_fences(lines):
         yield ln, fence is not None
 
 
+DEEP = "\u25b8"  # marks a heading deeper than markdown's six levels after demotion: "###### \u25b8 h5", "\u25b8\u25b8 h6"
+
+
+def demote_marked(md, by=2):
+    """Demote headings (outside fences) by `by`; a heading pushed past level 6 stays at 6 and keeps its depth as one
+    DEEP mark per level beyond 6, so extract-plan can restore it. Marks only ever appear on level-6 headings; a level-6
+    heading whose own text starts with DEEP gets it escaped (backslash), so it is never read as a mark. The whitespace
+    after the #s is kept."""
+    out = []
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            m = re.match(r"^(#{1,6})(\s+)(.*)$", ln)
+            if m:
+                lvl = len(m.group(1)) + by
+                extra = max(0, lvl - 6)
+                text = m.group(3)
+                if lvl >= 6 and text.startswith(DEEP):
+                    text = "\\" + text
+                ln = "#" * min(6, lvl) + m.group(2) + (DEEP * extra + " " if extra else "") + text
+        out.append(ln)
+    return "\n".join(out)
+
+
+def promote_marked(md, by=2):
+    """Undo demote_marked: promote headings (outside fences) by `by`; on level-6 headings only, read the DEEP marks
+    as depth and unescape an escaped leading DEEP."""
+    out = []
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            m = re.match(r"^(#{1,6})(\s+)(.*)$", ln)
+            if m and len(m.group(1)) > by:
+                hashes, space, text = m.groups()
+                lvl = len(hashes) - by
+                if len(hashes) == 6:
+                    k = re.match("(" + DEEP + "+) (.*)$", text)
+                    if k:
+                        lvl += len(k.group(1))
+                        text = k.group(2)
+                    if text.startswith("\\" + DEEP):
+                        text = text[1:]
+                ln = "#" * lvl + space + text
+        out.append(ln)
+    return "\n".join(out)
+
+
 def demote(md, by=2):
     out = []
     for ln, in_fence in split_fences(md.splitlines()):
@@ -226,6 +306,14 @@ def load_current(path):
     die("can't find a markdown page body in --current")
 
 
+def load_json(path):
+    """A saved tool result: plain JSON or the MCP content-array form [{"type": "text", "text": "{...}"}]."""
+    data = json.loads(Path(path).read_text())
+    if isinstance(data, list) and data and all(isinstance(x, dict) and "text" in x for x in data):
+        data = json.loads("".join(x["text"] for x in data))
+    return data
+
+
 def parse_sections(md, plan_title):
     """Return ({section: [entries]}, set of log headings found) for the part of a page before the mirror.
     Only the four log headings and the mirror's heading are boundaries; any other heading-like line (for example a
@@ -259,6 +347,53 @@ def entry_text(e):
 
 
 STUB = "Plan page for {key}; content follows."
+TICKET = "Ticket"
+PLAN_BACKFILLED = ("_Not mirrored here yet: this page was created after the ticket was filed (see Backfilled above);"
+                   " the plan, if any, is a working copy in the ticket's worktree (or, for older tickets, committed on"
+                   " its branch). The next `publish` from that worktree mirrors it here._")
+# The same placeholder as pages made before plans left git carry it (extract-plan must not take it for a plan).
+OLD_PLAN_BACKFILLED = ("_Not mirrored here yet: this page was created after the ticket was filed (see Backfilled"
+                       " above); the plan, if any, is on the ticket branch. The next `publish` from that branch mirrors"
+                       " it here._")
+PLAN_PLACEHOLDER = ("_Not written yet: `plan-feature` mirrors the ticket's plan here (`implement-fix` mirrors its RCA"
+                    " under an RCA heading instead)._")
+
+
+def _heading(ln):
+    """(level, title) of an H1/H2 line, title stripped of '*' and trailing '#', or (0, None)."""
+    m = re.match(r"^(#{1,2})\s+(.*?)\s*#*\s*$", ln)
+    return (len(m.group(1)), m.group(2).strip().strip("*").strip()) if m else (0, None)
+
+
+def parse_ticket(md):
+    """The Ticket section of a page (the text between '## Ticket' and the next log or mirror heading), or None."""
+    out, inside = [], False
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            _, title = _heading(ln)
+            if title == TICKET:
+                inside = True
+                continue
+            if title in SECTIONS or title in ("Plan", "RCA"):
+                if inside:
+                    break
+                continue
+        if inside:
+            out.append(ln)
+    text = "\n".join(out).strip()
+    return text or None
+
+
+def demote_below_h2(md):
+    """Shift headings (outside fences) so none is H1 or H2: the section must not end at one of its own lines."""
+    levels = [len(m.group(1)) for ln, f in split_fences(md.splitlines()) if not f
+              for m in [re.match(r"^(#{1,6})\s", ln)] if m]
+    return demote(md, max(0, 3 - min(levels))) if levels else md
+
+
+def plan_hash(text):
+    """The published plan's identity: sha256 of its text without trailing whitespace (16 hex digits)."""
+    return hashlib.sha256(text.rstrip().encode()).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------- local files
@@ -282,6 +417,13 @@ def cmd_render(a):
     missing = [k for k in META_KEYS if not meta.get(k)]
     if missing:
         die("meta.json is missing " + ", ".join(missing))
+    skeleton = not (a.plan or a.mirrored)
+    if skeleton:
+        if not a.ticket:
+            die("the skeleton (no --plan) needs --ticket (the Ticket section, from: ticket_page.py ticket)")
+        if a.local or (meta.get("page_id") and not a.new_page):
+            die("the skeleton is only for creating a page (or filling a legacy stub with --new-page): an existing "
+                "page is never rewritten with it; plan-feature fills the page with --plan")
     if meta.get("page_id") and not (a.current or a.local):
         die("the page exists (meta has page_id): pass --current (the page read with contentFormat \"markdown\"), "
             "--local --page-version N, or for the first fill of a just-created stub --new-page --current <stub>")
@@ -295,14 +437,35 @@ def cmd_render(a):
     if meta.get("page_id") and state.get("version") and not same_page:
         print(f"ticket_page: note: the state file's version {state['version']} belongs to page "
               f"{state.get('page_id')}, not {meta['page_id']}; treating the page as new", file=sys.stderr)
-    rev = a.plan_rev or "HEAD"
-    tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
-    # The commit that last changed the mirrored file at that revision, so the header doesn't move with other commits.
-    sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.plan).strip() or git(
-        a.repo, "rev-parse", "--short", rev).strip()
-    plan = git(a.repo, "show", f"{rev}:{a.plan}")
+    tip = digest_plan = plan = published = None
+    plan_title = a.plan_title
+    if a.plan:  # publish: the working copy as it is now (a local, untracked file)
+        src = Path(a.plan) if Path(a.plan).is_absolute() else Path(a.repo) / a.plan
+        if not src.is_file():
+            die(f"--plan: {src} doesn't exist (the plan's working copy; in a fresh worktree rebuild it with "
+                "extract-plan, or use --mirrored to repeat the published copy)")
+        plan = src.read_text()
+        published = a.date or date.today().isoformat()
+    elif a.mirrored:  # any other flush: the copy last published, so the Plan section only moves on publish
+        copy = d / f"{key}.plan.md"
+        if not copy.exists() or not state.get("plan_hash"):
+            die(f"--mirrored: no published plan in the store ({copy}); publish the working copy (--plan), or rebuild "
+                "it from the page (extract-plan, then state --save-plan)")
+        plan = copy.read_text()
+        if plan_hash(plan) != state["plan_hash"]:
+            die(f"--mirrored: {copy} doesn't match the published sha256 {state['plan_hash']} in the state file; "
+                "refusing (publish again with --plan)")
+        published = state.get("plan_published") or "unknown date"
+        plan_title = state.get("plan_title") or a.plan_title
+    if plan is not None:
+        digest_plan = plan_hash(plan)
+        try:
+            tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
+        except subprocess.CalledProcessError:
+            tip = None
 
     logs = {s: [] for s in SECTIONS}
+    carried_ticket = None
     current = a.current
     if a.local:  # the page is what this worktree last sent: the helper checks the version the caller read
         if a.page_version is None:
@@ -329,7 +492,8 @@ def cmd_render(a):
                 "--new-page" + ("" if not recorded else
                                 f"; this worktree recorded version {recorded} of this page, so check the page "
                                 "history first, then reset with: state --set version="))
-        logs, seen = parse_sections(load_current(current), a.plan_title)
+        logs, seen = parse_sections(load_current(current), plan_title)
+        carried_ticket = parse_ticket(load_current(current))
         if meta.get("page_id") and len(seen) < len(SECTIONS):
             die("--current lacks the log section heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS
                                                                           if s not in seen)
@@ -356,50 +520,99 @@ def cmd_render(a):
     # fewer entries means a truncated copy, an overwrite by another worktree, or a person's deliberate removal.
     last = d / f"{key}.last-body.md"
     if a.current and not a.new_page and same_page and last.exists() and not a.allow_fewer:
-        before, _ = parse_sections(load_current(last), a.plan_title)
+        before, _ = parse_sections(load_current(last), plan_title)
         fewer = [s for s in SECTIONS if len(logs[s]) < len(before[s])]
         if fewer:
             die("the page has fewer entries than this worktree last sent in " + ", ".join(fewer)
                 + "; read the page again; if a person removed them on purpose, pass --allow-fewer")
+        if not a.ticket and not carried_ticket and parse_ticket(load_current(last)):
+            die("the page lacks the Ticket section this worktree last sent; read the page again, or pass --ticket "
+                "(rebuilt with: ticket_page.py ticket), or --allow-fewer if a person removed it on purpose")
     added = merge(pending + extra)
 
+    ticket_md = Path(a.ticket).read_text().strip() if a.ticket else carried_ticket
     page_ref = f"[page {meta['page_id']}]({meta['page_url']})" if meta.get("page_id") else "not yet created"
     status = meta["status"] + (f" ({meta['status_note']})" if meta.get("status_note") else "")
-    header = [
-        f"> **Jira:** [{key}]({meta['key_url']}) - {meta['summary']} · **Epic:** [{meta['epic']}]({meta['epic_url']})"
-        f" · **PRD:** [{meta['prd_title']}]({meta['prd_url']})",
-        f"> **Branch:** `{meta['branch']}` at `{tip}` · **{a.plan_title}:** `{a.plan}` as of `{sha}` · "
-        f"**This page:** {page_ref}",
-        f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
-        "> **Posted by an agent** through the owner's Atlassian account. Entries are the agent's unless marked"
-        " Owner or Reviewer; an owner decision is marked Owner only when a source records it as the owner's"
-        " (attribution rules in `close-epic`).",
-        f"> The {'RCA' if a.plan_title == 'RCA' else 'plan'} file in the repo is the source of truth; the"
-        f" {a.plan_title} section mirrors it"
-        " as of the commit above (local paths shown as `{worktree}`, `{local}`). The four log sections are"
-        " append-only.",
-    ]
+    attribution = ("> **Posted by an agent** through the owner's Atlassian account. Entries are the agent's unless"
+                   " marked Owner or Reviewer; an owner decision is marked Owner only when a source records it as the"
+                   " owner's (attribution rules in `close-epic`).")
+    jira = (f"> **Jira:** [{key}]({meta['key_url']}) - {meta['summary']} · **Epic:** [{meta['epic']}]"
+            f"({meta['epic_url']}) · **PRD:** [{meta['prd_title']}]({meta['prd_url']})")
+    if skeleton:
+        backfilled = meta.get("backfilled")
+        bstate = {"absent": " (planned; checked: not created yet)",
+                  "exists": " (exists; its plan, if any, is not mirrored here yet)"}.get(meta.get("branch_state"),
+                                                                                     " (not checked)")
+        header = [
+            jira,
+            f"> **Branch:** `{meta['branch']}`{bstate} · **Plan:** "
+            + ("not mirrored here" if backfilled else "not written yet")
+            + (f" · **This page:** {page_ref}" if meta.get("page_id") else ""),
+            f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
+        ]
+        if backfilled:
+            header.append(
+                f"> **Backfilled:** {backfilled} · page created by `{meta['skill']}` after the ticket was filed"
+                + (f" (Jira status then: {meta['jira_status']})" if meta.get("jira_status") else "")
+                + "; the Ticket section is the scope as read then (its source line names where it was read); the"
+                " plan, if any, is in the ticket's worktree (older tickets: on its branch) and not yet mirrored here;"
+                " earlier history is in the Jira comments.")
+        header += [
+            attribution,
+            ("> This page is the ticket's PIV record from now on." if backfilled else
+             "> This page is the ticket's PIV record, created when the ticket was filed. The Ticket section is its"
+             " scope as filed.")
+            + " `plan-feature` mirrors the plan into the Plan section, and `execute`, `validate` and the review gates"
+            " add to the four log sections, which are append-only.",
+        ]
+    else:
+        what = "RCA" if plan_title == "RCA" else "plan"
+        rebuilt = (f", rebuilt from {state['plan_source']}" if a.mirrored and state.get("plan_source") else "")
+        header = [
+            jira,
+            f"> **Branch:** `{meta['branch']}`" + (f" at `{tip}`" if tip else "")
+            + f" · **{plan_title}:** published {published} (sha256 `{digest_plan}`{rebuilt}) · "
+            f"**This page:** {page_ref}",
+            f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
+            attribution,
+            f"> The {what} is a working document kept outside the repo (never committed); the {plan_title} section"
+            f" is its published copy and its lasting record, replaced only when the {what} is published again"
+            " (date and sha256 above; local paths shown as `{worktree}`, `{local}`)."
+            + (" The Ticket section is the ticket's scope as filed." if ticket_md else "")
+            + " The four log sections are append-only.",
+        ]
     # No H1: Confluence shows the page title. Separate quote paragraphs: the import joins consecutive quote lines.
     body = [x for h in header for x in (h, ">")][:-1] + [""]
+    if ticket_md:
+        body += [f"## {TICKET}", "", demote_below_h2(ticket_md), ""]
     for s in SECTIONS:
         body += [f"## {s}", ""] + (logs[s] or [EMPTY]) + [""]
-    body += [f"## {a.plan_title}", "", demote(plan.strip(), 2), ""]
+    if skeleton:
+        body += ["## Plan", "", PLAN_BACKFILLED if meta.get("backfilled") else PLAN_PLACEHOLDER, ""]
+    else:
+        body += [f"## {plan_title}", "", demote_marked(plan.strip(), 2), ""]
     text = sanitize("\n".join(body), a.repo)
     refuse_secrets(text, "the page body")
     Path(a.out).write_text(text)
     digest = hashlib.sha256(text.rstrip().encode()).hexdigest()[:16]
-    print(f"ticket_page: wrote {a.out} ({len(text)} chars, sha256 {digest}; {a.plan_title} {a.plan} as of {sha}; "
-          + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
+    print(f"ticket_page: wrote {a.out} ({len(text)} chars, sha256 {digest}; "
+          + ("skeleton; " if skeleton else f"{plan_title} " + ("working copy" if a.plan else "as published")
+                                             + f" sha256 {digest_plan}; ")
+          + ("Ticket section " + ("given" if a.ticket else "carried over") if ticket_md else "no Ticket section")
+          + "; " + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
           + f"; {added} new, {restored} restored from the sent log)")
     return 0
 
 
 def cmd_queue(a):
     d = store_dir(a.repo, a.outbox)
-    box, sent = d / f"{a.key}.jsonl", d / f"{a.key}.sent.jsonl"
+    tag = ".epic" if a.epic else ""
+    box, sent = d / f"{a.key}{tag}.jsonl", d / f"{a.key}{tag}.sent.jsonl"
     if a.add:
         sec, source, text = a.add
-        if sec not in SECTIONS:
+        if a.epic:
+            sec, source = EPIC_SECTION, f"{a.key} {source}"
+        elif sec not in SECTIONS:
             die(f"section must be one of {SECTIONS}")
         text = sanitize(text, a.repo)
         refuse_secrets(text, "the entry")
@@ -433,12 +646,22 @@ def cmd_state(a):
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{a.key}.last-body.md").write_text(Path(a.save_body).read_text())
         print(f"ticket_page: saved {a.save_body} as the last body sent")
+    if a.save_plan:
+        if not a.plan_title:
+            die("--save-plan needs --plan-title Plan|RCA (the section the page mirrors it under)")
+        text = Path(a.save_plan).read_text()
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{a.key}.plan.md").write_text(text)
+        st.update(plan_hash=plan_hash(text), plan_published=a.date or date.today().isoformat(),
+                  plan_title=a.plan_title)
+        st.pop("plan_source", None)
+        print(f"ticket_page: saved {a.save_plan} as the published plan (sha256 {st['plan_hash']})")
     for kv in a.set or []:
         k, sep, v = kv.partition("=")
         if not k or not sep:
             die(f"bad --set {kv!r}, expected NAME=VALUE")
         st[k] = v
-    if a.set:
+    if a.set or a.save_plan:
         d.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(st, indent=1) + "\n")
     print(json.dumps(st, indent=1))
@@ -459,8 +682,56 @@ def _log_candidates(a):
     return [c for c in dict.fromkeys(cands) if c.exists()]
 
 
+def _response_json(d):
+    try:
+        r = d.get("tool_response")
+        if isinstance(r, list):
+            r = json.loads("".join(x.get("text", "") for x in r if isinstance(x, dict)))
+        return r if isinstance(r, dict) else {}
+    except ValueError:
+        return {}
+
+
+def verify_created(a, want):
+    """The last logged createConfluencePage call with this title (and parent): compare its body, print the new id."""
+    for logp in _log_candidates(a):
+        with logp.open() as f:
+            lines = f.readlines()
+        for ln in reversed(lines):
+            if "createConfluencePage" not in ln:
+                continue
+            try:
+                d = json.loads(ln)
+            except ValueError:
+                continue
+            ti = d.get("tool_input") or {}
+            if not str(d.get("tool_name", "")).endswith("createConfluencePage") or ti.get("title") != a.title:
+                continue
+            if a.parent_id and str(ti.get("parentId")) != a.parent_id:
+                continue
+            resp = _response_json(d)
+            pid = str(resp.get("id") or "")
+            sent = str(ti.get("body", "")).rstrip()
+            if sent == want:
+                print(f"ticket_page: verified: the create of '{a.title}' sent the rendered body ({len(sent)} chars); "
+                      f"page id {pid or 'unknown'}, version 1")
+                return 0
+            first = next((i for i, (x, y) in enumerate(zip(sent, want)) if x != y), min(len(sent), len(want)))
+            print(f"ticket_page: MISMATCH: the create of '{a.title}' (page id {pid or 'unknown'}) sent {len(sent)} "
+                  f"chars, the rendered body has {len(want)}; first difference at char {first}", file=sys.stderr)
+            return 1
+    print(f"ticket_page: no logged createConfluencePage call titled '{a.title}'; unverified", file=sys.stderr)
+    return 3
+
+
 def cmd_verify(a):
     want = Path(a.body).read_text().rstrip()
+    if a.created:
+        if not a.title:
+            die("--created needs --title")
+        return verify_created(a, want)
+    if not a.page_id:
+        die("verify needs --page-id (or --created --title)")
     for logp in _log_candidates(a):
         with logp.open() as f:
             lines = f.readlines()
@@ -540,6 +811,312 @@ def cmd_summary(a):
     die("summary needs --check, --returned-id, --failed or --superseded-by")
 
 
+KEY_TOKEN = r"(?<![A-Za-z0-9-]){key}(?![0-9])"
+
+
+def cmd_ticket(a):
+    """The Ticket section: the ticket's entry in the epic breakdown (a local file: the page as read, or spec's working
+    copy), or a given text, with its source line."""
+    if not a.source:
+        die("ticket needs --source: where the text comes from (the breakdown page with its id and version, or 'the "
+            "Jira description of <KEY>')")
+    if a.breakdown:
+        doc = load_current(a.breakdown)
+        lines = doc.splitlines()
+        heads = [(i, len(m.group(1)), m.group(2).strip()) for i, (ln, f) in enumerate(split_fences(lines)) if not f
+                 for m in [re.match(r"^(#{2,6})\s+(.*)$", ln)] if m]
+        tok = KEY_TOKEN.format(key=re.escape(a.key))
+
+        def body(h):
+            i, lvl, _ = h
+            end = next((j for j, l2, _ in heads if j > i and l2 <= lvl), len(lines))
+            return "\n".join(lines[i + 1:end]).strip()
+
+        def own_lines(h):  # up to the next heading of any level: an entry's own lines, not its children's
+            i = h[0]
+            end = next((j for j, _, _ in heads if j > i), len(lines))
+            return lines[i + 1:end]
+        branch = re.compile(r"^\s*[-*+]\s*\**Branch\**\s*:?\s*\**:?.*\bv9-(?:ai-)?" + re.escape(a.key) + r"-")
+        tiers = [
+            [h for h in heads if h[1] >= 3 and re.search(r"`" + re.escape(a.key) + r"`", h[2])],
+            [h for h in heads if h[1] >= 3 and any(branch.search(x) for x in own_lines(h))],
+            # A plain mention only in a heading that names no ticket key of its own: "Coordinate with AIUE-9 ·
+            # `AIUE-48`" is AIUE-48's entry, not AIUE-9's.
+            [h for h in heads if h[1] >= 3 and re.search(tok, h[2])
+             and not re.search(r"`[A-Za-z][A-Za-z0-9]*-[0-9]+`", h[2])],
+        ]
+        found = next((t for t in tiers if t), [])
+        if not found:
+            print(f"ticket_page: no entry for {a.key} in {a.breakdown}; build the section from the Jira "
+                  "description (--text, --source)", file=sys.stderr)
+            return 3
+        if len(found) > 1:
+            die(f"several breakdown entries match {a.key}: " + "; ".join(h[2] for h in found))
+        h = found[0]
+        title = re.sub(r"[`*]", "", h[2])
+        where = f"the ticket's entry \"{title}\" in {a.source}"
+        src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
+               f"was filed: {where}._" if a.backfill else f"_Scope as filed: {where}._") + (
+            " _The breakdown is the source of truth; a later change to it is not copied here automatically._")
+        text = body(h)
+    else:
+        if not a.text:
+            die("ticket needs --breakdown or --text")
+        text = Path(a.text).read_text().strip()
+        src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
+               f"was filed: {a.source}._" if a.backfill else f"_Scope as filed: {a.source}._")
+    out = sanitize(src + "\n\n" + demote_below_h2(text) + "\n", a.repo)
+    refuse_secrets(out, "the Ticket section")
+    Path(a.out).write_text(out)
+    print(f"ticket_page: wrote {a.out} ({len(out)} chars)")
+    return 0
+
+
+def _search_hits(path):
+    """(hits, total, has_next) from a searchConfluenceUsingCql result: the REST form (results[].content, totalSize,
+    _links.next) or the GraphQL-like form (content.nodes, totalCount, pageInfo.hasNextPage). total is None when the
+    result doesn't say; has_next is True when it links a further page of results."""
+    data = load_json(path)
+    if isinstance(data, dict) and isinstance(data.get("content"), dict) and "nodes" in data["content"]:
+        c = data["content"]
+        nodes, total = c.get("nodes") or [], c.get("totalCount")
+        has_next = bool((c.get("pageInfo") or {}).get("hasNextPage"))
+        return [(str(n["id"]), n["title"]) for n in nodes if n.get("id") and n.get("title")], total, has_next
+    if not isinstance(data, dict) or "results" not in data:
+        die(f"{path}: not a searchConfluenceUsingCql result (no 'results' or 'content.nodes')")
+    out = []
+    for r in data.get("results") or []:
+        c = r.get("content", r) if isinstance(r, dict) else {}
+        if c.get("id") and (c.get("title") or r.get("title")):
+            out.append((str(c["id"]), c.get("title") or r.get("title")))
+    return out, data.get("totalSize"), bool((data.get("_links") or {}).get("next") or data.get("next"))
+
+
+def adf_text(n):
+    """Atlassian Document Format to the markdown the link and PIV-record patterns expect (strong -> **, code -> `)."""
+    if isinstance(n, list):
+        return "".join(adf_text(x) for x in n)
+    if not isinstance(n, dict):
+        return ""
+    t = n.get("type")
+    if t == "text":
+        txt, marks = n.get("text", ""), {m.get("type") for m in n.get("marks") or []}
+        txt = f"`{txt}`" if "code" in marks else txt
+        return f"**{txt}**" if "strong" in marks else txt
+    if t == "hardBreak":
+        return "\n"
+    if t in ("inlineCard", "blockCard"):
+        return (n.get("attrs") or {}).get("url", "")
+    inner = adf_text(n.get("content") or [])
+    return inner + "\n" if t in ("paragraph", "heading", "listItem", "blockquote", "codeBlock") else inner
+
+
+def _jira_comments(path, key):
+    """(comment bodies as text, problem). problem is set when the list can't be trusted to be complete."""
+    data = load_json(path)
+    if isinstance(data, dict) and isinstance(data.get("issues"), dict):  # {"issues": {"nodes": [issue]}}
+        nodes = [x for x in data["issues"].get("nodes") or [] if x.get("key") in (key, None)]
+        if len(nodes) != 1:
+            return None, f"{len(nodes)} issues for {key} in the response"
+        data = nodes[0]
+    if not isinstance(data, dict):
+        return None, "not a getJiraIssue result"
+    block = (data.get("fields") or {}).get("comment")
+    if isinstance(block, dict) and isinstance(block.get("comments"), list):
+        comments = block["comments"]
+        total = block.get("total")
+        if isinstance(total, int) and total > len(comments):
+            return None, f"the response holds {len(comments)} of {total} comments (paged); read them all"
+    elif isinstance(data.get("comments"), list):
+        comments = data["comments"]
+    else:
+        return None, "no comment list (read the issue with fields [\"comment\"])"
+    out = []
+    for c in comments:
+        b = c.get("body")
+        if isinstance(b, str):
+            out.append(b)
+        elif isinstance(b, dict) and b.get("type") == "doc":
+            out.append(adf_text(b))
+        else:
+            return None, f"comment {c.get('id')} has a body in an unknown form"
+    return out, None
+
+
+def cmd_find(a):
+    """Resolve a ticket's page id (or, with --fallback, whether its PIV record comments exist). Exit 0 found, 3 none
+    (only when the evidence to conclude that was given: a complete container listing, or for --fallback a complete
+    comment list), 2 several or can't tell (stop and report)."""
+    prefix = f"Plan: {a.key} - "
+    gone = set(a.gone or [])
+    report = {"key": a.key}
+
+    def done(code, msg):
+        print(json.dumps(report, indent=1))
+        print(f"ticket_page: {msg}", file=sys.stderr)
+        return code
+    recorded = {}  # id -> [how]
+    if a.state_id:
+        recorded.setdefault(str(a.state_id), []).append("state file")
+    if a.plan:
+        m = re.search(r"\*\*Ticket page\*\*:\s*Confluence page (\d+)", Path(a.plan).read_text())
+        if m:
+            recorded.setdefault(m.group(1), []).append("plan line")
+    comments_ok = False
+    if a.comments:
+        bodies, problem = _jira_comments(a.comments, a.key)
+        if problem:
+            report["reason"] = problem
+            return done(2, f"can't tell from the comments: {problem}")
+        comments_ok = True
+        piv = sum(1 for b in bodies if b.lstrip().startswith("**PIV record"))
+        report.update(piv_record_comments=piv, piv_cap_reached=piv >= 8)
+        for b in bodies:
+            m = re.match(r"\s*\**(?:Ticket|Plan) page:\**.*?Confluence page id\s*`?(\d+)`?", b, re.S)
+            if m:
+                recorded.setdefault(m.group(1), []).append("Jira link comment")
+    if a.fallback:
+        if not comments_ok:
+            report["reason"] = "no comment list given"
+            return done(2, "--fallback needs --comments (the getJiraIssue result with all comments, markdown)")
+        if report["piv_record_comments"]:
+            return done(0, f"{a.key} already has {report['piv_record_comments']} PIV record comment(s)")
+        return done(3, f"{a.key} has no PIV record comment")
+    # Complete = the files given hold every page: at least one of them links no further page, and together they hold
+    # as many results as any of them says there are.
+    listed, totals, last_pages = [], [], 0
+    for sp in a.search or []:
+        hits, total, has_next = _search_hits(sp)
+        listed += hits
+        totals += [total] if total is not None else []
+        last_pages += 0 if has_next else 1
+    complete = bool(a.search) and last_pages > 0 and (not totals or len(dict.fromkeys(listed)) >= max(totals))
+    report["listing_complete"] = complete
+    if a.search and not complete:
+        report["reason"] = "the container listing is incomplete (a further page is linked, or fewer results than the "\
+                           "total): pass every page of it"
+        return done(2, "can't tell from an incomplete listing: follow next and pass every page")
+    mine = list(dict.fromkeys((i, t) for i, t in listed if t.startswith(prefix) and i not in gone))
+    linked = {i for i, v in recorded.items() if "Jira link comment" in v and i not in gone}
+    for i in list(recorded):
+        if i in gone:
+            del recorded[i]
+    report["listed"] = {i: t for i, t in mine}
+    report["recorded"] = recorded
+    if len({i for i, _ in mine}) > 1:
+        return done(2, f"several pages for {a.key} under the container: stop and ask; never pick one silently")
+    if mine:
+        pid = mine[0][0]
+        report["page_id"] = pid
+        stale = [i for i in recorded if i != pid]
+        if a.comments:
+            report["missing_link_comment"] = pid not in linked
+        if stale:
+            report["stale_records"] = stale
+            report["note"] = (f"the listed page {pid} wins; recorded id(s) {', '.join(stale)} name another page. "
+                              "Confirm each once with CQL id = <id>: gone (an earlier page deleted and created again) "
+                              "-> fine, pass --gone <id> to drop it; still exists -> two existing pages: stop and ask")
+        return done(0, f"page {pid}")
+    if len(recorded) > 1:
+        return done(2, f"several recorded ids for {a.key} ({', '.join(recorded)}) and none listed: stop and ask")
+    if recorded:
+        pid = next(iter(recorded))
+        report.update(page_id=pid, not_listed=bool(a.search))
+        if a.comments:
+            report["missing_link_comment"] = pid not in linked
+        if a.search:
+            report["note"] = (f"page {pid} is recorded but not under this container: confirm with CQL id = {pid}. If "
+                              "it exists (a ticket moved from another epic keeps its page there), use it; if it is "
+                              f"gone, run find again with --gone {pid}")
+        return done(0, f"page {pid} (recorded{', not listed' if a.search else ''})")
+    if not a.search:
+        report["reason"] = "no container listing given"
+        return done(2, "can't conclude that there is no page without the container listing (--search)")
+    if a.comments is None:
+        report["reason"] = "no comments given"
+        return done(2, "pass the ticket's comments too (--comments): its link comment may name a page elsewhere")
+    return done(3, f"no page for {a.key}")
+
+
+def cmd_extract_plan(a):
+    """The plan (or RCA) as mirrored on the page, with its headings promoted back two levels: the working copy for a
+    worktree that has none. Exit 3 when the page has no plan mirrored (a placeholder or no Plan/RCA section)."""
+    md = load_current(a.current)
+    lines, start, title = md.splitlines(), None, None
+    for i, (ln, in_fence) in enumerate(split_fences(lines)):
+        if not in_fence:
+            lvl, t = _heading(ln)
+            if lvl == 2 and t in ("Plan", "RCA"):
+                start, title = i + 1, t
+                break
+    body = "\n".join(lines[start:]).strip() if start is not None else ""
+    if not body or norm(body) in (norm(PLAN_PLACEHOLDER), norm(PLAN_BACKFILLED), norm(OLD_PLAN_BACKFILLED)):
+        print("ticket_page: the page has no plan mirrored yet (no Plan/RCA section, or only its placeholder)",
+              file=sys.stderr)
+        return 3
+    text = promote_marked(body, 2)
+    Path(a.out).write_text(text.rstrip() + "\n")
+    print(f"ticket_page: wrote {a.out} ({title} section, {len(text.splitlines())} lines; rebuilt from the page: local "
+          "paths come back as the placeholders {worktree}, {worktrees}, {home}, {local}/<name>, and Confluence may "
+          f"have changed some formatting). Record it with: state --save-plan {a.out} --plan-title {title}")
+    return 0
+
+
+EPIC_SECTION = "Entries"
+
+
+def cmd_progress(a):
+    """The epic's `Progress: <EPIC>` page: --new builds the skeleton; otherwise the current page's entries, plus any
+    entry of this worktree's epic sent log the page lost, plus the queued epic entries (and --entry)."""
+    if a.new:
+        meta = json.loads(Path(a.meta).read_text())
+        missing = [k for k in ("epic", "epic_url", "prd_title", "prd_url") if not meta.get(k)]
+        if missing:
+            die("meta.json is missing " + ", ".join(missing))
+        body = [f"> **Epic:** [{meta['epic']}]({meta['epic_url']}) · **PRD:** [{meta['prd_title']}]({meta['prd_url']})",
+                ">",
+                "> **Posted by an agent** through the owner's Atlassian account. The epic's progress log: one dated line"
+                " per ticket milestone (execute finished, a validate run on its own, approval, escalation, commit) and"
+                " per owner decision (marked Owner only with its source), appended by the ticket-page skill."
+                " Append-only; `close-epic` reads it.", "", f"## {EPIC_SECTION}", "", EMPTY, ""]
+        text = sanitize("\n".join(body), a.repo or ".")
+        refuse_secrets(text, "the page body")
+        Path(a.out).write_text(text)
+        print(f"ticket_page: wrote {a.out} (Progress page skeleton)")
+        return 0
+    if not (a.repo and a.key and a.current):
+        die("progress needs --new --meta, or --repo --key --current")
+    md = load_current(a.current)
+    head, entries, seen = [], [], False
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence and _heading(ln)[1] == EPIC_SECTION:
+            seen = True
+            continue
+        (entries if seen else head).append(ln)
+    if not seen:
+        die(f"--current lacks the '## {EPIC_SECTION}' heading; refusing to build a body that would drop its entries")
+    have = entry_blocks(entries)
+    d = store_dir(a.repo, a.outbox)
+    sent, pending = read_jsonl(d / f"{a.key}.epic.sent.jsonl"), read_jsonl(d / f"{a.key}.epic.jsonl")
+    extra = [{"section": EPIC_SECTION, "source": f"{a.key} {src}", "text": sanitize(t, a.repo),
+              "date": a.date or date.today().isoformat()} for src, t in (a.entry or [])]
+    counts = []
+    for group in (sent, pending + extra):
+        n = 0
+        for e in group:
+            block = entry_text(e)
+            if norm(block) not in {norm(x) for x in have}:
+                have.append(block)
+                n += 1
+        counts.append(n)
+    text = "\n".join(head).rstrip() + f"\n\n## {EPIC_SECTION}\n\n" + "\n".join(have or [EMPTY]) + "\n"
+    text = sanitize(text, a.repo)
+    refuse_secrets(text, "the page body")
+    Path(a.out).write_text(text)
+    print(f"ticket_page: wrote {a.out} ({len(have)} entries; {counts[1]} new, {counts[0]} restored from the sent log)")
+    return 0
+
+
 def cmd_stub(a):
     print(STUB.format(key=a.key))
     return 0
@@ -559,10 +1136,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("render")
     r.add_argument("--repo", required=True)
-    r.add_argument("--plan", required=True, help="repo-relative path of the plan (or RCA) file")
-    r.add_argument("--plan-rev", help="revision to mirror it from (default HEAD)")
+    pg = r.add_mutually_exclusive_group()
+    pg.add_argument("--plan", help="the plan (or RCA) working copy to publish (absolute, or relative to --repo); "
+                    "without --plan or --mirrored: the skeleton")
+    pg.add_argument("--mirrored", action="store_true",
+                    help="repeat the plan as last published (the store's copy; state --save-plan records it)")
     r.add_argument("--plan-title", default="Plan", choices=["Plan", "RCA"])
     r.add_argument("--meta", required=True)
+    r.add_argument("--ticket", help="the Ticket section (from: ticket_page.py ticket); default: carried over")
     g = r.add_mutually_exclusive_group()
     g.add_argument("--current")
     g.add_argument("--local", action="store_true")
@@ -584,6 +1165,8 @@ def main():
     qg.add_argument("--list", action="store_true")
     qg.add_argument("--mark-sent", action="store_true")
     qg.add_argument("--sent", action="store_true")
+    q.add_argument("--epic", action="store_true",
+                   help="the epic's Progress page instead of the ticket page (--add's SECTION is ignored)")
     q.add_argument("--date")
     s = sub.add_parser("state")
     s.add_argument("--repo", required=True)
@@ -591,9 +1174,16 @@ def main():
     s.add_argument("--outbox")
     s.add_argument("--set", nargs="+", metavar="NAME=VALUE")
     s.add_argument("--save-body", metavar="BODY", help="record BODY as the last body sent (after a verified update)")
+    s.add_argument("--save-plan", metavar="FILE",
+                   help="record FILE as the published plan (after a verified publish): its copy, sha256 and date")
+    s.add_argument("--plan-title", choices=["Plan", "RCA"], help="with --save-plan: Plan or RCA (required)")
+    s.add_argument("--date")
     v = sub.add_parser("verify")
     v.add_argument("--body", required=True)
-    v.add_argument("--page-id", required=True)
+    v.add_argument("--page-id")
+    v.add_argument("--created", action="store_true", help="check the last createConfluencePage call with --title")
+    v.add_argument("--title")
+    v.add_argument("--parent-id")
     v.add_argument("--log")
     v.add_argument("--after-version", type=int,
                    help="the version checked before the update: only a logged update that returned a later version "
@@ -608,6 +1198,41 @@ def main():
     smg.add_argument("--returned-id")
     smg.add_argument("--failed", action="store_true")
     smg.add_argument("--superseded-by")
+    tk = sub.add_parser("ticket")
+    tk.add_argument("--repo", required=True)
+    tk.add_argument("--key", required=True)
+    tk.add_argument("--breakdown", help="the epic breakdown as a local file: the breakdown page as read "
+                    "(markdown, or the saved tool result), or spec's working copy of what it published")
+    tk.add_argument("--text", help="file with the scope text, when the breakdown has no entry")
+    tk.add_argument("--source", help="where the text comes from, for the source line: e.g. 'the epic breakdown page "
+                    "`Spec: X - Ticket Breakdown` (Confluence page 123, version 4)', 'the Jira description of AIUE-61'")
+    tk.add_argument("--backfill", action="store_true",
+                    help="the page is created after the ticket was filed: say 'as read on <date>', not 'as filed'")
+    tk.add_argument("--date")
+    tk.add_argument("--out", required=True)
+    fd = sub.add_parser("find")
+    fd.add_argument("--key", required=True)
+    fd.add_argument("--state-id", help="the page id in this worktree's state file (state.page_id)")
+    fd.add_argument("--plan", help="an older plan or RCA file that still has a **Ticket page** line")
+    fd.add_argument("--comments", help="the getJiraIssue result with fields.comment")
+    fd.add_argument("--search", action="append", help="a searchConfluenceUsingCql result (repeatable, one per page "
+                    "of results)")
+    fd.add_argument("--gone", action="append", help="an id confirmed deleted (CQL id = <id> found nothing)")
+    fd.add_argument("--fallback", action="store_true",
+                    help="Jira fallback: exit 0 if the ticket has PIV record comments, 3 if none (needs --comments)")
+    xp = sub.add_parser("extract-plan")
+    xp.add_argument("--current", required=True, help="the page as read (markdown, or the saved tool result)")
+    xp.add_argument("--out", required=True)
+    pr = sub.add_parser("progress")
+    pr.add_argument("--new", action="store_true", help="the skeleton of a new Progress page (needs --meta)")
+    pr.add_argument("--meta")
+    pr.add_argument("--repo")
+    pr.add_argument("--key")
+    pr.add_argument("--current", help="the Progress page as read (markdown, or the saved tool result)")
+    pr.add_argument("--entry", nargs=2, action="append", metavar=("SOURCE", "TEXT"))
+    pr.add_argument("--outbox")
+    pr.add_argument("--date")
+    pr.add_argument("--out", required=True)
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
@@ -616,7 +1241,9 @@ def main():
     a = ap.parse_args()
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
-                "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize}[a.cmd](a)
+                "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize, "ticket": cmd_ticket,
+                "find": cmd_find, "extract-plan": cmd_extract_plan,
+                "progress": cmd_progress}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:

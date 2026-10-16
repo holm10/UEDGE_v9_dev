@@ -10,10 +10,67 @@ physics, and leaves feature branches depending on unmerged tooling. This module 
 | Class | Paths | Belongs on |
 |---|---|---|
 | **process** | `CLAUDE.md`, `.mcp.json`, `.claude/**` (skills, agents, context, hooks, settings), `.githooks/**`, `.github/workflows/claude-*.yml` | an AI-layer branch (`CLAUDE.md` and `.claude/context/**` also on ticket branches as code-facts) |
-| **artifact** | `.claude/plans/**`, `docs/{prds,specs,reviews,rca,physics_specs}/**` | the ticket/epic branch it belongs to |
-| **product** | everything else: `*/*.m`/`.F`/`.v`/`.F90`, `setup.py`, `Makefile.Forthon`, `src/uedge/`, CI, `doc/` | a ticket branch |
-| **record** | `.claude/execution-reports/**`, `.claude/system-reviews/**` | any branch |
+| **working** | `.claude/work/**`, and the paths these documents used to be committed under: `.claude/plans/**`, `.claude/execution-reports/**`, `.claude/system-reviews/**`, `.claude/code-reviews/**`, `docs/{prds,specs,reviews,rca}/**` | **no branch**: gitignored, never committed (below). Deleting one that is still tracked is allowed |
+| **product** | everything else: `*/*.m`/`.F`/`.v`/`.F90`, `setup.py`, `Makefile.Forthon`, `src/uedge/`, CI, `doc/`, and `docs/physics_specs/**` | a ticket branch |
 | **shared** | `.gitignore` | any branch |
+
+## Working documents live outside git; the record lives on Confluence and Jira
+
+Ticket and epic documentation lives on Confluence and Jira, never in the repo. (Before this rule, plans, reviews and
+epic documents were committed on the ticket and planning branches; PR #2 removed 1 282 of them, kept in the tag
+`archive/AIUE-8-docs`.)
+
+- **Ticket working documents** (the plan, review reports and responses, validation records and run protocols, the
+  RCA, the code review, the execution report and the system-review notes) are written to the ticket's **working
+  folder** `<worktree>/.claude/work/<KEY>/` (`issue-<N>` for a GitHub issue, the slug for work without a ticket). It
+  is gitignored and never committed. Their lasting content goes to the ticket's Confluence page through the
+  `ticket-page` skill: the plan (or RCA) is mirrored into the Plan (or RCA) section; each review round's verdict,
+  counts, findings (one line each) and the response go to Reviews; validation results, failures quoted verbatim, go
+  to Validation; decisions and anything a later reader needs go to Findings and decisions. A ticket with no epic PRD
+  page keeps only a capped summary: at most 8-9 `PIV record` Jira comments of at most 1500 characters, MINOR detail
+  dropped (`ticket-page` → Jira fallback). A GitHub issue with no Jira ticket gets its RCA as a comment on the issue
+  (`rca`). **Work with no ticket record** (no Jira key, `--no-tracker`, or physics without a ticket) has no page: the
+  review summary it would have had (each round's verdict, counts, one line per finding, the response) goes into the
+  **PR description**, as does whatever else must outlive the worktree. The full working files are disposable.
+- **Epic documents** live on Confluence, under the PRD page: the PRD itself (the page is the source; `create-prd`
+  keeps a local working copy), `PRD reviews: <EPIC>` (each review round summarised), `Spec: <epic> - Ticket
+  Breakdown` (the breakdown, with each ticket's key and page id), `Progress: <EPIC>` (the progress log: dated,
+  append-only lines, owner decisions attributed as in `close-epic`; `spec` creates it, `execute`, `validate`, the
+  review loop, `end-to-end-feature` and `implement-fix` append a line per milestone through `ticket-page progress`,
+  `close-epic` reads it), `Ticket plans: <EPIC>` with one page per
+  ticket, and `Close-out: <EPIC> - …`. Local working copies (the PRD draft, review reports, the breakdown draft, the
+  close-out record and its sources snapshot) go in `.claude/work/<EPIC>/` of the checkout the skill runs in.
+- **No planning branch.** An epic no longer has a `feature/v9-<EPIC>-planning` branch: nothing it held is committed
+  any more. Existing planning branches are left as they are; `close-epic` may read one as a historical source.
+  **Before a planning branch is ever deleted**: tag its tip `archive/<EPIC>-planning` and push the tag (`git tag
+  archive/<EPIC>-planning <branch> && git push origin archive/<EPIC>-planning`), and write its PRD review rounds
+  (verdict, counts, one line per finding, the response) to `PRD reviews: <EPIC>`, citing the tag. Pending:
+  `feature/v9-AIUE-5-planning` and `feature/v9-AIUE-9-planning` (PRD copies and PRD review rounds, not yet on
+  Confluence); nothing is done to them until someone wants to delete them.
+- **Physics specs stay in the repo.** `docs/physics_specs/<feature>.md` is product documentation: the approved spec
+  is committed on the ticket branch with the physics change it specifies (`CLAUDE.md` → Hard rules,
+  `physics-workflow.md`). Its review reports are working documents like any other.
+- **Robustness.** Confluence or Jira being down never blocks code work: the working files and the `ticket-page`
+  outbox and sent log (in the worktree's git directory) keep the record until the next flush. **Both are lost when the
+  worktree is removed** (`git worktree remove`), so flush the ticket page (`ticket-page <KEY> flush`, and
+  `queue --list` empty) before removing a worktree; anything not on the page by then is gone. For the same reason
+  ticket work never runs in a worktree that something else can remove (see Worktrees), and a subagent doing ticket
+  work flushes and checks that `queue --list` is empty before it returns.
+- **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
+  any branch, pointing to the ticket page.
+- **Renames.** Moving a working document into a product path (`git mv`) is refused like adding it. A document that
+  really belongs in the repo (a physics spec) is added as a new file on purpose, with the reason in the commit.
+- **Tickets started before this rule** may track a plan, reviews or other working documents on their branch
+  (`.claude/plans/`, `docs/reviews/`, …). They **must be removed before `validate` and the PR**: the range check
+  (`validate` step 0, and CI) refuses the branch until they are gone. Before removing them:
+  1. copy the plan to `.claude/work/<KEY>/plan.md` and work on that copy (`ticket-page <KEY> publish` mirrors it);
+  2. put each review round that the page records only as a path on the ticket page: one `ticket-page <KEY> log
+     Reviews` entry per round with its verdict, counts, one line per finding and the response (marked "backfilled
+     from <path> at <sha>"), then `flush`;
+  3. tag the branch tip `archive/<KEY>-docs` and push the tag (`git tag archive/<KEY>-docs && git push origin
+     archive/<KEY>-docs`), and cite the tag on the page (`log "Findings and decisions" "Agent: the committed working
+     documents are archived in tag archive/<KEY>-docs" --flush`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
+  4. `git rm` them in one commit ("Removes the <KEY> working documents from git"; deletions are allowed).
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
@@ -33,10 +90,11 @@ branch.
 | Kind | Name | Base | Carries |
 |---|---|---|---|
 | Protected | `main`, `develop`, `v9-main`, `v9-develop` | — | **nothing directly**; PRs only |
-| AI layer | `feature/v9-ai-<slug>` (legacy: `v9-agentic`) | `v9-develop` | process + record |
-| Jira ticket | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | `v9-develop`, or the branch of the ticket it depends on (stacked) | product + artifact (+ code-facts) |
-| GitHub issue | `bugfix/v9-issue-<N>-<slug>` | `v9-develop` | product + artifact |
-| Epic planning | `feature/v9-<EPIC>-planning` | `v9-develop` | the PRD, its review reports, the `docs/specs/` breakdown, the progress log and the close-out record and its sources snapshot (`docs/specs/<EPIC>-closeout.md`, `docs/specs/<EPIC>-closeout-sources/`, from `close-epic`) |
+| AI layer | `feature/v9-ai-<slug>` (legacy: `v9-agentic`) | `v9-develop` | process |
+| Jira ticket | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, incl. an approved physics spec (+ code-facts) |
+| GitHub issue | `bugfix/v9-issue-<N>-<slug>` | `v9-develop` | product |
+
+An epic has no branch of its own (no planning branch; see above).
 
 Names must match the mandatory patterns in `doc/workflow.md` (`feature/v9-*`, `bugfix/v9-*`). `<slug>` is
 kebab case and at most about 40 characters. Putting the Jira key in the branch name makes Jira link the branch,
@@ -62,15 +120,23 @@ pip install . -C "--build-option=--serial"
 - **Give each worktree its own virtualenv.** Two worktrees that install into the same env overwrite each other's
   `uedge` build, and the tests then run the wrong code.
 - The regression worktree `../uedge-pytests` is shared. It holds only tests and reference data.
-- Parallel tickets run by subagents use `isolation: "worktree"` (Agent tool) or the explicit worktree above.
-- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`.
+- **Ticket work always runs in an explicit worktree** (`git worktree add … ../uedge-wt/<KEY>`, above), also when a
+  subagent does it. Never use the Agent tool's `isolation: "worktree"` for ticket work: Claude Code removes such a
+  worktree by itself when the subagent finishes without committed changes, and sweeps old ones later, and gitignored
+  working documents don't stop either. The working folder and the unsent `ticket-page` entries would go with it.
+  Give the subagent the worktree path instead. A subagent doing ticket work flushes the ticket page and checks that
+  `queue --list` (and `queue --epic --list`) prints nothing before it returns; if a flush fails, it says so with the
+  worktree path, and the caller flushes later.
+- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`. **Flush first**: the working
+  folder `.claude/work/<KEY>/` and the `ticket-page` outbox go with the worktree, so run `ticket-page <KEY> flush`
+  and check that nothing is queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list` prints nothing).
 
 ## Improving the AI layer while doing ticket work
 
 Don't fix a skill, agent or hook on a ticket branch, even when the ticket exposed the problem.
 
-1. Note it in the ticket's execution report (`execution-report` → `.claude/execution-reports/`, which is a record and
-   allowed anywhere).
+1. Note it in the ticket's execution report (`execution-report` → `.claude/work/<KEY>/execution-report.md`, local; its
+   divergences and recommendations go to the ticket page's Findings and decisions).
 2. Run `system-review` on it. Apply its recommendations on a `feature/v9-ai-<slug>` branch in its own PR.
 3. If the problem blocks the ticket, merge the AI-layer PR first, then rebase the ticket branch.
 
@@ -78,7 +144,7 @@ Don't fix a skill, agent or hook on a ticket branch, even when the ticket expose
 
 Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-layer branch (`v9-agentic`) is merged:
 
-- Base ticket and planning branches on the AI-layer branch tip, and record that in the PR description.
+- Base ticket branches on the AI-layer branch tip, and record that in the PR description.
 - After the AI layer merges, `git rebase --onto origin/v9-develop v9-agentic <ticket-branch>` drops the AI commits
   from the ticket's history.
 - Prefer merging the AI layer first. Then this section goes away.
@@ -86,7 +152,9 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
 ## Guard rails on the AI layer changing itself
 
 - **Agents never apply process changes automatically.** `system-review` files them as `ai-layer` Jira issues
-  (fallback: `.claude/system-reviews/backlog.md`). They land through a `feature/v9-ai-*` PR that a person reviews.
+  (fallback without Jira: `.claude/work/<KEY>/ai-layer-backlog.md`, local, plus a Findings and decisions entry on the
+  ticket page, filed as issues at the next session that has Jira). They land through a `feature/v9-ai-*` PR that a
+  person reviews.
 - **The code-facts trailer is narrow.** It covers only `CLAUDE.md` and `.claude/context/**`. The hook blocks
   skills, agents, hooks and settings on ticket branches even with the trailer.
 - **Facts are checked, not trusted.** `check_context_refs.py` compares every cited `path:line` with the locked
@@ -100,8 +168,9 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
 
 ```bash
 uv run .claude/hooks/change_kind.py --staged                 # before a commit (the hook does this for agents)
-uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD   # a whole branch, before opening a PR
+uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD   # a whole branch, before opening a PR
 uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop   # are the AI layer's code facts still true?
+bash .claude/hooks/test_change_kind.sh                    # after changing change_kind.py or pre_tool_use.py
 ```
 
 Exit 0 means clean, 1 means violations (printed with the offending paths), 2 means the check couldn't run.

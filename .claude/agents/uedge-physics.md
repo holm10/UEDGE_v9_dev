@@ -67,7 +67,7 @@ Then report back to the main session with the spec's path, a short summary, and 
 Your spec will be checked by the `uedge-reviewer` agent. When given a review file:
 
 - Address every BLOCKER and MAJOR finding: either fix the spec or give a reasoned rebuttal with evidence (derivation, source, or code reference). MINOR findings may be fixed or declined briefly.
-- Append a "Response to review round N" section to the spec listing each finding ID, what you changed (with section references), or why you disagree.
+- Append a "Response to review round N" section to the spec listing each finding ID, what you changed (with section references), or why you disagree. The spec (with these sections) is committed with the physics change; the review reports themselves are local working files (`.claude/work/<KEY>/reviews/`) and are never committed (`.claude/context/branching.md`); their summary goes to the ticket page, or, without a ticket record, into the PR description.
 - Do not silently change unrelated parts of the spec; note any additional changes in the response.
 
 # Rules
