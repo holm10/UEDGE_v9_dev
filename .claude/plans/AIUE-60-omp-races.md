@@ -90,7 +90,7 @@ PETSc clip index)
   load order:
   - whether it defines `_ompcommonscalarcopy_` (`nm -m`);
   - the block size from the generated `build/temp.*/<pkg>_p.F90` (the variables of its `common /ompcommonscalarcopy/`
-    statement, joined over its `&` continuation lines, × 8 B; sizes checked at plan time: AIUE-56 `bbb` 89/712 B,
+    statement, joined over its `&` continuation lines, each sized by its declared `kind=`; sizes checked at plan time: AIUE-56 `bbb` 89/712 B,
     `api` 12/96 B; pre-amendment AIUE-60 `bbb` 91/728 B, `api` 96 B, `com` 10/80 B, `aph` 1/8 B).
 
   The load order is parsed from the venv's `uedge/__init__.py` (`uedgeC`, `com`, `grd`, `flx`, `bbb`, `svr`, `wdf`,
@@ -311,7 +311,8 @@ team covers the Jacobian team.
 - **Numeric expectations (L2-m2).** Today the outputs list 161 and 137 variables (re-confirmed at `203a5ff`).
   - `shared-writes`: **161 → 147**. Exactly these 14 disappear: `areapl`, `sputflxllim`, `sputflxrlim`,
     `timingpandfon`, the 8 `com.Timing` entries and the 2 `com.Timespl` entries.
-  - `passed-args`: **137 → 135**. Exactly `workh` and `iflag_aph` disappear.
+  - `passed-args`: **137 → 135** before Amendment 1; **137 → 145** after it (`workh` and `iflag_aph` disappear, the 10
+    timers appear as `acctim` arguments).
   - The post-fix outputs are diffed against the pre-fix outputs (saved in the validation record). Any other added or
     removed line fails this check.
   - `nfsp` stays in the list: the probe still sees the guarded assignment.

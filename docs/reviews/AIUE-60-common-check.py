@@ -8,12 +8,14 @@ extensions are imported RTLD_GLOBAL in the order of src/uedge/__init__.py, so th
 _ompcommonscalarcopy_ serves every package; a later package with a larger block writes past its end (AIUE-60 I1-B1).
 
 For every extension, in the import order parsed from the venv's uedge/__init__.py:
-  definer   does the .so define _ompcommonscalarcopy_ (macOS `nm -m`: "(__DATA,__common) external"; Linux `nm -S`)
+  definer   does the .so define _ompcommonscalarcopy_ (macOS `nm -m`: "(__DATA,__common) external"; ELF `nm -D -S`,
+            the dynamic symbol table, which a stripped .so keeps)
   size      bytes of that package's block, from DIR/<pkg>_p.F90 (the generated sources of THE SAME build): the variables
             of its `common /ompcommonscalarcopy/` statement (joined over `&` continuations), each sized from its
             declaration `<type>(kind=K)::<name>` in the same routine
 PASS: the first definer is bbb, and every other definer's size <= bbb's. FAIL otherwise. A definer whose size can't be
-determined, or a missing .so, is an ERROR (fail closed). Exit 0 PASS, 1 FAIL, 2 ERROR.
+determined, a missing .so, an `nm` failure, or no definer at all (an OpenMP build always has bbb as one) is an ERROR
+(fail closed). Exit 0 PASS, 1 FAIL, 2 ERROR.
 """
 import argparse
 import glob
@@ -33,12 +35,15 @@ def import_order(init_py):
 
 
 def defines_block(so):
+    cmd = ["nm", "-m", so] if sys.platform == "darwin" else ["nm", "-D", "-S", so]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0 or not res.stdout.strip():
+        raise RuntimeError("{} failed or listed no symbols (exit {}): {}".format(" ".join(cmd), res.returncode,
+                                                                                 res.stderr.strip()[:200]))
     if sys.platform == "darwin":
-        out = subprocess.run(["nm", "-m", so], capture_output=True, text=True).stdout
         return any(l.endswith("_ompcommonscalarcopy_") and "external" in l and "(undefined)" not in l
-                   for l in out.splitlines())
-    out = subprocess.run(["nm", "-S", so], capture_output=True, text=True).stdout
-    return any(re.search(r"\s[BCDbcd]\s+ompcommonscalarcopy_$", l) for l in out.splitlines())
+                   for l in res.stdout.splitlines())
+    return any(re.search(r"\s[BCDVbcdv]\s+ompcommonscalarcopy_$", l) for l in res.stdout.splitlines())
 
 
 def block_size(gen_file):
@@ -80,7 +85,12 @@ def main():
         if not so:
             print("ERROR: {}: no extension module".format(mod))
             return 2
-        if not defines_block(so[0]):
+        try:
+            defined = defines_block(so[0])
+        except RuntimeError as err:
+            print("ERROR:", err)
+            return 2
+        if not defined:
             print("  {:<8} -".format(mod))
             continue
         pkg = mod[:-2] if mod.endswith("py") else mod
@@ -96,8 +106,8 @@ def main():
         print("  {:<8} defines the block: {} variables, {} B".format(mod, size[1], size[0]))
         definers.append((mod, size[0]))
     if not definers:
-        print("RESULT: PASS (no package defines the block)")
-        return 0
+        print("RESULT: ERROR (no package defines the block: not an OpenMP build, or the symbols were not found)")
+        return 2
     first, first_size = definers[0]
     problems = []
     if first != "bbbpy":
