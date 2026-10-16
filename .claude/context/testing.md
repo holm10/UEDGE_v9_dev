@@ -6,8 +6,34 @@ There are no unit tests of individual Fortran routines and no coverage measureme
 
 The repository holds one test case: `tests/deterministic_omp/`, the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
 data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
-OpenMP-vs-serial harness and test flow in `tests/deterministic_omp/harness/` (`cli.py flow`; see
-`openmp-jacobian.md`). No CI job runs it yet.
+harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with the test flow `cli.py flow`, see
+`openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet.
+
+## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
+
+Every PR that touches Fortran (`*.m`, `*.F90`, hand-written `*.f`), a `.v` file or `ppp/` must show that serial
+results are **bitwise** unchanged against `v9-develop`, in the `--serial` build and in the default OpenMP build with
+`ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0`. The pytests suite (`rtol=1e-5`) cannot show this.
+
+```bash
+python tests/deterministic_omp/harness/serial_check.py \
+    --base-python BASE_SERIAL/bin/python --new-python NEW_SERIAL/bin/python \
+    --base-omp-python BASE_OMP/bin/python --new-omp-python NEW_OMP/bin/python --jobs 4 --out DIR
+```
+
+Four venvs: base and change, each built `--serial` and default, from clean committed trees (the tool does not
+build). It runs reproducer presets and pytests cases (D_only, D+C, D_mols, a 16x8 fulltest, drifts, slab and 20
+one-switch unit variants; `--list`) once per build in fresh processes. Cases ending in `-itN` run N Newton iterations,
+so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It compares every Jacobian, `sfscal`,
+`suscal`, `yldot` and the `fnrm` sequence bit for bit.
+- Exit 0: identical over the complete gate (both pairs, two different builds from clean committed trees with
+  known sources, base on `origin/v9-develop`, `--cases all`).
+- Exit 1: mismatch (the summary names the case and the first differing entry).
+- Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path; an
+  `-itN` case that did not iterate) or an incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
+
+Needs the pytests checkout (below). Paste the build lines and the `RESULT` line into the PR. Details:
+`tests/deterministic_omp/README.md`.
 
 ## Suite structure (`upstream/pytests`)
 
@@ -20,7 +46,9 @@ MakeTests.py      # regenerates reference solutions
 Each test (`TestClass.test_reference`):
 1. Silences output (`com.iprint = 0`), executes `input.py` to set up the case.
 2. Sets `bbb.issfon=1`, `bbb.ftol=1e20` (evaluate only, no convergence) and runs `bbb.exmain()` from a stored,
-   deliberately **perturbed** solution (`perturb_solution`, ±1 % on `nis/ups/tes/tis/ngs/tgs/phis`).
+   deliberately **perturbed** solution. The perturbation (`perturb_solution`, ±1 % random on
+   `nis/ups/tes/tis/ngs/tgs/phis`) was applied to `solution.h5` by `write_data` when the reference was made; the test
+   itself never calls it, so a test run is deterministic.
 3. Cycles the equation switches (`isnion … isphion`) one at a time and compares the residual `fnrm` and
    case-setup variables against the reference with `rtol=1e-5`. A failure prints which equation/species diverged.
    This makes the suite a sensitive check of the **RHS residual (`pandf`)**, not of converged physics.

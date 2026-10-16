@@ -106,3 +106,13 @@ the capture source, iterations recorded), so a run where the arm did not take ef
 harness error, never a pass; so is a comparison report with errors. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
 The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
 (`python -m pytest tests/deterministic_omp/harness`).
+
+## Serial old-vs-new bitwise check (`tests/deterministic_omp/harness/serial_check.py`)
+
+**Serial results must not change.** Any change to Fortran, a `.v` file or `ppp/` (including an OpenMP fix) must
+leave the serial path bitwise identical to `v9-develop`, in the `--serial` build and in the OpenMP build with
+`OMPParallelJac = OMPParallelPandf1 = 0`. Prove it with `tests/deterministic_omp/harness/serial_check.py`. It needs
+four venvs (base and change, `--serial` and default). Exit 0 only for the complete gate (both pairs, `--cases all`,
+two different builds from clean committed trees, base on `origin/v9-develop`). The gate includes Newton-iteration cases, so `psetnk` and the preconditioner are covered.
+See `testing.md` and `tests/deterministic_omp/README.md`.
+OpenMP-vs-serial agreement of one build is a separate check (`tests/deterministic_omp/harness/cli.py check`).
