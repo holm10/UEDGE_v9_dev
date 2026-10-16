@@ -121,7 +121,8 @@ g5)  # flow --all, K=2, both arms; cores 8 so an 8-thread run runs alone
     [ -d "$OUT/g5/$c/jac_t$t/run0" ] && cmp "$OUT/g5/$c/jac_t$t/run0" "$OUT/g5/$c/jac_t4/run0" g5_${c}_t${t}_t4
   done; done ;;
 g6)  # AIUE-56 C1 gate on every one-evaluation jac run (G2, G3, G5)
-  $NEW $GATE --harness "$HD" "$OUT"/g2_* "$OUT"/g3_*_t[12348] > "$OUT/g6_checks.txt" 2>&1; log "g6 checks exit $?"
+  $NEW $GATE --harness "$HD" $(ls -d "$OUT"/g2_*/ "$OUT"/g3_*_t[12348]/ | sed 's#/$##') > "$OUT/g6_checks.txt" 2>&1
+  log "g6 checks exit $? :: $(tail -1 "$OUT/g6_checks.txt")"
   mkdir -p "$OUT/g6_links"
   $NEW $GF $GATE "$OUT/g6_links" "$HD" g5="$OUT/g5" > "$OUT/g6_flow.txt" 2>&1; log "g6 flow exit $?" ;;
 g9)  # G9b (D_only default case), G9a's OpenMP check is run by hand (validate skill)
