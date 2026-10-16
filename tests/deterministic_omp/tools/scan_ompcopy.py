@@ -21,8 +21,8 @@ Usage:
     --emit-checker  also write a free-form Fortran file with `subroutine OMPCheckThreadprivateCopy(tag)`, which
              compares every worker thread's copy of every threadprivate variable bit for bit with the master's
              copy and prints the mismatches. It is meant for scratch builds only (procedure: "How to reproduce" in
-             docs/rca/AIUE-8-omp-jacobian-nondeterminism.md): append it to ppp/omp_parallel.F90 in a scratch tree
-             and call it from OMPJacBuilder.
+             the AIUE-8 RCA, Confluence "RCA AIUE-8 (5/5): Shared-state scan (AIUE-50)"): append it to
+             ppp/omp_parallel.F90 in a scratch tree and call it from OMPJacBuilder.
 
 Exit status 0. The table goes to stdout unless --md is given.
 """

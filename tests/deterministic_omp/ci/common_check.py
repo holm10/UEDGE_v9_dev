@@ -1,5 +1,6 @@
 """The Forthon --omp common block /ompcommonscalarcopy/ must be defined first by bbb, and no other package's
-definition may be larger (AIUE-57 CI step; a port of docs/reviews/AIUE-60-common-check.py, AIUE-60 G-common).
+definition may be larger (AIUE-57 CI step; a port of AIUE-60's G-common check script
+`AIUE-60-common-check.py`, kept in the tag archive/AIUE-8-docs).
 
   python3 -I common_check.py --pkgdir SITE-PACKAGES/uedge --gen BUILD/temp.<plat>-cpython-<ver>
 

@@ -1,1 +1,0 @@
-{"arm": "jac", "capture": 16, "itermx": null, "omp_stacksize": "512M", "ppp": {}, "preset": "tebox", "rhs_probe": true, "threads": 4}

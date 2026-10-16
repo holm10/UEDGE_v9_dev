@@ -1,2 +1,0 @@
-ubuntu_fix_k5_tebox__tebox__jac_t4: GATE PASS pass=5 fail=0 worst_magnitude_ratio=1 worst_dev=0 runs_with_zero_deviation=5/5
-ubuntu_fix_k5_full__full__jac_t4: GATE PASS pass=5 fail=0 worst_magnitude_ratio=1 worst_dev=0 runs_with_zero_deviation=5/5

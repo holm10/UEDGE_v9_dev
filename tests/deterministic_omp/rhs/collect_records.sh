@@ -1,10 +1,11 @@
 #!/bin/bash
-# AIUE-58: copy the small records of the RHS RCA runs from the working folder into docs/rca/AIUE-8-data/rhs/
+# AIUE-58 tooling: copy the small records of the RHS RCA runs from the working folder into a records folder
 # and write the summaries. Arrays (record.npz, seq.npz) and the case copies stay in the working folder.
-#   collect_records.sh <working folder> <repo worktree>
+# The AIUE-58 records made with it (AIUE-8-data/rhs/) are kept in the tag archive/AIUE-8-docs, not on the branch.
+#   collect_records.sh <working folder> <records folder>
 set -e
-W=$1; REPO=$2
-D=$REPO/docs/rca/AIUE-8-data/rhs
+W=$1; D=$2
+[ -n "$W" ] && [ -n "$D" ] || { echo "usage: $0 <working folder> <records folder>" >&2; exit 2; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=${PY:-python3}
 mkdir -p "$D/probe" "$D/seq" "$D/harness" "$D/lldb"

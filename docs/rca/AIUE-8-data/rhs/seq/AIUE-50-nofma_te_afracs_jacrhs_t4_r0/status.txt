@@ -1,1 +1,0 @@
-exit 139 elapsed 5 s load 23.05 12.39 8.84

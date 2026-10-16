@@ -1,8 +1,16 @@
 # Linux (libgomp) runs for AIUE-62
 
-These files reproduce the records in `docs/rca/AIUE-8-data/linux/`. They are Docker images and shell scripts for
+These files reproduce the AIUE-62 Linux records. They are Docker images and shell scripts for
 `linux/amd64`. The original runs used Docker Desktop on macOS arm64, so x86-64 was emulated by Rosetta. Results and
-their scope are in `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md`, §Linux characterisation.
+their scope are in the AIUE-8 RCA, §Linux characterisation (Confluence, space SD, "RCA AIUE-8 (2/5): Linux
+characterisation (AIUE-62)" under the AIUE-8 PRD).
+
+**Records and helper scripts outside this folder.** The committed records (`AIUE-8-data/linux/`), the record writer
+`make_prefix_data.py` and the AIUE-56 gate script `AIUE-56-c1-gate.py` were working documents of the epic and are no
+longer on the branch. They are kept in the tag `archive/AIUE-8-docs`: list them with
+`git ls-tree -r --name-only archive/AIUE-8-docs | grep -E 'AIUE-8-data/linux|make_prefix_data|c1-gate'` and restore
+one with `git show archive/AIUE-8-docs:<path> > <file>` (or everything with
+`git checkout archive/AIUE-8-docs -- docs`). Nothing in CI or the unit tests uses them.
 
 | File | Purpose |
 |---|---|
@@ -16,7 +24,7 @@ their scope are in `docs/rca/AIUE-8-omp-jacobian-nondeterminism.md`, §Linux cha
 | `run_all.sh` | Debian main flows: K=20 Te box and full problem, then `flow --all` K=2 |
 | `run_controls.sh` | Debian control builds (`fixtp`, `fixfma`) and their flows |
 | `run_ubuntu.sh` | Ubuntu: the import check without `LDFLAGS`, then the AIUE-56 build with `LDFLAGS=-fopenmp`, the FMA scan, and Te box and full problem at K=5 |
-| `gate_flows.py GATE LINKROOT HARNESS NAME=FLOW…` | runs the AIUE-56 C1 gate (`docs/reviews/AIUE-56-c1-gate.py` on `1553e75`) on every jac group |
+| `gate_flows.py GATE LINKROOT HARNESS NAME=FLOW…` | runs the AIUE-56 C1 gate (`AIUE-56-c1-gate.py` on `1553e75`, from the tag above) on every jac group |
 | `gate_summary.py FILE` | summarises the gate output per group |
 | `run_ci_replay.sh NAME COMMIT [SET]` | AIUE-57: replays the steps of `.github/workflows/build-test-omp.yml` in the Ubuntu image (clone at COMMIT, the workflow's pip line and build command, `ci/gen_dir.sh`, `ci/run_omp_ci.sh SET` with `OMP_CI_CORES=4`); `RUN_TREE=DIR` runs another clone's CI scripts against this build (negative control). Usage in its header |
 
@@ -54,11 +62,11 @@ docker build --platform linux/amd64 -t aiue62-ubuntu:amd64 -f $S/Dockerfile.ubun
 docker run --rm --platform linux/amd64 --cpus 5 --memory 7g -v $R:/mnt/repo:ro -v $OUT/ubuntu:/out -v $S:/scripts:ro \
   aiue62-ubuntu:amd64 bash -c 'mkdir -p /work && /scripts/run_ubuntu.sh > /out/driver.log 2>&1'
 # records (host, any Python with numpy; the harness checkout at 8ee189d for the gate's check_arm)
-cd $OUT/amd64 && python $R/docs/rca/AIUE-8-data/make_prefix_data.py --out <data dir> NAME=FLOWDIR ...
+cd $OUT/amd64 && python <make_prefix_data.py from the tag> --out <data dir> NAME=FLOWDIR ...
 python $S/gate_flows.py <AIUE-56-c1-gate.py> <new link dir> <harness>/tests/deterministic_omp NAME=FLOWDIR ...
 ```
 
-The `NAME=FLOWDIR` pairs are the data set names in `docs/rca/AIUE-8-data/linux/records/`, for example
+The `NAME=FLOWDIR` pairs are the data set names of the records (`AIUE-8-data/linux/records/` in the tag), for example
 `amd64_fix_k20_tebox=fixld/k20_tebox`, `ctl_fixfma_k5_full=fixfma/k5_full` and `ubuntu_fix_k5_full=fixld/k5_full`.
 `make_prefix_data.py` writes `prefix_runs.csv`/`prefix_stats.txt`; these were renamed to `runs.csv`/`stats.txt`.
 

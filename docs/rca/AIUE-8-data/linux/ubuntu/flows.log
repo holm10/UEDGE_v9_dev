@@ -1,5 +1,0 @@
-2026-10-15T19:35:11Z START fixld k5_tebox: /work/venv-fixld/bin/python -I /work/harness/tests/deterministic_omp/harness/cli.py flow --configs tebox --threads 4 --repeats 5 --cores 5 --max-jobs 1 --gate none --python /work/venv-fixld/bin/python --out /out/fixld/k5_tebox
-2026-10-15T19:35:54Z END fixld k5_tebox exit 0 43 s
-2026-10-15T19:35:54Z START fixld k5_full: /work/venv-fixld/bin/python -I /work/harness/tests/deterministic_omp/harness/cli.py flow --configs full --threads 4 --repeats 5 --arms jac --cores 5 --max-jobs 1 --gate none --python /work/venv-fixld/bin/python --out /out/fixld/k5_full
-2026-10-15T19:38:10Z END fixld k5_full exit 0 136 s
-ALLDONE

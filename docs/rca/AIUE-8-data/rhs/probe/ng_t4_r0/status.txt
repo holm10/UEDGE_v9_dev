@@ -1,1 +1,0 @@
-exit 0 elapsed 3 s load 9.30 7.81 6.98

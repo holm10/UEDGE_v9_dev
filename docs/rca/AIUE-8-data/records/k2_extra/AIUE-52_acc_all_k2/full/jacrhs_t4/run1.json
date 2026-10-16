@@ -1,3 +1,0 @@
-{
- "error": "Traceback (most recent call last):\n  File \"/Users/holma/Documents/uedge/src/uedge-wt/AIUE-52/tests/deterministic_omp/harness/worker.py\", line 147, in main\n    meta = run(spec)\n  File \"/Users/holma/Documents/uedge/src/uedge-wt/AIUE-52/tests/deterministic_omp/harness/worker.py\", line 86, in run\n    bbb.exmain()\n    ~~~~~~~~~~^^\nRuntimeError:  ** overflow: SVR routine lusol0 loop 40\n"
-}

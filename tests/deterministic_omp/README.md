@@ -200,8 +200,10 @@ $PY $H flow --list                                                           # t
 On `v9-develop` (`0fac655`, macOS arm64, gfortran 15, K=2, 2/4/8 threads) the Jacobian arm fails for `tebox`,
 `full` and `te` with mismatches only in Te rows that also differ between repeats, and passes for `ti`, `ni`, `up`,
 `ng`; with Te and phi, only Te rows differ. The Jacobian + RHS arm passes for `ti`, `ni`, `up`, `ng`, fails for `tebox`
-and `full` (also in the Te rows of `yldot`), and crashes for `te` and Te + phi. See
-`docs/reviews/AIUE-52-validation.txt`.
+and `full` (also in the Te rows of `yldot`), and crashes for `te` and Te + phi. The AIUE-52 validation record is
+kept in the tag `archive/AIUE-8-docs` (`git show archive/AIUE-8-docs:<path>`; find the path with
+`git ls-tree -r --name-only archive/AIUE-8-docs | grep AIUE-52-validation`); the results are summarised on the
+Confluence page "Validation summary: AIUE-8 tickets" (space SD, under the AIUE-8 PRD).
 
 ## Serial old-vs-new check: does a change leave serial results bit for bit as they were?
 
@@ -424,8 +426,8 @@ The workflow has `permissions: contents: read`.
   `record.json`, `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded;
   rerun locally.
 - **Budget.** The PR job is estimated at about 15–22 min (central ~18; the nightly set about 90–120 min within its
-  150-min timeout) on `ubuntu-latest` (derivation in `docs/reviews/AIUE-57-validation.txt`; all local timings are
-  from a loaded Mac or emulated x86-64, so they are not a prediction); the `Wall time` step writes the measured job
+  150-min timeout) on `ubuntu-latest` (derivation in the AIUE-57 validation record, kept in the tag
+  `archive/AIUE-8-docs`; all local timings are from a loaded Mac or emulated x86-64, so they are not a prediction); the `Wall time` step writes the measured job
   and build time to the step summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` in this order:
   drop `up1`, then `tebox` K=5 → 3, then `full` at 4 threads only; the nightly set keeps the full matrix.
 - **Replaying the job on Linux.** `tests/deterministic_omp/linux/run_ci_replay.sh` runs these steps in the Ubuntu

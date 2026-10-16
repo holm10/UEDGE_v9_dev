@@ -1,2 +1,0 @@
-omp: link lines       11; 'Linux OpenMP build:' lines in log: 0
-serial: link lines       11; 'Linux OpenMP build:' lines in log: 0

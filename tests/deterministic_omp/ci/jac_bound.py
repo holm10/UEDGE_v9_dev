@@ -3,8 +3,9 @@
   python jac_bound.py --flow FLOWDIR [--tol 1e-6] [--json FLOWDIR/bound.json]   # every jac group of a flow
   python jac_bound.py [--harness DIR] [--tol 1e-6] CHECKDIR [CHECKDIR ...]     # cli.py check directories
 
-The bound is AIUE-56's C1 bound (docs/reviews/AIUE-56-c1-gate.py, same arithmetic), applied to the matrix it was
-registered on: the scaled `post_exmain` Jacobian (decision in docs/reviews/omp-determinism-merge-validation.txt).
+The bound is AIUE-56's C1 bound (its gate script `AIUE-56-c1-gate.py`, same arithmetic; kept in the tag
+archive/AIUE-8-docs), applied to the matrix it was registered on: the scaled `post_exmain` Jacobian (decision in the
+combined-branch merge validation, Confluence "Validation: AIUE-8 combined branch").
 For every OpenMP run against the serial reference of the same configuration:
 
   magnitude: max |J| over the Te rows <= 10 x the serial reference's

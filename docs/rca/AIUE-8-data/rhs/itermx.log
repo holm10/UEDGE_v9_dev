@@ -1,8 +1,0 @@
-== ti jac start 13:50:58 load 10.95 12.67 9.55
-== ti jac exit 0 end 13:51:28
-== ti jacrhs start 13:51:28 load 9.15 12.08 9.44
-== ti jacrhs exit 1 end 13:52:07
-== full jac start 13:52:07 load 17.31 13.62 10.11
-== full jac exit 0 end 13:55:06
-== full jacrhs start 13:55:06 load 12.39 15.42 11.73
-== full jacrhs exit 1 end 13:58:50

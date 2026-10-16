@@ -1,8 +1,0 @@
-full_serial_t1_it0 vs full_serial_t1_it0: AGREE
-  jacobian:post_exmain: equal
-  sfscal: equal
-  suscal: equal
-  yldot: equal
-  yldot_probe: equal
-  fnrm_final: equal
-  fnrm_printed: equal
