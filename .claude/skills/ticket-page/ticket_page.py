@@ -29,6 +29,8 @@ Usage:
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
   ticket_page.py verify --body body.md --page-id ID [--after-version N] [--log PATH] [--repo WT]
   ticket_page.py stub --key KEY        (prints the one-line body to create a new ticket page with)
+  ticket_page.py summary --repo WT --key KEY [--outbox DIR] (--check | --returned-id ID | --failed | --superseded-by ID)
+                                       (Jira fallback: running-summary bookkeeping; exit 1 = stopped, make no call)
   ticket_page.py sanitize --repo WT [--max-chars 1500] < text > text
 
 meta.json keys: key, key_url, summary, epic, epic_url, prd_title, prd_url, branch, status, updated, skill;
@@ -73,9 +75,12 @@ SECRET_PATTERNS = [
 # Local absolute paths under these roots (workstations and HPC clusters: /scratch, /gpfs, /global/homes, /p/lustre*,
 # /g/g*, /usr/workspace, ...). The look-behind keeps URL paths (https://host/home/...) and relative paths; file://
 # URLs are handled separately.
-PATH_ROOTS = (r"(?:Users|home|homes|private|tmp|var|Volumes|opt|mnt|srv|root|scratch|gpfs|global|lustre|nfs|work|"
-              r"project|projects|data|p|g|usr/workspace|usr/WS\d+)")
-ABS_PATH = re.compile(r"(?<![\w:/.\-~{}])/" + PATH_ROOTS + r"(?=/|\b)(?:/[^\s`'\"<>()\[\]{}|,;]*)?")
+PATH_ROOTS = r"(?:Users|home|homes|private|tmp|var|Volumes|opt|mnt|srv|root|scratch|gpfs|lustre)"
+# Short or common words count as roots only when a path segment follows (/p/lustre1/..., not "the /p option").
+SHORT_ROOTS = r"(?:global|nfs|work|project|projects|data|p|g|usr/workspace|usr/WS\d+)"
+_TAIL = r"[^\s`'\"<>()\[\]{}|,;]"
+ABS_PATH = re.compile(r"(?<![\w:/.\-~{}])/(?:" + PATH_ROOTS + r"(?=/|\b)(?:/" + _TAIL + r"*)?|"
+                      + SHORT_ROOTS + r"/[\w.\-]" + _TAIL + r"*)")
 
 
 def git(repo, *args):
@@ -284,6 +289,12 @@ def cmd_render(a):
     key = meta["key"]
     state_p = d / f"{key}.state.json"
     state = json.loads(state_p.read_text()) if state_p.exists() else {}
+    # The recorded version and last body belong to state.page_id. A recreated page (another id) has none yet.
+    same_page = bool(meta.get("page_id")) and str(state.get("page_id", "")) == str(meta.get("page_id"))
+    recorded = state.get("version") if same_page else None
+    if meta.get("page_id") and state.get("version") and not same_page:
+        print(f"ticket_page: note: the state file's version {state['version']} belongs to page "
+              f"{state.get('page_id')}, not {meta['page_id']}; treating the page as new", file=sys.stderr)
     rev = a.plan_rev or "HEAD"
     tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
     # The commit that last changed the mirrored file at that revision, so the header doesn't move with other commits.
@@ -296,9 +307,9 @@ def cmd_render(a):
     if a.local:  # the page is what this worktree last sent: the helper checks the version the caller read
         if a.page_version is None:
             die("--local needs --page-version N (the version the CQL check returned)")
-        if str(state.get("version")) != str(a.page_version):
+        if not recorded or str(recorded) != str(a.page_version):
             die(f"--local: the page is at version {a.page_version}, but this worktree last wrote version "
-                f"{state.get('version', 'none')}; read the page and pass --current")
+                f"{recorded or 'none'}; read the page and pass --current")
         current = d / f"{key}.last-body.md"
         if not current.exists():
             die(f"--local: {current} doesn't exist; read the page and pass --current")
@@ -307,12 +318,17 @@ def cmd_render(a):
         # this worktree has written any version of the page.
         if not (meta.get("page_id") and a.current):
             die("--new-page needs page_id in meta.json and --current with the page as read after the create")
-        if state.get("version"):
-            die(f"--new-page: this worktree already wrote version {state['version']} of the page; use --local or "
-                "--current")
+        if recorded:
+            die(f"--new-page: this worktree already wrote version {recorded} of page {meta['page_id']}; use --local "
+                "or --current (to start this page over on purpose: state --set version=)")
         if norm(load_current(a.current)) != norm(STUB.format(key=key)):
             die("--new-page: the current page is not the stub '" + STUB.format(key=key) + "'; refusing")
     elif current:
+        if a.current and norm(load_current(current)) == norm(STUB.format(key=key)):
+            die("the page still holds only the stub (its first fill didn't happen or failed): render it with "
+                "--new-page" + ("" if not recorded else
+                                f"; this worktree recorded version {recorded} of this page, so check the page "
+                                "history first, then reset with: state --set version="))
         logs, seen = parse_sections(load_current(current), a.plan_title)
         if meta.get("page_id") and len(seen) < len(SECTIONS):
             die("--current lacks the log section heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS
@@ -339,7 +355,7 @@ def cmd_render(a):
     # After restoring this worktree's own entries, the page must still hold everything this worktree last sent:
     # fewer entries means a truncated copy, an overwrite by another worktree, or a person's deliberate removal.
     last = d / f"{key}.last-body.md"
-    if a.current and not a.new_page and last.exists() and not a.allow_fewer:
+    if a.current and not a.new_page and same_page and last.exists() and not a.allow_fewer:
         before, _ = parse_sections(load_current(last), a.plan_title)
         fewer = [s for s in SECTIONS if len(logs[s]) < len(before[s])]
         if fewer:
@@ -478,6 +494,52 @@ def cmd_verify(a):
     return 3
 
 
+def cmd_summary(a):
+    """Jira fallback: the running-summary comment's bookkeeping, so the comment cap holds mechanically.
+    --check before an update call; --returned-id after a call that returned a comment id; --failed after a call that
+    failed; --superseded-by after posting the one "Supersedes comment <id>." comment."""
+    d = store_dir(a.repo, a.outbox)
+    p = d / f"{a.key}.state.json"
+    st = json.loads(p.read_text()) if p.exists() else {}
+
+    def save(msg, code):
+        d.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(st, indent=1) + "\n")
+        print("ticket_page: " + msg)
+        return code
+    cur = str(st.get("fallback_summary_id", ""))
+    if st.get("fallback_stopped") == "1":
+        return save("the running summary is stopped (cap reached): make no Jira call; report it", 1)
+    if a.check:
+        if not cur:
+            return save("no running summary yet: post it as a new comment and record its id with --returned-id", 0)
+        return save(f"update comment {cur} in place, then report the returned id with --returned-id", 0)
+    if a.returned_id is not None:
+        if not cur:
+            st["fallback_summary_id"] = a.returned_id
+            return save(f"recorded comment {a.returned_id} as the running summary", 0)
+        if a.returned_id == cur:
+            return save(f"comment {cur} updated in place", 0)
+        if st.get("fallback_superseded") != "1":
+            st.update(fallback_summary_id=a.returned_id, fallback_superseded="1")
+            return save(f"the update created comment {a.returned_id} instead of updating {cur}: adopted it as the "
+                        "running summary (counts as the one superseding comment); don't post another", 0)
+        st["fallback_stopped"] = "1"
+        return save(f"the update created another comment ({a.returned_id}) after the summary was already superseded: "
+                    "stopped; make no further Jira calls and report it", 1)
+    if a.failed:
+        if st.get("fallback_superseded") != "1":
+            return save(f"the update of {cur or 'the summary'} failed: post once a new comment starting "
+                        f"'Supersedes comment {cur}.' with the summary, then record it with --superseded-by <id>", 0)
+        st["fallback_stopped"] = "1"
+        return save("the update failed after the summary was already superseded: stopped; make no further Jira calls "
+                    "and report it", 1)
+    if a.superseded_by:
+        st.update(fallback_summary_id=a.superseded_by, fallback_superseded="1")
+        return save(f"comment {a.superseded_by} now supersedes {cur}", 0)
+    die("summary needs --check, --returned-id, --failed or --superseded-by")
+
+
 def cmd_stub(a):
     print(STUB.format(key=a.key))
     return 0
@@ -537,6 +599,15 @@ def main():
                    help="the version checked before the update: only a logged update that returned a later version "
                         "counts")
     v.add_argument("--repo")
+    sm = sub.add_parser("summary")
+    sm.add_argument("--repo", required=True)
+    sm.add_argument("--key", required=True)
+    sm.add_argument("--outbox")
+    smg = sm.add_mutually_exclusive_group(required=True)
+    smg.add_argument("--check", action="store_true")
+    smg.add_argument("--returned-id")
+    smg.add_argument("--failed", action="store_true")
+    smg.add_argument("--superseded-by")
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
@@ -545,7 +616,7 @@ def main():
     a = ap.parse_args()
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
-                "stub": cmd_stub, "sanitize": cmd_sanitize}[a.cmd](a)
+                "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:

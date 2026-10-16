@@ -65,7 +65,7 @@ The Jira fallback costs little (comments of at most 1500 characters).
 | Container page | child of the epic's PRD page, title `Ticket plans: <EPIC>`, one per epic |
 | Ticket page | child of the container, title `Plan: <KEY> - <Jira summary without trailing period>` |
 | Page id in the repo | the plan's (or RCA's) Summary line `**Ticket page**: Confluence page <id> (<url>)`, or `**Ticket page**: none (no epic PRD page); PIV record in Jira comments on <KEY>` |
-| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `state`, `verify`, `stub`, `sanitize`; `--help`); its end-to-end test without Atlassian: `.claude/skills/ticket-page/selftest.sh` (run it after changing the helper) |
+| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `state`, `verify`, `stub`, `summary`, `sanitize`; `--help`); its end-to-end test without Atlassian: `.claude/skills/ticket-page/selftest.sh` (run it after changing the helper) |
 | Local store (untracked, per worktree) | `<git dir>/ticket-page-outbox/`: `<KEY>.jsonl` (queued), `<KEY>.sent.jsonl` (every entry sent, append-only), `<KEY>.state.json` (page id, last version written, plan revision, status, fallback comment ids), `<KEY>.last-body.md` (the last body sent). `git worktree remove` deletes it, so flush before removing a worktree |
 | Scratch for bodies | the session scratchpad, or `${TMPDIR:-/tmp}/ticket-page/` |
 | Jira fallback | at most 8 `PIV record` comments per ticket (9 if the running summary has to be superseded once), each at most 1500 characters |
@@ -106,6 +106,12 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
    it as `--current`: a saved tool result file works as it is (plain or MCP-wrapped JSON); otherwise save the part
    before `## Plan` (or `## RCA`) **in full**: the helper refuses a copy that lacks any of the four log headings, or
    that has fewer entries than this worktree last sent (after re-adding its own lost ones from the sent log).
+   **If the page still holds only the stub** (its first fill failed or never happened), render it with `--new-page`
+   as in "Page missing" step 3; the helper says so if it is given the stub without it.
+   The recorded version (and last body) belong to the page id stored with them (`state.page_id`): for a page that was
+   deleted and created again under a new id the helper treats the page as new (it notes this) and `--new-page` works.
+   To start the same page over on purpose (for example after a person reset it to the stub), check its history, then
+   clear the record with `ticket_page.py state … --set version=`.
 2. Write `meta.json` in the scratch directory: `key`, `key_url`, `summary`, `epic`, `epic_url`, `prd_title`,
    `prd_url`, `branch`, `status`, `status_note` (from the state file), `updated` (today, local date), `skill`
    (the caller), and `page_id`/`page_url` once known. A missing key stops the render (exit 2).
@@ -113,7 +119,9 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
 
    ```bash
    uv run .claude/skills/ticket-page/ticket_page.py render --repo <worktree> --plan <path> [--plan-title RCA] \
-     --plan-rev <rev> --meta <scratch>/meta.json (--local | --current <file>) --out <scratch>/body.md
+     --plan-rev <rev> --meta <scratch>/meta.json \
+     (--local --page-version <N> | --current <file> | --new-page --current <the stub as read>) \
+     --out <scratch>/body.md
    ```
 
    `--plan-rev` is the commit just made on `publish`, and `state.plan_rev` on any other flush, so the mirror only
@@ -124,7 +132,7 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
    the queued entries; entries are compared ignoring formatting and line wrapping (Confluence returns `_x_` as `*x*`
    and drops continuation indents), so a retry never duplicates one. Local paths become `{worktree}`, `{worktrees}`,
    `{home}`, `{local}/<name>` (paths under the usual workstation and cluster roots: `/Users`, `/home`, `/tmp`,
-`/private`, `/var`, `/Volumes`, `/opt`, `/scratch`, `/gpfs`, `/global`, `/p`, `/g`, `/usr/workspace`, …, also inside
+`/private`, `/var`, `/Volumes`, `/opt`, `/scratch`, `/gpfs`, and, when a path segment follows, `/global/…`, `/p/…`, `/g/…`, `/usr/workspace/…`, …, also inside
 `file://` URLs; other absolute paths are left as they are, so don't paste them); a secret-like string stops the render
 (exit 1).
    A line of an entry that starts with `#` is escaped, so it stays text; only the four log headings and the mirror's
@@ -214,11 +222,17 @@ over the cap → summarise again).
   The 8th is `**PIV record: running summary (updated in place)**`; later milestones update it with
   `addCommentToJiraIssue` and its `commentId` (`state.fallback_summary_id`), rewriting it to stay within 1500
   characters (latest status, then one line per milestone, oldest dropped first with "earlier: see comments above").
-  Check the returned comment id: it must equal `state.fallback_summary_id`. If the update fails, or returns another
-  id (a new comment was posted instead), post **once** a new comment that starts "Supersedes comment <id>." with the
-  current summary (as `close-epic` does for its epic comment), record its id as `fallback_summary_id` and set
-  `fallback_superseded=1`. If that happens again with `fallback_superseded=1`, post nothing more and say so in the
-  caller's report: at most 9 `PIV record` comments in all.
+  The helper keeps the bookkeeping, so the cap holds mechanically (`ticket_page.py summary --repo <worktree> --key
+  <KEY> …`):
+  - before any summary call: `--check`. Exit 1 means stopped: make no Jira call, say so in the caller's report;
+  - after a call that returned a comment id: `--returned-id <id>`. The same id → updated. Another id means the call
+    created a comment instead of updating: the helper adopts it as the running summary, counting as the one
+    superseding comment (don't post another); a second such id → stopped (exit 1);
+  - after a failed call: `--failed`. The first time, post **once** a new comment that starts "Supersedes comment
+    <id>." with the current summary (as `close-epic` does for its epic comment) and record it with
+    `--superseded-by <new id>`; the second time → stopped (exit 1).
+
+  At most 9 `PIV record` comments in all; once stopped, later milestones make no Jira call.
 - **Escalation.** In the fallback, the `PIV record` escalation comment is the Jira escalation comment that
   `end-to-end-feature` asks for: post one comment, not two.
 - `queue --mark-sent` after each successful post, so the sent log also records the fallback.
