@@ -9,7 +9,10 @@ The skill makes the Atlassian calls; this script only builds and checks text, so
 same thing.
 
   render    Build the ticket page body: header, the Ticket section (the ticket's scope as filed), the four log
-            sections and the plan (or RCA) mirrored from a committed revision. Without --plan it builds the skeleton
+            sections and the plan (or RCA): --plan mirrors the working copy (a local, untracked file, identified by
+            its sha256 and the publish date; no commit involved), --mirrored repeats the copy last published (kept in
+            the store by `state --save-plan`), so the Plan section only moves on publish. Without either it builds
+            the skeleton
             that `spec` creates a page with (Ticket section, empty logs, a Plan placeholder); it never rewrites an
             existing page except a legacy stub. Log sections = the current page's entries, plus any entry of the
             local sent log that the page lost, plus the outbox, plus --entry. The Ticket section is --ticket, else
@@ -17,33 +20,40 @@ same thing.
             gets a current page with all four log headings and at least the entries (and the Ticket section) this
             worktree last sent, or --local with the version this worktree last wrote, or --new-page with exactly
             the stub of a page just created.
-  ticket    Build the Ticket section: the ticket's entry in the committed epic breakdown (found by key), or a given
-            text (the Jira description) with its source.
-  find      Find a ticket's page id from the plan's Ticket page line, the ticket's Jira link comment and a CQL
+  ticket    Build the Ticket section: the ticket's entry in the epic breakdown (a local file: the breakdown page as
+            read from Confluence, or spec's working copy of what it published; found by key), or a given text (the
+            Jira description), with its source.
+  extract-plan  Rebuild the plan (or RCA) working copy from the page's mirror (headings promoted back two levels),
+            for a worktree that has no local plan (a fresh worktree, another session).
+  find      Find a ticket's page id from the state file (--state-id), an older plan's Ticket page line, the ticket's
+            Jira link comment and a CQL
             listing of the container (title prefix "Plan: <KEY> - "); exit 2 on several pages, 3 on none.
   queue     The per-ticket outbox (entries not yet sent) and sent log (every entry that reached the page or Jira),
             both untracked, in the worktree's git directory: add, list, mark sent, list sent.
-  state     Small per-ticket state: page id, last version written, plan revision, fallback comment ids and count.
+  state     Small per-ticket state: page id, last version written, the published plan's sha256, date and title (and
+            with --save-plan its copy), status, fallback comment ids and count.
   verify    Check that the body the last updateConfluencePage call sent for a page (or, with --created, the last
             createConfluencePage call with that title) equals the rendered file (up to trailing whitespace), using
             the PostToolUse hook log (logs/post_tool_use.jsonl); prints the version (and the new page id).
   sanitize  Read text on stdin, replace local absolute paths, refuse secret-like strings, enforce a length cap.
 
 Usage:
-  ticket_page.py render --repo WT [--plan PATH [--plan-rev REV] [--plan-title Plan|RCA]] --meta meta.json
+  ticket_page.py render --repo WT [--plan FILE [--plan-title Plan|RCA] | --mirrored] --meta meta.json
                         [--ticket ticket.md]
                         [--current page.md|page.json [--new-page] [--allow-fewer] | --local --page-version N]
                         [--entry SECTION SOURCE TEXT]... [--outbox DIR] [--date YYYY-MM-DD] --out body.md
-                        (no --plan: the skeleton; needs --ticket, and no page_id unless --new-page on a stub)
-  ticket_page.py ticket --repo WT --key KEY (--breakdown PATH [--rev REV] | --text FILE --source TEXT) [--backfill]
-                        --out ticket.md
+                        (neither --plan nor --mirrored: the skeleton; needs --ticket, and no page_id unless
+                        --new-page on a stub)
+  ticket_page.py ticket --repo WT --key KEY (--breakdown FILE | --text FILE) --source TEXT [--backfill] --out ticket.md
                         (exit 3: no breakdown entry for KEY; exit 2: several)
-  ticket_page.py find   --key KEY [--plan FILE] [--comments issue.json] [--search cql.json ...] [--gone ID ...]
+  ticket_page.py find   --key KEY [--state-id ID] [--plan FILE] [--comments issue.json] [--search cql.json ...] [--gone ID ...]
                         [--fallback]   (exit 0 found; 3 none, only on a complete listing and comment list
                         (--fallback: the comment list); 2 several or can't tell: stop and report)
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
                         (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
+                        [--save-plan FILE [--date D]]
+  ticket_page.py extract-plan --current page.md|page.json --out FILE   (exit 3: the page has no plan mirrored yet)
   ticket_page.py verify --body body.md (--page-id ID [--after-version N] | --created --title T [--parent-id P])
                         [--log PATH] [--repo WT]
   ticket_page.py stub --key KEY        (prints the one-line body to create a new ticket page with)
@@ -56,7 +66,8 @@ optional: page_id, page_url, status_note; for the skeleton: branch_state (absent
 "not checked"), backfilled (the date, for a page created after the ticket was filed), jira_status.
 
 Exit codes: 0 ok; 1 refused (secret-like string, over the cap, verify mismatch); 2 could not run or unsafe input
-(missing meta key, unparseable current page, git error); 3 verify found no logged call (unverified).
+(missing meta key, unparseable current page, git error); 3 verify found no logged call (unverified), find found no
+page, ticket found no breakdown entry, extract-plan found no mirrored plan.
 """
 import argparse
 import hashlib
@@ -325,6 +336,11 @@ def demote_below_h2(md):
     return demote(md, max(0, 3 - min(levels))) if levels else md
 
 
+def plan_hash(text):
+    """The published plan's identity: sha256 of its text without trailing whitespace (16 hex digits)."""
+    return hashlib.sha256(text.rstrip().encode()).hexdigest()[:16]
+
+
 # ---------------------------------------------------------------- local files
 
 def store_dir(repo, outbox=None):
@@ -346,7 +362,7 @@ def cmd_render(a):
     missing = [k for k in META_KEYS if not meta.get(k)]
     if missing:
         die("meta.json is missing " + ", ".join(missing))
-    skeleton = not a.plan
+    skeleton = not (a.plan or a.mirrored)
     if skeleton:
         if not a.ticket:
             die("the skeleton (no --plan) needs --ticket (the Ticket section, from: ticket_page.py ticket)")
@@ -366,15 +382,32 @@ def cmd_render(a):
     if meta.get("page_id") and state.get("version") and not same_page:
         print(f"ticket_page: note: the state file's version {state['version']} belongs to page "
               f"{state.get('page_id')}, not {meta['page_id']}; treating the page as new", file=sys.stderr)
-    rev = a.plan_rev or "HEAD"
-    tip = sha = plan = None
-    if not skeleton:
-        tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
-        # The commit that last changed the mirrored file at that revision, so the header doesn't move with other
-        # commits.
-        sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.plan).strip() or git(
-            a.repo, "rev-parse", "--short", rev).strip()
-        plan = git(a.repo, "show", f"{rev}:{a.plan}")
+    tip = digest_plan = plan = published = None
+    plan_title = a.plan_title
+    if a.plan:  # publish: the working copy as it is now (a local, untracked file)
+        src = Path(a.plan) if Path(a.plan).is_absolute() else Path(a.repo) / a.plan
+        if not src.is_file():
+            die(f"--plan: {src} doesn't exist (the plan's working copy; in a fresh worktree rebuild it with "
+                "extract-plan, or use --mirrored to repeat the published copy)")
+        plan = src.read_text()
+        published = a.date or date.today().isoformat()
+    elif a.mirrored:  # any other flush: the copy last published, so the Plan section only moves on publish
+        copy = d / f"{key}.plan.md"
+        if not copy.exists() or not state.get("plan_hash"):
+            die(f"--mirrored: no published plan in the store ({copy}); publish the working copy (--plan), or rebuild "
+                "it from the page (extract-plan, then state --save-plan)")
+        plan = copy.read_text()
+        if plan_hash(plan) != state["plan_hash"]:
+            die(f"--mirrored: {copy} doesn't match the published sha256 {state['plan_hash']} in the state file; "
+                "refusing (publish again with --plan)")
+        published = state.get("plan_published") or "unknown date"
+        plan_title = state.get("plan_title") or a.plan_title
+    if plan is not None:
+        digest_plan = plan_hash(plan)
+        try:
+            tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
+        except subprocess.CalledProcessError:
+            tip = None
 
     logs = {s: [] for s in SECTIONS}
     carried_ticket = None
@@ -404,7 +437,7 @@ def cmd_render(a):
                 "--new-page" + ("" if not recorded else
                                 f"; this worktree recorded version {recorded} of this page, so check the page "
                                 "history first, then reset with: state --set version="))
-        logs, seen = parse_sections(load_current(current), a.plan_title)
+        logs, seen = parse_sections(load_current(current), plan_title)
         carried_ticket = parse_ticket(load_current(current))
         if meta.get("page_id") and len(seen) < len(SECTIONS):
             die("--current lacks the log section heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS
@@ -432,7 +465,7 @@ def cmd_render(a):
     # fewer entries means a truncated copy, an overwrite by another worktree, or a person's deliberate removal.
     last = d / f"{key}.last-body.md"
     if a.current and not a.new_page and same_page and last.exists() and not a.allow_fewer:
-        before, _ = parse_sections(load_current(last), a.plan_title)
+        before, _ = parse_sections(load_current(last), plan_title)
         fewer = [s for s in SECTIONS if len(logs[s]) < len(before[s])]
         if fewer:
             die("the page has fewer entries than this worktree last sent in " + ", ".join(fewer)
@@ -477,15 +510,18 @@ def cmd_render(a):
             " add to the four log sections, which are append-only.",
         ]
     else:
+        what = "RCA" if plan_title == "RCA" else "plan"
+        rebuilt = (f", rebuilt from {state['plan_source']}" if a.mirrored and state.get("plan_source") else "")
         header = [
             jira,
-            f"> **Branch:** `{meta['branch']}` at `{tip}` · **{a.plan_title}:** `{a.plan}` as of `{sha}` · "
+            f"> **Branch:** `{meta['branch']}`" + (f" at `{tip}`" if tip else "")
+            + f" · **{plan_title}:** published {published} (sha256 `{digest_plan}`{rebuilt}) · "
             f"**This page:** {page_ref}",
             f"> **Status:** {status} · **Last updated:** {meta['updated']} by {meta['skill']}",
             attribution,
-            f"> The {'RCA' if a.plan_title == 'RCA' else 'plan'} file in the repo is the source of truth; the"
-            f" {a.plan_title} section mirrors it"
-            " as of the commit above (local paths shown as `{worktree}`, `{local}`)."
+            f"> The {what} is a working document kept outside the repo (never committed); the {plan_title} section"
+            f" is its published copy and its lasting record, replaced only when the {what} is published again"
+            " (date and sha256 above; local paths shown as `{worktree}`, `{local}`)."
             + (" The Ticket section is the ticket's scope as filed." if ticket_md else "")
             + " The four log sections are append-only.",
         ]
@@ -498,13 +534,14 @@ def cmd_render(a):
     if skeleton:
         body += ["## Plan", "", PLAN_BACKFILLED if meta.get("backfilled") else PLAN_PLACEHOLDER, ""]
     else:
-        body += [f"## {a.plan_title}", "", demote(plan.strip(), 2), ""]
+        body += [f"## {plan_title}", "", demote(plan.strip(), 2), ""]
     text = sanitize("\n".join(body), a.repo)
     refuse_secrets(text, "the page body")
     Path(a.out).write_text(text)
     digest = hashlib.sha256(text.rstrip().encode()).hexdigest()[:16]
     print(f"ticket_page: wrote {a.out} ({len(text)} chars, sha256 {digest}; "
-          + ("skeleton; " if skeleton else f"{a.plan_title} {a.plan} as of {sha}; ")
+          + ("skeleton; " if skeleton else f"{plan_title} " + ("working copy" if a.plan else "as published")
+                                             + f" sha256 {digest_plan}; ")
           + ("Ticket section " + ("given" if a.ticket else "carried over") if ticket_md else "no Ticket section")
           + "; " + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
           + f"; {added} new, {restored} restored from the sent log)")
@@ -550,12 +587,19 @@ def cmd_state(a):
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{a.key}.last-body.md").write_text(Path(a.save_body).read_text())
         print(f"ticket_page: saved {a.save_body} as the last body sent")
+    if a.save_plan:
+        text = Path(a.save_plan).read_text()
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{a.key}.plan.md").write_text(text)
+        st.update(plan_hash=plan_hash(text), plan_published=a.date or date.today().isoformat())
+        st.pop("plan_source", None)
+        print(f"ticket_page: saved {a.save_plan} as the published plan (sha256 {st['plan_hash']})")
     for kv in a.set or []:
         k, sep, v = kv.partition("=")
         if not k or not sep:
             die(f"bad --set {kv!r}, expected NAME=VALUE")
         st[k] = v
-    if a.set:
+    if a.set or a.save_plan:
         d.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(st, indent=1) + "\n")
     print(json.dumps(st, indent=1))
@@ -709,11 +753,13 @@ KEY_TOKEN = r"(?<![A-Za-z0-9-]){key}(?![0-9])"
 
 
 def cmd_ticket(a):
-    """The Ticket section: the ticket's entry in the committed breakdown, or a given text, with its source line."""
+    """The Ticket section: the ticket's entry in the epic breakdown (a local file: the page as read, or spec's working
+    copy), or a given text, with its source line."""
+    if not a.source:
+        die("ticket needs --source: where the text comes from (the breakdown page with its id and version, or 'the "
+            "Jira description of <KEY>')")
     if a.breakdown:
-        rev = a.rev or "HEAD"
-        doc = git(a.repo, "show", f"{rev}:{a.breakdown}")
-        sha = git(a.repo, "log", "-1", "--format=%h", rev, "--", a.breakdown).strip() or rev
+        doc = load_current(a.breakdown)
         lines = doc.splitlines()
         heads = [(i, len(m.group(1)), m.group(2).strip()) for i, (ln, f) in enumerate(split_fences(lines)) if not f
                  for m in [re.match(r"^(#{2,6})\s+(.*)$", ln)] if m]
@@ -739,22 +785,21 @@ def cmd_ticket(a):
         ]
         found = next((t for t in tiers if t), [])
         if not found:
-            print(f"ticket_page: no entry for {a.key} in {a.breakdown} at {sha}; build the section from the Jira "
+            print(f"ticket_page: no entry for {a.key} in {a.breakdown}; build the section from the Jira "
                   "description (--text, --source)", file=sys.stderr)
             return 3
         if len(found) > 1:
             die(f"several breakdown entries match {a.key}: " + "; ".join(h[2] for h in found))
         h = found[0]
         title = re.sub(r"[`*]", "", h[2])
-        where = (f"the ticket's entry \"{title}\" in the epic breakdown `{a.breakdown}` at `{sha}`"
-                 f"{' on `' + a.branch + '`' if a.branch else ''}")
+        where = f"the ticket's entry \"{title}\" in {a.source}"
         src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
                f"was filed: {where}._" if a.backfill else f"_Scope as filed: {where}._") + (
             " _The breakdown is the source of truth; a later change to it is not copied here automatically._")
         text = body(h)
     else:
-        if not (a.text and a.source):
-            die("ticket needs --breakdown, or --text with --source")
+        if not a.text:
+            die("ticket needs --breakdown or --text")
         text = Path(a.text).read_text().strip()
         src = (f"_Scope as read on {a.date or date.today().isoformat()}, when this page was created after the ticket "
                f"was filed: {a.source}._" if a.backfill else f"_Scope as filed: {a.source}._")
@@ -849,6 +894,8 @@ def cmd_find(a):
         print(f"ticket_page: {msg}", file=sys.stderr)
         return code
     recorded = {}  # id -> [how]
+    if a.state_id:
+        recorded.setdefault(str(a.state_id), []).append("state file")
     if a.plan:
         m = re.search(r"\*\*Ticket page\*\*:\s*Confluence page (\d+)", Path(a.plan).read_text())
         if m:
@@ -929,6 +976,35 @@ def cmd_find(a):
     return done(3, f"no page for {a.key}")
 
 
+def cmd_extract_plan(a):
+    """The plan (or RCA) as mirrored on the page, with its headings promoted back two levels: the working copy for a
+    worktree that has none. Exit 3 when the page has no plan mirrored (a placeholder or no Plan/RCA section)."""
+    md = load_current(a.current)
+    lines, start, title = md.splitlines(), None, None
+    for i, (ln, in_fence) in enumerate(split_fences(lines)):
+        if not in_fence:
+            lvl, t = _heading(ln)
+            if lvl == 2 and t in ("Plan", "RCA"):
+                start, title = i + 1, t
+                break
+    body = "\n".join(lines[start:]).strip() if start is not None else ""
+    if not body or norm(body) in (norm(PLAN_PLACEHOLDER), norm(PLAN_BACKFILLED)):
+        print("ticket_page: the page has no plan mirrored yet (no Plan/RCA section, or only its placeholder)",
+              file=sys.stderr)
+        return 3
+    out = []
+    for ln, in_fence in split_fences(body.splitlines()):
+        if not in_fence:
+            m = re.match(r"^(#{3,6})(\s.*)$", ln)
+            if m:
+                ln = "#" * (len(m.group(1)) - 2) + m.group(2)
+        out.append(ln)
+    Path(a.out).write_text("\n".join(out).rstrip() + "\n")
+    print(f"ticket_page: wrote {a.out} ({title} section, {len(out)} lines; rebuilt from the page, so formatting may "
+          "differ from the original working copy)")
+    return 0
+
+
 def cmd_stub(a):
     print(STUB.format(key=a.key))
     return 0
@@ -948,8 +1024,11 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("render")
     r.add_argument("--repo", required=True)
-    r.add_argument("--plan", help="repo-relative path of the plan (or RCA) file; without it: the skeleton")
-    r.add_argument("--plan-rev", help="revision to mirror it from (default HEAD)")
+    pg = r.add_mutually_exclusive_group()
+    pg.add_argument("--plan", help="the plan (or RCA) working copy to publish (absolute, or relative to --repo); "
+                    "without --plan or --mirrored: the skeleton")
+    pg.add_argument("--mirrored", action="store_true",
+                    help="repeat the plan as last published (the store's copy; state --save-plan records it)")
     r.add_argument("--plan-title", default="Plan", choices=["Plan", "RCA"])
     r.add_argument("--meta", required=True)
     r.add_argument("--ticket", help="the Ticket section (from: ticket_page.py ticket); default: carried over")
@@ -981,6 +1060,9 @@ def main():
     s.add_argument("--outbox")
     s.add_argument("--set", nargs="+", metavar="NAME=VALUE")
     s.add_argument("--save-body", metavar="BODY", help="record BODY as the last body sent (after a verified update)")
+    s.add_argument("--save-plan", metavar="FILE",
+                   help="record FILE as the published plan (after a verified publish): its copy, sha256 and date")
+    s.add_argument("--date")
     v = sub.add_parser("verify")
     v.add_argument("--body", required=True)
     v.add_argument("--page-id")
@@ -1004,24 +1086,28 @@ def main():
     tk = sub.add_parser("ticket")
     tk.add_argument("--repo", required=True)
     tk.add_argument("--key", required=True)
-    tk.add_argument("--breakdown", help="repo-relative path of the epic breakdown (docs/specs/<file>.md)")
-    tk.add_argument("--rev", help="revision to read it from (default HEAD)")
-    tk.add_argument("--branch", help="the branch it is on, for the source line (the epic's planning branch)")
+    tk.add_argument("--breakdown", help="the epic breakdown as a local file: the breakdown page as read "
+                    "(markdown, or the saved tool result), or spec's working copy of what it published")
     tk.add_argument("--text", help="file with the scope text, when the breakdown has no entry")
-    tk.add_argument("--source", help="where --text comes from, e.g. 'the Jira description of AIUE-61'")
+    tk.add_argument("--source", help="where the text comes from, for the source line: e.g. 'the epic breakdown page "
+                    "`Spec: X - Ticket Breakdown` (Confluence page 123, version 4)', 'the Jira description of AIUE-61'")
     tk.add_argument("--backfill", action="store_true",
                     help="the page is created after the ticket was filed: say 'as read on <date>', not 'as filed'")
     tk.add_argument("--date")
     tk.add_argument("--out", required=True)
     fd = sub.add_parser("find")
     fd.add_argument("--key", required=True)
-    fd.add_argument("--plan", help="the plan or RCA file (its **Ticket page** line)")
+    fd.add_argument("--state-id", help="the page id in this worktree's state file (state.page_id)")
+    fd.add_argument("--plan", help="an older plan or RCA file that still has a **Ticket page** line")
     fd.add_argument("--comments", help="the getJiraIssue result with fields.comment")
     fd.add_argument("--search", action="append", help="a searchConfluenceUsingCql result (repeatable, one per page "
                     "of results)")
     fd.add_argument("--gone", action="append", help="an id confirmed deleted (CQL id = <id> found nothing)")
     fd.add_argument("--fallback", action="store_true",
                     help="Jira fallback: exit 0 if the ticket has PIV record comments, 3 if none (needs --comments)")
+    xp = sub.add_parser("extract-plan")
+    xp.add_argument("--current", required=True, help="the page as read (markdown, or the saved tool result)")
+    xp.add_argument("--out", required=True)
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
@@ -1031,7 +1117,7 @@ def main():
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
                 "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize, "ticket": cmd_ticket,
-                "find": cmd_find}[a.cmd](a)
+                "find": cmd_find, "extract-plan": cmd_extract_plan}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:
