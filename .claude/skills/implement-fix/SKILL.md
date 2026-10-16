@@ -120,8 +120,10 @@ in the PR description; post it on the issue only when the user asks.
 
 ## 5b. Ticket record after the commit
 
-With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed` and `ticket-page <KEY> log Progress
-"Committed <sha>: <subject>" --flush`.
+With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed`, `ticket-page <KEY> progress
+"committed <sha>"` and `ticket-page <KEY> log Progress "Committed <sha>: <subject>" --flush`. If this skill runs as a
+subagent, it runs in the issue's explicit worktree (never an Agent `isolation: "worktree"` one) and checks before
+returning that `queue --list` and `queue --epic --list` print nothing.
 
 ## 6. Process lessons
 
@@ -134,5 +136,4 @@ issues (see `system-review`), never edits on this branch.
   publish the revision (`ticket-page <KEY> publish --rca …`, or, for a GitHub issue only, a new comment on the issue
   that starts "Revises the RCA above:", asking first as `rca` does).
 - Flush the ticket page (nothing queued) before the worktree is removed: the working folder goes with it.
-
 - Extra problems found along the way go into separate issues/RCAs, not this fix.

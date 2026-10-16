@@ -26,7 +26,6 @@ description: Creates a git commit for the current work with an explicit file lis
 3. **Stage explicitly** by path: only files that belong to this change. Never `git add -A` / `git add .`.
    Do not stage `logs/`, build output, generated `.F` files, scratch scripts, large data files unless asked, or
    working documents (`.claude/work/` and the old working paths are gitignored; never `git add -f` them).
-
    New `.f`/`.c` sources need `git add -f` (gitignored patterns).
 4. Write the message in the repo's style:
    - Subject: imperative, capitalised, no tag prefix, ≤ 72 chars — "Fixes …", "Adds …", "Updates …",
@@ -55,3 +54,13 @@ Nchunks > Nthreads.
 ### AI Layer Changes
 Only if files under `.claude/` or `CLAUDE.md` changed: one line per file on what evolved and why, and whether it
 was a process change (AI-layer branch) or a code-facts update (ticket branch, trailer).
+
+## The pull request description (when a PR is opened)
+
+This skill doesn't open PRs, but the description that goes with this branch's PR carries what the working documents
+can't keep:
+- with a ticket record: a link to the ticket page, the criteria not independently verified, and which default results
+  changed (`CLAUDE.md` → Hard rules);
+- **without a ticket record** (no Jira key, `--no-tracker`, physics without a ticket): also the review summary, i.e.
+  each round's verdict, counts, one line per finding and the response, and the validate report block, since nothing
+  else keeps them once the worktree is removed (`.claude/context/branching.md`).

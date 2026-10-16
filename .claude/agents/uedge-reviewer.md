@@ -84,7 +84,8 @@ with them shows the record is consistent with what was read, not that the reads 
 
 1. **Claims vs sources.** Re-check every fact you can: tips, bases, merge state and merge commits (`git rev-parse`,
    `git merge-base --is-ancestor`, `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop`),
-   Jira states and comment ids (snapshot), review verdicts (read the report), numbers against the record they cite.
+   Jira states and comment ids (snapshot), review verdicts (the ticket pages' Reviews entries in the snapshot; for
+   legacy tickets, the committed report), numbers against the record they cite.
    A claim that a criterion is met when its record shows otherwise is a BLOCKER. A wrong tip, state, verdict, or a
    number whose error changes what it shows, is MAJOR; a rounding or wording slip that changes nothing is MINOR.
 2. **Freshness (git only).** Compare the snapshot header's git part (ticket tips, merges, prototype worktree HEADs
@@ -202,5 +203,4 @@ End with exactly one verdict:
 
 # Output
 
-Write the review to the absolute path the prompt gives, normally in the local working folder: `<worktree>/.claude/work/<feature>/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key and the folder is in the checkout the main session runs in, e.g. `.claude/work/AIUE-5/reviews/AIUE-5-prd-round1.md`, `.claude/work/AIUE-5/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed). The report is a working document: never commit it or stage it; the main session puts its verdict and findings on the ticket's (or the epic's) Confluence page. Use sections:
- Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.
+Write the review to the absolute path the prompt gives, normally in the local working folder: `<worktree>/.claude/work/<feature>/reviews/<feature>-<stage>-round<N>.md` (for a PRD or a close-out, `<feature>` is the epic key and the folder is in the checkout the main session runs in, e.g. `.claude/work/AIUE-5/reviews/AIUE-5-prd-round1.md`, `.claude/work/AIUE-5/reviews/AIUE-5-closeout-round1.md`) (create the folder if needed). The report is a working document: never commit it or stage it; the main session puts its verdict and findings on the ticket's (or the epic's) Confluence page. Use sections: Verdict, Summary (3–5 sentences), Findings (by severity), Status of previous findings (rounds 2+), Not independently verified (environment), What was checked and how (commands run, sources verified). Then return the verdict, the counts of findings by severity, and the file path to the main session.

@@ -30,7 +30,6 @@ later reader needs in the PR description.
 ### Meta Information
 
 - Plan file: [path to the plan's working copy, and its published sha256 on the ticket page if any]
-
 - Files added: [list with paths]
 - Files modified: [list with paths]
 - Lines changed: +X -Y

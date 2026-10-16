@@ -12,8 +12,11 @@ a fixed agent pipeline defined in `.claude/agents/`:
 
 The spec is the one ticket document that is committed: `docs/physics_specs/<feature>.md` goes on the ticket branch
 with the physics change it specifies. The review reports and the implementer's responses are working documents in
-`.claude/work/<KEY>/reviews/` (never committed); each round's verdict and findings go to the ticket page
-(`branching.md`).
+`.claude/work/<KEY>/reviews/` (never committed); each round's verdict, counts, one line per finding and the
+response go to the ticket page (`branching.md`). **Physics without a ticket record** (no Jira key, or
+`--no-tracker`): there is no page, so the main session puts that same review summary, for the spec rounds and the
+implementation rounds, into the PR description; it is the only lasting copy of the implementation reviews (the spec
+keeps its own "Response to review round N" sections).
 
 `.claude/context/physics-models.md` is the index of implemented models. Read it before specifying anything. The
 implementer updates it on the same branch as the code (trailer `AI-layer: code-facts`).

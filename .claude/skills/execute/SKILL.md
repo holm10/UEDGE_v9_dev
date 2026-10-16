@@ -62,14 +62,17 @@ For EACH task in "Step by Step Tasks":
   (queued). An owner decision: the same with `Owner: … (source)` and `--flush`.
 - If the plan has to change (an amendment), revise the working copy first (never commit it), then `log Progress
   "Plan amended: <why>"` and `ticket-page <KEY> publish` (the page records the new date and sha256).
-- At the end (after step 4): **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
+- At the end (after step 4): `ticket-page <KEY> progress "execute done: tasks <list>, commits <first>..<last>"` (one
+  line for the epic's progress page) and **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
   <first>..<last>; <deviations or none>" --flush`. It also sends the validate entries queued during execution.
+- Run in the ticket's explicit worktree (never an Agent `isolation: "worktree"` one, `branching.md` → Worktrees). If
+  this skill runs as a subagent, it checks before returning that `queue --list` and `queue --epic --list` print
+  nothing (flush if not); a flush that fails is reported with the worktree path.
 - Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
   queued for the end-of-execute flush.
 - A failed ticket-page call never stops execution: note it in the report; the entries stay queued, and with the
   working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
   it before a flush that leaves nothing queued.
-
 
 ### 3. Implement Testing Strategy
 

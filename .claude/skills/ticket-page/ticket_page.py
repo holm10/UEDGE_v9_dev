@@ -58,7 +58,6 @@ Usage:
                         [--outbox DIR] --out body.md
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
                         [--save-plan FILE --plan-title Plan|RCA [--date D]]
-
   ticket_page.py extract-plan --current page.md|page.json --out FILE   (exit 3: the page has no plan mirrored yet)
   ticket_page.py verify --body body.md (--page-id ID [--after-version N] | --created --title T [--parent-id P])
                         [--log PATH] [--repo WT]

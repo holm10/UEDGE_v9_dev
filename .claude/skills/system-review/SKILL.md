@@ -195,7 +195,6 @@ List the filed issue keys (or backlog entries) in the report. For a Jira ticket,
 `ticket-page <KEY> log "Findings and decisions" "Agent: system review <score>/10; ai-layer issues <keys> (or not
 filed yet: <one line per action>)" --flush`.
 
-
 #### Key Learnings
 
 **What worked well:**

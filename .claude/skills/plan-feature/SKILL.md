@@ -189,4 +189,3 @@ sha256), which is that round's flush.
 
 Plan path (local working copy, not committed), type and complexity, whether defaults change, key risks, the ticket
 record (page URL, Jira comment, or why it was skipped), and a confidence score (#/10) for one-pass execution.
-

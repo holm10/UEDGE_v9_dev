@@ -133,7 +133,10 @@ without an epic key):
 Branches follow `.claude/context/branching.md`: **one branch and worktree per ticket**, never one branch for a whole
 epic by default. If a ticket would need AI-layer process changes (skills, agents, hooks), split those into a separate
 `feature/v9-ai-<slug>` ticket. Updates that keep `CLAUDE.md`/`.claude/context/` factually correct stay inside the ticket
-that changes those facts.
+that changes those facts. Tickets that run in parallel (a wave above) each get their own **explicit** worktree
+(`git worktree add -b <branch> ../uedge-wt/<KEY> <base>`), also when subagents run them; never the Agent tool's
+`isolation: "worktree"`, which is removed automatically with the ticket's working folder and unsent record
+(`branching.md` → Worktrees). Each such subagent flushes its ticket page before it returns.
 
 The working copy is gitignored and never committed, on any branch (there is no planning branch,
 `.claude/context/branching.md`). Its lasting home is the breakdown page (Step 5), which later skills read.
@@ -154,6 +157,12 @@ is found as in Step 1, publish the breakdown as a **child page of the PRD**:
    - `body` = the same markdown you wrote in Step 4
    If one already exists, call `mcp__atlassian__updateConfluencePage` instead, incrementing its version.
 4. Report the resulting page id and URL back to the user.
+5. **The epic's progress page.** If the PRD has no child `Progress: <EPIC>` yet (CQL `type = page AND parent = <PRD
+   id> AND title = "Progress: <EPIC>"`), create it: `ticket_page.py progress --new --meta <scratch>/meta.json --repo
+   <checkout> --out <scratch>/progress.md` (meta: `epic`, `epic_url`, `prd_title`, `prd_url`), then
+   `createConfluencePage` (PRD's `spaceId`, `parentId` = PRD id, that title, `contentFormat: "markdown"`) with the
+   body exactly as rendered. Later skills append one line per ticket milestone to it through `ticket-page progress`;
+   `close-epic` reads it. Skipped with `--tracker-dry-run` (shown instead) and `--no-tracker`.
 
 If there is no PRD page, **skip this step** and say so: the breakdown then exists only as the local working copy and
 is not kept (the tickets filed in Step 6 carry their scope in their Jira descriptions). Do not invent a space to
@@ -234,8 +243,7 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
      <.claude/work/<EPIC>/breakdown.md, or with --pages-only the saved breakdown page> --source "the epic breakdown
      page \`<title>\` (Confluence page <id>, <as published by this spec run | version <N> as read>)" [--backfill]
      --out <scratch>/<KEY>.md` (the working copy carries the keys Step 6.6 publishes, so name no version for it).
-     Exit 3
- (no entry for the key, or no breakdown page) → the Jira
+     Exit 3 (no entry for the key, or no breakdown page) → the Jira
      description (`--text`, `--source "the Jira description of <KEY>"`); exit 2 (several entries match) → the Jira
      description too, and report it.
    - The branch, checked, never assumed: `git -C <checkout> branch --list <branch>` and `git ls-remote
@@ -287,7 +295,8 @@ plan through the `ticket-page` skill; `execute`, `validate` and the review gates
 ## Notes
 
 - Issue management: the course standardizes on Jira (via Atlassian MCP); GitHub Issues, Asana, and Archon's task system are equivalent — the slicing logic is the same.
-- The epic's progress log, when one is kept, is a Confluence child page of the PRD titled `Progress: <EPIC>` (dated,
-  append-only entries; owner decisions attributed as in `close-epic`), never a repo file (`branching.md`).
-
+- The epic's progress log is the Confluence child page `Progress: <EPIC>` (Step 5.5 creates it; dated, append-only
+  lines; owner decisions attributed as in `close-epic`), never a repo file (`branching.md`). `execute`, `validate`,
+  the review loop, `end-to-end-feature` and `implement-fix` append to it through `ticket-page progress`; whoever
+  records an owner decision for the epic appends it the same way; `close-epic` reads it.
 - Greenfield: the same slicing applies to MVP phases instead of epic tickets.

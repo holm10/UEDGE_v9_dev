@@ -240,10 +240,13 @@ The local file is lost with the worktree, so give it a lasting copy right away:
   `PIV record: plan` Jira comment when the epic has no PRD page). Pass on `--no-tracker` / `--tracker-dry-run`.
 - **A GitHub issue only:** post the RCA as a comment on the issue, where the issue lives: `gh issue comment
   $ARGUMENTS [-R LLNL/UEDGE] --body-file <file>`, the file being the RCA preceded by one line, "RCA written by an
-  agent (rca skill) for the fix on branch `<branch>`; not reviewed yet." Posting is a public write: when the issue
+  agent (rca skill) for the fix on branch `<branch>`; not reviewed yet." Build that file through the ticket-page
+  helper first, as a page entry is: `uv run .claude/skills/ticket-page/ticket_page.py sanitize --repo <worktree>
+  --max-chars 60000 < <header + rca> > <scratch>/rca-comment.md`. It replaces local absolute paths with placeholders,
+  refuses secret-like strings (exit 1: rewrite the RCA, never post the raw file) and stays under GitHub's 65 536
+  character comment limit (exit 1 over 60 000: shorten it). Posting is a public write: when the issue
   lives in a repository the user doesn't own (`LLNL/UEDGE` upstream), ask the user first. If they decline or `gh`
   fails, say plainly in the output that the RCA exists only in this worktree and will be lost with it, and suggest
   putting its root cause and fix strategy in the PR description.
 
 Report which of these happened (page URL, comment URL, or "local only").
-

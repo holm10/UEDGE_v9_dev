@@ -462,7 +462,6 @@ the page is published, so keep it), and stop. Don't retry into a different space
 
 1. Completion verdict and status line, with the not-done list.
 2. Record and snapshot paths (local, not committed); dry run: the draft and snapshot paths.
-
 3. Review outcome: verdict, rounds, report paths; or "not run (dry run)".
 4. Confluence page (title, id, URL, created or updated) and the epic comment, or what a real run would do.
 5. Epic status before and after; children's states (unchanged).

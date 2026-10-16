@@ -427,7 +427,6 @@ left nothing queued, and a subagent doing ticket work flushes and checks the que
 into another page or space. In an unattended run, every "stop and ask" above becomes "report, write nothing, keep the
 entries queued".
 
-
 ## Output
 
 One line for the caller: `Ticket page <created|exists|updated vN|queued (n entries)|skipped (<why>)>: <title> <url>`

@@ -67,7 +67,6 @@ Provide your analysis in this structure (and, if asked, save it to the local wor
 `.claude/work/<KEY>/system-review.md`: a working document, never committed; the main session records its actions on
 the ticket page and files them as `ai-layer` issues):
 
-
 **Meta Information** — plan path, execution report path, date.
 
 **Overall Alignment Score: __/10**

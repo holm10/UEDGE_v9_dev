@@ -16,11 +16,13 @@ every suite; `--omp` forces step 4.
 ## 0. Branch hygiene
 
 ```bash
-uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD
+uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD
 ```
 
 ❌ if it reports a VIOLATION, i.e. the wrong kind of change on this branch, or a working document (plan, review,
-RCA, validation record) committed on it (`.claude/context/branching.md`). Report it verbatim.
+RCA, validation record) committed on it (`.claude/context/branching.md`). Report it verbatim. A ticket started before
+working documents left git fails here until they are removed: follow `branching.md` → "Tickets started before this
+rule" (their content to the page, the tag `archive/<KEY>-docs`, then `git rm`).
 
 ```bash
 uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop
@@ -106,10 +108,11 @@ ticket page (below): the report block and every failure verbatim.
 The Jira key comes from `--ticket <KEY>` (callers pass it: `execute`, `implement-fix` and `end-to-end-feature`
 always do, since a `bugfix/v9-issue-<N>-…` branch has none), else from the branch name (`feature/v9-<KEY>-…`,
 `bugfix/v9-<KEY>-…`), else from the `**Jira**` line or the H1 of the plan or RCA in the worktree's working folder
-(`.claude/work/*/`). No key: no record.
- With a key, run `ticket-page <KEY> log Validation "<entry>"`: the report block's lines with the branch tip,
-and for each ❌ the failing output verbatim, trimmed to the failing part (the first error, the mismatching fnrm or
-variable lines). Add `--flush` only when `validate` was run on its own; inside `execute`, `implement-fix` or
-`end-to-end-feature` the entry goes out with the flush that ends that step (`ticket-page` → "When to flush").
+(`.claude/work/*/`). No key: no record (the report block then belongs in the PR description). With a key, run
+`ticket-page <KEY> log Validation "<entry>"`: the report block's lines with the branch tip, and for each ❌ the failing
+output verbatim, trimmed to the failing part (the first error, the mismatching fnrm or variable lines). Add `--flush`
+only when `validate` was run on its own, and then also `ticket-page <KEY> progress "validate: <Overall line>"`;
+inside `execute`, `implement-fix` or `end-to-end-feature` the entry goes out with the flush that ends that step
+(`ticket-page` → "When to flush").
 `--no-tracker` skips it; `--tracker-dry-run` passes `--dry-run` (nothing is queued; the entry is shown). A failed call
 is noted under the report and never changes the verdict.

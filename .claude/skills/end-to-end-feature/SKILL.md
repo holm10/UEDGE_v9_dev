@@ -23,6 +23,17 @@ the system review are written to the ticket's working folder `<worktree>/.claude
 (`.claude/context/branching.md`). What must last goes to the ticket page at the milestones below. The folder and the
 `ticket-page` outbox go with the worktree: flush (nothing queued) before a worktree is removed.
 
+**Worktrees and subagents.** The ticket's worktree is always an explicit one (`git worktree add … ../uedge-wt/<KEY>`,
+`plan-feature` Phase 0b), never the Agent tool's `isolation: "worktree"`, which is removed automatically and takes the
+working folder and the unsent entries with it (`branching.md` → Worktrees). When this skill runs as a subagent (one
+per ticket, tickets in parallel), the caller creates the worktree and passes its path. Before it returns, the
+subagent flushes the ticket page and checks that `queue --list` and `queue --epic --list` print nothing; if a flush
+fails, its report says so with the worktree path, so the caller flushes later.
+
+**No ticket record** (no Jira key, or `--no-tracker`): nothing reaches a page, so the PR description is the lasting
+record. Collect for it what the page would get: the plan's summary, each review round's verdict, counts, one line per
+finding and the response, the validate report block, and the criteria not independently verified.
+
 **Ticket record.** For a Jira key, the run keeps the ticket's hosted record through the `ticket-page` skill, on the
 one page `spec` created when it filed the ticket (`Ticket plans: <EPIC>` → `Plan: <KEY> - …` under the epic's PRD; or
 short `PIV record` Jira comments when there is no epic PRD page): `plan-feature` fills its Plan section (creating the
@@ -132,13 +143,17 @@ Whoever runs the loop also records it on the ticket record (steps 3, 4 and the e
      them instead of re-opening them;
    - the **absolute** report path in the working folder: `<worktree>/.claude/work/<KEY>/reviews/<KEY>-<stage>-round<N>.md`
      (a relative path can land in another checkout); the report is a local working file, never committed;
-   - on rounds 2+: the previous report path and the response file (step 4).
+   - on rounds 2+: the previous report path and the response file (step 4). If they are not in this worktree (the
+     earlier round ran in another worktree or session), give the reviewer the page's Reviews entries for that round
+     instead (read the page; they hold the verdict, every finding in a line and the response).
 2. Wait for the completion notification, then read the report. Queue its lasting content (the report itself is not
    kept): `ticket-page <KEY> log Reviews "Reviewer: <stage> round <N> <VERDICT> (<B> BLOCKER / <M> MAJOR / <m>
    MINOR), reviewed <the diff range, e.g. <base>...<sha>, or the plan's sha256>. <ID> <one line>; <ID> <one line>; …
    Not independently verified: <criteria or none>."`, one line per finding, every severity (round 1 also `status
    Plan review` or `status Implementation review`).
-3. **APPROVE** → done with this stage; `ticket-page <KEY> flush` (implementation stage: `status Approved` first). MINOR findings may be fixed: typo-level and documentation-only fixes need
+3. **APPROVE** → done with this stage; `ticket-page <KEY> flush` (implementation stage: `status Approved` and
+   `ticket-page <KEY> progress "<stage> approved, round <N>"` first). MINOR findings may be fixed: typo-level and
+   documentation-only fixes need
    only the validation they touch; any other change after APPROVE (code, tests, data, behaviour) needs a new round
    with a fresh reviewer on the changed diff. List deferred MINORs in the execution report.
 4. **REVISE** → fix every BLOCKER and MAJOR, or rebut it with evidence. Write the response to
@@ -152,10 +167,12 @@ Whoever runs the loop also records it on the ticket record (steps 3, 4 and the e
 6. **Round 3 without APPROVE** → stop and escalate.
 7. Never commit the review reports or responses: they are working documents (gitignored; the hook refuses them).
    Their content is on the ticket page (steps 2-4). Criteria the reviewer marked *not independently verified* go into
-   the PR description and the ticket page (a Findings and decisions entry), for the owner.
+   the PR description and the ticket page (a Findings and decisions entry), for the owner. **Without a ticket record**
+   (no Jira key, `--no-tracker`), the same content as steps 2-4 (each round's verdict, counts, one line per finding,
+   the response) goes into the PR description instead: it is the only place it survives the worktree.
 
-**Escalation.** Record it first: `ticket-page <KEY> status Escalated` and `log "Findings and decisions" "Escalated:
-<open findings or the decision needed>" --flush`; the owner's answer, when it comes, is recorded the same way as an
+**Escalation.** Record it first: `ticket-page <KEY> status Escalated`, `progress "escalated: <one line>"` and `log
+"Findings and decisions" "Escalated: <open findings or the decision needed>" --flush`; the owner's answer, when it comes, is recorded the same way as an
 Owner entry with its source. For a ticket on the Jira fallback that `PIV record` comment is the escalation comment
 below: don't post a second one. When a person is available, show them the open BLOCKER/MAJOR findings and ask how to proceed. When
 running **unattended** (the user said they can't give feedback): leave the commits on the ticket branch as they are,
@@ -168,9 +185,9 @@ reserves for the owner: prepare the evidence and the options, and stop at the de
 ## Step 4: Commit - Save Changes
 
 Commit what is not yet committed (any last fixes; never the working documents in `.claude/work/`) with the `commit`
-skill (`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committed` and `log Progress "Committed
-<sha>: <subject>" --flush`. Check that nothing is left queued (`ticket_page.py queue --repo <worktree> --key <KEY>
---list`): the worktree must not be removed while anything is.
+skill (`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committed`, `progress "committed <sha>"` and
+`log Progress "Committed <sha>: <subject>" --flush`. Check that nothing is left queued (`ticket_page.py queue --repo
+<worktree> --key <KEY> --list`, and with `--epic`): the worktree must not be removed while anything is.
 
 ---
 
@@ -207,9 +224,8 @@ After completing all steps, provide:
   worktree is removed]
 - Files created/modified: [list]
 - Validate result: [report block]
-- Review reports: local in `.claude/work/<KEY>/reviews/` (not committed; verdicts and findings on the ticket page),
-  findings fixed / rebutted / deferred
-
+- Review reports: local in `.claude/work/<KEY>/reviews/` (not committed; verdicts and findings on the ticket page,
+  or, without a ticket record, in the PR description), findings fixed / rebutted / deferred
 - Not independently verified (for the owner): [criteria, or "none"]
 - Default results: [unchanged / changed as documented]
 - Commit hash: [hash]

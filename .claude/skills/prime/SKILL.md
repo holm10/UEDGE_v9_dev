@@ -53,7 +53,7 @@ show them). For a ticket worktree, check the `ticket-page` outbox (`uv run
 and must be flushed before the worktree is removed.
 
 Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
-(`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD` and report any
+(`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and report any
 violations (the wrong kind of change on this branch).
 
 ## Output
@@ -67,6 +67,5 @@ Keep it short and scannable:
 - **Branch state** — branch and its kind (protected / AI layer / ticket), ahead of `v9-develop` by N, uncommitted
   changes, worktrees, open specs and working documents, queued ticket-page entries, branch-policy violations. If the
   task doesn't match the branch kind
-
   (product work on an AI-layer branch or the reverse), say which branch and worktree to switch to.
 - **Suggested next step** — `plan-feature`, the physics pipeline, `rca`, or a direct small change.
