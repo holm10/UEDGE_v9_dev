@@ -213,3 +213,11 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   `isjacreset=1` (default) makes the OpenMP path do an O(neq) copy per column (O(neq^2) per Jacobian), an extra
   pandf per cell and a local self-check that serial skips. Measured about 5 %, added to AIUE-68. `com.istimingon=1`
   (default) adds tick() timer calls in pandf (minor; also a race source fixed by AIUE-60).
+- **20:50 Jacobian track complete.** AIUE-60 APPROVED (impl r2 after amendment 1; tip `f8db593`), In Review.
+  AIUE-61 APPROVED (impl r3; tip `444e74b`, rebased onto AIUE-60), In Review: fixed 64-chunk partition with a fresh
+  pandf per chunk, deterministic and thread-count independent, serial unchanged, +1-3 % cost; Linux bitwise = serial
+  and M3 absent; mid-size problems up to ~2x slower at 8 threads (documented; AIUE-73). New tickets: AIUE-71 (Forthon
+  common block / ProcessDim), AIUE-73 (min chunk length, epic AIUE-63), AIUE-74 (MakeXptChunks out-of-bounds,
+  parallel RHS, epic AIUE-70), AIUE-75 (serial ng(...,2) read, standalone). The ticket-pages skill is consolidated
+  onto local v9-develop (`e52a44d`, 5 commits ahead of origin; not pushed). Merge order: 46 → 47 → 49 → 52, 53 →
+  50 → 54 → 55 → 62 → 58; 56 → 60 → 61; 64; 57 last.
