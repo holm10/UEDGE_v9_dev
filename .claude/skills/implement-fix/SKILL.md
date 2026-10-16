@@ -12,7 +12,8 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 - RCA at `.claude/work/issue-$ARGUMENTS/rca.md` in the issue's worktree (a local working copy, never committed;
   create it with the `rca` skill first). If the worktree has no copy (a fresh worktree, another machine), rebuild it
   from its published copy: with a Jira key, `ticket_page.py extract-plan --current <the ticket page as read> --out
-  <that path>` (the page's RCA section); otherwise from the RCA comment on the GitHub issue (`gh issue view
+  <that path>` (the page's RCA section), then `ticket_page.py state --repo <worktree> --key <KEY> --save-plan <that
+  path> --plan-title RCA --set plan_source="page version <N>"`; otherwise from the RCA comment on the GitHub issue (`gh issue view
   $ARGUMENTS --comments`). Neither exists → run `rca` again.
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.

@@ -22,8 +22,8 @@ never committed).
   For a Jira ticket, rebuild it from the ticket page: read the page (`getConfluencePage`, `contentFormat:
   "markdown"`, saved), then `uv run .claude/skills/ticket-page/ticket_page.py extract-plan --current <saved page> --out
   .claude/work/<KEY>/plan.md`, and record it as the published copy (`ticket_page.py state --repo <worktree> --key
-  <KEY> --save-plan .claude/work/<KEY>/plan.md --set page_id=<id> plan_source="page version <N>"`). Say in the report
-  that the plan was rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for
+  <KEY> --save-plan .claude/work/<KEY>/plan.md --plan-title Plan --set page_id=<id> plan_source="page version
+  <N>"`). Say in the report that the plan was rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for
   the plan (or run `plan-feature`)
 - Read the ENTIRE plan carefully
 - Read `CLAUDE.md` and every `.claude/context/` module the plan references
