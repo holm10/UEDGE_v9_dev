@@ -43,11 +43,11 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 Follow the RCA reproduction on the current build and confirm the failure (error, wrong value, crash,
 serial/parallel mismatch). Record the observed output — you will compare against it.
 
-## 2b. Plan review (high-risk fixes)
+## 2b. Plan review (high-risk fixes only)
 
-If the fix touches the `pandf` tree, `ppp/`, the Jacobian or a `.v` file, run the **Adversarial review loop** in
-`.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` on the intended change (the RCA's fix section, or a
-short plan) **before writing code**.
+Tier the fix (`.claude/context/process-tiers.md`). If it touches the `pandf` tree, `ppp/`, the Jacobian, a `.v` file
+or the build (L), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage:
+plan` on the intended change (the RCA's fix section, or a short plan) **before writing code**. Any other fix skips it.
 
 ## 3. Implement
 
@@ -79,9 +79,12 @@ trailer `AI-layer: code-facts`.
 
 ## 4c. Adversarial review
 
-Run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`. The reference is the RCA document (root cause, the fix it proposes, the
-reproduction) and, for a Jira ticket, its acceptance criteria. The fix is done only after APPROVE on the final
-diff.
+Write the handoff note `.claude/work/issue-$ARGUMENTS/handoff.md` (≤60 lines: state, branch and tip, done, open items,
+how to verify). Then run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage:
+implementation`. The reference is the RCA document (root cause, the fix it proposes, the reproduction) and, for a
+Jira ticket, its acceptance criteria. The fix is done only after APPROVE on the final diff. Fix rounds follow the
+loop: plain MINORs fixed by the loop's runner, BLOCKER/MAJOR fixes by a fresh small agent from the handoff note (never
+by resuming the long agent), rounds 2+ as verification rounds.
 
 ## 5. Regression coverage
 

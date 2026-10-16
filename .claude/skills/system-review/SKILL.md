@@ -23,7 +23,9 @@ Perform a meta-level analysis of how well the implementation followed the plan a
 
 - Good divergence reveals plan limitations → improve planning
 - Bad divergence reveals unclear requirements → improve communication
-- Repeated issues reveal missing automation → create skills
+- Repeated issues reveal missing automation → but prefer a sentence in an existing skill over a new skill, hook or
+  code path (`.claude/context/process-tiers.md` → Simplicity budget); recommend code only for a guarantee a model
+  can't keep by hand
 
 ## Context & Inputs
 

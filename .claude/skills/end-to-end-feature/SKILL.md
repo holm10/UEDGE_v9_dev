@@ -42,6 +42,10 @@ round, the end of `execute`, an escalation or owner decision, the commit (`ticke
 `--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
 review loop, and run `validate` with `--ticket <KEY>`. Atlassian failures never stop a step; the entries stay queued for the next flush.
 
+**Size the run to the ticket** (`.claude/context/process-tiers.md`). The ticket's tier (S/M/L, from its breakdown
+entry, else set in the plan) decides the plan's length, whether Step 2b runs, and the validation scope. An S ticket
+runs Steps 1-4 with a ≤150-line plan, no plan review and one implementation round.
+
 **Stacking.** A ticket may start on a parent ticket's branch while the parent is still in review. When the parent
 changes (review fixes, rebase), rebase the child onto it and re-run the child's validation before its review.
 
@@ -71,15 +75,16 @@ Create a detailed implementation plan for the feature.
 
 Run the `plan-feature` skill (`.claude/skills/plan-feature/SKILL.md`) with the feature description: **$ARGUMENTS**.
 
-**IMPORTANT**: Note the feature name (and plan file path) that the planning step creates. You'll need it for the next step.
+**IMPORTANT**: Note the feature name (and plan file path) that the planning step creates, and the tier.
 
 ---
 
 ## Step 2b: Adversarial plan review (required for high-risk plans)
 
 **Required** when the plan touches the `pandf` tree (`bbb/pandf*.m` and what they call), `ppp/`, Jacobian or
-preconditioner code, a `.v` file, or the build (`setup.py`, `Makefile.Forthon`). Optional otherwise. A wrong design
-costs more to fix after execution than before.
+preconditioner code, a `.v` file, or the build (`setup.py`, `Makefile.Forthon`): the L tier. **Skipped** for every
+other ticket (S, and M outside those areas). A wrong design costs more to fix after execution than before, which is
+why the high-risk plans keep this gate.
 
 Run the **Adversarial review loop** below with `stage: plan`. The reviewer checks the plan against the ticket's
 acceptance criteria and the code it cites. Revise the plan, not the code, until it is approved. Nothing is built
@@ -94,7 +99,8 @@ Implement the feature from the plan document.
 Run the `execute` skill (`.claude/skills/execute/SKILL.md`) with the plan file path: `.claude/work/<KEY>/plan.md`.
 
 Do not continue unless the `validate` gate is green (or the only moved cases are the ones the plan documents for an
-intended physics/numerics change).
+intended physics/numerics change). `execute` ends by writing the handoff note `.claude/work/<KEY>/handoff.md`, which
+every later fixer and reviewer prompt uses instead of the implementer's history.
 
 (Use the feature name from Step 2.)
 
@@ -120,16 +126,29 @@ and 3b **are** those skills' review gates: run each loop once, not again from `p
 3-round cap counts one loop.
 
 **Who reviews.** Never review your own plan or code, and never use a fork or an agent that saw the drafting. Spawn a
-**fresh** `uedge-reviewer` agent for every round (Agent tool, `subagent_type: "uedge-reviewer"`). If you can't spawn
+**fresh** `uedge-reviewer` agent for every round (Agent tool, `subagent_type: "uedge-reviewer"`), with the `model`
+from `process-tiers.md` → Model mix (opus for a round-1 review of high-risk code or physics; sonnet for AI-layer and
+low-risk reviews and for verification rounds whose fix diff stays outside the high-risk areas). If you can't spawn
 one (no Agent tool, nesting limit reached, running as a subagent without it), **stop after validation** and return
-to your caller: the work state, the validation output, and the ready-to-use reviewer prompt below. The caller then
-runs the loop. Whoever runs the loop also decides who applies the fixes: itself, or the implementing agent (resumed
-with the findings). The one applying fixes re-validates before the next round. After a hand-off, the caller also
-owns the rest of this skill for that ticket: Step 4 (commit), Step 5 (Learn) and the Final Summary.
-Whoever runs the loop also records it on the ticket record (steps 3, 4 and the escalation).
+to your caller: the work state, the validation output, the handoff note and the ready-to-use reviewer prompt below.
+The caller then runs the loop, and also owns the rest of this skill for that ticket: Step 4 (commit), Step 5 (Learn)
+and the Final Summary. Whoever runs the loop records it on the ticket record (steps 3, 4 and the escalation).
+
+**Who fixes** (`process-tiers.md` → Fresh fixer). Plain MINORs: the loop's runner fixes them itself. BLOCKER/MAJOR
+fixes: a **fresh, small** agent given only the findings, the diff range, `<worktree>/.claude/work/<KEY>/handoff.md`
+(written by the implementer before it returned, ≤60 lines) and the worktree path; it updates the handoff note.
+Never resume the long implementing agent with `SendMessage` for a fix round (a resume re-reads its whole history);
+`SendMessage` is only for a quick question. The one applying fixes re-validates before the next round.
+
+**Scale rounds to the findings.** MINORs alone never start a round: they are fixed (or declined in a line), listed in
+the response, and checked by the next gate or the PR. **Rounds 2+ are verification rounds**: the reviewer gets the
+earlier findings, the response and the fix diff (`<reviewed sha>..HEAD`) and checks each fix against its finding; a
+full re-review only when the fix diff is large (about 200 changed lines or a new design), which the prompt then says.
+For AI-layer changes, one round plus their tests; round 2 only for an open BLOCKER/MAJOR.
 
 1. **Prompt.** The reviewer can't see this conversation, so its prompt must be self-contained:
-   - `stage` (`plan` or `implementation`), round number, ticket key (or feature name), branch and worktree path;
+   - `stage` (`plan` or `implementation`), round number and mode (`full` for round 1, `verification` for rounds 2+
+     unless the fix diff is large), ticket key (or feature name), tier, branch and worktree path;
    - the reference: the spec path, or the ticket's acceptance criteria quoted verbatim, plus the plan path (the
      local working copy `<worktree>/.claude/work/<KEY>/plan.md`; the ticket page's Plan section is its published
      copy);
@@ -143,24 +162,25 @@ Whoever runs the loop also records it on the ticket record (steps 3, 4 and the e
      them instead of re-opening them;
    - the **absolute** report path in the working folder: `<worktree>/.claude/work/<KEY>/reviews/<KEY>-<stage>-round<N>.md`
      (a relative path can land in another checkout); the report is a local working file, never committed;
-   - on rounds 2+: the previous report path and the response file (step 4). If they are not in this worktree (the
-     earlier round ran in another worktree or session), give the reviewer the page's Reviews entries for that round
-     instead (read the page; they hold the verdict, every finding in a line and the response).
+   - on rounds 2+: the previous report path, the response file (step 4) and the fix diff range (`<sha the previous
+     round reviewed>..HEAD`). If the report is not in this worktree (another worktree or session), give the page's
+     Reviews entries for that round instead (they hold the verdict, every finding in a line and the response).
 2. Wait for the completion notification, then read the report. Queue its lasting content (the report itself is not
    kept): `ticket-page <KEY> log Reviews "Reviewer: <stage> round <N> <VERDICT> (<B> BLOCKER / <M> MAJOR / <m>
    MINOR), reviewed <the diff range, e.g. <base>...<sha>, or the plan's sha256>. <ID> <one line>; <ID> <one line>; …
    Not independently verified: <criteria or none>."`, one line per finding, every severity (round 1 also `status
    Plan review` or `status Implementation review`).
 3. **APPROVE** → done with this stage; `ticket-page <KEY> flush` (implementation stage: `status Approved` and
-   `ticket-page <KEY> progress "<stage> approved, round <N>"` first). MINOR findings may be fixed: typo-level and
-   documentation-only fixes need
-   only the validation they touch; any other change after APPROVE (code, tests, data, behaviour) needs a new round
-   with a fresh reviewer on the changed diff. List deferred MINORs in the execution report.
-4. **REVISE** → fix every BLOCKER and MAJOR, or rebut it with evidence. Write the response to
-   `<worktree>/.claude/work/<KEY>/reviews/<KEY>-<stage>-round<N>-response.md` (finding → fixed where / rebutted why).
+   `ticket-page <KEY> progress "<stage> approved, round <N>"` first). MINOR findings may be fixed without a new round:
+   list each fix in a `log Reviews "Agent: minors after APPROVE: <ID> fixed (<where>); …"` entry and re-run the
+   validation they touch; the PR review checks them. Any other change after APPROVE (code, tests, data, behaviour
+   beyond what a MINOR asked) needs a verification round on that diff. List deferred MINORs in the execution report.
+4. **REVISE** → fix every BLOCKER and MAJOR (fresh fixer, above), or rebut it with evidence; fix or decline the
+   MINORs. Write the response to `<worktree>/.claude/work/<KEY>/reviews/<KEY>-<stage>-round<N>-response.md`, one line
+   per finding (fixed where / rebutted why / declined).
    Re-validate (implementation stage). Record the response: `log Reviews "Agent: round <N> response: <ID> fixed
    (<where>); <ID> rebutted (<why, in a line>); …"`, then flush (`ticket-page <KEY> flush`; for a revised plan,
-   `publish` as `plan-feature` says is the flush). Start round N+1 with a fresh reviewer.
+   `publish` as `plan-feature` says is the flush). Start round N+1 with a fresh reviewer as a verification round.
    An implementation finding that shows the **plan** is wrong: revise the plan first, and for a high-risk plan
    (Step 2b list) re-run a plan round before changing the code.
 5. **REJECT** → stop and escalate (below).
@@ -194,7 +214,8 @@ skill (`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committ
 ## Step 5: Learn - Feed process lessons back
 
 Run the `execution-report` skill and then the `system-review` skill on the plan and the report (both local, in
-`.claude/work/<KEY>/`). Each puts its findings on the ticket page (a flushed Findings and decisions entry), and
+`.claude/work/<KEY>/`). For an S ticket, only when the run diverged from the plan or hit a process problem; otherwise
+say "no process lessons" in the Final Summary. Each puts its findings on the ticket page (a flushed Findings and decisions entry), and
 `system-review` files each recommendation as an `ai-layer` issue. Nothing in `.claude/skills`, `.claude/agents` or
 `.claude/hooks` changes on this branch.
 
@@ -208,7 +229,7 @@ After completing all steps, provide:
 
 **Original Request**: $ARGUMENTS
 
-**Feature Name**: [feature-name from planning step]
+**Feature Name**: [feature-name from planning step] · **Tier**: [S/M/L]
 
 **Steps Executed:**
 1. ✅ Prime - Codebase context loaded

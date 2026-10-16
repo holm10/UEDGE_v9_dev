@@ -35,6 +35,22 @@ so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It 
 Needs the pytests checkout (below). Paste the build lines and the `RESULT` line into the PR. Details:
 `tests/deterministic_omp/README.md`.
 
+## Fast iteration: subset while working, full matrix once
+
+Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h, a cost study 2.1 h). While working:
+
+- **Iterate on a subset**: one case (the reproducer preset or the one pytests case the change touches) at **two
+  thread counts** (e.g. 1 and 4 for OpenMP work), and the one suite the change can affect.
+- **Run the full matrix once**, at the end (`validate`, the serial bitwise check, the OpenMP flow), not after every
+  edit. A failure there sends you back to the subset with the failing case added.
+- **Prefer CI for heavy matrices**: push the branch and let `build-test-omp.yml` run its PR set (about 12 min on
+  native `ubuntu-latest`) instead of an emulated or many-thread local matrix; quote its result.
+- **Reuse builds**: one base venv per build kind (`--serial`, default OpenMP) per branch point, built once from a clean
+  committed `origin/v9-develop` tree and shared by the tickets based on it (read-only: never reinstall into it); each
+  ticket worktree keeps its own venv for its own build and rebuilds only when its sources changed.
+- Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
+  are summarised on the ticket page; they are never committed.
+
 ## Suite structure (`upstream/pytests`)
 
 ```

@@ -151,6 +151,10 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
 
 ## Guard rails on the AI layer changing itself
 
+- **Simplicity budget.** Prefer conventions and short skill text over new code paths. An AI-layer change that adds
+  more than 300 lines of tooling code or more than 40 test cases states a one-line justification in its PR
+  (`.claude/context/process-tiers.md` → Simplicity budget). AI-layer changes get one review round plus their tests;
+  round 2 only for an open BLOCKER/MAJOR.
 - **Agents never apply process changes automatically.** `system-review` files them as `ai-layer` Jira issues
   (fallback without Jira: `.claude/work/<KEY>/ai-layer-backlog.md`, local, plus a Findings and decisions entry on the
   ticket page, filed as issues at the next session that has Jira). They land through a `feature/v9-ai-*` PR that a
@@ -174,3 +178,9 @@ bash .claude/hooks/test_change_kind.sh                    # after changing chang
 ```
 
 Exit 0 means clean, 1 means violations (printed with the offending paths), 2 means the check couldn't run.
+
+`--range` also checks the **PR size budget** and prints `WARNING: PR size budget …` lines (never a failure): more
+than 40 added files or 3,000 added lines outside product source and tests, any added file over 1 MB, or data-like
+files (`*.npz`, `*.hdf5`/`*.h5`, `*.log`, JSON records). Raw run data belongs in `.claude/work/<KEY>/` or a scratch
+directory and is summarised on the ticket page; a file that really belongs in the PR is justified in its
+description. (PR #2 carried 1,282 generated files.)

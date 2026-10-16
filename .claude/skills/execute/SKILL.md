@@ -33,6 +33,13 @@ never committed).
 - Note the validation commands to run
 - Review the testing strategy
 
+### 1b. Iterate fast
+
+Use the smallest check that can fail for each task: one case, two thread counts, the one suite the task touches. Run
+the full matrix (all suites, all thread counts, the bitwise checks) **once**, in step 4, and prefer CI for heavy
+matrices (`.claude/context/testing.md` → Fast iteration). Reuse builds: one venv per build kind per worktree, rebuilt
+only when sources changed.
+
 ### 2. Execute Tasks in Order
 
 For EACH task in "Step by Step Tasks":
@@ -119,11 +126,18 @@ Before completing:
 - ✅ Documentation added/updated as needed
 - ✅ AI-layer facts updated and the drift check is clean (step 3b)
 
+### 5b. Handoff note
+
+Before reporting, write `.claude/work/<KEY>/handoff.md` (≤60 lines, never committed): state (what works, what is red),
+branch and tip sha, tasks done, open items, how to verify (exact commands, the venv/build to use). Review fixes are
+done by a fresh agent from this note, not by resuming this one (`.claude/context/process-tiers.md` → Fresh fixer).
+
 ### 6. Adversarial review
 
 The work is not done until a fresh `uedge-reviewer` has approved it: run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: implementation`
 (`end-to-end-feature` does this as its Step 3b). If you can't spawn a reviewer, say so in the report and hand the
-caller the ready-to-use reviewer prompt that loop describes.
+caller the ready-to-use reviewer prompt that loop describes. Rounds 2+ are verification rounds on the fix diff;
+MINORs alone never start a round.
 
 ## Output Report
 

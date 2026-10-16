@@ -50,7 +50,8 @@ Also list open work products: physics specs (`docs/physics_specs/`, committed) a
 (`ls .claude/work/`: plans, reviews, RCAs and other working documents in progress; gitignored, so `git status` doesn't
 show them). For a ticket worktree, check the `ticket-page` outbox (`uv run
 .claude/skills/ticket-page/ticket_page.py queue --repo . --key <KEY> --list`): queued entries are not on the page yet
-and must be flushed before the worktree is removed.
+and must be flushed before the worktree is removed. If `.claude/work/<KEY>/handoff.md` exists, read it first: it is the
+state the last agent left (what works, open items, how to verify), the starting point for a fresh fixer or session.
 
 Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
 (`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and report any
