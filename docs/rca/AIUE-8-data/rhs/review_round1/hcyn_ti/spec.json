@@ -1,0 +1,1 @@
+{"preset": "ti", "steps": ["same", "pert:1e-8", "pert:1e-3", "back", "pert:1e-3"], "seed": 7, "harness": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp", "threads": 4}

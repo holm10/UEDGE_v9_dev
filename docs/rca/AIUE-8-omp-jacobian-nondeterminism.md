@@ -6,13 +6,251 @@ changing serial via an OpenMP-only replay, at an estimated +18–35 % Jacobian c
 gave run-to-run reproducibility without replay at 4 threads, empirically). Linux x86-64 characterised (AIUE-62; Debian gcc 12.2 (K=20) and Ubuntu 24.04 gcc 13.3 (K=5), both emulated x86-64 under Rosetta; native CI hardware not run): with the AIUE-56
 fix no post-fix run has a Te-row (C2/M2) difference; runs are bitwise equal to serial and deterministic except where a
 separate, smaller residual M3 (AIUE-65: `up` rows at the plate, ≥ 4 threads, pre-existing) appears. The default
-OpenMP build does not import on Debian/Ubuntu (AIUE-64). RHS section (AIUE-58) to follow.
+OpenMP build does not import on Debian/Ubuntu (AIUE-64). **RHS (AIUE-58): the parallel RHS (`OMPParallelPandf1=1`)
+is still wrong after the C1 fix** whenever it is evaluated at a state or with inputs other than those of the last
+OpenMP Jacobian. Three root causes (R1 a chunk-range mismatch for `hcyn`, R2 stale threadprivate inputs on the
+workers, R3 uninitialised worker copies of the `Imslwrk` tables after `ueinit` reallocates them) and a crash path
+(R4 `xerrab` on a worker thread). With C1-RHS (fixed by AIUE-56) they account for every RHS-arm failure traced here;
+the SIGSEGV chain was traced in two runs and is inferred for the other crashes. **Only R1's fix was built and
+tested** (scratch build; probe bitwise and `ti --itermx 5` 3/3, default chunking, fixed inputs; confirmed by the
+reviewer's independent run). The R2, R3 and R4 fixes were neither built nor run, so whether the combined fix restores
+a correct RHS is not shown; it is AIUE-59's acceptance. **Owner decision (2026-10-15): AIUE-59 = option A (fix
+R1–R4) plus the AIUE-61 Q6 post-Jacobian worker refresh; AIUE-59 starts after AIUE-60 and AIUE-61** (§RHS RCA →
+Decision).
 
 Epic AIUE-8. Reproducer: `tests/deterministic_omp/` (AIUE-46). All results below except §Linux characterisation
 (AIUE-62) and the Linux rows marked as such were obtained on macOS arm64,
 gfortran 15.2, Homebrew LLVM clang/libomp, `v9-develop` at `0fac655`, `OMP_STACKSIZE=512M`, a fresh process per run,
 `python -I` with an empty `HOME`. "Serial" means a reference run of the same build with `OMP_NUM_THREADS=1` or the
 `--serial` build, as stated.
+
+## RHS RCA (AIUE-58)
+
+The parallel RHS arm (`OMPParallelJac=OMPParallelPandf1=1`, "jacrhs") after the C1 fix (AIUE-56). macOS arm64 only,
+as above. Builds: `AIUE-56` = the C1 fix (`bugfix/v9-AIUE-56-omp-jacobian-fix` `1553e75`, `venvs/AIUE-56-omp`);
+`base` = pre-fix `0fac655` (`venvs/base-omp`); `nofma` = the AIUE-50 scratch build with the C1 swap and
+`-ffp-contract=off` (`AIUE-50-scratch` `14abb0d`, `venvs/AIUE-50-nofma`), whose jac arm is C2-free, so any
+jacrhs difference on it belongs to the RHS. Machine load (1-min average) 7–26 during all runs below.
+
+**Data:** `docs/rca/AIUE-8-data/rhs/` — `probe/*/probe.json` and `probe_summary.txt` (RHS probe), `seq/*/`
+(two-step sequences: `seq.json`, the nksol `fnrm` lines, `status.txt`), `harness/*/` (harness `check` summaries and
+`record.json`s), `lldb/` (backtraces), `probe/carrier_full_t1/carrier.json` (carrier search). Scripts:
+`tests/deterministic_omp/rhs/` (`rhs_probe.py`, `rhs_carrier.py`, `rhs_sequence.py`, `seq_compare.py`,
+`run_probe.sh`, `probe_show.py`, `collect_records.sh`). The harness is the reviewed AIUE-57 one
+(`feature/v9-AIUE-57-omp-ci-job`, worktree `uedge-wt/AIUE-57`). Arrays (`*.npz`) stay in the working folder
+`uedge-wt/AIUE-58-scratch`.
+
+### Why the earlier RHS checks were green
+
+`OMPPandf1Rhs` (`ppp/omp_parallel.F90:908-1002` on the AIUE-56 branch, `OMPPandf`/`OMPPandf_XPT` for the chunks) splits the grid into chunks
+(`Make2DChunks`; default here: 3 chunks for iy=0..1, 8 full-width radial strips, 2 X-point chunks), runs each chunk
+on whichever thread picks it up (`SCHEDULE(dynamic)`), and keeps only the `iv` each chunk owns. **It never refreshes
+worker state**: no master `pandf`, no `OmpCopy*`. A chunk recomputes only its own (padded) range and reads everything
+else from its thread's threadprivate copy, which holds whatever the last evaluation on that thread left. It also
+runs only while `ijactot > 0`; before the first Jacobian of an `exmain` with `icntnunk=0` it falls back to the
+serial `pandf` (`:955`, `:995-997`).
+
+The harness's one-evaluation check (`ftol=1e20`) evaluates the parallel RHS only at the state of the Jacobian that
+was just built, whose `OMPJacBuilder` copy and restoring column evaluations leave every thread holding values at that
+state. That is the one case where stale state is invisible. So: post-fix jacrhs one-evaluation runs agree with serial
+(`te` 3/3 (main session), `full` 2 and 4 threads 3/3 each (main session) and 3/3 here, Te box `yldot`/probe 10/10),
+and the RHS defects below show only after a Newton step, a changed input, or a second `exmain`.
+
+### Method
+
+1. **RHS probe** (`rhs_probe.py`, one process): deck, preset, jacrhs arm, `exmain` with `ftol=1e20` (one OpenMP
+   Jacobian, `ijactot=1`). Then the parallel RHS `P` (`bbb.ffun`, i.e. `OMPPandf1Rhs`) is compared bitwise with the
+   serial `S` (`bbb.pandf(-1,-1,…)`) at the same `yl`: `same` (at the Jacobian's `yl0`); `pert:eps`
+   (`yl1 = yl0·(1+eps·r)`, r uniform in [−1,1]; P twice, S, P again after S); `back` (P at `yl0` after the
+   perturbations); `afrac:1.1`, `atau:2` (the input changed on the master, which is what Python writes);
+   `ueinit` (call `bbb.ueinit()`, which every `exmain` runs before nksol). Signed zeros are counted apart.
+2. **Carrier search** (`rhs_carrier.py`, 1 thread, so the chunk order is fixed and the only state is the
+   master's, which Python can read and write): restore the state at `yl0`, set one threadprivate array (of the 258
+   of 445 that differ between the states at `yl0` and `yl1`) to its value at `yl1`, and see whether `P(yl1)` then
+   equals `S(yl1)`.
+3. **Newton level**: the harness `check --itermx 5` (steady state, `dtreal=1e20`), and `rhs_sequence.py`: two
+   `exmain` calls as `rundt`/`continuation_solve` make them, `dtreal=1e-9`, the first with `icntnunk=0`, the second
+   with `icntnunk=1` (no Jacobian at its start), optionally with `afracs ×1.1` in between (`continuation_solve`
+   changes a user variable exactly like this, `src/uedge/rundt.py:847-860`, then sets `icntnunk=1`, `:1200,1218`).
+4. **Crash backtraces**: `lldb --batch` on a crashing run.
+
+### Root causes (RHS)
+
+| ID | Root cause | Mechanism | Evidence | Fix direction (AIUE-59) | Effect on serial |
+|---|---|---|---|---|---|
+| **R1** | Range mismatch in a chunk: `hcyn` is computed over `ix = i1momp…i6omp` (`bbb/pandf_plasma_energy.m:1494-1530`, `calc_plasma_heatconductivities`), but the non-orthogonal ion-energy flux `feixy(ix,iy)`, computed over the same `ix` range (`:422-490`), reads `hcyn(ixp1(ix,iy),iy)` and `hcyn(ixp1(ix,iy-1),iy-1)` (`:476-477`) | In serial `initialize_ranges` sets `i6omp = i6pomp = i6` (`bbb/pandf.m:226-227`), so the loop covers the neighbour. In a chunk `OMPinitialize_ranges2D` sets `i6omp = xe` (the chunk's last owned `ix`, `ppp/omp_parallel.F90` `OMPinitialize_ranges2D`), so at the chunk's right edge `feixy` reads `hcyn(xe+1)` from the thread's previous evaluation. Active with `isnonog=1` and inertial neutrals (`cftiexclg`, `isupgon(1)=1`), both in this deck | Probe, every thread count incl. 1: at `yl0` equal; at any other `yl` the **same 26 Ti rows** differ in the first P: Ti at ix=12 (right edge of the left X-point chunk, iy 2–13), ix=52 (right edge of the right X-point chunk and of the core-boundary chunk, iy 1–13) and (8,1) (right edge of the inner iy=0..1 chunk). Size 3.9e-7 relative for eps=1e-8, 1.3e-3–8.5e-3 for eps=1e-3, 1.6e-2–2.8e-2 back at `yl0`. At 1 thread the second P is exact (the later chunk has refreshed the value); with 2–8 threads 3–26 rows stay wrong (which thread ran which chunk). Carrier search: **`bbb.hcyn` alone is sufficient** (0 of 26 left), no other of the 258 candidates reduces the count. Pre-fix build: the same 26 rows (pre-existing). `te`, `te_phi`, `ni`, `up`, `ng` presets: 0 rows (no Ti equation) | Run the `hcyn` loop to `i6pomp` (or widen `i6omp` by one in `OMPinitialize_ranges2D`); then audit every array read at `ixp1`/`iy+1` outside its computed `*omp` range (`Nxchunks=4` shows more of this class, below). See the scratch test below | Loop to `i6pomp`: **none by construction** (serial `i6pomp = i6omp`) |
+| **R2** | Threadprivate **inputs** changed on the master are not seen by the workers' RHS chunks until the next `OMPJacBuilder` copy | What reaches the workers depends on how the input is written. A whole-array assignment from Python (`bbb.kye_use = arr`) goes through Forthon's `setarraypointer` (`Forthon.h:823`), whose generated `<pkg>setarraypointer<var>` copies the new data to every worker at assignment time (see R3), so it is seen. In-place and indexed writes (`bbb.afrac[...] = …`, `bbb.kye_use[2:5,:] = …`), threadprivate scalars, and every Fortran-side write (`ueinit` sets `afrac = afracs` on the master only, `bbb/odesetup.m:1619-1622`) reach only the master; workers keep the values of the last `OmpCopy*`. `continuation_solve` uses both paths (`src/uedge/rundt.py:857-860`: `setattr` without index, item assignment with one). With `icntnunk=1` no Jacobian runs before the first parallel RHS of the `exmain`, and within a Newton solve nksol reuses the Jacobian for several RHS evaluations | Probe at `yl0`, full problem: `afrac ×1.1` → 1447 (2 threads) / 2156–2199 (4) / 2538 (8) Te rows wrong, up to 30× relative; `atau ×2` → 1410–2456 Te rows, 0.16. Restored input → exact again (apart from R1 noise). `te` preset 2156–2157 rows. Newton level, AIUE-56 build, `te`, `afracs ×1.1` then `icntnunk=1`: the jacrhs run that did not crash starts the second `exmain` at `fnrm` 1.327538656680116, i.e. near the **unchanged-input** value 1.327580678916788, not serial's 1.326787171822271; its trajectory then departs (iteration 2: 3.9e-2 vs 1.0e-5) and the final `yl` differs by up to 3.15e-6 relative (`seq/AIUE-56-omp_te_afracs_jacrhs_t4_r1`) | Refresh the workers **after `ueinit`**, before the first parallel RHS of each `exmain`: master `pandf(-1,-1)` + `OmpCopyScalar*`/`OmpCopyPointer*`, as `OMPJacBuilder` does (refresh points: §Decision). Untested | None (ppp only) |
+| **R3** | After `ueinit` the workers hold **uninitialised copies** of the 12 `Imslwrk` spline arrays (`xdata_api`, `ydata_api`, `zdata`, `fdata_api`, `work2`, `work3`, the three knot arrays, `emcoef`, `z1coef`, `z2coef`, `api/api.v:148-172`). Every `exmain` runs `ueinit` → `splinem` → `gallot("Imslwrk",0)` (`bbb/odesetup.m:1150` for `isimpon=7`, `:1130` for 2; `api/apip93.m:101-107`) | Forthon's `gallot` (`Forthon/Forthon.h:1241-1270`) frees the old block, allocates a new one and calls `setarraypointer` **before** the block is filled; only then does `splinem1` fill the master's tables. For a `+threadprivate` dynamic array the generated `<pkg>setarraypointer<var>` (e.g. `apisetarraypointeremcoef`, `build/temp.*/api_p.F90:1222-1252` on AIUE-56) copies the new block into a `SAVE`, threadprivate buffer, `copyin`s it, and points every worker (`tid>0`) at its own copy. So the workers get a private copy of the **unfilled** block (whatever the fresh allocation held), and nothing refreshes it until the next `OMPJacBuilder` copy. With `icntnunk=1` the first parallel RHS of the `exmain` evaluates `emissbs` (the `isimpon=7` radiation, Te rows only) with uninitialised knots and coefficients: an **uninitialised read**, not a use-after-free. Not caused by `emcoef`'s `copyin`: `setarraypointer` re-points the workers away from the master's array anyway (AIUE-50 F15 stands, see below) | Probe, `te`, 4 threads: `bbb.ueinit()` moved `emcoef` (`0x917868000`→`0x9183b0000`→`0x917714000`); the parallel RHS at the **same** `yl0` then has **1836–1855 Te rows wrong, up to 5.1e56 relative**. **Discriminating run (reviewer, round 1; `review_round1/r3`):** with Python references holding all 12 old arrays alive and `array_equal` to the new ones, the parallel RHS is still wrong in **1162 Te rows (≤ 3.7e34)**, with 78 876 SLATEC `B1VAhL` "NO LEFT LIMITING VALUE" errors (invalid knots on the workers), which a dangling-pointer model cannot produce; reassigning the 12 arrays from Python (`setarraypointer` with the filled data) leaves 889 rows ≤ 5.5e-9. When the new block reuses the freed one, the unfilled copy holds the old tables and the damage shrinks to the same ≤ 5.5e-9 component: `te` 760–988 and 889 rows (`probe/te_t4_ueinit_stepless`, `te_t4_ueinit_reexmain`), `full` 1 row 3.8e-16 (same address `0xa76f70000`); this also explains the two sequence runs that survived. That ≤ 5.5e-9 component shows that other worker state is stale after `ueinit` too (not localised). **A full worker copy after `ueinit` removes all of it:** a second `exmain` with `icntnunk=0` (its OpenMP Jacobian runs `OmpCopy*` after `ueinit`) gives a parallel RHS bitwise equal to serial, also after a 1e-3 perturbation (`probe/te_t4_ueinit_reexmain`; confirmation run, this round). Newton level: `te` jacrhs sequences, second `exmain` with `icntnunk=1`: iteration-0 `fnrm` **3.1e52** (serial 1.3276; lldb re-run of a crashing nofma run, whose own log lost the buffered output), the solve diverges and **crashes (exit 139) in 6 of 8 runs** (nofma 4/4, AIUE-56 2/4). Jac arm, same `te` sequences: completes 4/4, nofma bitwise equal to serial 2/2 | **A full worker refresh after `ueinit`**, before the first parallel RHS of the `exmain` (`OmpCopyScalar*` + `OmpCopyPointer*` of all packages, as `OMPJacBuilder` does; the `Imslwrk` arrays alone leave the ≤ 5.5e-9 component). Untested as a code change; the `icntnunk=0` control shows the effect. Dropping `emcoef` from `copyin` is hygiene only (redundant since AIUE-56, AIUE-60 A6) and does not fix R3 | None |
+| **R4** | `xerrab` called inside the OpenMP Jacobian loop on a worker thread | `LocalJacBuilder`'s storage check (`ppp/parallel.F90:292-296`, "More storage needed for Jacobian. Increase omplenpfac.") calls `xerrab` → Forthon `kaboom_` (`Forthon.c:284`) → `_PyObject_Malloc` on a thread that does not hold the GIL → **SIGSEGV**, instead of a Python exception | lldb, nofma `te` sequence (`lldb/lldb_te.txt`): thread #3 `_PyObject_Malloc` ← `cstrfromfstr` ← `kaboom_` ← `localjacbuilder_` `parallel.F90:296`, after `chunk 729 … More storage needed`. A pre-fix re-run shows **the same chain** (`lldb/lldb_base_te.txt`, base build, `te` one evaluation): C1-RHS gives iteration-0 `fnrm` 4.5e31, nksol steps, the next Jacobian at the garbage state overflows `nnzmxperchunk`, `xerrab` on a worker. *Inferred, not traced:* that the other AIUE-54 SIGSEGVs (`te_phi`, other thread counts) and the other 5 exit-139 sequence runs follow the same chain (each was traced in one run only) | Record the overflow in the loop, raise after `!$omp end parallel do` on the master (same for any other `xerrab` reachable from a worker) | None |
+
+**Ruled out or excluded:**
+
+| Lead (ticket) | Verdict | Evidence |
+|---|---|---|
+| Chunk decomposition vs non-local BCs (`iflcore=1` core power sum, `isnicore=3` core flux sum, `bbb/pandf_boundary.m:1483-1500,1744-1860`) | **Refuted for this (single-null) deck.** The sums run over the core ring `ixc1…ix_fl_bc` along iy=0, and the special iy=0..1 chunk spans `ixpt1-1 … ixpt2+2` = 9…52 (`MakeBulkChunks`, `ppp/omp_parallel.F90:63-76`), i.e. the whole ring: each sum is local to one chunk | No te/ti/ni row at iy=0 differs in any probe step at 1–8 threads. **Hazard, not run:** with `nxpt=2` the ring is split over two such chunks (one per X-point), so a ring sum would read the other segment from stale state; no double-null case was tested |
+| `auxrange` widening (`ppp/omp_parallel.F90:1022-1037` on AIUE-56: `convsr_aux2` over the whole flux tube) | **Not a cause in this deck; purpose still unexplained.** With the default `Nxchunks=1` it changes only the inner iy=0..1 chunk (0…8 → 0…10); bulk chunks are full-width | No plate or boundary row differs in any probe. Not tested by removing it (needs a build) |
+| Edge-only `bouncon` (`:1106-1116`, only for chunks touching a boundary) | **Not a cause here** | No boundary row differs in any probe (default chunking) |
+| Per-thread state without a master refresh before the RHS loop | **Confirmed: it is the common cause of R1–R3** | as above |
+| 15th-digit `fnrm` variation (pre-fix, `full` jacrhs: 1.535419111648416–…441 vs jac-arm values) | **C1, gone with the fix.** *Inferred:* after the first Jacobian the iteration-0 residual is re-evaluated by the parallel RHS, whose C1-corrupted Te rows (2198–2240 rows, up to 6e34 relative at the same `yl`, base-build probe) are weighted by C1-corrupted Te `sfscal` (rows normalised by max\|J\| ≈ 6e43); the product perturbs `fnrm` in the 15th digit or, in 4/10 runs at 4 threads, blows it up (the lusol0 overflows) | Post-fix: iteration-0 `fnrm` bitwise equal to serial in every jacrhs run (main session 6/6, here 3/3 full, 10/10 Te box) |
+| Signed zeros from `REDUCTION(+:yldottot)` | **Benign, excluded.** `yldottot` starts at +0 and each owned row is added once, so a serial −0.0 becomes +0.0 | 345 (full), 255 (`ni`), 50 (`te_phi`), 36 (`te`, `ti`), 4 (`up`), 0 (`ng`) opposite-sign zeros at `yl0`, every thread count, both builds; no effect on norms or Newton updates (harness P3-m2 allows them) |
+
+**Non-default chunking (`ppp.Nxchunks=4`, 4 threads):** the R1 class grows: after a perturbation 148–153 Ti rows
+(the right edge of every x-chunk) and 36–37 `up` rows of the inertial-neutral species at ix=9 and 49 (next to the
+X-point cuts) differ, up to O(1) relative, and the RHS at `yl0` after earlier evaluations is off by up to 3e10
+relative in rows with near-zero serial values. Not localised further; the `up` rows show that `hcyn` is not the only
+array read outside its chunk range once the x-direction is split.
+
+### Pre-fix vs post-fix (RHS arm)
+
+| RHS-arm symptom | Pre-fix (`base`; AIUE-54 unless stated) | Post-fix (AIUE-56) | Cause |
+|---|---|---|---|
+| `yldot` / RHS probe at the Jacobian's state (one evaluation) | Te rows wrong: 2198–2560 (`full`), 25 (Te box) | equal (Te box 10/10, `full` 3/3 + 6 main session) | C1-RHS |
+| Iteration-0 `fnrm`, `full` | 15th-digit spread; `lusol0` overflow 10/10 at 2 threads, 4/10 at 4 | bitwise equal to serial | C1-RHS |
+| `te`, `te_phi` one evaluation | every run crashes (K=2 at 2/4/8 threads): SIGSEGV, or a RuntimeError in `te` at 2 threads | completes, agrees (main session) | C1-RHS → R4 (traced in one lldb re-run of base `te`; inferred for the rest). *Inferred:* the RuntimeError is the same `xerrab` reached on the master thread, where Forthon can raise |
+| RHS after a state change (probe `pert`, `back`) | the same 26 Ti rows, on top of C1 (this ticket, base probe) | 26 Ti rows at 1–8 threads | R1 |
+| RHS after an input change (probe `afrac`, `atau`) | masked by C1 | 1410–2538 Te rows | R2 |
+| RHS after `ueinit` / second `exmain` with `icntnunk=1` | not run | Te rows up to 5e56 relative (uninitialised worker tables); `te` sequences SIGSEGV 6/8 | R3 → R4 (chain traced once) |
+| Newton iterations (`--itermx 5`), C2-free build | — (C1) | `ti` 0/3, `full` 0/2, non-deterministic; jac arm bitwise 2/2, 1/1 | R1 |
+
+### Evidence by configuration (post-fix unless stated; 4 threads unless stated)
+
+| Configuration | Arm / test | Build | Runs | Result |
+|---|---|---|---|---|
+| `full` | one evaluation, jacrhs | AIUE-56 | 3 (+6 main session) | **AGREE 3/3**, deterministic, incl. the Jacobian (load 8–11) |
+| `full` | one evaluation, **jac** | AIUE-56 | 3 | **AGREE 3/3**, deterministic (load 7–11) — see below |
+| Te box | one evaluation, jac / jacrhs | AIUE-56 | 10 / 10 | 0/10 / 0/10 bitwise: 1–2 Jacobian entries in row te(4,20) (C2) on **both** arms; `yldot`, probe, `sfscal`, `fnrm` equal 20/20 |
+| `full` | probe, `same` | AIUE-56 | 1, 2, 4 (×2), 8 threads | equal (345 signed zeros) |
+| `full` | probe, `pert` / `back` | AIUE-56 | 1, 2, 4 (×2), 8 threads | **R1**: 26 Ti rows in the first P at every thread count |
+| `full` | probe, `afrac`, `atau` | AIUE-56 | 2, 4 (×2), 8 threads | **R2**: 1410–2538 Te rows |
+| `te` | probe, `ueinit` | AIUE-56 | 1 (two `ueinit` calls) | **R3**: block moved, 1836–1855 Te rows, ≤ 5.1e56 relative |
+| `te` | probe, `ueinit` (old blocks held alive), then reassign | AIUE-56 | 1 (reviewer, `review_round1/r3`) | 1162 Te rows ≤ 3.7e34 and 78 876 `B1VAhL` errors although old = new tables; after reassigning the 12 arrays 889 rows ≤ 5.5e-9 |
+| `te` | probe, `ueinit`, then a second `exmain` with `icntnunk=0` | AIUE-56 | 2 (this round; the first stopped after `ueinit` at a then-unknown step) | block reused the address: 760–988 and 889 Te rows, observed ≤ 5.5e-9 at these states; after the second `exmain` **bitwise equal**, also after `pert:1e-3` |
+| `te` | probe `same, ueinit, reexmain, pert:1e-3, ueinit` | AIUE-56 | 1 (reviewer round 2, not committed: `/tmp/aiue58-r2/te_reexmain/`) | block moved: 2194 Te rows ≤ 3.7e34; after the second `exmain` **bitwise equal**, also after `pert:1e-3`; the final `ueinit` broke it again (791 rows, ≤ 8.1e-9) |
+| `full` | probe, `ueinit` | AIUE-56 | 1 | `emcoef` reallocated at the same address; 1 Te row off by 3.8e-16 (R3's outcome depends on what the fresh allocation holds) |
+| `ti`, `te`, `te_phi`, `ni`, `up`, `ng` | probe, all steps | AIUE-56 | 1 each | R1 only where Ti is on (`ti`: 26 rows); R2 only where Te is on; `ni`, `up`, `ng`: equal in every step |
+| `full` | probe, all steps | **base** (pre-fix) | 1 | C1-RHS: 2198–2240 Te rows at `yl0` already; plus R1's 26 Ti rows after a perturbation |
+| `ti` | `check --itermx 5`, jac / jacrhs | nofma | 2 / 3 | jac **AGREE 2/2**, deterministic; jacrhs **0/3**, non-deterministic: iteration-1 `fnrm` 1.117630–1.117697 vs serial 1.117556; after 5 iterations 1.06–1.17 vs 0.81; `yldot` 3132 entries |
+| `full` | `check --itermx 5`, jac / jacrhs | nofma | 1 / 2 | jac **AGREE 1/1** (Jacobian, `yldot`, every printed `fnrm`); jacrhs **0/2**, non-deterministic: printed `fnrm` 1.918821, then 1.841456 / 1.852868 (serial 1.843487) and after 5 iterations 1.864 / 1.965, rising, where serial falls to 1.757; `yldot` differs in 43 555–43 556 of 44 352 rows (the iterate has moved). Wall time: serial 108 s, 4 threads 52–56 s |
+| `ti` | sequence (`dtreal=1e-9`, then `icntnunk=1`), ± `afracs` | nofma | jac 1+1, jacrhs 2+2 | jac: bitwise equal to serial (`yl`, every printed `fnrm`); jacrhs: departs from iteration 1 (2.0676408e-4 vs 2.0676435e-4), 5 instead of 4 iterations in one run, final `yl` 1000–1254 entries off by ≤ 6.5e-11, differs between runs |
+| `ti` | same | AIUE-56 | as above | jacrhs not bitwise, as above (jac arm there also carries C2) |
+| `te` | sequence, ± `afracs` | nofma / AIUE-56 | jac 2 + 2, jacrhs 4 + 4 | jac: completes 4/4 (nofma bitwise equal to serial 2/2). **jacrhs: SIGSEGV 6/8** (R3 → R4); the AIUE-56 `afracs` survivor shows R2 (above) |
+
+The small residual after `ueinit` (Te rows at 1e-9–1e-8, observed 5.5e-9 and 8.1e-9 at different states; not a fixed bound) is not localised. The `reexmain` control removes it, but that control runs both the full worker copy and the Jacobian column loop, so it does not show that a refresh (master `pandf` + copy) alone removes it. AIUE-59 must show that.
+
+**The full-problem Jacobian re-check (ticket priority 2).** The main session's observation (full jacrhs, 2 and 4
+threads, Jacobian equal to serial) is **not specific to the RHS arm**: at the same low load the jac arm also gave a
+Jacobian bitwise equal to serial in 3/3 runs (`harness/re_full_jac_t4`), while the Te box kept its C2 entry on both
+arms (10/10 each). AIUE-55 measured the full jac arm at 0/30 bitwise under load 60–180. So whether C2 shows in the
+full problem depends on run conditions (the dynamic column→thread mapping), not on `OMPParallelPandf1`; that is a C2
+(AIUE-61) observation and does not change the RHS findings. K=3 per arm, one load level: a rate was not measured.
+
+### Scratch test of the R1 fix
+
+Scratch tree `uedge-wt/AIUE-58-hcyn` = AIUE-56 `1553e75` plus one change, not committed as product code: the `hcyn`
+loop of `calc_plasma_heatconductivities` runs to `i6pomp` instead of `i6omp`
+(`bbb/pandf_plasma_energy.m:1496`, `do ix = i1momp, i6pomp`); OpenMP build `venvs/AIUE-58-hcyn`
+(`uedge-wt/logs/AIUE-58-hcyn-omp-build.log`). The patch is recorded as `docs/rca/AIUE-8-data/rhs/r1_scratch_hcyn.patch`.
+
+*Side effect of the scratch form (review I1-m1):* the widened loop also runs the `hcxi(ix,iy) +=` and
+`hcyi(ix,iy) +=` updates (`:1520-1530`) at `ix = xe+1`, where `hcxi`/`hcyi` are not zeroed (zeroing over
+`i1momp…i6omp`, `:1272-1278`), so on a worker they accumulate there. Benign here: nothing reads `hcxi`/`hcyi` at
+`xe+1` from an owned row (`conxi` over `i1momp…i5omp`, `conyi` over `i4omp…i8omp`), which matches the bitwise probe;
+serial is unchanged either way (`i6pomp = i6omp`). **Recommended minimal form for AIUE-59:** compute only `hcyn` (and
+what it needs) at `xe+1`, or zero `hcxi`/`hcyi` over the same widened range; do not copy the scratch line as is.
+
+| Test | Result |
+|---|---|
+| Probe, `full`, 1 and 4 threads, `same`, `pert:1e-8/1e-5/1e-3` (P1, P2, P3), `back` | **bitwise equal to serial in every step** (only the 345 signed zeros): the 26 Ti rows are gone, also at 1 thread where the first P was wrong |
+| `check --preset ti --arm jacrhs --threads 4 --itermx 5 --repeats 3` | **AGREE 3/3, deterministic** (the same check on nofma without the change: 0/3) |
+| Serial of the scratch build vs AIUE-56 serial: `ti --itermx 5`, `full` one evaluation (harness `compare`) | **AGREE** (Jacobian, `sfscal`, `suscal`, `yldot`, `fnrm`): serial unchanged, as the range argument says |
+| Reviewer's independent run (round 1, `review_round1/hcyn_ti`): `ti`, 4 threads, seed 7, `same`, `pert:1e-8`, `pert:1e-3`, `back`, `pert:1e-3` | every step `ndiff = 0` (36 signed zeros at `yl0`); AIUE-56 without the change: 26/16/6 Ti rows |
+
+So, on this deck with the default chunking, R1 is the whole RHS defect for a state change at fixed inputs. **This is
+the only fix that was built and tested.** R2 and R3 were not re-run on this build (by mechanism the change does not
+touch them), and the R2, R3 and R4 fixes were neither built nor run.
+
+### Remaining issues and what the one-evaluation gate cannot see
+
+- R1, R2, R3 and R4 are all present on the AIUE-56 build. R1 changes every Newton trajectory with Ti on in this
+  deck (non-deterministic, round-off to 1e-2 relative in 26 rows per evaluation); R2 and R3 need an input change
+  or a second `exmain` with `icntnunk=1` (the normal `rundt` and `continuation_solve` flow), and R3's garbage
+  residual leads to the R4 crash. R4 also turns a genuine `nnzmxperchunk` overflow (too small `OMPlenpfac`) into a SIGSEGV on either arm.
+- The AIUE-57 CI job's one-evaluation jacrhs check is blind to all four. `--itermx` runs see R1; R2/R3 need a
+  two-`exmain` sequence or the probe (`rhs_probe.py` steps `pert`, `afrac`, `ueinit`), which takes ~3 s on the
+  Te-box-sized presets and ~12 s on the full problem at 4 threads.
+- Not run: double null (`nxpt=2`, the split core-ring hazard), `isimpon=2` (same `splinem` path as 7, so R3 is
+  expected), Linux (R1–R4 are platform-independent by mechanism; not measured), the full problem in the sequence test,
+  removing the `auxrange` widening, and a TSan run of the RHS loop.
+- *Corrected in round 1:* the first version of this section claimed a jac-arm "use-after-free write" by
+  `OmpCopyPointeremcoef` into the freed block. That is wrong: after `gallot` every worker's `emcoef` points at its
+  own `setarraypointer` copy (R3), so the next Jacobian's `OmpCopyPointer*` writes into the workers' own buffers
+  and then `copyin` re-associates `emcoef` with the master's array. The jac arm is unaffected by R3 because its
+  `OMPJacBuilder` copies the full worker state (after `ueinit`) before any worker evaluation. AIUE-50 F15 (the
+  `copyin` association persists after the loop; from the second Jacobian on the workers write the same values into
+  the master's array, benign) and AIUE-60 plan A6 ("redundant since AIUE-56; benign; document") stand, with one
+  addition: the association lasts only until the next `gallot` of `Imslwrk`, which re-points the workers.
+- The threadprivate inputs that R2 can affect include, besides `afrac`/`atau`: the user transport profiles
+  `dif_use`, `difp_use`, `dif2_use`, `kye_use`, `kyi_use`, `kxe_use`, `kxi_use`, `kxg_use`, `kyg_use`, `vy_use`,
+  `vyup_use`, `vyte_use`, `vyti_use`, `tray_use`, `trax_use`, `dutm_use`, `kxbohm`, `kybohm`, `vybohm`,
+  `fniyos_use`, `feeyosn_use`, `feiyosn_use`, `pondomfpar*_use`, `fnuizx`, `fnucxx`, `cftgtipltl/r`, `alfe`, `betai`
+  (`bbb/bbb.v`, `+threadprivate` with `+input`/`+maybeinput` or a DATA default; static list, only `afrac`, `atau`
+  and `afracs` were run). For the dynamic arrays in this list, a whole-array assignment from Python reaches the
+  workers (`setarraypointer`, R2 row); indexed or in-place writes, the scalars `fnuizx`, `fnucxx`, the fixed-size `cftgtipltl/r`
+  and Fortran-side writes do not.
+
+### Decision for the owner (AIUE-59 scope)
+
+The PRD's RHS acceptance asks for root causes or a known-limitation statement with evidence. Root causes are found;
+none needs a serial change. **What is tested:** only R1's fix was built and run (scratch build: probe bitwise,
+`ti --itermx 5` 3/3; default chunking, fixed inputs; reviewer's independent run agrees). The R2, R3 and R4 fixes
+below are untested proposals (R3's direction is supported by the `icntnunk=0` control, not by a code change).
+Whether option A restores a correct RHS is not shown here; it is AIUE-59's acceptance (the probe steps `pert`,
+`afrac`, `atau`, `ueinit` and the two-`exmain` sequence, as in the AIUE-59 description).
+
+The options as prepared for the owner (R3 wording corrected in review round 1):
+
+| Option | What AIUE-59 does | Result for `OMPParallelPandf1=1` | Serial | Cost / risk |
+|---|---|---|---|---|
+| **A. Fix all four** | R1: `hcyn` at `xe+1` (minimal form, not the scratch line) + audit of the `*omp` ranges against neighbour reads, starting with the `Nxchunks>1` rows; R2+R3: full worker refresh after `ueinit`, before the first parallel RHS of each `exmain`; R4: no `xerrab` inside parallel regions | Expected, **not shown**, bitwise equal to serial on the RHS for the default chunking; jacrhs then inherits only C2 | **Unchanged** (R1 by construction; the rest is `ppp/` only) | One extra full `pandf` + copy per refresh (not measured); the audit for `Nxchunks>1` is open-ended |
+| ~~B. Fix the crash path and the uninitialised read, document the rest~~ **Superseded** (R3's fix is the same worker refresh that fixes R2, so "R2 remains" no longer holds; the owner chose A) | R3 + R4 (+ R1, a serial-neutral change) | No crash; R2 remains for indexed/Fortran-side input changes until the next Jacobian | Unchanged | Users must set `icntnunk=0` after changing inputs; `continuation_solve` and `rundt` do not |
+| **C. Known limitation** | Declare `OMPParallelPandf1=1` experimental: warn in `InitParallel`, keep CI on the jac arm only | Wrong Newton trajectories with Ti on (R1), wrong RHS after input changes (R2), uninitialised tables and crashes in `rundt`-style runs with `isimpon=2/7` (R3/R4) | Unchanged | Leaves an uninitialised read and a SIGSEGV path reachable from a documented switch |
+| D. Nothing to fix | — | — | — | **Not supported by the evidence** (R1–R4 reproduce on the fixed build) |
+
+**Owner decision (2026-10-15; Jira AIUE-59 description and comments 10022, 10024, 10025):** AIUE-59 = **option A
+(fix R1–R4) plus the post-Jacobian worker refresh referred from AIUE-61 (Q6)**. AIUE-59 starts only after AIUE-60 and
+AIUE-61 are complete (both edit `ppp/omp_parallel.F90` and `ppp/parallel.F90`). Comment 10025 records the R3
+correction from this review round.
+
+**Refresh points AIUE-59 has to implement** (one mechanism if possible: master `pandf(-1,-1)` at the current `yl`,
+then `OmpCopyScalar*` and `OmpCopyPointer*` of all packages to every worker, as `OMPJacBuilder` does):
+
+1. **After `ueinit`, before the first parallel RHS of every `exmain`** (R2, R3). Placing it at the start of
+   `exmain`, before `ueinit`, would leave R3 in place: `gallot` hands the workers unfilled copies afterwards. With
+   `icntnunk=0` the Jacobian that precedes the first parallel RHS already copies; the refresh point must still hold
+   for `icntnunk=1`, where no Jacobian comes first.
+2. **After each OpenMP Jacobian, including later Jacobians inside the same `exmain`** (`psetnk` rebuilds it during
+   the Newton solve): Q6. After the column loop every worker holds what its last column's restoring evaluation left,
+   which depends on the schedule.
+3. **Every worker, not only those that ran chunks.** AIUE-61's design (a fresh full `pandf` at each chunk start,
+   dynamic schedule) refreshes a worker only when it draws a chunk; a worker that draws none keeps its old state.
+   AIUE-61's per-chunk reset covers the Jacobian loop only, not the RHS calls between Jacobians.
+4. Not needed as a separate point: whole-array assignments from Python of dynamic threadprivate arrays already reach
+   the workers through `setarraypointer` (R2 row); everything else that changes between `exmain` calls is covered by
+   point 1.
+
+**What the evidence says Q6 (point 2) buys.** With R1 fixed and inputs held fixed, the parallel RHS of this deck
+with the default chunking is bitwise equal to serial after perturbations, at 1 and 4 threads, and over 5 Newton
+iterations (scratch build). There the RHS no longer depends on worker state, so Q6 is defence in depth: it makes the
+worker state schedule-independent at every Jacobian and so limits the damage of any R1-class read not yet found.
+It does **not** correct an R1-class read by itself: the RHS is mostly evaluated at states other than the Jacobian's,
+where a refreshed but stale value is still wrong. So `Nxchunks>1` needs the range audit, not only Q6. Input changes
+and reallocations (R2, R3) happen between `exmain` calls and need point 1. Cost: about one full `pandf` (~23 ms
+quoted in AIUE-59) plus the copy per Jacobian, not measured here.
+
+**`emcoef` in `copyin`, owner: AIUE-59.** It is redundant since AIUE-56 and benign (AIUE-50 F15, AIUE-60 plan A6,
+which documents it and leaves the change). It does not cause R3. AIUE-61 rewrites the same `!$omp parallel do`
+directive, and AIUE-60 A6 offered it the one-token removal. Proposal: AIUE-59 removes it as part of the refresh
+work, and if AIUE-61 has already dropped it, AIUE-59 only verifies that.
 
 ## Linux characterisation (AIUE-62)
 
@@ -315,9 +553,10 @@ iterations and then drifts. Only the replay remedy reproduced serial's trajector
 | Root cause | Ticket | Status |
 |---|---|---|
 | C1 (copy order; also the RHS arm) | AIUE-56 | fix committed on `bugfix/v9-AIUE-56-omp-jacobian-fix`; validation: static hazards 12 → 0, defaults bitwise unchanged (serial check, 42 cases, both builds), C1 gate PASS in every Te configuration, no slowdown |
-| F16 `areapl` race, timer/flag races, clip-index inconsistency, `emcoef` `copyin` (benign), `fmombal` SAVE arrays (`isimpon=5`) | **AIUE-60** | not started |
+| F16 `areapl` race, timer/flag races, clip-index inconsistency, `emcoef` `copyin` (benign; not the cause of R3; removal owned by AIUE-59), `fmombal` SAVE arrays (`isimpon=5`) | **AIUE-60** | not started |
 | C2 / M2 (history inside the column loop) + the `OMPJacNchunks≠0` stack crash | **AIUE-61** | prototype shows option E works; production fix pending the owner's choice of path |
 | Linux characterisation, FMA on x86-64 | **AIUE-62** | done on `feature/v9-AIUE-62-linux-characterisation` (emulated x86-64; arm64 not run). New: M3 (`up` rows, Linux) → **AIUE-65**; the Linux OpenMP build's missing `libgomp` link → **AIUE-64** |
+| RHS: R1 `hcyn` chunk range, R2 stale threadprivate inputs, R3 uninitialised worker `Imslwrk` copies after `ueinit`, R4 `xerrab` on a worker (§RHS RCA) | **AIUE-59** | root causes found (AIUE-58, `feature/v9-AIUE-58-omp-rhs-rca`); only R1's fix shown (scratch build); owner decision: option A + Q6 refresh, after AIUE-60 and AIUE-61; also owns removing `emcoef` from `copyin` |
 
 ## Characterisation before any fix (AIUE-54)
 

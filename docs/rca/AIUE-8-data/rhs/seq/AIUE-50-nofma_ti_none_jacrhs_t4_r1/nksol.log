@@ -1,0 +1,12 @@
+ iter=   0 fnrm=      271985200.1001651     nfe=      1
+ Updating OMP Jacobian [   4|  3168]: npe =         1
+ OMP iter=   0 fnrm=     0.8709601170722304     nfe=      1
+ Updating OMP Jacobian [   4|  3168]: npe =         2
+ OMP iter=   1 fnrm=     0.2067640797777431E-03 nfe=      3
+ OMP iter=   2 fnrm=     0.4740017668013639E-05 nfe=      8
+ OMP iter=   3 fnrm=     0.2797231432826414E-08 nfe=     14
+ OMP iter=   0 fnrm=     0.8689208869296160     nfe=      1
+ OMP iter=   1 fnrm=     0.6205109127135291E-03 nfe=      3
+ OMP iter=   2 fnrm=     0.6726137645090430E-05 nfe=      8
+ OMP iter=   3 fnrm=     0.2811794128882862E-07 nfe=     13
+ OMP iter=   4 fnrm=     0.8859103001685639E-11 nfe=     18

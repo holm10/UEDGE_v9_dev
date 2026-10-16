@@ -1,0 +1,41 @@
+[agreement with serial] ti_serial_t1_it5 vs ti_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  yldot_probe: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.9eab4202e932ap-1 vs 0x1.17b9a1e09d3e4p+0
+  fnrm_printed: 1 mismatch(es): [(0, '0.8709601170722304'), (1, '1.117555920307043'), (2, '0.9585862833866882'), (3, '0.9192032693376099'), (4, '0.8966350326086079'), (5, '0.8099003437569980')] vs [(0, '0.8709601170722304'), (1, '1.117696701157226'), (2, '1.122004438411334'), (3, '1.102155172524046'), (4, '1.094290322242854'), (5, '1.092676827993159')]
+[agreement with serial] ti_serial_t1_it5 vs ti_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  yldot_probe: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.9eab4202e932ap-1 vs 0x1.2a46305f53070p+0
+  fnrm_printed: 1 mismatch(es): [(0, '0.8709601170722304'), (1, '1.117555920307043'), (2, '0.9585862833866882'), (3, '0.9192032693376099'), (4, '0.8966350326086079'), (5, '0.8099003437569980')] vs [(0, '0.8709601170722304'), (1, '1.117630536295100'), (2, '1.156017022013851'), (3, '1.133060286542499'), (4, '1.137444123994508'), (5, '1.165139863875578')]
+[determinism (run0 vs run1)] ti_jacrhs_t4_it5 vs ti_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  yldot_probe: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.17b9a1e09d3e4p+0 vs 0x1.2a46305f53070p+0
+  fnrm_printed: 1 mismatch(es): [(0, '0.8709601170722304'), (1, '1.117696701157226'), (2, '1.122004438411334'), (3, '1.102155172524046'), (4, '1.094290322242854'), (5, '1.092676827993159')] vs [(0, '0.8709601170722304'), (1, '1.117630536295100'), (2, '1.156017022013851'), (3, '1.133060286542499'), (4, '1.137444123994508'), (5, '1.165139863875578')]
+[agreement with serial] ti_serial_t1_it5 vs ti_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  yldot_probe: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.9eab4202e932ap-1 vs 0x1.10598669bc2dbp+0
+  fnrm_printed: 1 mismatch(es): [(0, '0.8709601170722304'), (1, '1.117555920307043'), (2, '0.9585862833866882'), (3, '0.9192032693376099'), (4, '0.8966350326086079'), (5, '0.8099003437569980')] vs [(0, '0.8709601170722304'), (1, '1.117695463844516'), (2, '1.084159774159786'), (3, '1.083257622454620'), (4, '1.063346494521356'), (5, '1.063866607473263')]
+[determinism (run0 vs run2)] ti_jacrhs_t4_it5 vs ti_jacrhs_t4_it5: MISMATCH
+  jacobian:post_exmain (permuted indices): equal
+  sfscal: equal
+  suscal: equal
+  yldot: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  yldot_probe: 3132 mismatch(es); by equation {'ti': 3132}; first at ti(ix=0,iy=0)
+  fnrm_final: 1 mismatch(es): 0x1.17b9a1e09d3e4p+0 vs 0x1.10598669bc2dbp+0
+  fnrm_printed: 1 mismatch(es): [(0, '0.8709601170722304'), (1, '1.117696701157226'), (2, '1.122004438411334'), (3, '1.102155172524046'), (4, '1.094290322242854'), (5, '1.092676827993159')] vs [(0, '0.8709601170722304'), (1, '1.117695463844516'), (2, '1.084159774159786'), (3, '1.083257622454620'), (4, '1.063346494521356'), (5, '1.063866607473263')]
+CHECK ti_jacrhs_t4_it5: MISMATCH

@@ -1,0 +1,431 @@
+{
+ "agree": true,
+ "exit_code": 0,
+ "spec": {
+  "arm": "jacrhs",
+  "capture": 16,
+  "itermx": null,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "full",
+  "rhs_probe": true,
+  "threads": 4
+ },
+ "repeats": 3,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 4,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 1,
+  "OMP_NUM_THREADS": "4",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 1,
+  "build": {
+   "compiler": [],
+   "extensions_sha256": "180bd9ad2f6f3e9851ba9e4482918ba97a3c28169a92dfdf896f8d00b7f5d775",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-56",
+   "source_dirty": false,
+   "source_head": "1553e756539bb4e66b2241b840fc697e23101a36",
+   "uedge_file": "/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-56-omp/lib/python3.13/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "8ee189d76b0232cedfe17088574935b10b857df5",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "premeth": "ilut",
+  "python": "3.13.12",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "reports": [
+  {
+   "a": "full_serial_t1_it0",
+   "b": "full_jacrhs_t4_it0",
+   "agree": true,
+   "errors": [],
+   "sections": {
+    "jacobian:post_exmain": {
+     "mismatches": 0,
+     "value": 0,
+     "only_a": 0,
+     "only_b": 0,
+     "duplicates": 0,
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "by_equation_pair": {},
+     "first": []
+    },
+    "sfscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "suscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "yldot": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345
+    },
+    "yldot_probe": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345,
+     "parallel": [
+      false,
+      true
+     ]
+    },
+    "fnrm_final": {
+     "mismatches": 0,
+     "a": "0x1.eb37d428ec4f0p+0",
+     "b": "0x1.eb37d428ec4f0p+0"
+    },
+    "fnrm_printed": {
+     "mismatches": 0,
+     "a": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ],
+     "b": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ]
+    }
+   },
+   "kind": "agreement with serial"
+  },
+  {
+   "a": "full_serial_t1_it0",
+   "b": "full_jacrhs_t4_it0",
+   "agree": true,
+   "errors": [],
+   "sections": {
+    "jacobian:post_exmain": {
+     "mismatches": 0,
+     "value": 0,
+     "only_a": 0,
+     "only_b": 0,
+     "duplicates": 0,
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "by_equation_pair": {},
+     "first": []
+    },
+    "sfscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "suscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "yldot": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345
+    },
+    "yldot_probe": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345,
+     "parallel": [
+      false,
+      true
+     ]
+    },
+    "fnrm_final": {
+     "mismatches": 0,
+     "a": "0x1.eb37d428ec4f0p+0",
+     "b": "0x1.eb37d428ec4f0p+0"
+    },
+    "fnrm_printed": {
+     "mismatches": 0,
+     "a": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ],
+     "b": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ]
+    }
+   },
+   "kind": "agreement with serial"
+  },
+  {
+   "a": "full_jacrhs_t4_it0",
+   "b": "full_jacrhs_t4_it0",
+   "agree": true,
+   "errors": [],
+   "sections": {
+    "jacobian:post_exmain": {
+     "mismatches": 0,
+     "value": 0,
+     "only_a": 0,
+     "only_b": 0,
+     "duplicates": 0,
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "by_equation_pair": {},
+     "first": []
+    },
+    "sfscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "suscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "yldot": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 0
+    },
+    "yldot_probe": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 0,
+     "parallel": [
+      true,
+      true
+     ]
+    },
+    "fnrm_final": {
+     "mismatches": 0,
+     "a": "0x1.eb37d428ec4f0p+0",
+     "b": "0x1.eb37d428ec4f0p+0"
+    },
+    "fnrm_printed": {
+     "mismatches": 0,
+     "a": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ],
+     "b": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ]
+    }
+   },
+   "kind": "determinism (run0 vs run1)"
+  },
+  {
+   "a": "full_serial_t1_it0",
+   "b": "full_jacrhs_t4_it0",
+   "agree": true,
+   "errors": [],
+   "sections": {
+    "jacobian:post_exmain": {
+     "mismatches": 0,
+     "value": 0,
+     "only_a": 0,
+     "only_b": 0,
+     "duplicates": 0,
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "by_equation_pair": {},
+     "first": []
+    },
+    "sfscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "suscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "yldot": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345
+    },
+    "yldot_probe": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 345,
+     "parallel": [
+      false,
+      true
+     ]
+    },
+    "fnrm_final": {
+     "mismatches": 0,
+     "a": "0x1.eb37d428ec4f0p+0",
+     "b": "0x1.eb37d428ec4f0p+0"
+    },
+    "fnrm_printed": {
+     "mismatches": 0,
+     "a": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ],
+     "b": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ]
+    }
+   },
+   "kind": "agreement with serial"
+  },
+  {
+   "a": "full_jacrhs_t4_it0",
+   "b": "full_jacrhs_t4_it0",
+   "agree": true,
+   "errors": [],
+   "sections": {
+    "jacobian:post_exmain": {
+     "mismatches": 0,
+     "value": 0,
+     "only_a": 0,
+     "only_b": 0,
+     "duplicates": 0,
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "by_equation_pair": {},
+     "first": []
+    },
+    "sfscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "suscal": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0
+    },
+    "yldot": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 0
+    },
+    "yldot_probe": {
+     "mismatches": 0,
+     "by_equation": {},
+     "first": [],
+     "nonfinite_a": 0,
+     "nonfinite_b": 0,
+     "signed_zero_equal": true,
+     "signed_zero_differences": 0,
+     "parallel": [
+      true,
+      true
+     ]
+    },
+    "fnrm_final": {
+     "mismatches": 0,
+     "a": "0x1.eb37d428ec4f0p+0",
+     "b": "0x1.eb37d428ec4f0p+0"
+    },
+    "fnrm_printed": {
+     "mismatches": 0,
+     "a": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ],
+     "b": [
+      [
+       0,
+       "1.918820629111277"
+      ]
+     ]
+    }
+   },
+   "kind": "determinism (run0 vs run2)"
+  }
+ ]
+}

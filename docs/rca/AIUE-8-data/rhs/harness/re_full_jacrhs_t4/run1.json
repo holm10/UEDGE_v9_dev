@@ -1,0 +1,68 @@
+{
+ "capture": {
+  "count": 0,
+  "hook": false
+ },
+ "elapsed_s": 11.0,
+ "fnrm_final_hex": "0x1.eb37d428ec4f0p+0",
+ "ijactot": 1,
+ "iterations": [
+  {
+   "fnrm_printed": "1.918820629111277",
+   "iter": 0,
+   "nfe": 1,
+   "omp": true
+  }
+ ],
+ "label": "full_jacrhs_t4_it0",
+ "neq": 44352,
+ "nnz_post": 3190290,
+ "numvar": 14,
+ "post_exmain_from": "sfsetnk",
+ "post_exmain_permuted": false,
+ "provenance": {
+  "CheckJac": 0,
+  "CheckPandf1": 0,
+  "ForceSerialCheck": 0,
+  "Nthreads": 4,
+  "OMPAutoBalance": 1,
+  "OMPJacNchunks": 0,
+  "OMPLoopJacNchunk": 1,
+  "OMPParallelJac": 1,
+  "OMPParallelPandf1": 1,
+  "OMP_NUM_THREADS": "4",
+  "OMP_STACKSIZE": "512M",
+  "OMPlenpfac": 5,
+  "ParallelJac": 1,
+  "ParallelPandf1": 1,
+  "build": {
+   "compiler": [],
+   "extensions_sha256": "180bd9ad2f6f3e9851ba9e4482918ba97a3c28169a92dfdf896f8d00b7f5d775",
+   "n_extensions": 11,
+   "openmp_build": true,
+   "source_dir": "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-56",
+   "source_dirty": false,
+   "source_head": "1553e756539bb4e66b2241b840fc697e23101a36",
+   "uedge_file": "/Users/holma/Documents/uedge/src/uedge-wt/venvs/AIUE-56-omp/lib/python3.13/site-packages/uedge/__init__.py"
+  },
+  "harness_commit": "8ee189d76b0232cedfe17088574935b10b857df5",
+  "harness_dirty": false,
+  "ireorder": 1,
+  "openmp_build": true,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "premeth": "ilut",
+  "python": "3.13.12",
+  "uedge_ver": "8.1.2-beta.0"
+ },
+ "rhs_probe_parallel": true,
+ "spec": {
+  "arm": "jacrhs",
+  "capture": 16,
+  "itermx": null,
+  "omp_stacksize": "512M",
+  "ppp": {},
+  "preset": "full",
+  "rhs_probe": true,
+  "threads": 4
+ }
+}

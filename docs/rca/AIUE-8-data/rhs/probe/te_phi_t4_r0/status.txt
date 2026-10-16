@@ -1,0 +1,1 @@
+exit 0 elapsed 4 s load 9.67 7.80 6.96

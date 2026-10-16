@@ -1,0 +1,266 @@
+=== base_full_t4_r0  (exit 0 elapsed 13 s load 15.21 9.57 7.67)
+same/P1                    ndiff  2198  sz  345  {'te': 2198}  ncells 2198  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+same/P2                    ndiff  2240  sz  345  {'te': 2240}  ncells 2240  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.06e+34
+pert1e-8/P1                ndiff  2224  sz    0  {'te': 2198, 'ti': 26}  ncells 2212  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+pert1e-8/P2                ndiff  2224  sz    0  {'te': 2198, 'ti': 26}  ncells 2212  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+pert1e-8/P3_after_serial   ndiff  2250  sz    0  {'te': 2240, 'ti': 10}  ncells 2240  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.06e+34
+pert1e-3/P1                ndiff  2266  sz    0  {'te': 2240, 'ti': 26}  ncells 2250  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.81e+35
+pert1e-3/P2                ndiff  2264  sz    0  {'te': 2240, 'ti': 24}  ncells 2250  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.81e+35
+pert1e-3/P3_after_serial   ndiff  2229  sz    0  {'te': 2216, 'ti': 13}  ncells 2216  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.48e+35
+back/P1                    ndiff  2236  sz  345  {'te': 2216, 'ti': 20}  ncells 2226  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+afrac1.1/P1                ndiff  2190  sz  345  {'te': 2176, 'ti': 14}  ncells 2176  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 3.74e+34
+afrac1.1/P2                ndiff  2252  sz  345  {'te': 2240, 'ti': 12}  ncells 2240  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.06e+34
+afrac1.1/restored          ndiff  2241  sz  345  {'te': 2240, 'ti': 1}  ncells 2240  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.06e+34
+atau2/P1                   ndiff  2209  sz  345  {'te': 2198, 'ti': 11}  ncells 2198  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+atau2/P2                   ndiff  2217  sz  345  {'te': 2216, 'ti': 1}  ncells 2216  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 6.06e+34
+atau2/restored             ndiff  2242  sz  345  {'te': 2240, 'ti': 2}  ncells 2240  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 13]]  max_rel 6.06e+34
+=== full_t1_r0  (exit 0 elapsed 37 s load 7.20 8.14 6.67)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00129
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff    26  sz  345  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.0282
+=== full_t2_r0  (exit 0 elapsed 20 s load 7.16 7.21 6.73)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P2                ndiff     4  sz    0  {'ti': 4}  ncells    4  [[8, 1], [12, 7], [52, 1], [52, 7]]  max_rel 4.78e-08
+pert1e-8/P3_after_serial   ndiff     3  sz    0  {'ti': 3}  ncells    3  [[12, 7], [52, 1], [52, 7]]  max_rel 4.78e-08
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00129
+pert1e-3/P2                ndiff     4  sz    0  {'ti': 4}  ncells    4  [[8, 1], [12, 7], [52, 1], [52, 7]]  max_rel 0.00106
+pert1e-3/P3_after_serial   ndiff     3  sz    0  {'ti': 3}  ncells    3  [[12, 7], [52, 1], [52, 7]]  max_rel 0.00106
+back/P1                    ndiff    25  sz  345  {'ti': 25}  ncells   25  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.0282
+afrac1.1/P1                ndiff  1447  sz  345  {'te': 1447}  ncells 1447  [[1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14], [1, 15]]  max_rel 15.9
+afrac1.1/P2                ndiff  1447  sz  345  {'te': 1447}  ncells 1447  [[1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14], [1, 15]]  max_rel 15.9
+afrac1.1/restored          ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff  1418  sz  345  {'te': 1418}  ncells 1418  [[1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 28], [1, 29], [1, 30]]  max_rel 0.019
+atau2/P2                   ndiff  1410  sz  345  {'te': 1410}  ncells 1410  [[1, 14], [1, 17], [1, 23], [1, 24], [1, 25], [1, 26], [1, 27], [1, 33]]  max_rel 0.162
+atau2/restored             ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+=== full_t4_nx4  (exit 0 elapsed 11 s load 10.42 7.88 6.98)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff   184  sz    0  {'ti': 148, 'up': 36}  ncells  155  [[8, 1], [9, 7], [9, 8], [9, 9], [9, 10], [9, 11], [9, 12], [9, 13]]  max_rel 2.15
+pert1e-8/P2                ndiff   106  sz    0  {'ti': 99, 'up': 7}  ncells  100  [[8, 1], [9, 8], [9, 9], [9, 10], [9, 11], [12, 2], [12, 3], [12, 4]]  max_rel 0.0112
+pert1e-8/P3_after_serial   ndiff    82  sz    0  {'ti': 75, 'up': 7}  ncells   76  [[8, 1], [9, 8], [9, 9], [9, 10], [9, 11], [17, 3], [17, 4], [17, 5]]  max_rel 0.0112
+pert1e-3/P1                ndiff   190  sz    0  {'ti': 153, 'up': 37}  ncells  156  [[8, 1], [9, 7], [9, 8], [9, 9], [9, 10], [9, 11], [9, 12], [9, 13]]  max_rel 1.15
+pert1e-3/P2                ndiff   123  sz    0  {'ti': 112, 'up': 11}  ncells  113  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 1.12
+pert1e-3/P3_after_serial   ndiff    85  sz    0  {'ti': 75, 'up': 10}  ncells   75  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 0.201
+back/P1                    ndiff   171  sz  345  {'ti': 135, 'up': 36}  ncells  141  [[8, 1], [9, 7], [9, 8], [9, 9], [9, 10], [9, 11], [9, 12], [9, 13]]  max_rel 2.95e+10
+afrac1.1/P1                ndiff  2260  sz  345  {'te': 2155, 'up': 36, 'ti': 69}  ncells 2155  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 2.05e+10
+afrac1.1/P2                ndiff  2213  sz  345  {'te': 2132, 'up': 23, 'ti': 58}  ncells 2132  [[1, 1], [1, 23], [1, 24], [1, 25], [1, 26], [1, 27], [1, 28], [1, 29]]  max_rel 2.05e+10
+afrac1.1/restored          ndiff    52  sz  345  {'ti': 42, 'up': 10}  ncells   42  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13], [35, 8]]  max_rel 2.95e+10
+atau2/P1                   ndiff  2258  sz  345  {'te': 2209, 'up': 13, 'ti': 36}  ncells 2209  [[10, 7], [10, 8], [10, 9], [10, 10], [10, 11], [10, 12], [10, 13], [11, 1]]  max_rel 2.05e+10
+atau2/P2                   ndiff  2169  sz  345  {'te': 2121, 'ti': 36, 'up': 12}  ncells 2121  [[1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [2, 18], [2, 19], [2, 20]]  max_rel 2.95e+10
+atau2/restored             ndiff    37  sz  345  {'up': 17, 'ti': 20}  ncells   24  [[49, 2], [49, 3], [49, 4], [49, 5], [49, 8], [49, 9], [49, 10], [49, 11]]  max_rel 2.95e+10
+=== full_t4_r0  (exit 0 elapsed 11 s load 12.19 8.88 6.68)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P2                ndiff    24  sz    0  {'ti': 24}  ncells   24  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P3_after_serial   ndiff     6  sz    0  {'ti': 6}  ncells    6  [[8, 1], [12, 7], [12, 13], [52, 1], [52, 7], [52, 13]]  max_rel 3.97e-08
+pert1e-5/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.000185
+pert1e-5/P2                ndiff    16  sz    0  {'ti': 16}  ncells   16  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 6.75e-05
+pert1e-5/P3_after_serial   ndiff     4  sz    0  {'ti': 4}  ncells    4  [[8, 1], [12, 7], [52, 1], [52, 7]]  max_rel 6.75e-05
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00853
+pert1e-3/P2                ndiff    24  sz    0  {'ti': 24}  ncells   24  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 8], [12, 9]]  max_rel 0.00853
+pert1e-3/P3_after_serial   ndiff    14  sz    0  {'ti': 14}  ncells   14  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 1]]  max_rel 0.0136
+back/P1                    ndiff    26  sz  345  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.0164
+afrac1.1/P1                ndiff  2199  sz  345  {'te': 2188, 'ti': 11}  ncells 2188  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 30.4
+afrac1.1/P2                ndiff  2166  sz  345  {'te': 2156, 'ti': 10}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/restored          ndiff    12  sz  345  {'ti': 12}  ncells   12  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 7], [52, 8]]  max_rel 0.000485
+atau2/P1                   ndiff  2120  sz  345  {'te': 2110, 'ti': 10}  ncells 2110  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/P2                   ndiff  2122  sz  345  {'te': 2110, 'ti': 12}  ncells 2110  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/restored             ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+=== full_t4_r1  (exit 0 elapsed 11 s load 6.98 7.17 6.72)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P2                ndiff     5  sz    0  {'ti': 5}  ncells    5  [[12, 7], [12, 13], [52, 1], [52, 7], [52, 13]]  max_rel 4.78e-08
+pert1e-8/P3_after_serial   ndiff    13  sz    0  {'ti': 13}  ncells   13  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 7]]  max_rel 8.1e-09
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00129
+pert1e-3/P2                ndiff    16  sz    0  {'ti': 16}  ncells   16  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 0.00106
+pert1e-3/P3_after_serial   ndiff    14  sz    0  {'ti': 14}  ncells   14  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 1]]  max_rel 0.00106
+back/P1                    ndiff    26  sz  345  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.0282
+afrac1.1/P1                ndiff  2172  sz  345  {'te': 2156, 'ti': 16}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/P2                ndiff  2157  sz  345  {'te': 2156, 'ti': 1}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/restored          ndiff     1  sz  345  {'ti': 1}  ncells    1  [[52, 1]]  max_rel 4.78e-08
+atau2/P1                   ndiff  2124  sz  345  {'ti': 14, 'te': 2110}  ncells 2111  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/P2                   ndiff  2111  sz  345  {'te': 2110, 'ti': 1}  ncells 2110  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/restored             ndiff     2  sz  345  {'ti': 2}  ncells    2  [[12, 2], [52, 1]]  max_rel 4.78e-08
+=== full_t4_ueinit  (exit 0 elapsed 12 s load 8.06 12.29 11.31)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff     1  sz  345  {'te': 1}  ncells    1  [[11, 32]]  max_rel 3.8e-16
+ueinit/P2                  ndiff     1  sz  345  {'te': 1}  ncells    1  [[11, 32]]  max_rel 3.8e-16
+=== full_t8_r0  (exit 0 elapsed 7 s load 9.44 7.86 7.00)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P2                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.91e-07
+pert1e-8/P3_after_serial   ndiff    16  sz    0  {'ti': 16}  ncells   16  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 4.78e-08
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00129
+pert1e-3/P2                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00129
+pert1e-3/P3_after_serial   ndiff    15  sz    0  {'ti': 15}  ncells   15  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13], [52, 1]]  max_rel 0.00106
+back/P1                    ndiff    11  sz  345  {'ti': 11}  ncells   11  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [52, 2], [52, 3]]  max_rel 0.0282
+afrac1.1/P1                ndiff  2538  sz  345  {'te': 2538}  ncells 2538  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 17.9
+afrac1.1/P2                ndiff  2538  sz  345  {'te': 2538}  ncells 2538  [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8]]  max_rel 17.9
+afrac1.1/restored          ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff  2456  sz  345  {'te': 2455, 'ti': 1}  ncells 2455  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/P2                   ndiff  2443  sz  345  {'te': 2443}  ncells 2443  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/restored             ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+=== hcyn_full_t1_r0  (exit 0 elapsed 39 s load 12.47 14.29 11.67)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+=== hcyn_full_t4_r0  (exit 0 elapsed 15 s load 12.07 14.55 11.64)
+same/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-5/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz  345  {}  ncells    0  []  max_rel 0
+=== ng_t4_r0  (exit 0 elapsed 3 s load 9.30 7.81 6.98)
+same/P1                    ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+afrac1.1/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+afrac1.1/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+afrac1.1/restored          ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+atau2/P2                   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+atau2/restored             ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+=== ni_t4_r0  (exit 0 elapsed 7 s load 9.41 7.81 6.97)
+same/P1                    ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+afrac1.1/P1                ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+afrac1.1/P2                ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+afrac1.1/restored          ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+atau2/P2                   ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+atau2/restored             ndiff     0  sz  255  {}  ncells    0  []  max_rel 0
+=== te_phi_t4_r0  (exit 0 elapsed 4 s load 9.67 7.80 6.96)
+same/P1                    ndiff     0  sz   50  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   50  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz   50  {}  ncells    0  []  max_rel 0
+afrac1.1/P1                ndiff  2156  sz   50  {'te': 2156}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/P2                ndiff  2156  sz   50  {'te': 2156}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/restored          ndiff     0  sz   50  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff  2109  sz   50  {'te': 2109}  ncells 2109  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/P2                   ndiff  2109  sz   50  {'te': 2109}  ncells 2109  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 23]]  max_rel 0.162
+atau2/restored             ndiff     0  sz   50  {}  ncells    0  []  max_rel 0
+=== te_t4_r0  (exit 0 elapsed 4 s load 9.90 7.82 6.96)
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+afrac1.1/P1                ndiff  2157  sz   36  {'te': 2157}  ncells 2157  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 30.4
+afrac1.1/P2                ndiff  2156  sz   36  {'te': 2156}  ncells 2156  [[1, 1], [1, 8], [1, 9], [1, 10], [1, 11], [1, 12], [1, 13], [1, 14]]  max_rel 17.9
+afrac1.1/restored          ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff  2113  sz   36  {'te': 2113}  ncells 2113  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 28]]  max_rel 0.162
+atau2/P2                   ndiff  2113  sz   36  {'te': 2113}  ncells 2113  [[1, 14], [1, 17], [1, 18], [1, 19], [1, 20], [1, 21], [1, 22], [1, 28]]  max_rel 0.162
+atau2/restored             ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+=== te_t4_ueinit  (exit 0 elapsed 3 s load 21.22 14.23 9.81)
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff  1855  sz   36  {'te': 1855}  ncells 1855  [[0, 41], [0, 42], [1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6]]  max_rel 5.08e+56
+ueinit/P2                  ndiff  1836  sz   36  {'te': 1836}  ncells 1836  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 41], [0, 42], [1, 1], [1, 8]]  max_rel 5.08e+56
+ueinit/P1                  ndiff  1836  sz   36  {'te': 1836}  ncells 1836  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 41], [0, 42], [1, 1], [1, 8]]  max_rel 3.74e+34
+ueinit/P2                  ndiff  1855  sz   36  {'te': 1855}  ncells 1855  [[0, 32], [0, 41], [0, 42], [1, 1], [1, 2], [1, 3], [1, 4], [1, 5]]  max_rel 6.06e+34
+=== ti_t4_r0  (exit 0 elapsed 2 s load 9.90 7.82 6.96)
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 3.82e-07
+pert1e-8/P2                ndiff    16  sz    0  {'ti': 16}  ncells   16  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 1.15e-07
+pert1e-8/P3_after_serial   ndiff    16  sz    0  {'ti': 16}  ncells   16  [[8, 1], [12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [12, 13]]  max_rel 1.15e-07
+pert1e-3/P1                ndiff    26  sz    0  {'ti': 26}  ncells   26  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.00809
+pert1e-3/P2                ndiff    24  sz    0  {'ti': 24}  ncells   24  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 8], [12, 9]]  max_rel 0.00809
+pert1e-3/P3_after_serial   ndiff     6  sz    0  {'ti': 6}  ncells    6  [[8, 1], [12, 7], [12, 13], [52, 1], [52, 7], [52, 13]]  max_rel 0.00809
+back/P1                    ndiff    25  sz   36  {'ti': 25}  ncells   25  [[8, 1], [12, 2], [12, 3], [12, 4], [12, 5], [12, 6], [12, 7], [12, 8]]  max_rel 0.0126
+afrac1.1/P1                ndiff     5  sz   36  {'ti': 5}  ncells    5  [[12, 7], [12, 13], [52, 1], [52, 7], [52, 13]]  max_rel 0.00923
+afrac1.1/P2                ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+afrac1.1/restored          ndiff    12  sz   36  {'ti': 12}  ncells   12  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 7], [52, 8]]  max_rel 0.000206
+atau2/P1                   ndiff    12  sz   36  {'ti': 12}  ncells   12  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 7], [52, 8]]  max_rel 0.000206
+atau2/P2                   ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+atau2/restored             ndiff    12  sz   36  {'ti': 12}  ncells   12  [[12, 7], [12, 8], [12, 9], [12, 10], [12, 11], [12, 12], [52, 7], [52, 8]]  max_rel 0.000206
+=== up_t4_r0  (exit 0 elapsed 4 s load 9.41 7.81 6.97)
+same/P1                    ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+pert1e-8/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-8/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+back/P1                    ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+afrac1.1/P1                ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+afrac1.1/P2                ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+afrac1.1/restored          ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+atau2/P1                   ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+atau2/P2                   ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+atau2/restored             ndiff     0  sz    4  {}  ncells    0  []  max_rel 0
+=== te_t4_ueinit_stepless (stopped at the unknown step 'reexmain'; the steps before it are valid)  (exit 2 elapsed 3 s load 5.45 7.55 9.01)
+Traceback (most recent call last):
+  File "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-58/tests/deterministic_omp/rhs/rhs_probe.py", line 34, in main
+    run(spec, result)
+    ~~~^^^^^^^^^^^^^^
+  File "/Users/holma/Documents/uedge/src/uedge-wt/AIUE-58/tests/deterministic_omp/rhs/rhs_probe.py", line 160, in run
+    raise ValueError("unknown step " + step)
+ValueError: unknown step reexmain
+
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff   988  sz   36  {'te': 988}  ncells  988  [[0, 13], [0, 14], [0, 15], [0, 33], [0, 34], [0, 35], [0, 36], [0, 37]]  max_rel 5.5e-09
+ueinit/P2                  ndiff   760  sz   36  {'te': 760}  ncells  760  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 41], [0, 42], [1, 13], [1, 14]]  max_rel 5.5e-09
+=== te_t4_ueinit_reexmain  (exit 0 elapsed 4 s load 5.19 7.36 8.91)
+same/P1                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+same/P2                    ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+ueinit/P1                  ndiff   889  sz   36  {'te': 889}  ncells  889  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 33], [0, 34], [0, 35], [0, 36]]  max_rel 5.5e-09
+ueinit/P2                  ndiff   889  sz   36  {'te': 889}  ncells  889  [[0, 13], [0, 14], [0, 15], [0, 32], [0, 33], [0, 34], [0, 35], [0, 36]]  max_rel 5.5e-09
+reexmain/P1                ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+reexmain/P2                ndiff     0  sz   36  {}  ncells    0  []  max_rel 0
+pert1e-3/P1                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P2                ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
+pert1e-3/P3_after_serial   ndiff     0  sz    0  {}  ncells    0  []  max_rel 0
