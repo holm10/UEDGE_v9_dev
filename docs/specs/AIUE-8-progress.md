@@ -221,3 +221,10 @@ Linux criterion → AIUE-62 or not; (4) phi has no verdict of its own (`te_phi` 
   parallel RHS, epic AIUE-70), AIUE-75 (serial ng(...,2) read, standalone). The ticket-pages skill is consolidated
   onto local v9-develop (`e52a44d`, 5 commits ahead of origin; not pushed). Merge order: 46 → 47 → 49 → 52, 53 →
   50 → 54 → 55 → 62 → 58; 56 → 60 → 61; 64; 57 last.
+- **Merge (owner request):** AIUE-46…64 (excluding 57) merged with --no-ff into `bugfix/v9-openmp-determinism-fix`
+  (from origin/v9-develop `e52a44d`; tip `9fa2a0e`; not pushed; no upstream). Validation on the merged tree: serial
+  AGREE (42), warnings equal to base, 132 unit tests, full hash `8761cd9e36658ee1` deterministic, 2 = 4 = 8 threads,
+  G-common and G-iotable PASS. The C1 gate is evaluated on the scaled post_exmain Jacobian (4.59e-9). On the raw
+  captured matrix (AIUE-47 hook) it is 1.98e-4, a units artefact; the gate script needs fixing under AIUE-57.
+  Cleanup: 30 worktrees removed, archive tags `archive/AIUE-50-scratch` and `archive/AIUE-61-{cost,replay}`, diffs
+  in `uedge-wt/logs/archive-diffs/`; branches kept; venv removal command handed to the owner.
