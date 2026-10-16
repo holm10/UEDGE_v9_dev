@@ -285,11 +285,11 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
             debug: if (ii==iidebugprint.and.iv==ivdebugprint) then
                 tid=omp_get_thread_num()
                 write(*,'(a,i3,a,i7,i7,i7, E20.12,E20.12,E20.12,E20.12,E20.12,E20.12)') '#', tid,&
-                    ' : ',iv,nnz,ii,jacelem,wk(ii),yldot00(ii),sfscal(iv),jaccliplim,nufak
+                    ' : ',iv,nnz,ii,jacelem,wk(ii),yldot00(ii),sfscal(ii),jaccliplim,nufak
                 call DebugHelper('dumpomp.txt') ! See at the end of this file
             endif debug
 
-            storage: if (abs(jacelem*sfscal(iv)) .gt. jaccliplim) then
+            storage: if (abs(jacelem*sfscal(ii)) .gt. jaccliplim) then
                 if (nnz .gt. nnzmxperchunk) then
                     write(*,*) 'nnz=',nnz,'nnzmxperchunk=',nnzmxperchunk
                     write(*,*) 'chunk',ichunk,'*** jac_calc -- More storage needed for Jacobian. Increase omplenpfac.'

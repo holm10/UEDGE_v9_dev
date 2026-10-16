@@ -104,3 +104,15 @@ c ****end of subroutine quadsvr**********
             tock = real(now)/real(clock_rate)-t
         end function tock
 
+
+c-----------------------------------------------------------------------
+      subroutine acctim(acc, dt)
+c ... acc = acc + dt for the com timing accumulators (Timing, Timespl),
+c     which OpenMP threads share: the next line makes the update atomic
+c     in the OpenMP build and is a comment in the serial build (AIUE-60).
+      implicit none
+      real acc, dt
+c$omp atomic
+      acc = acc + dt
+      return
+      end

@@ -1,0 +1,246 @@
+AIUE-60 validation, after amendment 1 (macOS arm64, gfortran 15, Homebrew LLVM clang/libomp)
+Code: 3bb994b (races, clip index) + 02e6e60 (workh bound) + 728f9d9 (amendment 1: no threadprivate scalars outside bbb,
+atomic acctim timers, iflagl locals) + AI layer 1442d23, ee76a15. Builds from ee76a15: venvs/AIUE-60-omp (this worktree),
+venvs/AIUE-60-serial (AIUE-60-serial tree), venvs/AIUE-60-tsan (AIUE-60-tsan tree + uncommitted -fsanitize=thread in setup.py).
+Bases: venvs/AIUE-56-omp (build of 4fae2f9), venvs/AIUE-56-serial (4fae2f9), venvs/base-serial + base-omp (v9-develop 0fac655),
+venvs/AIUE-60-tsan-pre (1553e75 + -fsanitize=thread). Negative controls: venvs/AIUE-60-omp-pre (copy of the 02e6e60 build) with
+its generated sources in logs/AIUE-60/pre_amend_gen/ (see AIUE-60-amendment1-controls.txt).
+Tools: harness core AIUE-57 8ee189d; serial check AIUE-53 15ae327; AIUE-50 tools 32ac1af; Probe S scripts SHA-256 6eeeacda.../c8c8ce78...;
+scripts: AIUE-60-run_protocol2.sh (this run), AIUE-60-tsan-post.sh + AIUE-60-tsan-prep.py, AIUE-60-run-donly.py,
+AIUE-60-flow-gates.py, AIUE-60-clip-check.py, AIUE-60-common-check.py, AIUE-60-iotable-probe.py.
+Earlier runs on the pre-amendment tree (02e6e60): commit a2e1550 of this file; superseded except the TSan pre runs (1553e75), reused.
+
+## Deviations from the plan
+- workh bound (02e6e60): Forthon --omp ProcessDim/GetSize take S.split('(')[1].split(')')[0], so the nested '(' in
+  2*kxords_aph*(nxdata_aph+1) produced uncompilable copy routines (AIUE-71). Rewritten as the equal
+  2*kxords_aph*nxdata_aph+2*kxords_aph. Consequence (I1-m2 ii): the generated serial aph_p.F90 and aphpymodule.c differ from the
+  base in the text of this bound only; the size is arithmetically equal.
+- Defaults gate (I1-m2 i): the plan's pair (AIUE-56 builds) gives RESULT: INCOMPLETE on tool policy (base not on
+  origin/v9-develop) although every comparison agrees. The certified complete gate is run against base-serial/base-omp (0fac655):
+  0fac655 is an ancestor of origin/v9-develop and of 1553e75, and the only product diff 0fac655..1553e75 is AIUE-56's
+  OMPJacBuilder copy order, which runs neither in serial nor with both OpenMP switches 0.
+- TSan launch: cli.py run under DYLD_INSERT_LIBRARIES segfaults at start-up; the harness worker is started directly in a run
+  directory prepared with prepare_rundir (AIUE-60-tsan-prep.py), OMP_STACKSIZE=64M. Every run wrote its record, then exited 134
+  at interpreter shutdown.
+- Untested at run time (I1-m1): B2 (sputflxllim/rlim, limiter sputtering) and B4 (workh, istabon=5/6) were never executed in
+  a threaded run (no preset enables them; the istabon=5/6 nwfits data isn't on this machine). Covered by Probe S, the build,
+  the generated per-thread allocation (same copyin(pcopy__) as the exercised bbb arrays) and B2VAhL's write-before-read.
+- Behaviour notes for the PR: com timers are shared and atomic, so under OpenMP they sum thread-seconds over threads;
+  aph.iflag_aph is no longer updated by rqa/rra/rsa (only by the aphread setup calls).
+
+## Amendment-1 gates
+G-common (venvs/AIUE-60-omp + AIUE-60/build/temp.*):
+  import order: uedgeC compy grdpy flxpy bbbpy svrpy wdfpy apipy aphpy ppppy nclpy
+    uedgeC   -
+    compy    -
+    grdpy    -
+    flxpy    -
+    bbbpy    defines the block: 91 variables, 728 B
+    svrpy    -
+    wdfpy    -
+    apipy    defines the block: 12 variables, 96 B
+    aphpy    -
+    ppppy    -
+    nclpy    -
+  RESULT: PASS (first definer bbbpy 728 B; others apipy 96 B)
+G-atomic (generated misc.F of both builds; otool -tV _acctim_): PASS
+  == AIUE-60/com/misc.F
+  109-      subroutine acctim(acc, dt)
+  110:c ... acc = acc + dt for the com timing accumulators (Timing, Timespl),
+  111-c     which OpenMP threads share: the next line makes the update atomic
+  --
+  115-c$omp atomic
+  116:      acc = acc + dt
+  117-      return
+  == AIUE-60-serial/com/misc.F
+  109-      subroutine acctim(acc, dt)
+  110:c ... acc = acc + dt for the com timing accumulators (Timing, Timespl),
+  111-c     which OpenMP threads share: the next line makes the update atomic
+  --
+  115-c$omp atomic
+  116:      acc = acc + dt
+  117-      return
+  == AIUE-60-omp compy _acctim_
+  _acctim_:
+  000000000002aba0	ldr	d31, [x1]
+  000000000002aba4	ldr	x1, [x0]
+  000000000002aba8	fmov	d30, x1
+  000000000002abac	mov	x2, x1
+  000000000002abb0	fadd	d30, d31, d30
+  000000000002abb4	fmov	x3, d30
+  000000000002abb8	cas	x2, x3, [x0]
+  000000000002abbc	cmp	x1, x2
+  000000000002abc0	b.ne	0x2abc8
+  000000000002abc4	ret
+  == AIUE-60-serial compy _acctim_
+  _acctim_:
+  000000000002aba0	ldr	d31, [x0]
+  000000000002aba4	ldr	d30, [x1]
+  000000000002aba8	fadd	d30, d31, d30
+  000000000002abac	str	d30, [x0]
+  000000000002abb0	ret
+G-iotable (base AIUE-56, new AIUE-60, negative control AIUE-60-omp-pre; Te box, jac, 4 threads, itermx=1, 2 repeats):
+  base run0: com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)]
+  base run1: com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)]
+  new run0: com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)]
+  new run1: com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)]
+  neg run0: com block present; 62 words changed: [(0, 0, 4), (1, 0, 4), (2, 0, 1), (3, 0, 1), (4, 0, 1), (5, 0, 4592291131226807497), (7, 0, 1), (8, 0, 1), (9, 1, 0), (10, 1, 0), (11, 0, 70), (12, 0, 69)]
+  neg run1: com block present; 62 words changed: [(0, 0, 4), (1, 0, 4), (2, 0, 1), (3, 0, 1), (4, 0, 1), (5, 0, 4592291131226807497), (7, 0, 1), (8, 0, 1), (9, 1, 0), (10, 1, 0), (11, 0, 70), (12, 0, 69)]
+  base repeatable: True | new equals base: True | negative control equals base: False
+  RESULT: PASS
+
+## 1. Build hygiene: PASS
+OpenMP: threadprivate directives for areapl, timingpandfon, sputflxllim (bbb_p.F90), workh (aph_p.F90); none for ttimpjf,
+totintrv, iflag_aph, ghxpt, fngysi. Serial: 0 threadprivate lines in every *_p.F90. Warnings per touched file equal to the
+AIUE-56 build (pandf.F 0, parallel.F90 0, aph_p.F90 0, com_p.F90 0, misc.F 0, aphrates.F 0, pandf_gas_continuity.F 0,
+bbb_p.F90 4/4, comutil.F 56/56, fmombal.F 7/7). scan_ompcopy.py: bbb 526/526 copied, api 25/25, aph 1 threadprivate (workh,
+scratch, not copied by design), com none; 0 copy-order hazards.
+
+## 2. Defaults unchanged
+  vs v9-develop (0fac655), 42 cases, both pairs: RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (514.5 s)
+  vs AIUE-56 builds (plan pair): every comparison AGREE (84 lines); verbatim: RESULT: INCOMPLETE (what ran agrees bitwise; not the gate: base not on origin/v9-develop, build older than HEAD)  [pairs serial+omp0, cases all (42)]  (457.5 s)
+  D_only (one process per file): omp 125 files 121 pass / 4 fail, serial 120 / 5; per-file outcomes identical to the AIUE-56
+  builds (pre-existing failures: nonog/ineudif0, ineudif1, ineudif3, tg_atom_cftiexclg0p5; serial also nonog/concap).
+
+## 3. Flow gates (flow --all --arms jac,jacrhs --threads 2,4 --repeats 2; AIUE-56 then AIUE-60, both re-run): PASS
+  tebox jac t2           PASS  GATE PASS
+  tebox jac t4           PASS  GATE PASS
+  tebox jacrhs t2        PASS  GATE PASS
+  tebox jacrhs t4        PASS  GATE PASS
+  full jac t2            PASS  GATE PASS
+  full jac t4            PASS  GATE PASS
+  full jacrhs t2         PASS  GATE PASS
+  full jacrhs t4         PASS  GATE PASS
+  te jac t2              PASS  GATE PASS
+  te jac t4              PASS  GATE PASS
+  te jacrhs t2           PASS  GATE PASS
+  te jacrhs t4           PASS  GATE PASS
+  ti jac t2              PASS  
+  ti jac t4              PASS  
+  ti jacrhs t2           PASS  
+  ti jacrhs t4           PASS  
+  ni jac t2              PASS  
+  ni jac t4              PASS  
+  ni jacrhs t2           PASS  
+  ni jacrhs t4           PASS  
+  up jac t2              PASS  
+  up jac t4              PASS  
+  up jacrhs t2           PASS  
+  up jacrhs t4           PASS  
+  ng jac t2              PASS  
+  ng jac t4              PASS  
+  ng jacrhs t2           PASS  
+  ng jacrhs t4           PASS  
+  phi jac t2             PASS  GATE PASS
+  phi jac t4             PASS  GATE PASS
+  phi jacrhs t2          PASS  GATE PASS
+  phi jacrhs t4          PASS  GATE PASS
+  FLOW GATES PASS
+  flow56: 64 agreement reports; failing (config, section): {('tebox', 'jacobian:post_exmain'): 8, ('full', 'jacobian:post_exmain'): 1, ('te', 'jacobian:post_exmain'): 8, ('phi', 'jacobian:post_exmain'): 8}
+    class Y agree with serial: tebox/jac/t2:0/2 tebox/jac/t4:0/2 tebox/jacrhs/t2:0/2 tebox/jacrhs/t4:0/2 full/jac/t2:2/2 full/jac/t4:1/2 full/jacrhs/t2:2/2 full/jacrhs/t4:2/2 te/jac/t2:0/2 te/jac/t4:0/2 te/jacrhs/t2:0/2 te/jacrhs/t4:0/2 phi/jac/t2:0/2 phi/jac/t4:0/2 phi/jacrhs/t2:0/2 phi/jacrhs/t4:0/2
+  flow60: 64 agreement reports; failing (config, section): {('tebox', 'jacobian:post_exmain'): 8, ('te', 'jacobian:post_exmain'): 8, ('phi', 'jacobian:post_exmain'): 8}
+    class Y agree with serial: tebox/jac/t2:0/2 tebox/jac/t4:0/2 tebox/jacrhs/t2:0/2 tebox/jacrhs/t4:0/2 full/jac/t2:2/2 full/jac/t4:2/2 full/jacrhs/t2:2/2 full/jacrhs/t4:2/2 te/jac/t2:0/2 te/jac/t4:0/2 te/jacrhs/t2:0/2 te/jacrhs/t4:0/2 phi/jac/t2:0/2 phi/jac/t4:0/2 phi/jacrhs/t2:0/2 phi/jacrhs/t4:0/2
+  No group needed the re-run rule. Cross-build bitwise (tebox, OMPJacNchunks=-1, OMPAutoBalance=0, 4 threads):
+  xb jac compare exit 0 :: AGREE; det56 AGREE det60 AGREE
+  xb jacrhs compare exit 0 :: AGREE; det56 AGREE det60 AGREE
+
+## 4. Clip check, jaccliplim=1e-6, 4 threads
+  ni: RESULT {"G1": "PASS", "G3": "PASS", "G4": "PASS", "exit": 0}
+    new serial nnz 636497 predicted {'row_rule_keeps': 636497, 'col_rule_keeps': 594104, 'rules_differ': 69401}
+    new run0: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    new run1: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    new run2: nnz 636497/636497 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 16717
+    base serial nnz 636497 predicted {'row_rule_keeps': 636497, 'col_rule_keeps': 594104, 'rules_differ': 69401}
+    base run0: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+    base run1: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+    base run2: nnz 636497/594104 one-sided 55897+13504 non-flips 62006 G1 FAIL sfscal diffs 0 common-value diffs 0 band 16717
+  full: RESULT {"G1": "PASS", "G3": "PASS", "G4": "PASS", "exit": 0}
+    new serial nnz 2474283 predicted {'row_rule_keeps': 2474283, 'col_rule_keeps': 2402093, 'rules_differ': 812962}
+    new run0: nnz 2474283/2474283 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 59033
+    new run1: nnz 2474283/2474283 one-sided 0+0 non-flips 0 G1 PASS sfscal diffs 0 common-value diffs 0 band 59033
+    base serial nnz 2474283 predicted {'row_rule_keeps': 2474283, 'col_rule_keeps': 2402093, 'rules_differ': 812962}
+    base run0: nnz 2474283/2402093 one-sided 442576+370386 non-flips 734080 G1 FAIL sfscal diffs 0 common-value diffs 0 band 59033
+    base run1: nnz 2474283/2402093 one-sided 442576+370386 non-flips 734080 G1 FAIL sfscal diffs 0 common-value diffs 0 band 59033
+
+## 5. TSan (pre = 1553e75, from the earlier run; post = ee76a15): PASS
+  post runs:
+    2026-10-15 17:43:06 post_tebox exit 134 record=yes reports=88
+    2026-10-15 17:43:26 post_ng exit 134 record=yes reports=111
+    2026-10-15 17:43:38 post_tebox_it2 exit 134 record=yes reports=74
+    2026-10-15 17:45:47 post_full exit 134 record=yes reports=74
+    2026-10-15 17:45:47 end
+  -- post_tebox
+    count  in Jacobian loop  location  |  first frames
+       16  yes               heap block  |  dcopy_u_ blasext.F:1295; convsr_aux2_ convert.F:866; dcopy_u_ blasext.F:1296
+       56  no                stack  |  bbbsetarraypointerctaue_._omp_fn.0 bbb_p.F90:16017; bbbsetarraypointeryld_carbi_._omp_fn.0 bbb_p.F90:16743; bbbsetarraypointerfqpsatlb_._omp_fn.0 bbb_p.F90:16929
+       12  no                ompcommonscalarcopy_  |  __ompcopybbb_MOD_ompcopyscalarbbb._omp_fn.0 bbb_p.F90:11234; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:443; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:444
+        4  no                heap block  |  ompcollectjacobian_ omp_parallel.F90:459; ompjacbuilder_._omp_fn.0 omp_parallel.F90:739; ompcollectjacobian_ omp_parallel.F90:474
+  -- post_ng
+    count  in Jacobian loop  location  |  first frames
+       65  no                stack  |  bbbsetarraypointernm_._omp_fn.0 bbb_p.F90:19425; bbbsetarraypointernm_ bbb_p.F90:19425; __ompcopybbb_MOD_ompcopypointerctaui bbb_p.F90:3687
+       34  no                heap block  |  bbbsetarraypointerhcxineo_._omp_fn.0 bbb_p.F90:29925; bbbsetarraypointerfloxg_._omp_fn.0 bbb_p.F90:29074; bbbsetarraypointerhcxineo_ bbb_p.F90:29918
+       12  no                ompcommonscalarcopy_  |  __ompcopybbb_MOD_ompcopyscalarbbb._omp_fn.0 bbb_p.F90:11234; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:443; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:444
+  -- post_tebox_it2
+    count  in Jacobian loop  location  |  first frames
+       61  no                stack  |  bbbsetarraypointerctaue_._omp_fn.0 bbb_p.F90:16017; bbbsetarraypointeryld_carbi_._omp_fn.0 bbb_p.F90:16743; bbbsetarraypointerfqpsatlb_._omp_fn.0 bbb_p.F90:16929
+       12  no                ompcommonscalarcopy_  |  __ompcopybbb_MOD_ompcopyscalarbbb._omp_fn.0 bbb_p.F90:11234; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:443; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:444
+        1  no                heap block  |  __ompcopyapi_MOD_ompcopypointeremcoef._omp_fn.0 api_p.F90:375
+  -- post_full
+    count  in Jacobian loop  location  |  first frames
+       57  no                stack  |  bbbsetarraypointerctaue_._omp_fn.0 bbb_p.F90:16017; bbbsetarraypointeryld_carbi_._omp_fn.0 bbb_p.F90:16743; bbbsetarraypointerfqpsatlb_._omp_fn.0 bbb_p.F90:16929
+       12  no                ompcommonscalarcopy_  |  __ompcopybbb_MOD_ompcopyscalarbbb._omp_fn.0 bbb_p.F90:11234; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:443; __ompcopyapi_MOD_ompcopyscalarapi api_p.F90:444
+        5  no                heap block  |  bbbsetarraypointeredisse_ bbb_p.F90:32733; bbbsetarraypointeredisse_._omp_fn.0 bbb_p.F90:32718; ompcollectjacobian_ omp_parallel.F90:459
+  In-loop reports: post_tebox 16, others 0; on a global symbol 0; with both accesses inside a parallel region 0 (every one pairs
+  a worker read in convsr_aux2 with the master's gridseq/dcopy write before the region: the AIUE-50 false-positive class).
+  ompcommonscalarcopy_ reports (out of loop, report only) are located only in bbbpy (12 per run); none in compy or aphpy.
+  Pre (1553e75), from the earlier run: every expected in-loop group (ttimpjf, totintrv, ttngxlog/ylog/fd2/fxy, ttnpg,
+  TimingPandfOn, nfsp; areapl on ng and full).
+
+## 6. Static (Probe S, amended tree): PASS
+  shared-writes: 146 reachable units; 147 variables (pre: 145 reachable units; 161 variables); passed-args:      145 (pre:      137).
+  shared-writes diff vs pre:
+    < bbb.PandfTiming.timingpandfon: 2  bbb/pandf.m:576(pandf), bbb/pandf.
+    < bbb.Rccoef.areapl: 8  bbb/pandf_boundary.m:3091(left_boundary), bbb/
+    < bbb.Rccoef.sputflxllim: 3  bbb/pandf_boundary.m:4957(limiter_patch),
+    < bbb.Rccoef.sputflxrlim: 3  bbb/pandf_boundary.m:5041(limiter_patch),
+    < com.Timespl.totb2val: 3  aph/aphrates.m:596(rqa), aph/aphrates.m:773
+    < com.Timespl.totintrv: 2  com/comutil.m:3902(b1vahl), com/comutil.m:3
+    < com.Timing.ttimpc: 1  api/fmombal.m:247(fmombal)
+    < com.Timing.ttimpfe: 1  bbb/pandf.m:758(timimpfj)
+    < com.Timing.ttimpjf: 1  bbb/pandf.m:760(timimpfj)
+    < com.Timing.ttngfd2: 1  bbb/pandf_gas_continuity.m:777(neudifpg)
+    < com.Timing.ttngfxy: 1  bbb/pandf_gas_continuity.m:876(neudifpg)
+    < com.Timing.ttngxlog: 1  bbb/pandf_gas_continuity.m:664(neudifpg)
+    < com.Timing.ttngylog: 1  bbb/pandf_gas_continuity.m:765(neudifpg)
+    < com.Timing.ttnpg: 1  bbb/pandf.m:636(pandf)
+    < 145 reachable units; 161 variables
+    > 146 reachable units; 147 variables
+  passed-args diff vs pre (the 10 '>' lines are the acctim atomic updates):
+    < aph.Aphwrk.iflag_aph 6 aph/aphrates.m:1006(rsa->b2vahl); aph/aphrates.m:1029(rsa->b2vahl
+    < aph.Aphwrk.workh 6 aph/aphrates.m:1006(rsa->b2vahl); aph/aphrates.m:1029(rsa->b2vahl); a
+    > com.Timespl.totb2val 3 aph/aphrates.m:1031(rsa->acctim); aph/aphrates.m:596(rqa->acctim)
+    > com.Timespl.totintrv 2 com/comutil.m:3654(b2vahl->acctim); com/comutil.m:3902(b1vahl->ac
+    > com.Timing.ttimpc 1 api/fmombal.m:247(fmombal->acctim)
+    > com.Timing.ttimpfe 1 bbb/pandf.m:758(timimpfj->acctim)
+    > com.Timing.ttimpjf 1 bbb/pandf.m:760(timimpfj->acctim)
+    > com.Timing.ttngfd2 1 bbb/pandf_gas_continuity.m:777(neudifpg->acctim)
+    > com.Timing.ttngfxy 1 bbb/pandf_gas_continuity.m:876(neudifpg->acctim)
+    > com.Timing.ttngxlog 1 bbb/pandf_gas_continuity.m:664(neudifpg->acctim)
+    > com.Timing.ttngylog 1 bbb/pandf_gas_continuity.m:765(neudifpg->acctim)
+    > com.Timing.ttnpg 1 bbb/pandf.m:636(pandf->acctim)
+
+## Timing (report; flag > 10 % -> owner): full problem, jac arm, 4 threads, interleaved, harness elapsed_s
+  timing 56 1 exit 0 elapsed 10.88
+  timing 60 1 exit 0 elapsed 11.04
+  timing 56 2 exit 0 elapsed 11.18
+  timing 60 2 exit 0 elapsed 11.05
+  timing 56 3 exit 0 elapsed 11.26
+  timing 60 3 exit 0 elapsed 10.89
+  timing 56 4 exit 0 elapsed 11.11
+  timing 60 4 exit 0 elapsed 10.72
+  timing 56 5 exit 0 elapsed 11.35
+  timing 60 5 exit 0 elapsed 11.36
+  median AIUE-56 11.18 s, AIUE-60 11.04 s, ratio 0.987: no flag
+
+## AI layer
+  check_context_refs.py --changed origin/v9-develop: OK; change_kind.py --range 1553e75..HEAD: see the commit report.

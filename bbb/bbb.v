@@ -948,7 +948,7 @@ rdatlb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #inner recycp data for each
 rdatrb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #outer recycp data for each ydatrb
 alblb(0:ny+1,ngspmx,nxptmx) _real        +input #inner plate albedo; used if <1 (calc)
 albrb(0:ny+1,ngspmx,nxptmx) _real        +input #outer plate albedo; used if <1 (calc)
-areapl          real   /0./ +work   # Work variable for plate projection area for 
+areapl          real   /0./ +work +threadprivate # Work variable for plate projection area for 
                                     # albedo-like recycling
 isoldalbarea    real   /0./ +input # Switch whether to use old (wrong) albedo
                                     # area which is perpendicular-to-poloidal flux
@@ -983,8 +983,8 @@ sputrlim_use(0:ny+1,ngspmx)      _real   +input #user-set sputt coef. right
                                                 #ng=ngrlim on limiter if < -1	
 sputflxlb(0:ny+1,ngspmx,nxptmx)  _real   +threadprivate #calc sput flux inner plate (iy,igsp)
 sputflxrb(0:ny+1,ngspmx,nxptmx)  _real   +threadprivate #calc sput flux outer plate (iy,igsp)
-sputflxllim(0:ny+1,ngspmx)       _real   #calc sput flux inner plate (iy,igsp)
-sputflxrlim(0:ny+1,ngspmx)       _real   #calc sput flux outer plate (iy,igsp)
+sputflxllim(0:ny+1,ngspmx)       _real +threadprivate #calc sput flux inner plate (iy,igsp)
+sputflxrlim(0:ny+1,ngspmx)       _real +threadprivate #calc sput flux outer plate (iy,igsp)
 sputflxw(0:nx+1,ngspmx)          _real   +threadprivate #calc sput flux outer wall (ix,igsp)
 sputflxpf(0:nx+1,ngspmx)         _real   +threadprivate #calc sput flux PF wall (ix,igsp)
 ngplatlb(ngspmx,nxptmx)          _real   +input #ng on inner plate if sputti < -1
@@ -4133,7 +4133,7 @@ ParallelMatsol      integer /0/     # [0]: serial matrix solve [1] parallel matr
 ParallelMatfac      integer /0/     # [0]: serial matrix factorization [1] parallel matrix factorization
 
 **** PandfTiming: # added by J.Guterl
-TimingPandfOn integer /0/
+TimingPandfOn integer /0/ +threadprivate # =1 if this pandf call times its parts (calc)
 TimingPandf integer /1/
 TimePandf real /0.0/
 TotTimePandf real /0.0/
@@ -4250,8 +4250,8 @@ jaccapv(jaccapnnzmx,jaccapnslot) _real [varies] # Nonzeros of the matrix returne
                                 # jac_calc/jac_calc_parallel: finite-difference
                                 # d(yldot)/d(yl) incl. the -1/dtuse, -1/dtphi and
                                 # -nufak diagonal terms; entries with
-                                # |J*sfscal| <= jaccliplim dropped (serial uses
-                                # sfscal of the row, parallel of the column), so
+                                # |J*sfscal| <= jaccliplim dropped (sfscal of
+                                # the row, serial and parallel alike), so
                                 # the pattern depends on sfscal. No suscal/sfscal
                                 # scaling, unpermuted, CSR order; tail is zero
 jaccapj(jaccapnnzmx,jaccapnslot) _integer [ ] # Column indices of jaccapv (1-based)

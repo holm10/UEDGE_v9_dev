@@ -3651,7 +3651,7 @@ C
       INY = 1
       tsint = tick()
       CALL INTRhV(TY,NY+KY,YVAL,INY,LEFTY,MFLAG)
-      totintrv = totintrv + tock(tsint)
+      call acctim(totintrv, tock(tsint))
       IF (MFLAG .NE. 0) THEN
 C
 C        ... YVAL .EQ. T(NY+KY),  ADJUST TO GET LEFT LIMITING VALUE
@@ -3899,7 +3899,7 @@ C     ... FIND LARGEST I IN (1,N+K) SUCH THAT T(I) .LE. X .LT. T(I+1)
 C
       tsint = tick()
       CALL INTRhV(T, NPK, X, INBV, I, MFLAG)
-      totintrv = totintrv + tock(tsint)
+      call acctim(totintrv, tock(tsint))
       IF (MFLAG .NE. 0) THEN
 C
 C        ... X .EQ. T(N+K),  USE LEFT LIMITING VALUE

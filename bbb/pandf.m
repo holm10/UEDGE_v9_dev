@@ -45,10 +45,10 @@ c!omp     endif
       Use(Turbulence)
       Use(Imprad)
       
-c ... Set variable controlling upper limit of species loops that
-c     involve ion-density sources, fluxes, and/or velocities.
-      nfsp = nisp
-      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
+c ... Upper limit of species loops with ion sources/fluxes/velocities. nfsp (com
+c     Dim) is shared by OpenMP threads: write it only when it changes (AIUE-60).
+      if ((isimpon.eq.3 .or. isimpon.eq.4) .and. nfsp.ne.nhsp) nfsp = nhsp
+      if (isimpon.ne.3 .and. isimpon.ne.4 .and. nfsp.ne.nisp) nfsp = nisp
 
       if ( (xc .lt. 0) .or. 
      .     ((0<=yc).and.(yc-yinc_loc<=0)).and.isjaccorall==1 ) then  
@@ -633,7 +633,7 @@ c ..Timing
       if(istimingon==1) tsnpg=tick()
          call neudifpg
 c ..Timing
-      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
+      if(istimingon==1) call acctim(ttnpg, tock(tsnpg))
       elseif (ineudif .eq. 3) then
          call neudifl
       else
@@ -755,9 +755,9 @@ c-----------------------------------------------------------------------
       Use(Timing)   # ttimpfe,ttimpjf
 
       if (xc .lt. 0) then
-         ttimpfe = ttimpfe + tock(tick)
+         call acctim(ttimpfe, tock(tick))
       else
-         ttimpjf = ttimpjf + tock(tick)
+         call acctim(ttimpjf, tock(tick))
       endif
 
       return
