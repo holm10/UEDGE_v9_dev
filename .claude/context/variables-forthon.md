@@ -45,7 +45,7 @@ Nothing in UEDGE's Python or in Forthon reads this attribute (Forthon's `pydump`
 1. Put it in the group whose routines use it (search `Use(Group)` sites). New group only for a coherent new model.
 2. Units in `[...]`, default in `/.../`, doc after `#`. Mark switches `+input`.
 3. Pick a default that reproduces existing behaviour (e.g. `cf* = 0.` for a new term, `is*on = 0` for a new model), unless the change is an intended physics change to the defaults. In that case, document it in the PR (see CLAUDE.md hard rules).
-4. If it is written anywhere inside the `pandf` call tree → `+threadprivate` (see `openmp-jacobian.md` rule 1: or written only on change; never for values set outside `pandf`). A threadprivate **scalar** belongs in `bbb` only (rule 5 there: the shared `/ompcommonscalarcopy/` block).
+4. If it is written anywhere inside the `pandf` call tree → `+threadprivate` (see `openmp-jacobian.md` rule 1: or written only on change; never for values set outside `pandf`). A new threadprivate **scalar** goes in `bbb`: no package loading before `bbb` may have one, and no later package's block may exceed `bbb`'s (rule 5 there: the shared `/ompcommonscalarcopy/` block; `api` has 12).
 5. Dynamic arrays (`_real`) are allocated by `call gchange("Group",0)` — make sure the group is (re)allocated in
    `odesetup.m` after dims are known (`bbb/odesetup.m:87` pattern).
 6. If it must be saved/restored, add to the save list in `src/uedge/hdf5.py` (`hdf5_save` `varlist`, `src/uedge/hdf5.py:82`).
