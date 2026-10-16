@@ -36,7 +36,7 @@ branch.
 | AI layer | `feature/v9-ai-<slug>` (legacy: `v9-agentic`) | `v9-develop` | process + record |
 | Jira ticket | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | `v9-develop`, or the branch of the ticket it depends on (stacked) | product + artifact (+ code-facts) |
 | GitHub issue | `bugfix/v9-issue-<N>-<slug>` | `v9-develop` | product + artifact |
-| Epic planning | `feature/v9-<EPIC>-planning` | `v9-develop` | the PRD, its review reports, the `docs/specs/` breakdown, the progress log and the close-out record and its sources snapshot (`docs/specs/<EPIC>-closeout.md`, `docs/specs/<EPIC>-closeout-sources/`, from `close-epic`) |
+| Epic planning | `feature/v9-<EPIC>-planning` | `v9-develop` | the PRD, its review reports, the `docs/specs/` breakdown (with each ticket's page id, recorded by `spec`), the progress log and the close-out record and its sources snapshot (`docs/specs/<EPIC>-closeout.md`, `docs/specs/<EPIC>-closeout-sources/`, from `close-epic`) |
 
 Names must match the mandatory patterns in `doc/workflow.md` (`feature/v9-*`, `bugfix/v9-*`). `<slug>` is
 kebab case and at most about 40 characters. Putting the Jira key in the branch name makes Jira link the branch,

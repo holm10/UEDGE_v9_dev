@@ -18,9 +18,10 @@ After Step 1, `cd` into that worktree and stay there for every later step.
 `docs/specs/<epic-slug>.md` (it lives on the epic's planning branch: `git show feature/v9-<EPIC>-planning:docs/specs/<file>`).
 The acceptance criteria are what the reviewer checks against, so quote them verbatim.
 
-**Ticket record.** For a Jira key, the run keeps the ticket's hosted record through the `ticket-page` skill:
-`plan-feature` publishes the plan (a page under the epic's PRD, `Ticket plans: <EPIC>` → `Plan: <KEY> - …`, or short
-`PIV record` Jira comments when there is no epic PRD page), and entries are sent only at milestones: each closed review
+**Ticket record.** For a Jira key, the run keeps the ticket's hosted record through the `ticket-page` skill, on the
+one page `spec` created when it filed the ticket (`Ticket plans: <EPIC>` → `Plan: <KEY> - …` under the epic's PRD; or
+short `PIV record` Jira comments when there is no epic PRD page): `plan-feature` fills its Plan section (creating the
+page only if the ticket has none), and entries are sent only at milestones: each closed review
 round, the end of `execute`, an escalation or owner decision, the commit (`ticket-page` → "When to flush"). Pass
 `--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
 review loop, and run `validate` with `--ticket <KEY>`. Atlassian failures never stop a step; the entries stay queued for the next flush.

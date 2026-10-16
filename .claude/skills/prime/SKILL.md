@@ -15,8 +15,10 @@ Atlassian MCP server is connected:
 2. Each Jira key: `mcp__atlassian__getJiraIssue` (`responseContentFormat: "markdown"`).
 3. Each page id: `mcp__atlassian__getConfluencePage` (`contentFormat: "markdown"`).
 
-If a Jira issue has a ticket page (a `Plan page:` comment with its Confluence page id), read the page's log
-sections too: they record the ticket's progress, validation, reviews and decisions so far (`ticket-page` skill).
+If a Jira issue has a ticket page (a `Ticket page:` comment, or `Plan page:` on older tickets, with its Confluence
+page id), read the page too: its Ticket section is the scope as filed by `spec`, and its log sections record the
+ticket's progress, validation, reviews and decisions so far (`ticket-page` skill). A ticket under an epic without a
+PRD page keeps the same record as `PIV record` Jira comments.
 Summarise the goal and acceptance criteria. If the server is not connected, say so and continue.
 If the argument is a plain task description, use it as the task context instead.
 

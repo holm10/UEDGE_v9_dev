@@ -14,8 +14,9 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
 - Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key); a GitHub issue with no
   Jira key gets no record. With an epic PRD page, the RCA is this ticket's plan: once it is committed, run
-  `ticket-page <KEY> publish --rca docs/rca/issue-$ARGUMENTS.md` (the page mirrors the RCA under `## RCA`, and the
-  `**Ticket page**` line goes in the RCA's header). Without one, the same call posts a short `PIV record: plan` comment
+  `ticket-page <KEY> publish --rca docs/rca/issue-$ARGUMENTS.md` (it fills the ticket's page that `spec` created,
+  or creates it if there is none; the page mirrors the RCA under `## RCA`, and the `**Ticket page**` line goes in the
+  RCA's header). Without one, the same call posts a short `PIV record: plan` comment
   summarising the RCA. `--no-tracker` skips the record; `--tracker-dry-run` only shows it. The allowed tools above
   pre-approve the helper and the Atlassian reads; writes to Jira and Confluence still go through the normal
   permission prompt.

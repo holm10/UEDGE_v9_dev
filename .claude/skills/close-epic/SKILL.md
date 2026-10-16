@@ -84,7 +84,7 @@ fields you use (no paraphrase; avatar and `self` URLs may be dropped):
 | `jira-comments.md` | every child comment used: issue key, comment id, created, body verbatim (markdown avoids JSON-escaping long bodies) |
 | `jira-transitions.json` | the epic's transitions (id, name, target status category) |
 | `confluence-pages.json` | PRD, breakdown, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
-| `confluence-ticket-pages.md` | per ticket page: page id, version, and the header and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out: it mirrors the plan file on the ticket's branch; record instead the plan commit the header cites and whether it matches the branch's plan |
+| `confluence-ticket-pages.md` | per ticket page: page id, version, and the header, the Ticket section (scope as filed by `spec`, absent on pages made before `spec` created them) and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out: it mirrors the plan file on the ticket's branch; record instead the plan commit the header cites and whether it matches the branch's plan |
 | `confluence-prd.md`, `confluence-breakdown.md` | the page bodies as read. If a body matches the repo copy, store instead the repo copy's path and blob hash (`git rev-parse <rev>:<path>`), how you compared them, and every difference |
 | `confluence-comments.json` | footer and inline comments (open and resolved, with replies) on those pages, or `[]` |
 | `snapshot.md` | header: UTC time of the gather; `origin/v9-develop` sha; the planning branch tip; every ticket branch, merge commit or prototype worktree with its tip and `git status --short` line count; each Jira issue's `updated` |
@@ -131,8 +131,10 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    `Ticket plans: <EPIC-KEY>` container (exact title) and any existing `Close-out: <EPIC-KEY>` page (same exact-prefix
    rule). `getConfluencePage` on the breakdown (it can be newer than the repo copy).
 4. **Ticket pages** (written by the `ticket-page` skill): `searchConfluenceUsingCql` with `type = page AND parent =
-   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket (mirroring
-   its plan, or its RCA for an `implement-fix` ticket); `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
+   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket, created by
+   `spec` when the ticket was filed (or by `plan-feature` for a ticket filed otherwise), mirroring its plan, or its RCA
+   for an `implement-fix` ticket; a page whose Plan section is still the placeholder (status `Planned`) belongs to a
+   ticket that was never planned. `getConfluencePage` (`contentFormat: "markdown"`) on each. Their log sections are
    a dated index of each ticket's progress, validation results, review verdicts and decisions: use them to find the
    records, and cite the repo record (report, validation file, commit) for every claim, with the page as a second
    source. A page entry marked Owner was written by an agent: it counts as an owner decision only when the source it

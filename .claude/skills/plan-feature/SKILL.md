@@ -50,7 +50,9 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 
 ## Phase 1: Understand the request
 
-- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High).
+- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High). For a Jira ticket,
+  the scope and acceptance criteria as filed are in the ticket's breakdown entry (`docs/specs/` on the epic's planning
+  branch) and the Ticket section of its page; `prime` reads the page.
 - Affected packages and equations (`isnion`, `isupon`, `isteon`, `istion`, `isngon`, `istgon`, `isphion`).
 - Whether default results are expected to change, and if so which cases.
 
@@ -161,10 +163,13 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 2. For a Jira ticket, run the `ticket-page` skill: `<KEY> status Planning` (`Plan review` if the review below is
    required), then `<KEY> publish`. Pass on `--no-tracker` (skip the record) or `--tracker-dry-run` (as `--dry-run`:
    show the record without writing it; the plan is still written and committed). Under an epic with a PRD page it
-   creates or updates `Plan: <KEY> - <summary>` under `Ticket plans: <EPIC>`, writes the plan's `**Ticket page**`
-   line and commits it before mirroring the plan, and links the page from the ticket once; without one it posts a
-   short `PIV record: plan` comment and writes `**Ticket page**: none (…)`. A failure there is noted in the report
-   and retried at the next flush; it never stops planning.
+   fills **the ticket's existing page**, `Plan: <KEY> - <summary>` under `Ticket plans: <EPIC>`, which `spec` created
+   when it filed the ticket: it finds it from the plan's line, the ticket's `Ticket page:` link comment, or the
+   exact-title search under the container, and creates it (the same skeleton `spec` makes) only when the ticket has
+   none, never a second one. It writes the page id into the plan's `**Ticket page**` line and commits it before
+   mirroring the plan into the page's Plan section; the Ticket section and any earlier entries stay. Without an epic
+   PRD page it posts a short `PIV record: plan` comment and writes `**Ticket page**: none (…)`. A failure there is
+   noted in the report and retried at the next flush; it never stops planning.
 
 ## Adversarial plan review
 
