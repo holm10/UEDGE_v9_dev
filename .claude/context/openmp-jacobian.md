@@ -147,7 +147,7 @@ Test with a double-null / snowflake case too: X-point chunks are where regressio
 The serial build (`--serial`) that `build-test-wheel.yml` tests will **not** catch OpenMP races. The OpenMP CI job
 `.github/workflows/build-test-omp.yml` (AIUE-57) does: it runs the flow below through
 `tests/deterministic_omp/ci/run_omp_ci.sh` on the default OpenMP build and gates on the `jac` arm, bitwise (Linux
-x86-64 equals serial bit for bit with the fixed partition), with the C1 bound on the scaled `post_exmain` Jacobian
+x86-64, so far emulated, equals serial bit for bit with the fixed partition), with the C1 bound on the scaled `post_exmain` Jacobian
 (`tests/deterministic_omp/ci/jac_bound.py`) as a backstop and the common-block check; `OMP_CI_JAC_TOLERANCE` (≤ 1e-6) is a tolerance mode
 for macOS replays (C2). The Te-box flows set `OMPJacMinChunkLen=1`: by default the 25-equation box gets one chunk.
 
