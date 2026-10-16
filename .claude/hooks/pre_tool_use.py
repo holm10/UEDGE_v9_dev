@@ -20,9 +20,10 @@ Three guarantees ship here:
      xargs, find -exec), is blocked.
 
   3. A `git commit` must respect the branch policy (`.claude/context/branching.md`,
-     checked by `change_kind.py`): nothing on protected branches, no product files on
-     AI-layer branches, no AI-layer process files on ticket branches unless the message
-     carries the `AI-layer: code-facts` trailer.
+     checked by `change_kind.py`): nothing on protected branches, no ticket or epic working
+     documents on any branch (they live in the gitignored `.claude/work/` and on Confluence),
+     no product files on AI-layer branches, no AI-layer process files on ticket branches
+     unless the message carries the `AI-layer: code-facts` trailer.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
 exits 0, so a bug in this script can never brick your session.
@@ -234,7 +235,7 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     for b in GIT_NEW_BRANCH.finditer(head):
         branch = b.group("b")
 
-    paths = ck.staged_paths(workdir)
+    paths, deleted = ck.staged_changes(workdir)
     for a in GIT_ADD.finditer(head):
         try:
             args = shlex.split(a.group("args"))
@@ -244,15 +245,23 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
         if any(x in (".", "-A", "--all") for x in args) or any(os.path.isdir(os.path.join(workdir, f)) for f in files):
             out = subprocess.run(["git", "status", "--porcelain", "-uall"], cwd=workdir,
                                  capture_output=True, text=True, check=True).stdout
-            paths += [line[3:].split(" -> ")[-1] for line in out.splitlines()]
+            for line in out.splitlines():
+                path = line[3:].split(" -> ")[-1]
+                paths.append(path)
+                if "D" in line[:2]:
+                    deleted.append(path)
         else:
             paths += files
+            # Adding a path that no longer exists stages its deletion.
+            deleted += [f for f in files if not os.path.lexists(os.path.join(workdir, f))]
     commit_args = m.group("args").split()
     if "--all" in commit_args or any(x.startswith("-") and not x.startswith("--") and "a" in x
                                      for x in commit_args if not x.startswith("-m")):
-        paths += ck.modified_tracked_paths(workdir)
+        more, gone = ck.modified_tracked_changes(workdir)
+        paths += more
+        deleted += gone
 
-    problems = ck.violations(branch, paths, command)
+    problems = ck.violations(branch, paths, command, deleted)
     return " ".join(problems) if problems else None
 
 

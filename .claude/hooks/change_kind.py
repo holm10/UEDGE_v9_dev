@@ -16,20 +16,26 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
     Exit 0 = clean, 1 = violations (printed), 2 = could not run (not a git repo, bad range).
 
 Path classes
+  working   .claude/work/** (the local working folder) and the legacy working-document paths .claude/plans/**,
+            .claude/execution-reports/**, .claude/system-reviews/**, .claude/code-reviews/**,
+            docs/{prds,specs,reviews,rca}/**. Ticket and epic working documents: plans, review reports and
+            responses, validation records, RCAs, execution and system reviews, PRD copies, breakdowns, progress logs,
+            close-out records. Never committed, on any branch: their lasting content goes to the ticket's Confluence
+            page (`ticket-page` skill) or the epic's Confluence pages. Deleting one that is still tracked is allowed.
   process   CLAUDE.md, .mcp.json, .claude/** (skills, agents, context, hooks, settings), .githooks/**,
             .github/workflows/claude-*.yml. Changes how agents work.
   shared    .gitignore. Allowed on any branch.
-  record    .claude/execution-reports/**, .claude/system-reviews/**. Process records; allowed on any branch.
-  artifact  .claude/plans/**, docs/{prds,specs,reviews,rca,physics_specs}/**. Belong to a ticket/epic.
-  product   everything else (Fortran, .v, build, Python, CI, docs).
+  product   everything else (Fortran, .v, build, Python, CI, docs), including docs/physics_specs/**: an approved
+            physics spec is committed with the physics change it specifies.
 
 Branch classes
   protected main, develop, v9-main, v9-develop            -> no commits at all
-  ai        feature/v9-ai-*, v9-agentic                   -> process + record only
-  ticket    every other branch                            -> product + artifact + record;
+  ai        feature/v9-ai-*, v9-agentic                   -> process only
+  ticket    every other branch                            -> product;
             CLAUDE.md and .claude/context/** only with the commit trailer `AI-layer: code-facts`
             (= the edit only keeps the AI layer factually in line with the code this branch changes);
             other process paths (skills, agents, hooks, settings) never.
+  Working documents are refused on every branch (deletions of tracked ones excepted).
 """
 
 import argparse
@@ -41,8 +47,14 @@ PROTECTED_BRANCHES = {"main", "develop", "v9-main", "v9-develop"}
 AI_BRANCH = re.compile(r"^(feature/v9-ai-.+|v9-agentic)$")
 CODE_FACTS_TRAILER = "AI-layer: code-facts"
 
-RECORD = re.compile(r"^\.claude/(execution-reports|system-reviews)/")
-ARTIFACT = re.compile(r"^(\.claude/plans/|docs/(prds|specs|reviews|rca|physics_specs)/)")
+# Ticket and epic working documents: the local working folder and the legacy paths they used to be committed under.
+WORKING = re.compile(r"^(\.claude/(work|plans|execution-reports|system-reviews|code-reviews)/|"
+                     r"docs/(prds|specs|reviews|rca)/)")
+WORKING_HINT = ("working documents are never committed (plans, reviews and responses, validation records, RCAs, "
+                "execution and system reviews, PRD copies, breakdowns, progress logs, close-out records). Keep "
+                "them in the gitignored working folder .claude/work/<KEY>/ and put their lasting content on the "
+                "ticket's Confluence page with the ticket-page skill (epic documents: the PRD page and its "
+                "children). Physics specs belong in docs/physics_specs/ (.claude/context/branching.md)")
 # The only process paths a ticket branch may touch, and only with the code-facts trailer: descriptions of the code.
 CODE_FACTS = re.compile(r"^(CLAUDE\.md$|\.claude/context/)")
 PROCESS = re.compile(r"^(CLAUDE\.md$|\.mcp\.json$|\.claude/|\.githooks/|\.github/workflows/claude-[^/]*\.ya?ml$)")
@@ -55,10 +67,8 @@ def path_kind(path: str) -> str:
         path = path[2:]
     if path in SHARED:
         return "shared"
-    if RECORD.match(path):
-        return "record"
-    if ARTIFACT.match(path):
-        return "artifact"
+    if WORKING.match(path):
+        return "working"
     if PROCESS.match(path):
         return "process"
     return "product"
@@ -72,10 +82,12 @@ def branch_kind(branch: str) -> str:
     return "ticket"
 
 
-def violations(branch: str, paths, message: str = ""):
-    """Return a list of human-readable violations for committing `paths` on `branch`."""
+def violations(branch: str, paths, message: str = "", deleted=()):
+    """Return a list of human-readable violations for committing `paths` on `branch`.
+    `deleted` names the paths among them that the commit deletes: removing a tracked working document is allowed."""
     kind = branch_kind(branch)
-    paths = sorted(set(p for p in paths if p))
+    paths = sorted(set(p.strip() for p in paths if p and p.strip()))
+    deleted = {p.strip()[2:] if p.strip().startswith("./") else p.strip() for p in deleted}
     if kind == "protected":
         return [f"'{branch}' is protected: never commit to it. Create feature/v9-* or bugfix/v9-* "
                 f"(see .claude/context/branching.md)."]
@@ -83,11 +95,14 @@ def violations(branch: str, paths, message: str = ""):
     for p in paths:
         by_kind.setdefault(path_kind(p), []).append(p)
     out = []
+    working = [p for p in by_kind.get("working", []) if (p[2:] if p.startswith("./") else p) not in deleted]
+    if working:
+        out.append(f"'{branch}': {WORKING_HINT}. Unstage: " + ", ".join(working))
     if kind == "ai":
-        bad = by_kind.get("product", []) + by_kind.get("artifact", [])
+        bad = by_kind.get("product", [])
         if bad:
-            out.append(f"'{branch}' is an AI-layer branch; it may not carry product files or ticket "
-                       f"artifacts. Move these to a ticket branch: " + ", ".join(bad))
+            out.append(f"'{branch}' is an AI-layer branch; it may not carry product files. Move these to a ticket "
+                       f"branch: " + ", ".join(bad))
     else:
         bad = by_kind.get("process", [])
         never = [p for p in bad if not CODE_FACTS.match(p)]
@@ -112,16 +127,42 @@ def current_branch(cwd=None) -> str:
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd).strip()
 
 
+def _name_status(out):
+    """(paths, deleted) from `git diff --name-status` output (a rename counts as its new path)."""
+    paths, deleted = [], []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        status, path = parts[0], parts[-1]
+        paths.append(path)
+        if status.startswith("D"):
+            deleted.append(path)
+    return paths, deleted
+
+
+def staged_changes(cwd=None):
+    return _name_status(_git(["diff", "--cached", "--name-status"], cwd))
+
+
 def staged_paths(cwd=None):
-    return _git(["diff", "--cached", "--name-only"], cwd).splitlines()
+    return staged_changes(cwd)[0]
+
+
+def modified_tracked_changes(cwd=None):
+    return _name_status(_git(["diff", "--name-status"], cwd))
 
 
 def modified_tracked_paths(cwd=None):
-    return _git(["diff", "--name-only"], cwd).splitlines()
+    return modified_tracked_changes(cwd)[0]
+
+
+def range_changes(rng, cwd=None):
+    return _name_status(_git(["diff", "--name-status", rng], cwd))
 
 
 def range_paths(rng, cwd=None):
-    return _git(["diff", "--name-only", rng], cwd).splitlines()
+    return range_changes(rng, cwd)[0]
 
 
 def main() -> int:
@@ -134,7 +175,7 @@ def main() -> int:
     a = ap.parse_args()
     try:
         branch = a.branch or current_branch()
-        paths = range_paths(a.range) if a.range else staged_paths()
+        paths, deleted = range_changes(a.range) if a.range else staged_changes()
     except subprocess.CalledProcessError as e:
         print(e.stderr.strip() or str(e), file=sys.stderr)
         return 2
@@ -147,8 +188,8 @@ def main() -> int:
             message = ""
     print(f"branch: {branch} ({branch_kind(branch)})")
     for p in sorted(set(paths)):
-        print(f"  {path_kind(p):8s} {p}")
-    v = violations(branch, paths, message)
+        print(f"  {path_kind(p):8s} {p}" + ("  (deleted)" if p in deleted else ""))
+    v = violations(branch, paths, message, deleted)
     for line in v:
         print("VIOLATION: " + line)
     if not v:
