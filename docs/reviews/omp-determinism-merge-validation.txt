@@ -1,0 +1,79 @@
+OpenMP determinism merge — validation of bugfix/v9-openmp-determinism-fix (macOS arm64, gfortran 15, Homebrew LLVM clang/libomp)
+
+Branch bugfix/v9-openmp-determinism-fix from origin/v9-develop e52a44d; merged (--no-ff, in this order) the AIUE-8 ticket
+tips 46 f5fee63, 47 e71fafc, 49 c02dd42, 52 3c03d1c, 53 15ae327, 50 32ac1af, 54 c4cc9ff, 55 01e2d8e, 62 8277210,
+58 3aa0357, 56 1553e75, 60 f8db593, 61 444e74b, 64 b4ac376 (AIUE-57 excluded). Validated tip 2e73ea9 (all merges; this
+record is the only later commit). Ancestry verified before merging: 49 on 46; 52, 53 on 49; 50 on 46; 54 on 50; 55 on
+54; 62 on 55; 58 on 62; 60 on 56; 61 on 60; 47, 56 on v9-develop 3865c79; 64 on v9-develop 4faed39. No surprises.
+Outputs: uedge-wt/logs/omp-determinism/ (serial_check/, chk_*/, jw/, giotable/, *.txt).
+
+## Merge conflicts and resolutions
+- AIUE-53 (7272f83): .claude/context/openmp-jacobian.md, .claude/context/testing.md, tests/deterministic_omp/README.md;
+  AIUE-52 (test flow) and AIUE-53 (serial check) each added a section at the same place. Kept both (52's then 53's);
+  testing.md's shared sentence rewritten to name both (`cli.py flow` and `serial_check.py`). Trailer code-facts.
+- AIUE-60 (67aaf47): .claude/context/refs.lock.json; kept both entry sets (AIUE-47 capture refs, AIUE-60 clip and
+  roadblocker refs). Semantic fix-up: AIUE-60 makes the parallel LocalJacBuilder clip with sfscal of the row, so
+  AIUE-47's "parallel uses sfscal of the column" became false; corrected in the jaccapv description (bbb/bbb.v,
+  comment only, same line count) and in openmp-jacobian.md's raw-capture section. Trailer code-facts.
+- All other merges were clean. Re-read after merging: openmp-jacobian.md (whole), testing.md, CLAUDE.md,
+  architecture.md, variables-forthon.md (+threadprivate count 526 = attributes in bbb/bbb.v, comments excluded),
+  mppl-fortran.md.
+
+## Results
+Branch policy  OK   uv run .claude/hooks/change_kind.py --range origin/v9-develop..HEAD -> "OK" (exit 0)
+Context refs   OK   uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop -> "OK" (exit 0);
+                    "note: 2 lock entries are no longer cited (pruned on next --update)" (not re-locked: no NEW/MOVED).
+Product diff   OK   1336 files changed vs origin/v9-develop. Product files outside tests/ and docs/ (ticket from the
+                    per-branch diffs): aph/aph.v 60, aph/aphrates.m 60, api/fmombal.m 60, bbb/bbb.v 47+60 (+ the
+                    comment fix above), bbb/oderhs.m 47, bbb/pandf.m 60, bbb/pandf_gas_continuity.m 60,
+                    com/comutil.m 60, com/misc.m 60, ppp/omp_parallel.F90 56+61, ppp/parallel.F90 60+61, ppp/ppp.v 61,
+                    setup.py 64. = union of 47, 56, 60, 61, 64. Other tickets add only tests/deterministic_omp/**
+                    (52 files), docs/rca/** (1128, evidence), docs/reviews/** (126), .claude/plans/**, context docs.
+Build serial   OK   venvs/omp-determinism-serial (build_uedge.sh serial, clean tree at 2e73ea9); smoke import
+                    uedge_ver 8.1.2-beta.0. Warnings: gfortran 259 (base-serial 259), clang 47 (47); per file
+                    identical, touched files: api/fmombal.F 7/7, com/comutil.F 56/56, others 0/0.
+Build OpenMP   OK   venvs/omp-determinism-omp (build_uedge.sh omp, built last, same tree); smoke import OK.
+                    Warnings: gfortran 266 (base-omp 266), clang 47 (47); per file identical (ppp/omp_parallel.F90 3/3).
+Serial check   OK   tests/deterministic_omp/harness/serial_check.py, base-* (0fac655) vs omp-determinism-*, --jobs 2:
+                    "RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (477.9 s)"
+                    ext-sha256: base-serial 141a53db4d12099e, new serial c0279267860a3491, base-omp b71788af754cbe0a,
+                    new omp b50985da6467522a. Warnings (expected; base has no hook): "serial: the AIUE-47 capture hook
+                    is in one build only, so no raw Jacobians are captured; the post-exmain Jacobian is compared",
+                    same for omp0.
+Unit tests     OK   venvs/base-serial python -m pytest -q tests/deterministic_omp/harness: 132 passed
+                    (tests/deterministic_omp/ci does not exist on this branch: it is AIUE-57's).
+Determinism    OK   cli.py check --arm jac --threads 4 --repeats 5 (default ppp, i.e. the AIUE-61 fixed partition):
+                    tebox: exit 0, CHECK AGREE (5/5 agree with serial and with run0).
+                    full:  exit 1 = mismatch with serial only (expected C2 round-off, macOS arm64): 12275 mismatches
+                    (value 2914, only-a 9340, only-b 21), Te rows only, identical in every run and identical to
+                    AIUE-61's scratch-AIUE-61/final/g2_full; determinism run0 vs run1..run4: AGREE (4/4).
+Hash           OK   AIUE-61-jworker.py via AIUE-61-launch.sh (AIUE61_HARNESS = this tree), full, jac, 4 threads, '{}':
+                    jachash 8761cd9e36658ee1, nnz 3180971, NchunksJac 64  (= AIUE-61's record).
+Threads 2/8    OK   check full --threads 2 and --threads 8 (alone), --repeats 1; cli.py compare: t2 vs t8 AGREE,
+                    t2 vs t4 AGREE, t8 vs t4 AGREE (captured[0], post_exmain, sfscal, suscal, yldot, fnrm all equal).
+C1 gate        FAIL docs/reviews/AIUE-56-c1-gate.py --harness tests/deterministic_omp on chk_tebox_t4, chk_full_t4,
+                    chk_full_t2, chk_full_t8. Verbatim:
+                    chk_tebox_t4 run0..run4: PASS (worst magnitude ratio 1, worst |a-b|/rowmax 0)
+                    chk_full_t4 run0: FAIL (worst magnitude ratio 1, worst |a-b|/rowmax 0.000198)
+                        captured[0]: 118 entries exceed 1e-6 x serial row max (worst |a-b|/rowmax 1.983e-04; 12275 entries differ)
+                    (the same for chk_full_t4 run1..run4, chk_full_t2 run0, chk_full_t8 run0)
+                    GATE FAIL
+                    Diagnosis (gate logic unchanged, run per matrix): post_exmain PASS, worst 4.59e-09 (= AIUE-61 G6's
+                    worst); captured[0] FAIL. The 118 entries: Te rows, ni/ng columns; 114 present in serial and exactly
+                    0 (dropped) in OpenMP, 4 value differences; worst row 11840 col 14104 serial 157.117 vs OpenMP 0,
+                    raw row max 7.92e5. The OpenMP Jacobian is bitwise the one AIUE-61 validated (hash above); the gate
+                    now also judges the raw matrix because AIUE-47's capture hook is in the build (the gate uses
+                    captured[k] when present). AIUE-56/61 builds had no hook, so the C1 bound was only ever applied to
+                    the 1/suscal-scaled matrix. Needs an owner decision: is the pre-registered C1 bound meant for the raw
+                    matrix (then this is the C2 difference failing it), or only for post_exmain?
+G-common       OK   AIUE-60-common-check.py --venv venvs/omp-determinism-omp --gen build/temp.*:
+                    "RESULT: PASS (first definer bbbpy 728 B; others apipy 96 B)"
+G-iotable      OK   AIUE-60-iotable-probe.py check, base venvs/AIUE-56-omp, new omp-determinism-omp, --harness this
+                    tree: base and new run0/1 "com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)]";
+                    "base repeatable: True | new equals base: True"; "RESULT: PASS".
+Capture hook   OK   record.json capture: full t4 run0 count 1, source jac_calc_parallel, caller sfsetnk (nnz 3180971);
+                    serial count 1, jac_calc; tebox run0 count 1. raw * (1/suscal)[col] == post_exmain bitwise in all
+                    three.
+
+Overall: every check passes except the AIUE-56 C1 gate on the full problem's raw (captured) Jacobian. Clean-up (phase B)
+not done, pending the owner's decision on the C1 gate.
