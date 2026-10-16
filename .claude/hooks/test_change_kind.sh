@@ -80,9 +80,18 @@ pre $'cat > /dev/null <<\'EOF\'\nrun git add .claude/plans/x.md and git commit\n
 git -C "$R" checkout -q v9-develop
 pre $'cat > /dev/null <<EOF\ngit commit\nEOF'; ok $? 0 "D3 a here-document mentioning git commit on a protected branch is not a commit"
 pre $'git commit -F - <<\'EOF\'\nSubject\nEOF'; ok $? 2 "D4 a real commit with its message in a here-document is still checked (protected)"
+pre $'cat <<EOF | git commit -F -\nSubject\nEOF'; ok $? 2 "D6 a command after <<EOF on the opening line is still checked (protected)"
+pre $'cat <<\'EOF\' > m && git commit -F m\nSubject\nEOF'; ok $? 2 "D7 cat <<'EOF' > m && git commit -F m is still checked"
+pre $'python3 - <<\'PY\' && git commit -am x\nprint(1)\nPY'; ok $? 2 "D8 python3 - <<'PY' && git commit -am x is still checked"
+pre $'cat <<<EOF\ngit commit -m x\nEOF'; ok $? 2 "D9 a herestring (<<<) is not a here-document: the next line's commit is checked"
+pre $'cat > /dev/null <<EOF\nEOF\ngit commit -m x\nEOF'; ok $? 2 "D10 an empty here-document doesn't swallow the commit after it"
+pre $'bash <<EOF\ngit commit -m x\nEOF'; ok $? 0 "D11 documented limitation: commands fed to a shell through a here-document are not checked"
 git -C "$R" checkout -q feature/v9-T-1-demo
 stage .claude/context/testing.md
 pre $'git commit -F - <<\'EOF\'\nSubject\n\nAI-layer: code-facts\nEOF'; ok $? 0 "D5 the code-facts trailer inside the here-document message still counts"
+clean
+mkdir -p "$R/.claude/work/T-1"
+pre $'cat <<\'EOF\' > .claude/work/T-1/x.md && git add -f .claude/work/T-1/x.md && git commit -m x\nbody\nEOF'; ok $? 2 "D12 create a work doc from a here-document, force-add and commit on a ticket branch: blocked"
 clean
 
 echo "== E. ranges"

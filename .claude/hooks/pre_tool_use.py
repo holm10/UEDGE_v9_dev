@@ -209,14 +209,17 @@ GIT_ADD = re.compile(GIT + r"add\s+(?P<args>[^\n;&|]*)")
 GIT_NEW_BRANCH = re.compile(GIT + r"(?:checkout\s+-[bB]|switch\s+-[cC])\s+(?P<b>[^\s;&|]+)")
 CD = re.compile(r"(?:^|[;&|]\s*)cd\s+(?P<d>[^\s;&|]+)")
 # A here-document body (<<EOF ... EOF, <<'EOF', <<-EOF): text, not commands, so it is dropped before matching the git
-# commands above. The commit message itself (git commit -F - <<'EOF') stays in the full command for the trailer check.
-# Limitation: commands fed to a shell through a here-document (bash <<EOF ... EOF) are not seen (fail open).
-HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n.*?\n[ \t]*(?P=tag)[ \t]*(?=\n|$)",
-                     re.S)
+# commands above. Only the body goes: the rest of the opening line (cat <<EOF | git commit -F -) is a command and is
+# kept. A herestring (<<<) is not a here-document, and an empty body (the terminator on the next line) is matched, so
+# a match never runs on and swallows later commands. The commit message itself (git commit -F - <<'EOF') stays in the
+# full command for the trailer check. Limitation: commands fed to a shell through a here-document (bash <<EOF ...
+# EOF, ssh host <<EOF) are not seen (fail open).
+HEREDOC = re.compile(r"(?<!<)<<(?!<)-?[ \t]*(['\"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)\1(?P<rest>[^\n]*)\n"
+                     r"(?:.*?\n)??[ \t]*(?P=tag)[ \t]*(?=\n|$)", re.S)
 
 
 def strip_heredocs(command: str) -> str:
-    return HEREDOC.sub("<<heredoc", command)
+    return HEREDOC.sub(lambda m: "<<heredoc" + m.group("rest"), command)
 
 
 def _porcelain_z(workdir):

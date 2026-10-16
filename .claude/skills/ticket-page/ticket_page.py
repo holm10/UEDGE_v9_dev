@@ -203,7 +203,9 @@ DEEP = "\u25b8"  # marks a heading deeper than markdown's six levels after demot
 
 def demote_marked(md, by=2):
     """Demote headings (outside fences) by `by`; a heading pushed past level 6 stays at 6 and keeps its depth as one
-    DEEP mark per level beyond 6, so extract-plan can restore it."""
+    DEEP mark per level beyond 6, so extract-plan can restore it. Marks only ever appear on level-6 headings; a level-6
+    heading whose own text starts with DEEP gets it escaped (backslash), so it is never read as a mark. The whitespace
+    after the #s is kept."""
     out = []
     for ln, in_fence in split_fences(md.splitlines()):
         if not in_fence:
@@ -211,20 +213,32 @@ def demote_marked(md, by=2):
             if m:
                 lvl = len(m.group(1)) + by
                 extra = max(0, lvl - 6)
-                ln = "#" * min(6, lvl) + " " + (DEEP * extra + " " if extra else "") + m.group(3)
+                text = m.group(3)
+                if lvl >= 6 and text.startswith(DEEP):
+                    text = "\\" + text
+                ln = "#" * min(6, lvl) + m.group(2) + (DEEP * extra + " " if extra else "") + text
         out.append(ln)
     return "\n".join(out)
 
 
 def promote_marked(md, by=2):
-    """Undo demote_marked: promote headings (outside fences) by `by`, restoring the DEEP-marked ones."""
+    """Undo demote_marked: promote headings (outside fences) by `by`; on level-6 headings only, read the DEEP marks
+    as depth and unescape an escaped leading DEEP."""
     out = []
     for ln, in_fence in split_fences(md.splitlines()):
         if not in_fence:
-            m = re.match(r"^(#{1,6})\s+(" + DEEP + r"*)\s*(.*)$", ln)
+            m = re.match(r"^(#{1,6})(\s+)(.*)$", ln)
             if m and len(m.group(1)) > by:
-                lvl = len(m.group(1)) + len(m.group(2)) - by
-                ln = "#" * lvl + " " + m.group(3)
+                hashes, space, text = m.groups()
+                lvl = len(hashes) - by
+                if len(hashes) == 6:
+                    k = re.match("(" + DEEP + "+) (.*)$", text)
+                    if k:
+                        lvl += len(k.group(1))
+                        text = k.group(2)
+                    if text.startswith("\\" + DEEP):
+                        text = text[1:]
+                ln = "#" * lvl + space + text
         out.append(ln)
     return "\n".join(out)
 

@@ -450,6 +450,10 @@ EOF
 roundtrip_json "$W/deep-body.md" "$W/deep-page.json"
 $T extract-plan --current "$W/deep-page.json" --out "$W/deep-back.md" >/dev/null; ok $? 0 "N2 extract-plan of the deep plan"
 cmp -s "$R/.claude/work/T-1/deep.md" "$W/deep-back.md"; ok $? 0 "N2 h4, h5, h6 and the fenced line come back exactly"
+printf '# T\n## ▸ Step one\n#### ▸ deep text\n###### ▸▸ six-ish\n#  two  spaces\n' > "$R/.claude/work/T-1/mark.md"
+$T render --repo "$R" --plan .claude/work/T-1/mark.md --meta "$W/meta.json" --current "$W/spage.json" --outbox "$W/st-mark" --out "$W/mark-body.md" >/dev/null
+roundtrip_json "$W/mark-body.md" "$W/mark-page.json"; $T extract-plan --current "$W/mark-page.json" --out "$W/mark-back.md" >/dev/null
+cmp -s "$R/.claude/work/T-1/mark.md" "$W/mark-back.md"; ok $? 0 "N2b headings whose text starts with the mark, and their spacing, come back exactly (review round 2, I2-m2)"
 $T state --repo "$R" --key T-1 --outbox "$W/st-deep" --save-plan "$W/deep-back.md" >/dev/null 2>&1; ok $? 2 "N3 --save-plan without --plan-title is refused"
 $T render --repo "$R" --plan .claude/work/issue-7/rca.md --plan-title RCA --meta "$W/meta.json" --current "$W/spage.json" --outbox "$W/st-rca2" --out "$W/rca2.md" >/dev/null
 $T state --repo "$R" --key T-1 --outbox "$W/st-rca2" --set version=2 page_id=950 --save-body "$W/rca2.md" --save-plan "$R/.claude/work/issue-7/rca.md" --plan-title RCA >/dev/null
