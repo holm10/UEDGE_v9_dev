@@ -18,8 +18,12 @@ OpenMP Jacobian reproducible, and adds tests and a CI job so the problem cannot 
   - The `isimpon=7` impurity radiation then evaluated empty tables in the Te residual.
   - Fix: the scalars are now copied first (`ppp/omp_parallel.F90`).
 - **Remaining races, fixed (AIUE-60).**
-  - `+threadprivate` added to per-call state written inside `pandf`: `areapl`, `TimingPandfOn`, `com.nfsp`, the `com`
-    timers, `emcoef` no longer in `copyin`, the `fmombal` SAVE arrays, and the limiter and spline scratch.
+  - `+threadprivate` added to per-call state written inside `pandf`: `areapl`, `TimingPandfOn`, the limiter sputter
+    fluxes (`sputflxllim`/`sputflxrlim`) and the `aph` spline scratch `workh`.
+  - `com.nfsp` is written only when its value changes; the 10 `com` timers stay shared and are summed atomically
+    through a new helper `acctim` (under OpenMP they report thread-seconds); `iflag_aph` became a local.
+  - Documented, not changed: `emcoef` in `copyin` (removal belongs to AIUE-59) and the `fmombal` SAVE arrays (the
+    `isimpon=5` path is already refused under OpenMP by `exmain`).
   - Clip index fixed: the parallel Jacobian clipped with `sfscal` of the column; it now uses the row, as serial does
     (`ppp/parallel.F90`).
   - The Forthon `--omp` common block `/ompcommonscalarcopy/` invariant (bbb first and largest) is now documented and
