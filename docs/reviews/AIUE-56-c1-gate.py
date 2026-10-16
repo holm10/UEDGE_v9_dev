@@ -15,6 +15,11 @@ else post_exmain), the gate requires (pre-registered in .claude/plans/AIUE-56-om
 
 It also requires each run's check_arm list to be empty (the arm took effect). Prints one line per run and
 "GATE PASS"/"GATE FAIL"; exit 0 / 1, or 2 if a directory can't be read.
+
+Note (AIUE-57, after the OpenMP determinism merge): when the build has the AIUE-47 capture hook this script judges
+the raw captured[k] Jacobians, which are unscaled; the bound is defined on the scaled post_exmain Jacobian
+(decision in docs/reviews/omp-determinism-merge-validation.txt). Use tests/deterministic_omp/ci/jac_bound.py, which
+applies the same bound to post_exmain only. This script is kept unchanged so the records that quote it reproduce.
 """
 import json
 import os

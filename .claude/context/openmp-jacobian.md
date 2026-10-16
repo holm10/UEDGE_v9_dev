@@ -113,7 +113,8 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
    package loaded before `bbb` (`com`, `grd`, `flx`) must not have threadprivate scalars, and no later package's block
    (`api`, `aph`, `ppp`, …) may be larger than `bbb`'s, or a copy writes past the block (AIUE-60: `com` timers made
    `bbb`'s copy overwrite `com`'s `/iotable/`). `api` (12 scalars, 96 B) is an allowed later, smaller block; new
-   threadprivate scalars go in `bbb`. Check: `docs/reviews/AIUE-60-common-check.py`. Upstream: AIUE-71.
+   threadprivate scalars go in `bbb`. Check: `docs/reviews/AIUE-60-common-check.py`; in CI `tests/deterministic_omp/ci/common_check.py`
+   (the same check, run by `build-test-omp.yml`). Upstream: AIUE-71.
 6. A full `pandf(-1,-1)` must recompute every module variable a later local `pandf` reads (the fixed partition relies
    on it, see above). State that only a local evaluation sets and a full one leaves alone would make the OpenMP
    Jacobian depend on the thread count.
@@ -143,7 +144,12 @@ solver's `jac`, the second into a local copy for the comparison); `CheckPandf1` 
 and aborts after scanning all entries. They change solver state, so they are diagnostics, not a baseline. The bitwise check against serial is the harness below.
 
 Test with a double-null / snowflake case too: X-point chunks are where regressions hide.
-Serial build (`--serial`) is what CI tests — it will **not** catch OpenMP races.
+The serial build (`--serial`) that `build-test-wheel.yml` tests will **not** catch OpenMP races. The OpenMP CI job
+`.github/workflows/build-test-omp.yml` (AIUE-57) does: it runs the flow below through
+`tests/deterministic_omp/ci/run_omp_ci.sh` on the default OpenMP build and gates on the `jac` arm, bitwise (Linux
+x86-64, so far emulated, equals serial bit for bit with the fixed partition), with the C1 bound on the scaled `post_exmain` Jacobian
+(`tests/deterministic_omp/ci/jac_bound.py`) as a backstop and the common-block check; `OMP_CI_JAC_TOLERANCE` (≤ 1e-6) is a tolerance mode
+for macOS replays (C2). The Te-box flows set `OMPJacMinChunkLen=1`: by default the 25-equation box gets one chunk.
 
 ## Bitwise OpenMP-vs-serial harness (`tests/deterministic_omp/harness/`)
 
@@ -172,6 +178,10 @@ the capture source, iterations recorded), so a run where the arm did not take ef
 harness error, never a pass; so is a comparison report with errors. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
 The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
 (`python -m pytest tests/deterministic_omp/harness`).
+In CI (`run_omp_ci.sh`; locally `PYTHON=$PY tests/deterministic_omp/ci/run_omp_ci.sh pr`) a failing `jac` group is
+reported as configuration, arm, threads, equation and cell of the first mismatch. The cell comes from the
+one-evaluation flow (`tebox1`): under `--itermx 3` the post-`exmain` Jacobian is the permuted `psetnk` one, compared
+by position only, and the vectors differ everywhere once the Newton path moves. `jacrhs` only warns (epic AIUE-70).
 
 ## Serial old-vs-new bitwise check (`tests/deterministic_omp/harness/serial_check.py`)
 
