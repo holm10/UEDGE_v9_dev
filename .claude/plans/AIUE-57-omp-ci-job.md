@@ -96,11 +96,11 @@ OK; `pytest tests/deterministic_omp/harness tests/deterministic_omp/ci` 142 pass
      of `uedge`, so no `.uedgerc`). Exit 1 → job exit 1 ("common block FAIL"); 2 → exit 2. Unset → print
      "common-block check skipped (OMP_CI_GEN_DIR not set)"; the workflow always sets it.
   3. **Gate mode** (replaces the `--jac-tolerance` forwarding stub `:95-106`): `OMP_CI_JAC_TOLERANCE` empty → mode
-     `bitwise`; a value → must parse as a float in (0, 1e-3], else exit 2; mode `tolerance <v>`. Nothing is passed to
+     `bitwise`; a value → must parse as a float in (0, 1e-6] (capped at the registered C1 bound; R1 L1-m1), else exit 2; mode `tolerance <v>`. Nothing is passed to
      the flow; the flows always run with `--gate $GATE` (bitwise verdicts).
   4. **Bound step** (after the flows): `ci/jac_bound.py --flow <dir> --tol <v or 1e-6> --json <dir>/bound.json` for
      every flow dir (jac arm groups only). Its exit code is passed to `report.py` (`--bound-codes`).
-  5. `report.py` gets `--gate-mode`, `--tol`, and reads each flow's `bound.json`.
+  5. `report.py` gets `--gate-mode`, `--tol`, `--common-code`, and reads each flow's `bound.json` (see Revision 1).
 - **GOTCHA**: bash 3.2 compatible (macOS), `set -u` with empty arrays; `--ppp` must not be passed when the field is
   empty (a pre-AIUE-61 build has no `OMPJacMinChunkLen`: Forthon raises "no such attribute", the serial reference
   fails, the flow is an ERROR — that is the correct outcome for the unmodified `pr` set on such a build).
@@ -132,7 +132,6 @@ OK; `pytest tests/deterministic_omp/harness tests/deterministic_omp/ci` 142 pass
     passes `jac_bound` at `tol=v`. Otherwise it stays FAIL. Under `--itermx N` a Jacobian difference that moves the
     Newton path makes `yldot`/`fnrm` differ → FAIL (by design; documented).
   - Headline `## OpenMP determinism CI: PASS|FAIL|ERROR (set, gate, mode)` and `OMP CI RESULT:` line unchanged.
-  - Drop the "expected FAIL" wording nowhere needed: report.py has no pre-fix assumption; only docs do.
 - **VALIDATE**: new tests: bound line in bitwise mode; bound FAIL on a flow-PASS group → exit 1; tolerance mode:
   Jacobian-only + deterministic + bound pass → PASS; with `yldot` failing → FAIL; non-deterministic → FAIL; run
   failure → FAIL.
@@ -146,7 +145,7 @@ OK; `pytest tests/deterministic_omp/harness tests/deterministic_omp/ci` 142 pass
   Mach-O parsing.
 
 #### UPDATE `.github/workflows/build-test-omp.yml`
-- **IMPLEMENT**: remove the DO-NOT-MERGE header (`:7-12`); header states what is gated (jac arm bitwise on Linux with
+- **IMPLEMENT**: remove the DO-NOT-MERGE header (`:7-13`); header states what is gated (jac arm bitwise on Linux with
   the C1 bound as a backstop; `jacrhs` report-only, epic AIUE-70). Build step unchanged (`python -m pip install -v .`,
   no `LDFLAGS`; AIUE-64). New step after the build: resolve `OMP_CI_GEN_DIR` (exactly one `build/temp.*` dir with
   `bbb_p.F90`, else fail) into `$GITHUB_ENV`. `OMP_CI_JAC_TOLERANCE: ""` comment rewritten (bitwise on Linux; a value
@@ -180,6 +179,49 @@ OK; `pytest tests/deterministic_omp/harness tests/deterministic_omp/ci` 142 pass
 
 #### UPDATE `docs/reviews/AIUE-57-validation.txt` — section "9. Rework on the combined branch" with every result below.
 
+### Revision 1 (plan review round 1, `docs/reviews/AIUE-57-rework-plan-round1.md`: REVISE 0/2/8)
+Binding where it differs from the tasks above; decisions relayed by the main session.
+
+- **L1-M1, common-block result.** The check never stops the script: its exit code (0/1/2; 2 also when the package
+  directory cannot be resolved, i.e. `find_spec('uedge')` is `None`, or `OMP_CI_GEN_DIR` has no `bbb_p.F90`) is passed
+  to `report.py --common-code N` and the flows run anyway. `report.py` shows it in the headline block ("Common-block
+  check: PASS|FAIL|ERROR|skipped") and folds it into the exit code (`max`), so the headline and `OMP CI RESULT:` can
+  never say PASS while the job exits non-zero. Unit test: common block FAIL + every flow PASS → exit 1, FAIL headline
+  naming the common block. V6c is the same run as V6.
+- **L1-M2, tolerance mode tests.** `test_report.py` adds: (i) Jacobian-only difference, deterministic, bound
+  `pass: false` → stays FAIL, exit 1; (ii) the same with no `bound.json`, or with the group or the run missing from it
+  → not PASS, exit 2. **V8b** (pre-registered): V8's flow with `OMP_CI_JAC_TOLERANCE` set below the worst deviation
+  that the bitwise V8 run's `bound.json` records (half of it, rounded down to one significant digit) → exit 1, the
+  bound named as the reason.
+- **L1-m1.** Tolerance mode recomputes the gated exit code from the adjusted group verdicts (a flow that FAILed
+  bitwise no longer forces 1); flow ERRORs, missing `flow.json`, iteration problems, bound exit 2 and the common-block
+  code are kept. Tolerance capped at 1e-6.
+- **L1-m2.** `post_exmain` is the last Jacobian of the run: in one-evaluation flows (`tebox1`, `up1`) that is the
+  first and only one; in `--itermx` flows the bound sees only the last, permuted one (the bitwise comparison covers
+  every captured Jacobian). Stated in README and report. `jac_bound.py` exits 2 when serial and run disagree on
+  `post_exmain_permuted` or `post_exmain_from`. V6 outcomes are pre-registered per group (table).
+- **L1-m3.** Fail closed: a missing `bound.json`, a missing group/run entry in it, or a `jac_bound.py` traceback is
+  ERROR (exit 2) in `report.py`, never EXCEEDED or a pass; `jac_bound.py` wraps its work so an unexpected exception
+  exits 2. Layout test: `<config>/jac_t<N>/run<k>` against `<config>/serial`, `jacrhs_t*` ignored, `bound.json` keys
+  (`"<config>/jac_t<N>"` → `"run<k>"`) equal to what `report.py` looks up. Check-dir mode accepts `--harness DIR`
+  (as `linux/gate_flows.py:41` passes) and ignores it except for `check_arm` as the original. `linux/README.md` gets a
+  one-line note: use `ci/jac_bound.py` on builds with the capture hook.
+- **L1-m4, chunk count.** The Te-box `ppp` field becomes `{"OMPJacMinChunkLen": 1, "OMPJacVerbose": 1}`;
+  `InitOMPJac` then prints the chunk count to each run's `run.log` (`ppp/omp_parallel.F90:327-330`). `report.py`
+  reports, for every flow whose `ppp` sets `OMPJacVerbose`, the `NchunksJac` values seen in the jac runs' `run.log`
+  (informational line; V5 pre-registers 25 for the Te-box flows). (Verify the print format at implementation.)
+- **L1-m5.** Optional Docker control on `T`: `up1` with `{"OMPJacFixedChunks": 0}` (legacy partition; FAIL expected
+  only probabilistically, recorded). Seeded-C1 control optional, not run unless time allows.
+- **L1-m6, budget and merge condition.** Estimated PR time 15–22 min (central ~18; reviewer's estimate from §8d plus
+  `up1`, bound step, common check). Pre-registered cut order if the first native run is over 20 min: drop `up1` →
+  Te box `tebox` K 5→3 → `full` at 4 threads only. Merge condition (README "CI" and PR notes): the first native
+  `ubuntu-latest` PR run is green and inside budget; the branch merges with or after
+  `bugfix/v9-openmp-determinism-fix`; if native x86-64 shows C2-like entries, the owner decides (tolerance mode cannot
+  rescue `--itermx` flows).
+- **L1-m7.** Workflow header lines are `:7-13`; `openmp-jacobian.md:116` additionally names `ci/common_check.py` as
+  the CI step (code-facts).
+- **L1-m8** (ticket-page sanitiser roots): AI layer, not on this branch (main session handles it).
+
 ### Testing strategy — pre-registered validation
 Pass criteria fixed now; results recorded verbatim in `docs/reviews/AIUE-57-validation.txt` §9. Docker: one
 container at a time, `--platform linux/amd64 --cpus 5 --memory 7g`, image `aiue62-ubuntu:amd64`, repo mounted
@@ -192,17 +234,19 @@ committed rebased tip `T` (clean tree).
 | V2 | Static | `bash -n` + `shellcheck` (run_omp_ci.sh, run_ci_replay.sh); `yaml.safe_load`; `actionlint` | all clean |
 | V3 | Gate script raw vs scaled (unit) | `test_jac_bound.py` cases (a)–(e) above | (a) PASS with raw line, (b)(c) FAIL, (d) global bound, (e) exit 2 |
 | V4 | Gate script on real data | `ci/jac_bound.py` on `uedge-wt/logs/omp-determinism/chk_full_t4` (merge validation, macOS) vs `docs/reviews/AIUE-56-c1-gate.py` on the same | new: PASS, worst 4.59e-09, raw line 1.98e-04 "not judged"; old: FAIL (reproduces the tool issue) |
-| V5 | **CI replay, rebased tree** | `run_ci_replay.sh fix T pr` | `OMP CI RESULT: PASS (exit 0)`; common-block check `RESULT: PASS` (first definer `bbbpy`); import OK with no `LDFLAGS`; every jac group 100 % agree with serial and deterministic; bound worst 0; `jacrhs` lines are warnings only |
-| V6 | **Negative control, pre-fix** | build `origin/v9-develop` `e52a44d` with `LDFLAGS=-fopenmp` (pre-AIUE-64 needs it); `RUN_TREE=T`, `OMP_CI_FLOWS` = the `pr` flows with the `ppp` field empty (the knob does not exist pre-AIUE-61) | exit 1, `OMP CI RESULT: FAIL`; every jac group in `tebox1`/`tebox`/`full` FAIL with Te-row first mismatch and C1 bound EXCEEDED; `FIRST MISMATCH` line names a Te cell |
+| V5 | **CI replay, rebased tree** | `run_ci_replay.sh fix T pr` | `OMP CI RESULT: PASS (exit 0)`; common-block check `RESULT: PASS` (first definer `bbbpy`); import OK with no `LDFLAGS`; every jac group 100 % agree with serial and deterministic; bound worst 0; `jacrhs` lines are warnings only; `NchunksJac` seen = 25 in every Te-box jac run (Revision 1, L1-m4) |
+| V6 | **Negative control, pre-fix** | build `origin/v9-develop` `e52a44d` with `LDFLAGS=-fopenmp` (pre-AIUE-64 needs it); `RUN_TREE=T`, `OMP_CI_FLOWS` = the `pr` flows with the `ppp` field empty (the knob does not exist pre-AIUE-61) | exit 1, `OMP CI RESULT: FAIL`; per group (Revision 1): `tebox1` jac 2,4 FAIL with Te-row first mismatch and C1 bound EXCEEDED; `tebox` and `full` jac FAIL (bound result recorded, not pre-registered: last, permuted Jacobian only); `up1` recorded (expected PASS: pre-fix Linux `up` 2/2 at 4 threads); `FIRST MISMATCH` line names a Te cell |
 | V6b | Pre-fix with the unmodified `pr` set | as V6, `OMP_CI_FLOWS` = `tebox1` flow only, with its `ppp` | exit 2, ERROR naming `OMPJacMinChunkLen` (fail closed) |
-| V6c | Common-block check on the pre-fix build | part of V6 | recorded; expected FAIL (a package other than `bbbpy` defines the block first, as AIUE-60's pre-amendment build); if PASS, record it — the FAIL path is then covered only by V1 |
+| V6c | Common-block check on the pre-fix build | part of V6 | same run as V6 (the check no longer stops the script); recorded; expected FAIL (a package other than `bbbpy` defines the block first, as AIUE-60's pre-amendment build), shown in the headline; if PASS, record it — the FAIL path is then covered only by V1 |
 | V7 | **Seeded race on the rebased tree** | `T` + `+threadprivate` removed from `resee` (`bbb/bbb.v`, as AIUE-57 §2), scratch commit, `run_ci_replay.sh race <sha>` with `OMP_CI_FLOWS` = the two Te-box `pr` flows | exit 1; every tebox jac group FAIL (mismatch or crash); rate recorded |
-| V8 | Tolerance mode (macOS, `venvs/omp-determinism-omp`) | `OMP_CI_FLOWS='tebox1|tebox|4|3|jac|none|{"OMPJacMinChunkLen": 1}'` bitwise, then `OMP_CI_JAC_TOLERANCE=1e-6` | bitwise: exit 1 (C2, Te-row entries); tolerance: exit 0 "PASS (within tolerance 1e-6)" |
+| V8 | Tolerance mode (macOS, `venvs/omp-determinism-omp`) | `OMP_CI_FLOWS='tebox1|tebox|4|3|jac|none|{"OMPJacMinChunkLen": 1, "OMPJacVerbose": 1}'` bitwise, then `OMP_CI_JAC_TOLERANCE=1e-6` | bitwise: exit 1 (C2, Te-row entries); tolerance: exit 0 "PASS (within tolerance 1e-6)" |
+| V8b | Tolerance below the measured C2 deviation | V8's flow with `OMP_CI_JAC_TOLERANCE` = half the worst deviation in V8's bitwise `bound.json` (one significant digit, rounded down) | exit 1, the bound named as the reason |
 | V9 | Tolerance mode does not hide C1 | V8's tolerance run on `venvs/base-omp` (pre-fix; `ppp` field empty) | exit 1, bound EXCEEDED |
+| V11 (optional) | Legacy-partition control in Docker | on `T`: `OMP_CI_FLOWS='up1l|up|4|3|jac|none|{"OMPJacFixedChunks": 0}'` | recorded (FAIL expected only probabilistically) |
 | V10 | Drift and branch | `check_context_refs.py --changed origin/v9-develop`; `change_kind.py --range 9fa2a0e..HEAD` | both OK |
 
 Nightly set: not run in full (emulated time); `run_ci_replay.sh` with `nightly` is optional and informational.
-Order: V1–V4, V10 locally; then V5, V6/V6b, V7 in Docker one after another; V8–V9 on the Mac (not during a Docker run).
+Order: V1–V4, V10 locally; then V5, V6/V6b (V6c in V6), V7, V11 in Docker one after another; V8, V8b, V9 on the Mac (not during a Docker run).
 
 **Only the real GitHub run on the PR can confirm**: native `ubuntu-latest` hardware (all Linux evidence is Rosetta-
 emulated x86-64), Python 3.11 from setup-python (the image has 3.12), the measured PR wall time (≤ 20 min budget;
