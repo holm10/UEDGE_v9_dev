@@ -14,11 +14,11 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 ## OpenMP parallelism (`ppp/`)
 
 - Switches in `ppp/ppp.v`: `OMPParallelPandf1` (RHS, `ppp/ppp.v:6`), `OMPParallelJac` (Jacobian, `ppp/ppp.v:7`), `Nthreads` (`ppp/ppp.v:14`).
-- RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:908`) splits the grid into bulk chunks plus special **X-point
+- RHS: `OMPPandf1Rhs` (`ppp/omp_parallel.F90:957`) splits the grid into bulk chunks plus special **X-point
   chunks** (`Make2DChunks`, `ppp/omp_parallel.F90:3`), runs `OMPPandf`/`OMPPandf_XPT` per chunk with `FIRSTPRIVATE(ylcopy,yldotcopy)`,
   and sums only the `iv` indices each chunk owns (`REDUCTION(+:yldottot)`).
-- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`ppp/omp_parallel.F90:495`, `ppp/omp_parallel.F90:645`) — each thread builds columns with its own copy of
-  module state; `Selec` ranges are `copyin`'d (`ppp/omp_parallel.F90:649`, `ppp/omp_parallel.F90:721`).
+- Jacobian: `jac_calc_omp` / `OMPJacBuilder` (`ppp/omp_parallel.F90:501`, `ppp/omp_parallel.F90:665`) — each thread builds columns with its own copy of
+  module state; `Selec` ranges are `copyin`'d (`ppp/omp_parallel.F90:669`, `ppp/omp_parallel.F90:742`).
 - Per-thread copies of module variables come from `+threadprivate` in `.v`. The `OmpCopy<pkg>` modules used by
   `ppp` are generated at build time (Forthon `--omp`, `setup.py` `OMPargs`), not stored in the repo.
 - **Copy order matters.** `OMPJacBuilder` copies the master's threadprivate state to the workers before the column
@@ -32,13 +32,37 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
   while `ijactot` is 0, and `exmain` resets `ijactot` only when `icntnunk=0`: with `icntnunk=1`, or an RHS call from
   Python after an earlier `exmain`, the parallel RHS runs on whatever worker state the previous Jacobian left.
 - **Clip rule, serial vs parallel.** `LocalJacBuilder` keeps an entry when `abs(jacelem*sfscal(ii)) > jaccliplim`
-  with `ii` the row (equation), as `jac_calc` does (`ppp/parallel.F90:292`, `bbb/oderhs.m:1187`; AIUE-60 fixed a
+  with `ii` the row (equation), as `jac_calc` does (`ppp/parallel.F90:296`, `bbb/oderhs.m:1187`; AIUE-60 fixed a
   column index there). Keep the two loops in step. Known remaining differences (not races): the parallel builder
   subtracts the diagonal `1/dtuse` for every `svrpkg` and `nufak` also for `cvode`; both agree for `nksol`. The
   PETSc path (`svr/petsc-uedge.F90`) still clips with `sfscal(iv)` (AIUE-69).
-- `emcoef` is also in the loop's `copyin` (`ppp/omp_parallel.F90:721`): it pointer-assigns the workers' `emcoef` to the
+- `emcoef` is also in the loop's `copyin` (`ppp/omp_parallel.F90:742`): it pointer-assigns the workers' `emcoef` to the
   master's array, which persists after the loop, so from the second Jacobian on `OmpCopyPointeremcoef` has the
   workers write identical values into the master's array (benign; redundant since the scalars-first copy).
+- **Fixed partition (default since AIUE-61, `OMPJacFixedChunks=1`, `ppp/ppp.v:60`).** The columns are split into
+  `NchunksJac = min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen))` contiguous chunks (defaults 64 and 300;
+  `ppp/omp_parallel.F90:317`), with boundaries from `neq` and the count only (`OMPFixedSplitIndex`,
+  `ppp/omp_parallel.F90:793`). No load weights are used. Each chunk starts with a full `pandf(-1,-1)` on its thread
+  (`LocalJacBuilder`, `ppp/parallel.F90:214`). The serial column loop depends on its own history: a local `pandf`
+  leaves last-bit differences, e.g. in `vsoree`, that later columns read (AIUE-8 root cause C2). The reset makes
+  every chunk independent of what its thread evaluated before. So the Jacobian is bitwise reproducible and the same
+  for any number of OpenMP threads and any schedule (`schedule(dynamic,OMPLoopJacNchunk)` is kept). It is **not**
+  equal to serial on macOS arm64: it differs at round-off in the C2 rows.
+  - The guarantee holds only where a full Jacobian-mode `pandf` resets all state and no shared variable carries
+    results. `exmain` already refuses OpenMP with `ismcnon≠0` or `isimpon` not in {0, 2, 6, 7}
+    (`bbb/odesetup.m:6727-6745`). Not validated: `nxpt=2` and coupled walls (still racy, AIUE-69, see "Known
+    OpenMP-unsafe paths"), limiter sputtering and `istabon=5,6` (made thread-safe by AIUE-60, not tested here).
+  - The three inputs take effect at the next `exmain` (`InitOMPJac` runs from `allocate`).
+  - Cost: the full problem (64 chunks) is within about 3 % of the old partition at 2-8 threads. Smaller problems get
+    fewer chunks (`neq/300`): with neq up to about 5 000 at 8 threads the Jacobian may take up to about 2x the old
+    partition's time, and below neq 600 (one chunk, e.g. the D_only pytests case) about 3x, a few tens of ms. Lower
+    `OMPJacMinChunkLen` (each chunk then pays one more full `pandf`) or set `OMPJacFixedChunks=0`.
+  - `OMPJacFixedChunks=0` restores the earlier partition (`OMPJacNchunks`, `OMPAutoBalance`; it varies from run to
+    run).
+  - `OMPJacChunkReset=0` (debug, `ppp/ppp.v:41`) skips the reset, and the Jacobian then depends on the thread count.
+  - In fixed mode `OMPTimeLocalJac` is indexed per chunk, not per thread: the team can be larger than `NchunksJac`.
+  - Each chunk writes straight into its own column `iJacCol(:,ichunk)`/`rJacElem(:,ichunk)`: there are no
+    per-thread automatic copies. Those copies overflowed the master's stack for `OMPJacNchunks≠0`.
 
 ## Raw-Jacobian capture (`bbb.jaccapture`, off by default)
 
@@ -81,7 +105,7 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
 2. Use `ixm1/ixp1` and the `Selec` ranges; padding around chunk edges and X-point cuts depends on the stencil width.
    A new term with a wider stencil (e.g. second neighbours) requires increasing the padding/`xlinc`/`yinc`.
 3. No `save`d locals or accumulation into module arrays across calls.
-4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:959-961`) — similar global
+4. `psorcxg`, `psorrg`, `psordis` are zeroed per chunk (`ppp/omp_parallel.F90:1008-1010`) — similar global
    accumulators need the same treatment.
 5. **No threadprivate scalars before `bbb`; no later block larger than `bbb`'s.** Forthon's `--omp` copy routines give every package the same common block
    `/ompcommonscalarcopy/`, sized by that package's threadprivate *scalars* (arrays are not affected). The extensions
@@ -90,6 +114,9 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
    (`api`, `aph`, `ppp`, …) may be larger than `bbb`'s, or a copy writes past the block (AIUE-60: `com` timers made
    `bbb`'s copy overwrite `com`'s `/iotable/`). `api` (12 scalars, 96 B) is an allowed later, smaller block; new
    threadprivate scalars go in `bbb`. Check: `docs/reviews/AIUE-60-common-check.py`. Upstream: AIUE-71.
+6. A full `pandf(-1,-1)` must recompute every module variable a later local `pandf` reads (the fixed partition relies
+   on it, see above). State that only a local evaluation sets and a full one leaves alone would make the OpenMP
+   Jacobian depend on the thread count.
 
 ## Known OpenMP-unsafe paths
 
@@ -105,7 +132,8 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
 from uedge import bbb, ppp
 ppp.OMPParallelPandf1 = 1; ppp.OMPParallelJac = 1; ppp.Nthreads = 4
 ppp.CheckPandf1 = 1   # compares parallel vs serial RHS every call (ppp/ppp.v:15)
-ppp.CheckJac = 1      # compares parallel vs serial Jacobian (ppp/ppp.v:9)
+ppp.CheckJac = 1      # compares parallel vs serial Jacobian (ppp/ppp.v:9); absolute 1e-14, entry by entry:
+                      # with the fixed partition it can stop on the expected C2 round-off difference
 bbb.exmain()
 ```
 

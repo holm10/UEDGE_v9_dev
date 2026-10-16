@@ -309,7 +309,13 @@ SUBROUTINE InitOMPJac()
                             Nthreads
                 endif
               !$omp END parallel
-            if (OMPJacNchunks.eq.0) then
+            if (OMPJacFixedChunks.gt.0) then
+                if (OMPJacNchunksFixed.le.0) call xerrab('*** InitOMPJac: OMPJacNchunksFixed must be > 0 ***')
+                if (OMPJacMinChunkLen.le.0) call xerrab('*** InitOMPJac: OMPJacMinChunkLen must be > 0 ***')
+                ! Fixed partition (AIUE-61): the chunk count depends on the problem size only, never on the
+                ! number of threads, so the Jacobian is the same for any thread count
+                NchunksJac=min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen))
+            elseif (OMPJacNchunks.eq.0) then
                 NchunksJac=neq
             elseif (OMPJacNchunks.lt.0) then
                 NchunksJac=Nthreads
@@ -507,7 +513,7 @@ END SUBROUTINE InitOMPPandf1
     USE OMPJac, ONLY: NchunksJac,nnzmxperchunk
     USE ParallelSettings, ONLY: Nthreads, OMPParallelPandf1
     USE OMPJacSettings, ONLY: OMPJacVerbose,OMPCheckNaN,&
-            OMPLoadBalance,OMPAutoBalance,OMPJacStamp,OMPBalanceStrength
+            OMPLoadBalance,OMPAutoBalance,OMPJacStamp,OMPBalanceStrength,OMPJacFixedChunks
     USE ParallelDebug, ONLY: WriteJacobian,OMPJacDebug
     USE Flags, ONLY: iprint
     USE OMPJac, ONLY:iJacCol,rJacElem,iJacRow,OMPivmin,OMPivmax,nnz,nnzcum,OMPLoadWeight,OMPTimeLocalJac
@@ -543,6 +549,10 @@ END SUBROUTINE InitOMPPandf1
     character(len = 80) ::  filename
 
     OMPTotTimeJacCalc = tick()
+    if (OMPJacFixedChunks.gt.0) then
+    ! Fixed contiguous chunks (AIUE-61): boundaries from neq and NchunksJac only, no load weights
+    call OMPFixedSplitIndex(neq,NchunksJac,OMPivmin,OMPivmax)
+    else
     ! Calculate load distribution for threads
     if (OMPLoadBalance.ne.1 .and. OMPAutoBalance.ne.1) then
         OMPLoadWeight(1:NchunksJac)=1.0
@@ -561,9 +571,18 @@ END SUBROUTINE InitOMPPandf1
     endif
     !   Get the range of the iv index for each thread
     call OMPSplitIndex(1,neq,NchunksJac,OMPivmin,OMPivmax,OMPLoadWeight)
+    endif
 
     if (OMPJacVerbose.gt.0) then
         write(*,*) ' *OMPJac* neq=',neq,neqmx
+        if (OMPJacFixedChunks.gt.0) then
+        ! fixed partition: no load weights; OMPTimeLocalJac is per chunk, from the previous Jacobian
+        write(*,*) ' *OMPJac* Ivmin(ichunk),Ivmax(ichunk) (fixed partition) : OMPTimeLocalJac(ichunk) ***'
+        do ichunk=1,NchunksJac
+            write(*,'(a,I3,a,I7,I7,a,f6.2)') '  * ichunk ', ichunk,':', &
+                OMPivmin(ichunk),OMPivmax(ichunk),' : ',OMPTimeLocalJac(ichunk)
+        enddo
+        else
         write(*,*) &
             ' *OMPJac* Ivmin(ichunk),Ivmax(ichunk), OMPLoadWeight(ichunk) : OMPTimeLocalJac(ichunk) ***'
         do ichunk=1,NchunksJac
@@ -571,6 +590,7 @@ END SUBROUTINE InitOMPPandf1
                 OMPivmin(ichunk),OMPivmax(ichunk),OMPLoadWeight(ichunk), &
                 ' : ',OMPTimeLocalJac(ichunk)
         enddo
+        endif
     endif
 
     OMPTimeJacCalc= tick()
@@ -643,8 +663,8 @@ END SUBROUTINE InitOMPPandf1
 
 
   SUBROUTINE OMPJacBuilder(neq, t, yl,yldot00, ml,mu,wk,iJacCol,rJacElem,iJacRow,nnz)
-    USE OMPJacSettings, ONLY: OMPJacStamp,OMPJacVerbose,OMPLoopJacNchunk
-    USE ParallelDebug, ONLY: OMPJacDebug,OMPCopyArray,OMPCopyScalar
+    USE OMPJacSettings, ONLY: OMPJacStamp,OMPJacVerbose,OMPLoopJacNchunk,OMPJacFixedChunks
+    USE ParallelDebug, ONLY: OMPJacDebug,OMPCopyArray,OMPCopyScalar,OMPJacChunkReset
     USE OMPJac, ONLY: OMPivmin,OMPivmax,OMPTimeLocalJac,OMPTimeJacRow,nnzmxperchunk,NchunksJac
     USE Selec, ONLY: yinc,xlinc,xrinc ! these variables are threadprivate because modify in pandf1 parallel loop. We copy them in ech thread with the copyin clause
     USE OmpCopybbb
@@ -669,11 +689,11 @@ END SUBROUTINE InitOMPPandf1
     real::ylcopy(neq+2)
     real::tick,tock
     external tick,tock
-    integer ::iJacColCopy(nnzmxperchunk),iJacRowCopy(neq)
+    integer ::iJacRowCopy(neq)
     integer ::ivmincopy(NchunksJac),ivmaxcopy(NchunksJac)
     integer ::NchunksJaccopy,nnzmxperchunkcopy
-    real :: rJacElemCopy(nnzmxperchunk),TimeJacRowcopy(neq)
-    integer:: ichunk,tid,nnzlocal
+    real :: TimeJacRowcopy(neq)
+    integer:: ichunk,tid,nnzlocal,ifresh
     DOUBLE PRECISION :: TimeThread
     OMPTimeCopy=tick() 
     if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying data....'
@@ -703,8 +723,6 @@ END SUBROUTINE InitOMPPandf1
     nnzmxperchunkcopy=nnzmxperchunk
     ivmincopy(1:NchunksJac)=OMPivmin(1:NchunksJac)
     ivmaxcopy(1:NchunksJac)=OMPivmax(1:NchunksJac)
-    iJacColCopy(1:nnzmxperchunk)=0
-    rJacElemCopy(1:nnzmxperchunk)=0.0
     TimeJacRowcopy(1:neq)=0
     iJacRowCopy(1:neq)=0
     ylcopy(1:neq+2)=yl(1:neq+2) ! a very barbarian use of yl(neq+1) is implemented as a switch in pandf... Error-prone!
@@ -713,11 +731,14 @@ END SUBROUTINE InitOMPPandf1
     if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Starting parallel loop'
     tid=-1
     nnzlocal=-10000
+    ! Fixed partition (AIUE-61): every chunk starts from a fresh full pandf on its thread (see LocalJacBuilder)
+    ifresh=0
+    if (OMPJacFixedChunks.gt.0 .and. OMPJacChunkReset.gt.0) ifresh=1
     OMPTotTimeCopy=OMPTotTimeCopy+tock(OMPTimeCopy)
     OMPTimeLocal=tick()
       !$omp parallel do schedule(dynamic,OMPLoopJacNchunk) default(shared)&
       !$omp& firstprivate(ivmincopy,ivmaxcopy,tid,nnzlocal,ylcopy)&
-      !$omp& firstprivate(NchunksJaccopy,iJacRowCopy,iJacColCopy,rJacElemCopy,TimeJacRowcopy)&
+      !$omp& firstprivate(NchunksJaccopy,iJacRowCopy,TimeJacRowcopy)&
       !$omp& private(TimeThread)  copyin(yinc,xlinc,xrinc,emcoef)
 
         loopthread: do ichunk=1,NchunksJac !ichunk from 1 to Nthread, tid from 0 to Nthread-1
@@ -726,22 +747,35 @@ END SUBROUTINE InitOMPPandf1
             if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Thread id:',tid,' <-> ichunk:',ichunk
             ! we keep all these parameters as it is easier to debug LocalJacBuilder 
             ! and deal wichunk private/shared attributes
+            ! Each chunk writes straight into its own column of iJacCol/rJacElem (contiguous, one thread per
+            ! chunk): no per-thread automatic copies on the stack, which crashed the full problem with
+            ! OMPJacNchunks.ne.0 (AIUE-61). With ifresh=1 the chunk starts from the fresh full-RHS state, so its
+            ! columns don't depend on the history of this thread (AIUE-8 root cause C2).
             call LocalJacBuilder(ivmincopy(ichunk),ivmaxcopy(ichunk),neq, t, ylcopy,yldot00,ml,mu,&
-                iJacColcopy,rJacElemcopy,iJacRowcopy,ichunk,nnzlocal,nnzmxperchunk,TimeJacRowcopy)
+                iJacCol(:,ichunk),rJacElem(:,ichunk),iJacRowcopy,ichunk,nnzlocal,nnzmxperchunk,TimeJacRowcopy,&
+                ifresh)
             if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,',',tid,' nzlocal:',nnzlocal
 
             !!!!$omp  critical
-            iJacCol(1:nnzlocal,ichunk) = iJacColCopy(1:nnzlocal)
-            rJacElem(1:nnzlocal,ichunk) = rJacElemCopy(1:nnzlocal)
             iJacRow(OMPivmin(ichunk):OMPivmax(ichunk)) = iJacRowCopy(OMPivmin(ichunk):OMPivmax(ichunk))
             OMPTimeJacRow(ivmincopy(ichunk):ivmaxcopy(ichunk)) = &
                 TimeJacRowcopy(ivmincopy(ichunk):ivmaxcopy(ichunk))
             nnz(ichunk)=nnzlocal
-            OMPTimeLocalJac(tid+1)=omp_get_wtime() - Timethread
+            if (OMPJacFixedChunks.gt.0) then
+                ! fixed partition: per chunk (the chunk count can be smaller than the team; AIUE-61)
+                OMPTimeLocalJac(ichunk)=omp_get_wtime() - Timethread
+            else
+                OMPTimeLocalJac(tid+1)=omp_get_wtime() - Timethread
+            endif
             !!!$omp  end critical
 
-            if (OMPJacVerbose.gt.1) write(*,*) OMPJacStamp, &
-                    ' Time in thread #', tid,':',OMPTimeLocalJac(tid+1)
+            if (OMPJacVerbose.gt.1) then
+                if (OMPJacFixedChunks.gt.0) then
+                    write(*,*) OMPJacStamp, ' Time in thread #', tid,' chunk #',ichunk,':',OMPTimeLocalJac(ichunk)
+                else
+                    write(*,*) OMPJacStamp, ' Time in thread #', tid,':',OMPTimeLocalJac(tid+1)
+                endif
+            endif
             if (OMPJacVerbose.gt.1) write(*,'(a,I3,a)') 'OMP thread ',tid,' exiting...'
         enddo loopthread
       !$omp  END PARALLEL DO
@@ -755,6 +789,21 @@ END SUBROUTINE InitOMPPandf1
 
 
 #endif
+
+SUBROUTINE OMPFixedSplitIndex(neq,N,ivmin,ivmax)
+    ! Fixed contiguous partition of the Jacobian columns 1..neq into N chunks (AIUE-61). The boundaries depend
+    ! only on neq and N, never on load weights or timings, so they don't move between Jacobians.
+    IMPLICIT NONE
+    integer,intent(in)::neq,N
+    integer,intent(out)::ivmin(N),ivmax(N)
+    integer:: i
+    if (N.lt.1 .or. N.gt.neq) call xerrab('*** OMPFixedSplitIndex: need 1 <= N <= neq ***')
+    do i=1,N
+        ivmin(i)=((i-1)*neq)/N+1
+        ivmax(i)=(i*neq)/N
+    enddo
+    RETURN
+END SUBROUTINE OMPFixedSplitIndex
 
 SUBROUTINE  OMPSplitIndex(ieqmin,ieqmax,NchunksJac,ivmin,ivmax,weight)
     IMPLICIT NONE

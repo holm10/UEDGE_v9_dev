@@ -1,0 +1,285 @@
+AIUE-61 validation — FINAL run on the AIUE-60-combined tree (macOS arm64, gfortran 15, Homebrew LLVM clang/libomp)
+
+Branch bugfix/v9-AIUE-61-omp-static-partition rebased onto AIUE-60's approved tip f8db593 (merge order AIUE-56 ->
+AIUE-60 -> AIUE-61). Product tip b717734 (all product commits; later commits are docs/tooling only).
+Builds (fresh, from frozen detached trees at b717734; uedge-wt/build_uedge.sh, checkbounds variant adds
+--build-option=--checkbounds):
+  AIUE-61-omp     OpenMP     uedge-wt/AIUE-61-omp    @ b717734   ext-sha256 6351a8789f01800f
+  AIUE-61-serial  --serial   uedge-wt/AIUE-61-serial @ b717734   ext-sha256 8675a4e3df712034
+  AIUE-61-chk     OpenMP + -fbounds-check -fcheck=all, from uedge-wt/AIUE-61 at b717734
+  No warnings in ppp/* in any of the three builds.
+  References: base-omp/base-serial (product 0fac655); AIUE-60-omp/AIUE-60-serial (built at AIUE-60 ee76a15, whose
+  product files equal f8db593's: only docs/.claude changed after it) = the old default on the combined base;
+  AIUE-56-omp (G-iotable base, as AIUE-60 used).
+Tools: harness core AIUE-57 8ee189d; serial check AIUE-53 15ae327; C1 gate AIUE-56-c1-gate.py (1553e75); AIUE-60
+  AIUE-60-common-check.py and AIUE-60-iotable-probe.py (f8db593); gate_flows.py (AIUE-62); G0b method AIUE-50 32ac1af.
+Protocol: AIUE-61-run_protocol.sh with AIUE61_OLD=AIUE-60-omp AIUE61_OLDS=AIUE-60-serial and the pre-registered G0b set,
+  phases g0 gcommon giotable g10 g10nc5 g10b ctl g3 g2 g4 g9 g9a g1 g1b g5 g6 r2; AIUE-61-timing.py g7, g7it3, r4
+  (run first, alone); AIUE-61-linux.sh (R5). Outputs: uedge-wt/scratch-AIUE-61/final/ (protocol.log, timing/, linux/).
+Fixed-mode settings passed explicitly in every run as before (tebox1 = OMPJacMinChunkLen=1, 25 chunks; tebox = 1 chunk).
+
+## Pre-registered survival across AIUE-60's clip change (jaccliplim=0): HOLDS
+  full problem, default, 4 threads: hash 8761cd9e36658ee1 (nnz 3 180 971, 64 chunks), = P2 / the AIUE-56-base value.
+  R2 bits: 0x1.aa0e230edbab4p-2, = P5 (below).
+
+## Gates
+G0a PASS  4 regions, all 10 packages (3944 variables), yl(neq+1)=1: after one full pandf only Jacobian_restore,
+          Timing, Timespl differ (history 101/142/142/75 variables); yldot bitwise equal.
+G0b PASS  WRITTEN = com.nfsp, com.totintrv, com.ttimpfe, com.ttngfd2, com.ttngfxy, com.ttngxlog, com.ttngylog, com.ttnpg
+          = exactly the pre-registered set (missing none, unexpected none); areapl and TimingPandfOn dropped out.
+          Not sentinel-testable as before (unallocated arrays, dimension scalars; timeouts bbb.ixp1, com.ixpt2, com.nxpt).
+G-common PASS  "RESULT: PASS (first definer bbbpy 728 B; others apipy 96 B)" (import order uedgeC compy grdpy flxpy
+          bbbpy svrpy wdfpy apipy aphpy ppppy nclpy; only bbbpy and apipy define the block).
+G-iotable PASS "base run0/1 and new run0/1: com block absent; 2 words changed: [(11, 0, 1), (12, 0, 1)] ... new
+          equals base: True ... RESULT: PASS" (base AIUE-56-omp).
+G1  PASS  RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (452.5 s)
+          (base-* 0fac655 vs AIUE-61-* b717734.)  Informational G1b vs the AIUE-60 builds: "RESULT: AGREE, PARTIAL
+          (--partial-ok) (what ran agrees bitwise; not the gate: base not on origin/v9-develop, build older than HEAD)".
+G2  PASS  K=20, 4 threads: full 19/19, tebox1 19/19, tebox (1 chunk) 19/19 determinism comparisons AGREE.
+G3  PASS  1/2/3/4/8 threads, K=3: every group deterministic; 12/12 thread pairs AGREE (full, tebox1, tebox);
+          G3-sched (OMPLoopJacNchunk=3) AGREE; G3-count: full 64 (hash 8761cd9e36658ee1 at 1/2/4/8 threads),
+          tebox 1 (b6289bba939345f9 = serial's), tebox1 25 (6857dc9bd61b70a7).
+G4  PASS  --itermx 3: full and tebox1 4/4 deterministic at 4 threads; 2 and 8 threads = 4 threads (4/4 compares).
+G5  PASS  flow --all, K=2, 2/4/8 threads, both arms: deterministic in all 48 groups; 16/16 thread pairs AGREE.
+          Agree with serial: tebox (1 chunk), ti, ni, up, ng in every group (both arms); full, te, phi 0/2 (Te rows).
+G6  PASS  C1 gate: 105/105 G2+G3 runs (worst 4.59e-09 x row max), 48/48 flow jac runs (worst 7.15e-09).
+G7  PASS  (timing first, one process at a time, wait-for-quiet load1 <= 14-T; 57 runs, 0 skipped, 0 errors; load1 at
+          start 4.26-7.08, longest wait 120 s). ttjstor, median [min-max], NEW = AIUE-61 default, OLD = AIUE-60 default:
+            T=2 OLD 17.562 [17.249-17.750]  NEW 18.020 [17.731-18.064]  ratio 1.026, paired 1.022 (n=5)
+                LEG 17.466 [17.301-17.848]  0.995
+            T=4 OLD  9.204 [9.172-9.286]    NEW  9.324 [9.194-9.393]    ratio 1.013, paired 1.010 (n=5)
+                LEG  9.084 [8.923-9.305]    0.987
+            T=8 OLD  4.754 [4.619-4.854]    NEW  4.873 [4.832-4.964]    ratio 1.025, paired 1.034 (n=9)
+                LEG  4.801 [4.517-4.903]    1.010
+          Secondary (itermx=3, mean ttjstor per Jacobian, report only): T=4 NEW/OLD 1.039 (paired 1.041, n=3);
+          T=8 1.030 (paired 1.025, n=3).
+G8  PASS  NC3, NC4 below.
+G9a PASS  (CheckPandf1 part report-only, owner decision 2026-10-15 15:35, epic AIUE-70.) D_only, 125 files, one
+          process each: AIUE-61-omp 121 pass / 4 fail, per-file IDENTICAL to AIUE-60-omp; AIUE-61-serial 120 / 5,
+          IDENTICAL to AIUE-60-serial. CheckJac (gating): "CHECK OK jac iterm 4" on both builds.
+          CheckPandf1 (report only). CORRECTED after implementation review round 2 (I2-M1): the protocol's single
+          sample "CHECK OK pandf1 iterm 2" (a log with no Fortran output) does NOT reproduce. Repeated runs
+          (AIUE-61-ompcheck_rep.sh, D_only default case, 4 threads, env -i, GFORTRAN_UNBUFFERED_ALL=y, no timeout
+          wrapper; outputs scratch-AIUE-61/final/i2m1b/):
+            AIUE-61-omp_pandf1_1 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-61-omp_pandf1_2 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 1
+            AIUE-61-omp_pandf1_3 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 1
+            AIUE-61-omp_pandf1_4 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-61-omp_pandf1_5 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-60-omp_pandf1_1 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420
+            AIUE-60-omp_pandf1_2 exit=139 CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420 (SIGSEGV after)
+            AIUE-60-omp_pandf1_3 exit=0   CHECK FAILED pandf1 RuntimeError diff in rhsnk | NchunksJac 420
+            AIUE-60-omp_pandf1_4 exit=133 (SIGTRAP; no CHECK line)
+            AIUE-60-omp_pandf1_5 exit=133 (SIGTRAP; no CHECK line)
+            every FAILED run, both builds:
+              >>>>   76   2032.0288514119870   2032.0288330644739   9.0291597447081350E-009
+              >>>>  132  -48175.314616658346  -48175.314617835662   2.4438147107762436E-011
+            jac (gating): 5/5 exit=0 "CHECK OK jac iterm 4" on each build.
+          The SIGTRAP is not AIUE-61's: it occurs on AIUE-60-omp too (2/5; plus one SIGSEGV after the CHECK line), at
+          different points of the run (two runs before any solver output, others after the first exmain).
+          No timeout wrapper is involved (env -i straight into python). Under lldb (7 AIUE-61 runs, i2m1_lldb/try1-7):
+          every run "CHECK FAILED ... diff in rhsnk" with the same two lines; three of them then stopped at exit with
+          EXC_BAD_ACCESS in HDF5's teardown (libhdf5 H5FL_garbage_coll <- H5FL_term_package <- H5_term_library <- exit),
+          a symptom of earlier heap corruption (macOS libmalloc traps with SIGTRAP when it detects corruption).
+          Cause, found with the bounds-checked build (AIUE-61-chk, 2/2 runs, i2m1_chk/):
+            "At line 175 of file ../../ppp/omp_parallel.F90
+             Fortran runtime error: Index '1' of dimension 3 of array 'ylimsxpt' above upper bound of 0"
+          i.e. MakeXptChunks (parallel-RHS chunk setup, InitOMPPandf1, OMPParallelPandf1=1 only) writes ylimsxpt(:,:,1,:)
+          into an array allocated with MAXVAL(Nxptchunks)=0 X-point chunks on this small grid (Nxptchunks defaults to
+          int(iysptrx1/5)). Pre-existing (untouched by AIUE-61: git diff 1553e75 -- ppp/omp_parallel.F90 has no
+          ylimsxpt line; fedca33 "Adds working X-point chunking"). Hand-off to epic AIUE-70 (below).
+          The reviewer's hypothesis (one chunk -> the RHS outcome varies with the thread that built it) is not borne
+          out: all 9 completed AIUE-61 runs (2 repeats + 7 under lldb) fail identically to AIUE-60; the one "CHECK OK" sample is best explained
+          by the heap corruption.
+G9b PASS  D_only default case (neq 420): default (1 chunk) and min 1 (64 chunks), 4 threads K=3 and 2 threads:
+          identical (9f5f1b184b7f3bb1) and 0 entries different from serial.
+G10 PASS  checkbounds build: tebox 1 chunk (4 threads); tebox 2 chunks at 8 threads K=5 (55abc672f0ba7dbe x5); full
+          2 chunks at 8 threads K=5 (5de8e754c84ffc30 x5): no runtime error. G10-static PASS.
+          G10b (OMP_STACKSIZE unset): AIUE-61-omp full at 4 and 8 threads completes, 8761cd9e36658ee1; AIUE-60-omp
+          control completes too.
+
+## Controls
+NC1 OK    OMPJacChunkReset=0: 2 vs 4 threads MISMATCH (3595 entries, Te rows); not deterministic at 4 threads.
+NC2 OK    legacy at 8 threads K=5: determinism MISMATCH run0 vs run1..4.
+NC3 OK    OMPJacNchunks=16, AutoBalance=0, full, 4 threads, no ulimit: AIUE-60-omp "exited with -11 and wrote no
+          record"; AIUE-61-omp (legacy) completes, C1 gate PASS (worst 4.59e-09).
+NC4 OK    1 thread: AIUE-60-omp default vs AIUE-61-omp legacy AGREE (full, tebox), both AGREE with serial.
+NC5 OK    checkbounds, legacy OMPJacNchunks=2, tebox, 4 threads: 4/5 runs stop with "Fortran runtime error: Index
+          '3'|'4' of dimension 1 of array 'omptimelocaljac' above upper bound of 2"; in run 4 threads 0 and 1 took the
+          two chunks (no out-of-range index). >= 1 trip required: met.
+C-isjr OK isjacreset=0 vs 1: same hash 8761cd9e36658ee1.
+C-guard OK ismcnon=4: "RuntimeError: Only ismcnon=0 is validated with openmp."; isimpon=5: "RuntimeError: Invalid isimpon".
+
+## Reported
+R1 deviation from serial (jac, any thread count): full 12 275 entries (value 2914, only serial 9340, only OpenMP 21;
+   te/ni 6988, te/up 1775, te/ng 885, te/ti 880, te/te 876, te/phi 871), worst 4.59e-09; te 254 (te/te); te_phi 1364
+   (te/phi 682, te/te 682), worst 7.15e-09; tebox1 2 (te(4,20)); tebox (1 chunk), ti, ni, up, ng: bitwise = serial.
+   sfscal, suscal, yldot, RHS probe, fnrm equal serial everywhere. Unchanged from the AIUE-56-base run.
+R2 dtreal=1e-9, 5 steps (stop at the first failed step): 4 threads x2, 2 and 8 threads: step 1 iterm=4,
+   get_fnrm 0x1.aa0e230edbab4p-2 in all four runs (= P5), final state hash f3559290c665cb57 in all four.
+   Deterministic and thread-independent (owner Q3: non-convergence accepted if deterministic).
+R3 jacrhs arm: deterministic in every flow group; yldot/RHS probe/fnrm equal serial (full, te, te_phi).
+R4 sensitivity (ttjstor, 3 interleaved repeats each, paired with AIUE-60 default runs, same quiet rule):
+     T=4: OMPJacNchunksFixed 32 ratio 1.003 (paired 1.006); 128 1.069 (1.063)
+     T=8: 8 chunks 2.117 (2.081); 16 chunks 1.431 (1.437); 32 1.031 (1.031); 128 1.071 (1.079)
+   Mid-size effect of Q5 (8-16 chunks stand in for neq ~ 2 400-4 800 at the default min length 300): with fewer
+   chunks than about 4 per thread the dynamic tail dominates (8 threads: +43 % with 16 chunks, +112 % with 8).
+   Te box: default 1 chunk ttjstor 0.06-0.10 s; 25 chunks 0.18-0.57 s (reset cost).
+   What the stand-in measures (I2-m1): forcing 8/16 chunks onto the FULL grid (chunks of 5 544/2 772 columns, reset
+   about 22-26 ms = under 1 % of a chunk) measures pure load imbalance of the dynamic tail; a real problem of neq
+   2 400-4 800 has 300-column chunks, a cheaper reset and a different column-cost profile, so x1.43/x2.12 can be too
+   high or too low. A real mid-size case is left to the follow-up ticket the coordinator files.
+   D_only default case (neq 420, 1 chunk by the Q5 rule), first-Jacobian ttjstor (AIUE-61-ompcheck.py time, 3 interleaved
+   runs each, quiet rule; final/r4_donly2/): T=4 NEW 0.0467-0.0468 s vs OLD 0.0152-0.0163 s (x2.9); T=8 NEW 0.0508-0.0550
+   s vs OLD 0.0146-0.0161 s (x3.4): small problems no longer parallelise the Jacobian (a few tens of ms per Jacobian).
+   Owner-directed documentation (R4): OMPJacMinChunkLen stays 300 for this ticket; ppp.v and openmp-jacobian.md now
+   say that problems with neq up to ~5 000 at 8 threads may build the Jacobian up to ~2x slower (neq<600 ~3x) than
+   OMPJacFixedChunks=0, with the knobs (smaller OMPJacMinChunkLen, or OMPJacFixedChunks=0).
+R5 Linux x86-64 (Debian 12, gfortran 12.2.0, AIUE-62 image aiue62:amd64, emulated by Rosetta on this Mac, --cpus 5,
+   one container; AIUE-61-linux.sh). Build: b717734 with LDFLAGS=-fopenmp (AIUE-64 is not on this branch), CI command
+   `python -m pip install -v .`, 191 s. Harness 8ee189d inside the container. Flows (jac arm, gate none):
+     tebox1 (25 chunks) 4 threads K=5: PASS, agree with serial 5/5, deterministic
+     full 4 threads K=5: PASS 5/5, deterministic;   full 2 and 8 threads K=2: PASS 2/2 each, deterministic
+     up 4 and 8 threads K=5: PASS 5/5 each, deterministic
+     thread pairs (run0): full 2 vs 4 AGREE, full 8 vs 4 AGREE, up 8 vs 4 AGREE
+   So on x86-64 the fixed partition is bitwise equal to serial (no C2 there), and M3 (AIUE-65: up rows at the inner
+   plate, >= 4 threads) does not appear (AIUE-56 build: up jac 4 threads 3/5, 8 threads 0/5 agree). Native hardware
+   not run: the first green AIUE-57 CI run is the confirming check.
+
+
+====================================================================================================
+AIUE-61 validation — PRELIMINARY run on the AIUE-56 base (macOS arm64, gfortran 15, Homebrew LLVM clang/libomp)
+
+Status: preliminary. Merge order is AIUE-56 -> AIUE-60 -> AIUE-61. The final gates G0-G10 (and G7, R2, R4, R5) run
+again after the rebase onto bugfix/v9-AIUE-60-omp-races once AIUE-60's implementation is approved
+(plan .claude/plans/AIUE-61-omp-static-partition.md, "Run order"). Nothing here is the final record.
+
+Product commit 155e562 (branch bugfix/v9-AIUE-61-omp-static-partition, base 1553e75); code facts a00a63a.
+Builds (scratch build script uedge-wt/build_uedge.sh; checkbounds variant = the same with --build-option=--checkbounds):
+  AIUE-61-omp     OpenMP, from uedge-wt/AIUE-61-omp (detached at 155e562)         ext-sha256 ca1de3bd6704ba6c
+  AIUE-61-serial  --serial, from uedge-wt/AIUE-61-serial (detached at 155e562)    ext-sha256 484d786df24d366b
+  AIUE-61-chk     OpenMP + -fbounds-check -fcheck=all, from uedge-wt/AIUE-61 at 155e562
+  references: base-omp / base-serial (product 0fac655), AIUE-56-omp (the old default, 1553e75 product = 4fae2f9)
+  No new compiler warnings in ppp/*. Default integers are 8-byte (-fdefault-integer-8 in the build log).
+Tools: harness core AIUE-57 8ee189d; serial check AIUE-53 15ae327; C1 gate docs/reviews/AIUE-56-c1-gate.py (1553e75);
+  flow gate helper AIUE-62 tests/deterministic_omp/linux/gate_flows.py; G0b sentinel method from AIUE-50 32ac1af.
+Protocol: docs/reviews/AIUE-61-run_protocol.sh (phases g0 g10 g10nc5 g10b ctl g3 g2 g4 g9 g1 g5 g6) plus
+  AIUE-61-donly.sh / AIUE-61-ompcheck.py (G9a). Outputs: uedge-wt/scratch-AIUE-61/prelim/ (protocol.log).
+Fixed-mode runs pass their settings explicitly: {"OMPJacFixedChunks": 1, "OMPJacNchunksFixed": 64, "OMPJacMinChunkLen": 300}
+  (tebox1 = the same with OMPJacMinChunkLen=1, i.e. 25 one-column chunks; default tebox = 1 chunk).
+
+## Smoke
+full problem, default settings: hash 8761cd9e36658ee1 (nnz 3 180 971, 64 chunks) at 2 and 4 threads = probe P2.
+
+## Gates
+G0a PASS  state probe, serial build, yl(neq+1)=1, all 10 packages (3944 variables), 4 regions: the column loop changes
+          75-142 variables; after one full pandf only groups Jacobian_restore, Timing, Timespl differ; yldot bitwise equal.
+G0b PASS  sentinel scan of ONE full Jacobian-mode pandf over 3736 non-threadprivate variables: WRITTEN = bbb.areapl,
+          bbb.TimingPandfOn, com.nfsp, com.totintrv, com.ttimpfe, com.ttngfd2, com.ttngfxy, com.ttngxlog, com.ttngylog,
+          com.ttnpg = exactly AIUE-60 Part A; nothing outside Probe S. Not sentinel-testable: unallocated arrays (TypeError),
+          dimension scalars (RuntimeError), and com.nxpt, com.ixpt2, bbb.ixp1 (pandf spins on the sentinel: timeout).
+          (First attempt hung on such a sentinel; the script now kills a child after 60 s.)
+G1  PASS  RESULT: AGREE (bitwise identical; complete gate)  [pairs serial+omp0, cases all (42)]  (467.8 s)
+G2  PASS  K=20, jac, 4 threads: full 19/19 determinism comparisons AGREE; tebox1 19/19; tebox (1 chunk) 19/19
+          (tebox with 1 chunk also AGREEs with serial in all 20 runs).
+G3  PASS  K=3 at 1, 2, 3, 4, 8 threads, every group deterministic (2/2 comparisons each), run0 of 1/2/3/8 threads vs
+          4 threads AGREE for full, tebox1 and tebox (12/12 compares).
+          G3-sched: full, 4 threads, OMPLoopJacNchunk=3 vs 1: AGREE.
+          G3-count: NchunksJac at 1/2/4/8 threads: full 64/64/64/64 (hash 8761cd9e36658ee1 each), tebox 1/1/1/1,
+          tebox1 25/25/25/25.
+G4  PASS  --itermx 3, 4 threads K=5: full 4/4 and tebox1 4/4 determinism AGREE; 2 and 8 threads vs 4: AGREE (4/4 compares).
+G5  PASS  flow --all, K=2, 2/4/8 threads, both arms: "deterministic: yes" in all 48 groups; run0 at 2 and 8 threads vs 4
+          threads AGREE for all 8 configurations (16/16). Agreement with serial: tebox (1 chunk), ti, ni, up, ng 2/2 in
+          every group, both arms; full, te, phi 0/2 (Te rows only, see R1).
+G6  PASS  AIUE-56 C1 gate: 105/105 runs of G2+G3 PASS (worst |a-b|/rowmax 4.59e-09), 48/48 flow jac runs PASS
+          (worst 7.15e-09, te_phi); magnitude ratio <= 1 everywhere.
+G8  PASS  NC3 and NC4 below.
+G9a PASS  (criterion amended after implementation review I1-M1: the CheckPandf1 part is report-only by the owner's
+          decision of 2026-10-15 15:35, RHS work moved to epic AIUE-70; AIUE-8-progress.md:209-212, Jira AIUE-59
+          comment 10029. Before the amendment this gate's CheckPandf1 condition FAILED, pre-existing, as below.)
+          D_only (125 test files, one process per file, decks' default switches): AIUE-61-omp 121 pass / 4 fail,
+          per-file outcomes IDENTICAL to AIUE-56-omp; AIUE-61-serial 120 / 5, IDENTICAL to base-serial (the extra
+          failure, concap, fails in both serial builds and passes in both OpenMP builds: pre-existing).
+          Failing in all builds: ineudif0, ineudif1, ineudif3, tg_atom_cftiexclg0p5.
+          OpenMP check (validate step 4), D_only default case, 4 threads:
+            CheckPandf1=1 (with OMPParallelPandf1=1; REPORT ONLY): AIUE-61-omp "CHECK FAILED pandf1 RuntimeError diff in rhsnk" at
+              nfe=2, after the second Jacobian:
+                >>>>   76   2032.0288514119870   2032.0288330644739   9.0291597447081350E-009
+                >>>>  132  -48175.314616658346  -48175.314617835662   2.4438147107762436E-011
+              AIUE-56-omp: the SAME two entries with the same values, "CHECK FAILED pandf1 RuntimeError diff in
+              rhsnk" -> pre-existing (RHS arm, epic AIUE-70); not caused here. The D_only case has neq 420, so the new default runs its Jacobian as 1 chunk.
+            CheckJac=1 (gating part): no difference reported (CHECK OK) on both builds: PASS.
+G9b PASS  D_only default case (neq 420), jac: default (1 chunk) and OMPJacMinChunkLen=1 (64 chunks), 4 threads K=3 and
+          2 threads: all runs bitwise equal to each other and 0 entries different from serial.
+G10 PASS  checkbounds build, no runtime error: tebox 1 chunk at 4 threads; tebox OMPJacMinChunkLen=12 (2 chunks) at
+          8 threads K=5 (hash 55abc672f0ba7dbe in all 5); full OMPJacNchunksFixed=2 at 8 threads K=5 (5de8e754c84ffc30
+          in all 5). G10-static PASS (OMPTimeLocalJac(tid+1) only in the legacy branch; the same check on the AIUE-56
+          source FAILs at lines 740 and 744, negative control).
+          G10b: OMP_STACKSIZE not set (env -i, and env -u): AIUE-61-omp full at 4 and 8 threads completes, hash
+          8761cd9e36658ee1 (= G3); AIUE-56-omp control completes too.
+
+## Controls
+NC1 OK    OMPJacChunkReset=0: full, 2 vs 4 threads MISMATCH (3970 entries, Te rows); also not deterministic at 4
+          threads (run0 vs run1 MISMATCH).
+NC2 OK    legacy (OMPJacFixedChunks=0), full, 8 threads, K=5: determinism MISMATCH run0 vs run1..4.
+NC3 OK    OMPJacNchunks=16, OMPAutoBalance=0, full, 4 threads, no ulimit: AIUE-56-omp "exited with -11 and wrote no
+          record"; AIUE-61-omp (legacy mode) completes, C1 gate PASS (worst 4.59e-09).
+NC4 OK    1 thread, jac arm: AIUE-56-omp (default) vs AIUE-61-omp (OMPJacFixedChunks=0): AGREE for full and tebox (and
+          both AGREE with serial).
+NC5 OK    checkbounds build, legacy OMPJacNchunks=2, tebox, 4 threads: 5/5 runs stop with "Fortran runtime error:
+          Index '3'|'4' of dimension 1 of array 'omptimelocaljac' above upper bound of 2" at omp_parallel.F90:759 (the
+          legacy branch; finding F-61-2). The runtime error in a worker hangs the process: killed after the message.
+C-isjr OK bbb.isjacreset=0 vs 1, full, 4 threads: same hash 8761cd9e36658ee1.
+C-guard OK ismcnon=4: "RuntimeError: Only ismcnon=0 is validated with openmp."; isimpon=5: "RuntimeError: Invalid
+          isimpon  Only isimpon=0, 2, 6, or 7 is validated with" — both before any Jacobian.
+
+## Reported (R1, R3)
+R1 deviation from serial (jac, 4 threads; the same at every thread count):
+   full    12 275 entries (value 2914, only serial 9340, only OpenMP 21), all in Te rows: te/ni 6988, te/up 1775,
+           te/ng 885, te/ti 880, te/te 876, te/phi 871; worst 4.59e-09 x serial row max. sfscal, suscal, yldot,
+           RHS probe, fnrm equal.
+   te      254 entries (te/te), only serial 225.     phi (te_phi)  1364 entries (te/phi 682, te/te 682).
+   tebox1  2 entries in row te(4,20) (5.62e-10).     tebox (1 chunk), ti, ni, up, ng: bitwise equal to serial.
+   (AIUE-56 build, for comparison: full 860-1217 entries per run, varying run to run; tebox 1-2.)
+R3 jacrhs arm: deterministic in every flow group (2/4/8 threads); yldot, RHS probe and fnrm equal serial for full,
+   te, te_phi; the Jacobian differs as on the jac arm. (AIUE-56 build: te/te_phi jacrhs crashed in the AIUE-52 baseline;
+   not re-run here.)
+
+## Not run yet (pending)
+- Everything above again on the AIUE-60-combined tree (final record).
+- G7 timing (waits for the combined tree and quiet windows; rules in the plan); R2 dtreal=1e-9; R4 sensitivity
+  (including OMPJacNchunksFixed 8 and 16 at 8 threads); R5 Linux.
+- Development-time timing hints only (not G7; concurrent load): full, 4 threads, ttjstor 9.62-12.0 s new vs 9.35 s old
+  in G10b; 8 threads 5.73 s new vs 5.72 s old (single samples, no load control).
+
+## /ompcommonscalarcopy/ hazard (AIUE-60 review I1-B1), checked on AIUE-61-omp
+AIUE-61 adds no +threadprivate variable (git diff 1553e75 155e562 -- '*.v': 0 added threadprivate attributes; the new
+ppp variables are plain inputs). Only bbbpy and apipy define _ompcommonscalarcopy_ (llvm-nm on all extensions; compy,
+grdpy, flxpy, ppppy and the others define none), exactly as in the AIUE-56-omp build. The generated
+build/temp.*/bbb_p.F90 and api_p.F90 are byte-identical to the AIUE-56 tree's. Block contents from the generated
+sources: bbb 89 scalars (~712 bytes at 8 bytes each), api 12 scalars (96 bytes); api loads after bbb, and its block is
+smaller, so OmpCopyScalarapi stays inside bbb's first definition. No new exposure from AIUE-61; re-check on the
+AIUE-60-combined tree (AIUE-60 adds threadprivate scalars).
+
+## After implementation review round 1 (text and a verbose-print change; no runs)
+- I1-m2: the fixed-mode OMPJacVerbose chunk table no longer prints OMPLoadWeight (ppp/omp_parallel.F90, jac_calc_omp).
+  Compile-checked in the scratch venv AIUE-61-probe; it is part of the final combined-tree build and run. The
+  preliminary results above were obtained with 155e562 (without this print change).
+- I1-m1: the OMPJacFixedChunks description in ppp/ppp.v now names the unvalidated paths (line-neutral).
+
+## After implementation review round 2 (I2-M1, I2-m1, I2-m2; owner-directed R4 docs)
+- I2-M1: G9a's CheckPandf1 line corrected (above); 20 repeated self-check runs + 7 lldb runs + 2 bounds-checked runs.
+- AIUE-70 hand-off (for the owner / epic AIUE-70, parallel RHS): with OMPParallelPandf1=1 on a grid whose
+  iysptrx1 < 5 (Nxptchunks default 0; e.g. pytests D_only 8x4), MakeXptChunks writes past ylimsxpt (and the arrays
+  allocated beside it) at ppp/omp_parallel.F90:175: heap corruption, seen as random SIGTRAP (exit 133) or SIGSEGV
+  (exit 139), including at process exit in HDF5 teardown, on AIUE-60 and AIUE-61 alike. Independently, CheckPandf1 on
+  that case reports "diff in rhsnk" at iv 76 and 132 on every completed run of both builds.
+- PR line: "With OMPParallelPandf1=1 (not the default), any run on a grid with iysptrx1<5 hits a pre-existing
+  out-of-bounds write in MakeXptChunks (AIUE-74 under AIUE-70); AIUE-61 doesn't change it." (wording per review round 3, I3-m1)
+- I2-m1: R4 additions above. I2-m2: AIUE-61-ompcheck.py docstring matches the amended G9a (CheckJac gates, CheckPandf1
+  report only) and the caller records the exit status (AIUE-61-ompcheck_rep.sh).
+- ppp.v (OMPJacMinChunkLen description, line-neutral) and openmp-jacobian.md: the small-problem cost and knobs. The
+  .v change is description text only; compile-checked in the scratch venv AIUE-61-probe, full-problem hash unchanged
+  (see the line below). The gates above were run on b717734, before this description change.
+  Compile check of the description change (scratch venv AIUE-61-probe from the worktree): no warnings in ppp/*; full
+  problem, 4 threads: hash 8761cd9e36658ee1, 64 chunks (unchanged); ppp.getvardoc('OMPJacMinChunkLen') shows the new text.
