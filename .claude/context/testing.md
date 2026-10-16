@@ -5,7 +5,9 @@
 There are no unit tests of individual Fortran routines and no coverage measurement.
 
 The repository holds one test case: `tests/deterministic_omp/`, the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
-data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`). No CI job runs it yet.
+data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
+OpenMP-vs-serial harness and test flow in `tests/deterministic_omp/harness/` (`cli.py flow`; see
+`openmp-jacobian.md`). No CI job runs it yet.
 
 ## Suite structure (`upstream/pytests`)
 

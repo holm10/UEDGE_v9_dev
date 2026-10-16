@@ -1,0 +1,370 @@
+AIUE-52 validation: OpenMP test flow (tests/deterministic_omp/harness/flow.py, cli.py flow)
+Build under test: venvs/base-omp (OpenMP build of v9-develop 0fac655; harness base fbe0adf), used for the
+serial reference (both OpenMP switches 0, 1 thread) and the OpenMP runs. macOS arm64 (10 P + 4 E cores, 24 GB),
+gfortran 15. Other sessions (AIUE-47, AIUE-50, AIUE-53) were running UEDGE on the same machine throughout
+(load average 10-40), so the timings below are upper bounds for an idle machine.
+
+## Unit tests (no UEDGE build)
+$ python -m pytest tests/deterministic_omp/harness
+53 passed in 0.64s
+
+## 1. Full matrix: flow --all --repeats 2 (8 configurations x {jac, jacrhs} x {2,4,8} threads, 104 runs)
+Command: $PY cli.py flow --all --repeats 2 --python $PY --out acc2_all_k2
+NOTE: this run used a temporary preset phi_te (isteon and isphion kept, the other equation switches 0,
+isphiofft not set) as the phi configuration. It is not committed: presets are owned by AIUE-49 (config.py),
+and the committed flow names the phi preset once, flow.PHI_PRESET (currently full_note, see section 3).
+Wall time: runs 276.5 s, comparison 91 s, total 367.6 s (6:08 with the process start). Exit code 1 (gate jac).
+
+| configuration | arm | threads | verdict | agree with serial | deterministic | mismatch rows | failing sections | first mismatch |
+|---|---|---|---|---|---|---|---|---|
+| tebox | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jac | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| full | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[0](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[1](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jac | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[0](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jacrhs | 2 | FAIL | 0/2 | n/a |  | run failed | failed run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40 |
+| full | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=1,iy=1) col ni[1](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jacrhs | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=1,iy=1) col ni[1](ix=1,iy=1) [agreement (serial vs run0)] |
+| te | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=2,iy=1) col te(ix=2,iy=1) [agreement (serial vs run0)] |
+| te | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col te(ix=1,iy=1) [agreement (serial vs run0)] |
+| te | jac | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=2,iy=1) col te(ix=2,iy=1) [agreement (serial vs run0)] |
+| te | jacrhs | 2 | FAIL | 0/2 | n/a |  | run failed | failed run0: RuntimeError |
+| te | jacrhs | 4 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+| te | jacrhs | 8 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+| ti | jac | 2 | PASS | 2/2 | yes |  |  |  |
+| ti | jac | 4 | PASS | 2/2 | yes |  |  |  |
+| ti | jac | 8 | PASS | 2/2 | yes |  |  |  |
+| ti | jacrhs | 2 | PASS | 2/2 | yes |  |  |  |
+| ti | jacrhs | 4 | PASS | 2/2 | yes |  |  |  |
+| ti | jacrhs | 8 | PASS | 2/2 | yes |  |  |  |
+| ni | jac | 2 | PASS | 2/2 | yes |  |  |  |
+| ni | jac | 4 | PASS | 2/2 | yes |  |  |  |
+| ni | jac | 8 | PASS | 2/2 | yes |  |  |  |
+| ni | jacrhs | 2 | PASS | 2/2 | yes |  |  |  |
+| ni | jacrhs | 4 | PASS | 2/2 | yes |  |  |  |
+| ni | jacrhs | 8 | PASS | 2/2 | yes |  |  |  |
+| up | jac | 2 | PASS | 2/2 | yes |  |  |  |
+| up | jac | 4 | PASS | 2/2 | yes |  |  |  |
+| up | jac | 8 | PASS | 2/2 | yes |  |  |  |
+| up | jacrhs | 2 | PASS | 2/2 | yes |  |  |  |
+| up | jacrhs | 4 | PASS | 2/2 | yes |  |  |  |
+| up | jacrhs | 8 | PASS | 2/2 | yes |  |  |  |
+| ng | jac | 2 | PASS | 2/2 | yes |  |  |  |
+| ng | jac | 4 | PASS | 2/2 | yes |  |  |  |
+| ng | jac | 8 | PASS | 2/2 | yes |  |  |  |
+| ng | jacrhs | 2 | PASS | 2/2 | yes |  |  |  |
+| ng | jacrhs | 4 | PASS | 2/2 | yes |  |  |  |
+| ng | jacrhs | 8 | PASS | 2/2 | yes |  |  |  |
+| phi_te | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col te(ix=1,iy=1) [agreement (serial vs run0)] |
+| phi_te | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col phi(ix=1,iy=1) [agreement (serial vs run0)] |
+| phi_te | jac | 8 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col phi(ix=1,iy=1) [agreement (serial vs run0)] |
+| phi_te | jacrhs | 2 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+| phi_te | jacrhs | 4 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+| phi_te | jacrhs | 8 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+
+Detail (mismatch counts per comparison and row equation; sz = entries of yldot that differ only in the sign of
+a zero, which a parallel RHS is allowed (REDUCTION(+)); run times in s):
+timing: {'runs_wall_s': 276.5, 'total_wall_s': 367.6, 'serial_s': {'tebox': 3.74, 'full': 56.45, 'te': 6.72, 'ti': 6.68, 'ni': 34.34, 'up': 9.35, 'ng': 6.65, 'phi_te': 9.58}}
+verdicts: {'jac': 'FAIL', 'jacrhs': 'FAIL'} exit 1
+tebox   jac    t2 FAIL  serial 3.74 s runs [2.0, 1.87] sz [None, None, None] 
+         agreement (serial vs run0): jac 60 rows {'te': 60} yldot 0 {}
+         agreement (serial vs run1): jac 71 rows {'te': 71} yldot 0 {}
+         determinism (run0 vs run1): jac 79 rows {'te': 79} yldot 0 {}
+tebox   jac    t4 FAIL  serial 3.74 s runs [1.56, 1.52] sz [None, None, None] 
+         agreement (serial vs run0): jac 39 rows {'te': 39} yldot 0 {}
+         agreement (serial vs run1): jac 43 rows {'te': 43} yldot 0 {}
+         determinism (run0 vs run1): jac 43 rows {'te': 43} yldot 0 {}
+tebox   jac    t8 FAIL  serial 3.74 s runs [2.43, 2.2] sz [None, None, None] 
+         agreement (serial vs run0): jac 40 rows {'te': 40} yldot 0 {}
+         agreement (serial vs run1): jac 33 rows {'te': 33} yldot 0 {}
+         determinism (run0 vs run1): jac 29 rows {'te': 29} yldot 0 {}
+tebox   jacrhs t2 FAIL  serial 3.74 s runs [1.89, 1.68] sz [0, 0, 0] 
+         agreement (serial vs run0): jac 245 rows {'te': 245} yldot 25 {'te': 25}
+         agreement (serial vs run1): jac 54 rows {'te': 54} yldot 0 {}
+         determinism (run0 vs run1): jac 264 rows {'te': 264} yldot 25 {'te': 25}
+tebox   jacrhs t4 FAIL  serial 3.74 s runs [1.59, 1.46] sz [0, 0, 0] 
+         agreement (serial vs run0): jac 339 rows {'te': 339} yldot 23 {'te': 23}
+         agreement (serial vs run1): jac 339 rows {'te': 339} yldot 25 {'te': 25}
+         determinism (run0 vs run1): jac 65 rows {'te': 65} yldot 25 {'te': 25}
+tebox   jacrhs t8 FAIL  serial 3.74 s runs [2.89, 1.77] sz [0, 0, 0] 
+         agreement (serial vs run0): jac 339 rows {'te': 339} yldot 25 {'te': 25}
+         agreement (serial vs run1): jac 339 rows {'te': 339} yldot 21 {'te': 21}
+         determinism (run0 vs run1): jac 25 rows {'te': 25} yldot 25 {'te': 25}
+full    jac    t2 FAIL  serial 56.45 s runs [34.38, 33.6] sz [None, None, None] 
+         agreement (serial vs run0): jac 448768 rows {'te': 448768} yldot 0 {}
+         agreement (serial vs run1): jac 449736 rows {'te': 449736} yldot 0 {}
+         determinism (run0 vs run1): jac 451532 rows {'te': 451532} yldot 0 {}
+full    jac    t4 FAIL  serial 56.45 s runs [18.23, 19.92] sz [None, None, None] 
+         agreement (serial vs run0): jac 610901 rows {'te': 610901} yldot 0 {}
+         agreement (serial vs run1): jac 601948 rows {'te': 601948} yldot 0 {}
+         determinism (run0 vs run1): jac 400653 rows {'te': 400653} yldot 0 {}
+full    jac    t8 FAIL  serial 56.45 s runs [7.06, 7.1] sz [None, None, None] 
+         agreement (serial vs run0): jac 774378 rows {'te': 774378} yldot 0 {}
+         agreement (serial vs run1): jac 777247 rows {'te': 777247} yldot 0 {}
+         determinism (run0 vs run1): jac 226873 rows {'te': 226873} yldot 0 {}
+full    jacrhs t2 FAIL  serial 56.45 s runs [103.31, 68.21] sz [] ['run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40', 'run1: RuntimeError:  ** overflow: SVR routine lusol0 loop 40']
+full    jacrhs t4 FAIL  serial 56.45 s runs [17.42, 17.24] sz [345, 345, 0] 
+         agreement (serial vs run0): jac 651109 rows {'te': 651109} yldot 2560 {'te': 2560}
+         agreement (serial vs run1): jac 655853 rows {'te': 655853} yldot 2198 {'te': 2198}
+         determinism (run0 vs run1): jac 368503 rows {'te': 368503} yldot 1062 {'te': 1062}
+full    jacrhs t8 FAIL  serial 56.45 s runs [10.46, 10.93] sz [345, 345, 0] 
+         agreement (serial vs run0): jac 766390 rows {'te': 766390} yldot 2560 {'te': 2560}
+         agreement (serial vs run1): jac 627405 rows {'te': 627405} yldot 2158 {'te': 2158}
+         determinism (run0 vs run1): jac 333633 rows {'te': 333633} yldot 1102 {'te': 1102}
+te      jac    t2 FAIL  serial 6.72 s runs [4.44, 4.0] sz [None, None, None] 
+         agreement (serial vs run0): jac 18293 rows {'te': 18293} yldot 0 {}
+         agreement (serial vs run1): jac 18407 rows {'te': 18407} yldot 0 {}
+         determinism (run0 vs run1): jac 25547 rows {'te': 25547} yldot 0 {}
+te      jac    t4 FAIL  serial 6.72 s runs [3.42, 4.06] sz [None, None, None] 
+         agreement (serial vs run0): jac 13987 rows {'te': 13987} yldot 0 {}
+         agreement (serial vs run1): jac 14364 rows {'te': 14364} yldot 0 {}
+         determinism (run0 vs run1): jac 18980 rows {'te': 18980} yldot 0 {}
+te      jac    t8 FAIL  serial 6.72 s runs [4.03, 3.91] sz [None, None, None] 
+         agreement (serial vs run0): jac 10194 rows {'te': 10194} yldot 0 {}
+         agreement (serial vs run1): jac 10276 rows {'te': 10276} yldot 0 {}
+         determinism (run0 vs run1): jac 12126 rows {'te': 12126} yldot 0 {}
+te      jacrhs t2 FAIL  serial 6.72 s runs [4.84, 4.97] sz [] ['run0: RuntimeError', 'run1: exited with -11 and wrote no record (see run.log)']
+te      jacrhs t4 FAIL  serial 6.72 s runs [4.31, 3.7] sz [] ['run0: exited with -11 and wrote no record (see run.log)', 'run1: exited with -11 and wrote no record (see run.log)']
+te      jacrhs t8 FAIL  serial 6.72 s runs [3.63, 3.06] sz [] ['run0: exited with -11 and wrote no record (see run.log)', 'run1: exited with -11 and wrote no record (see run.log)']
+ti      jac    t2 PASS  serial 6.68 s runs [4.33, 4.27] sz [None, None, None] 
+ti      jac    t4 PASS  serial 6.68 s runs [3.7, 3.42] sz [None, None, None] 
+ti      jac    t8 PASS  serial 6.68 s runs [2.83, 2.32] sz [None, None, None] 
+ti      jacrhs t2 PASS  serial 6.68 s runs [4.16, 4.61] sz [36, 36, 0] 
+ti      jacrhs t4 PASS  serial 6.68 s runs [3.24, 3.42] sz [36, 36, 0] 
+ti      jacrhs t8 PASS  serial 6.68 s runs [2.12, 2.23] sz [36, 36, 0] 
+ni      jac    t2 PASS  serial 34.34 s runs [17.87, 18.03] sz [None, None, None] 
+ni      jac    t4 PASS  serial 34.34 s runs [9.08, 8.49] sz [None, None, None] 
+ni      jac    t8 PASS  serial 34.34 s runs [5.3, 6.69] sz [None, None, None] 
+ni      jacrhs t2 PASS  serial 34.34 s runs [17.71, 15.69] sz [255, 255, 0] 
+ni      jacrhs t4 PASS  serial 34.34 s runs [8.48, 8.58] sz [255, 255, 0] 
+ni      jacrhs t8 PASS  serial 34.34 s runs [7.36, 8.93] sz [255, 255, 0] 
+up      jac    t2 PASS  serial 9.35 s runs [6.15, 6.3] sz [None, None, None] 
+up      jac    t4 PASS  serial 9.35 s runs [4.05, 3.81] sz [None, None, None] 
+up      jac    t8 PASS  serial 9.35 s runs [4.8, 5.09] sz [None, None, None] 
+up      jacrhs t2 PASS  serial 9.35 s runs [6.24, 6.13] sz [4, 4, 0] 
+up      jacrhs t4 PASS  serial 9.35 s runs [3.39, 3.55] sz [4, 4, 0] 
+up      jacrhs t8 PASS  serial 9.35 s runs [5.71, 5.85] sz [4, 4, 0] 
+ng      jac    t2 PASS  serial 6.65 s runs [3.73, 4.04] sz [None, None, None] 
+ng      jac    t4 PASS  serial 6.65 s runs [2.7, 2.59] sz [None, None, None] 
+ng      jac    t8 PASS  serial 6.65 s runs [5.47, 5.52] sz [None, None, None] 
+ng      jacrhs t2 PASS  serial 6.65 s runs [4.21, 4.24] sz [0, 0, 0] 
+ng      jacrhs t4 PASS  serial 6.65 s runs [2.66, 2.63] sz [0, 0, 0] 
+ng      jacrhs t8 PASS  serial 6.65 s runs [4.59, 3.38] sz [0, 0, 0] 
+phi_te  jac    t2 FAIL  serial 9.58 s runs [6.1, 5.82] sz [None, None, None] 
+         agreement (serial vs run0): jac 45482 rows {'te': 45482} yldot 0 {}
+         agreement (serial vs run1): jac 42345 rows {'te': 42345} yldot 0 {}
+         determinism (run0 vs run1): jac 56929 rows {'te': 56929} yldot 0 {}
+phi_te  jac    t4 FAIL  serial 9.58 s runs [4.14, 4.01] sz [None, None, None] 
+         agreement (serial vs run0): jac 50158 rows {'te': 50158} yldot 0 {}
+         agreement (serial vs run1): jac 50225 rows {'te': 50225} yldot 0 {}
+         determinism (run0 vs run1): jac 59173 rows {'te': 59173} yldot 0 {}
+phi_te  jac    t8 FAIL  serial 9.58 s runs [3.77, 3.71] sz [None, None, None] 
+         agreement (serial vs run0): jac 33160 rows {'te': 33160} yldot 0 {}
+         agreement (serial vs run1): jac 33786 rows {'te': 33786} yldot 0 {}
+         determinism (run0 vs run1): jac 42104 rows {'te': 42104} yldot 0 {}
+phi_te  jacrhs t2 FAIL  serial 9.58 s runs [6.41, 6.43] sz [] ['run0: exited with -11 and wrote no record (see run.log)', 'run1: Expecting value: line 1 column 1 (char 0)']
+phi_te  jacrhs t4 FAIL  serial 9.58 s runs [4.54, 4.51] sz [] ['run0: exited with -11 and wrote no record (see run.log)', 'run1: exited with -11 and wrote no record (see run.log)']
+phi_te  jacrhs t8 FAIL  serial 9.58 s runs [3.64, 4.21] sz [] ['run0: exited with -11 and wrote no record (see run.log)', 'run1: exited with -11 and wrote no record (see run.log)']
+
+Reading: on the Jacobian arm the Te box, the full problem, Te alone and phi+Te fail at 2, 4 and 8 threads,
+with every mismatch in a Te row (by_equation_pair te/*), and the mismatches differ between repeats (not
+deterministic). Ti, ni, up and ng alone pass at every thread count, bitwise and across repeats. In phi_te the
+phi rows agree; only Te rows differ. This reproduces PRD section 6.3. On the Jacobian + RHS arm the same
+isolations pass, the Te box and the full problem also differ in the Te rows of yldot (the parallel RHS), and
+Te alone and phi+Te crash (SIGSEGV, exit -11, or RuntimeError) at every thread count; the full problem stopped
+at 2 threads with 'overflow: SVR routine lusol0 loop 40' (iteration-0 fnrm 2.4e31) in both repeats. In the
+first --all run (below) it stopped the same way at 4 threads as well, and ran at 8 threads.
+
+## 2. Te box (UX goal and the < 2 min acceptance)
+$ $PY cli.py flow --configs tebox --threads 4 --arms jac --python $PY --out tebox4_jac    (real 2.53, exit 1)
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+$ $PY cli.py flow --configs tebox --threads 4 --max-jobs 1 --python $PY --out tebox4_seq    (real 7.53, exit 1)
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+$ $PY cli.py flow --configs tebox --threads 4 --repeats 10 --python $PY --out tebox4_k10    (real 16.59, exit 1)
+| tebox | jac | 4 | FAIL | 0/10 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/10 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+
+## 3. Phi configuration as committed (preset flow.PHI_PRESET = full_note): the serial reference fails
+$ $PY cli.py flow --configs phi --threads 4 --python $PY --out phi_all    (real 41.05, exit 2)
+| phi | jac | 4 | ERROR | 0/2 | n/a |  |  | ERROR serial reference failed: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run0: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run1: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092 |
+| phi | jacrhs | 4 | ERROR | 0/2 | n/a |  |  | ERROR serial reference failed: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run0: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run1: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092 |
+ARM jac: ERROR  (gated)
+ARM jacrhs: ERROR  (report only)
+$ $PY cli.py flow --configs phi --threads 4 --arms jac --gate none --python $PY --out phi_none    (real 39.04, exit 0)
+| phi | jac | 4 | ERROR | 0/2 | n/a |  |  | ERROR serial reference failed: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run0: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092; run1: RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092 |
+ARM jac: ERROR  (report only)
+full_note: 'Jacobian row = 0 for eqn iv = 1092', which is phi(ix=11,iy=1) (neq 41184). A temporary preset with
+phi, ni and up (isnion, isupon, isphion kept) fails the same way: 'Jacobian row = 0 for eqn iv = 924' = phi(ix=11,iy=1),
+neq 34848 (mapped with igyl and the idx tables after an exmain with issfon=0). Without Te, that phi row has no
+nonzero entry on this case. phi with Te (phi_te above, neq 6336) runs in serial (6 s).
+
+## 4. Quick default set: flow (tebox, full at 2 and 4 threads, both arms, K=2; 18 runs)
+$ $PY cli.py flow --python $PY --out quick    (real 127.32, exit 1)
+| configuration | arm | threads | verdict | agree with serial | deterministic | mismatch rows | failing sections | first mismatch |
+| tebox | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| full | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[0](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[0](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jacrhs | 2 | FAIL | 0/2 | n/a |  | run failed | failed run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40 |
+| full | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=1,iy=1) col ni[1](ix=1,iy=1) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+runs 81.9 s wall, total 127.2 s; exit code 1 (gate jac)
+
+## 5. First --all run, before two changes (kept for the record)
+Code at that point: phi configuration = full_note; an OpenMP run failure counted as ERROR; yldot after exmain
+compared with strict signed zeros. Total 6:20, exit 2. Findings that led to the changes:
+- full_note: serial reference failed (Jacobian row = 0, phi(ix=11,iy=1)), so every full_note group was ERROR.
+- ti, ni, up on jacrhs: the only differences were yldot entries -0.0 (serial) vs 0.0 (parallel RHS), 36, 255
+  and 4 entries at boundary cells (iy=0, ix=71), while the RHS probe (same RHS, +-0 equal) agreed. The post-exmain
+  yldot on the jacrhs arm comes from the parallel RHS, so compare_records now applies the parallel-RHS signed-zero
+  rule to it too and counts such entries (signed_zero_differences). With that, those groups pass (section 1).
+- te/jacrhs crashed (-11) and full/jacrhs stopped with the lusol0 overflow at 2 and 4 threads: these are
+  findings about the build, not harness errors, so an OpenMP run that fails while its serial reference ran is
+  now a FAIL of its group, and ERROR (exit 2) is kept for a failed serial reference or an unreadable record.
+   tebox | jac | 2 | FAIL | 0/2 | no |
+   tebox | jac | 4 | FAIL | 0/2 | no |
+   tebox | jac | 8 | FAIL | 0/2 | no |
+   tebox | jacrhs | 2 | FAIL | 0/2 | no |
+   tebox | jacrhs | 4 | FAIL | 0/2 | no |
+   tebox | jacrhs | 8 | FAIL | 0/2 | no |
+   full | jac | 2 | FAIL | 0/2 | no |
+   full | jac | 4 | FAIL | 0/2 | no |
+   full | jac | 8 | FAIL | 0/2 | no |
+   full | jacrhs | 2 | ERROR | 0/0 | n/a |
+   full | jacrhs | 4 | ERROR | 0/0 | n/a |
+   full | jacrhs | 8 | FAIL | 0/2 | no |
+   te | jac | 2 | FAIL | 0/2 | no |
+   te | jac | 4 | FAIL | 0/2 | no |
+   te | jac | 8 | FAIL | 0/2 | no |
+   te | jacrhs | 2 | ERROR | 0/0 | n/a |
+   te | jacrhs | 4 | ERROR | 0/0 | n/a |
+   te | jacrhs | 8 | ERROR | 0/0 | n/a |
+   ti | jac | 2 | PASS | 2/2 | yes |
+   ti | jac | 4 | PASS | 2/2 | yes |
+   ti | jac | 8 | PASS | 2/2 | yes |
+   ti | jacrhs | 2 | FAIL | 0/2 | yes |
+   ti | jacrhs | 4 | FAIL | 0/2 | yes |
+   ti | jacrhs | 8 | FAIL | 0/2 | yes |
+   ni | jac | 2 | PASS | 2/2 | yes |
+   ni | jac | 4 | PASS | 2/2 | yes |
+   ni | jac | 8 | PASS | 2/2 | yes |
+   ni | jacrhs | 2 | FAIL | 0/2 | yes |
+   ni | jacrhs | 4 | FAIL | 0/2 | yes |
+   ni | jacrhs | 8 | FAIL | 0/2 | yes |
+   up | jac | 2 | PASS | 2/2 | yes |
+   up | jac | 4 | PASS | 2/2 | yes |
+   up | jac | 8 | PASS | 2/2 | yes |
+   up | jacrhs | 2 | FAIL | 0/2 | yes |
+   up | jacrhs | 4 | FAIL | 0/2 | yes |
+   up | jacrhs | 8 | FAIL | 0/2 | yes |
+   ng | jac | 2 | PASS | 2/2 | yes |
+   ng | jac | 4 | PASS | 2/2 | yes |
+   ng | jac | 8 | PASS | 2/2 | yes |
+   ng | jacrhs | 2 | PASS | 2/2 | yes |
+   ng | jacrhs | 4 | PASS | 2/2 | yes |
+   ng | jacrhs | 8 | PASS | 2/2 | yes |
+
+=================================================================================================
+## Round 1 revision (review docs/reviews/AIUE-52-implementation-round1.md)
+Machine heavily loaded by other sessions (load average 15-70 at the starts, see below); every flow ran with
+--cores 6 --max-jobs 3 (at most 3 UEDGE processes). Timings are not comparable with the sections above.
+
+### Unit tests
+$ python -m pytest tests/deterministic_omp/harness
+89 passed in 5.09s
+
+start serialbuild_tebox load averages: 15.27 40.86 68.47
+start tebox4 load averages: 15.45 40.05 67.85
+start phi4 load averages: 16.37 38.70 66.73
+start quick load averages: 40.68 41.69 66.08
+
+### R1.1 Serial build, Te box, jac arm (I1-B1): now ERROR, exit 2
+$ base-serial/bin/python cli.py flow --configs tebox --threads 4 --arms jac --python base-serial/bin/python --cores 6 --max-jobs 3   (real 8.44, exit 2)
+| tebox | jac | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: ParallelJac=0 (expected >0); run1: arm did not take effect: ParallelJac=0 (expected >0) |
+ARM jac: ERROR  (gated)
+run0 provenance: OMPParallelJac 1, OMPParallelPandf1 0, ParallelJac 0, ParallelPandf1 0, Nthreads 4, OMP_NUM_THREADS 4
+
+### R1.2 OpenMP build, Te box, both arms, 4 threads
+$ $PY cli.py flow --configs tebox --threads 4 --python $PY --cores 6 --max-jobs 3   (real 20.84, exit 1)
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+
+### R1.3 phi configuration with the committed preset (flow.PHI_PRESET = te_phi), 4 threads
+$ $PY cli.py flow --configs phi --threads 4 --python $PY --cores 6 --max-jobs 3   (real 54.88, exit 1)
+| phi | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col phi(ix=1,iy=1) [agreement (serial vs run0)] |
+| phi | jacrhs | 4 | FAIL | 0/2 | n/a |  | run failed | failed run0: exited with -11 and wrote no record (see run.log) |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+Serial reference ran: neq 6336, iteration-0 fnrm 1.890747266414930, get_fnrm 0x1.e408034a40e6fp+0 (28 s under load).
+jac: mismatches only in Te rows (the phi rows agree), not deterministic. jacrhs: both runs SIGSEGV (-11).
+
+### R1.4 Quick set (tebox, full at 2 and 4 threads, both arms, K=2)
+$ $PY cli.py flow --python $PY --cores 6 --max-jobs 3   (real 632.82, exit 1; full/serial alone took 178 s)
+| configuration | arm | threads | verdict | agree with serial | deterministic | mismatch rows | failing sections | first mismatch |
+| tebox | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot_probe | jacobian:post_exmain value row te(ix=3,iy=18) col te(ix=3,iy=18) [agreement (serial vs run0)] |
+| full | jac | 2 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[2](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=1,iy=1) col ni[1](ix=1,iy=1) [agreement (serial vs run0)] |
+| full | jacrhs | 2 | FAIL | 0/2 | n/a |  | run failed | failed run0: RuntimeError:  ** overflow: SVR routine lusol0 loop 40 |
+| full | jacrhs | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal,yldot,yldot_probe | jacobian:post_exmain value row te(ix=1,iy=1) col ni[0](ix=1,iy=1) [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+runs 497.8 s wall, total 632.5 s; exit code 1 (gate jac)
+
+Note on section 1: its temporary phi_te preset ({"keep": ["isteon", "isphion"], "set": []}) is identical to the
+committed te_phi preset, so the phi_te rows of section 1 are the --all results for configuration phi as committed
+(serial neq 6336 and fnrm 1.890747266414930 match R1.3).
+
+=================================================================================================
+## Round 2 revision (review docs/reviews/AIUE-52-implementation-round2.md), rebased onto the final harness core
+Branch rebased onto feature/v9-AIUE-49-omp-harness-core de57d59; compare.py, config.py, runner.py, worker.py and
+test_harness.py are the core's unchanged (git diff de57d59 HEAD touches only cli.py, flow.py, test_flow.py in harness/).
+Flows ran with --cores 4 --max-jobs 2 (at most 2 UEDGE processes) at load average 56-66 (1-min).
+
+### Unit tests (core + flow)
+$ python -m pytest tests/deterministic_omp/harness
+107 passed in 4.20s
+
+### R2.1 Serial build, Te box, jac arm, 4 threads: ERROR, exit 2
+$ base-serial/bin/python cli.py flow --configs tebox --threads 4 --arms jac --python base-serial/bin/python --cores 4 --max-jobs 2   (real 11.64, exit 2)
+| tebox | jac | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no Open |
+ARM jac: ERROR  (gated)
+
+### R2.2 Serial build, Te box, both arms, 4 threads: ERROR on both arms, exit 2
+$ base-serial/bin/python cli.py flow --configs tebox --threads 4 --python base-serial/bin/python --cores 4 --max-jobs 2   (real 20.52, exit 2)
+| tebox | jac | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jac arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jac arm run with a build that has no Open |
+| tebox | jacrhs | 4 | ERROR | - | n/a |  |  | ERROR run0: arm did not take effect: jacrhs arm but ParallelJac=0 (OpenMP Jacobian did not run: serial build?); jacrhs arm but ParallelPandf1=0; jacrhs arm but the RHS probe did not take the parallel branch; jacrhs arm run with a build that has no OpenMP runtime; run1: arm did not take effect: jacrhs arm  |
+ARM jac: ERROR  (gated)
+ARM jacrhs: ERROR  (report only)
+
+### R2.3 OpenMP build, Te box, both arms, 4 threads: FAIL in Te rows, exit 1
+$ $PY cli.py flow --configs tebox --threads 4 --python $PY --cores 4 --max-jobs 2   (real 28.26, exit 1)
+| tebox | jac | 4 | FAIL | 0/2 | no | te | fnrm_final,fnrm_printed,jac:post_exmain,sfscal | jacobian:post_exmain value row te(ix=4,iy=18) col te(ix=4,iy=18) [agreement (serial vs run0)] |
+| tebox | jacrhs | 4 | FAIL | 0/2 | no | ?,te | fnrm_final,fnrm_printed,jac:post_exmain,jac:post_exmain (permuted indices),jacobian_count,sfscal,yldot,yldot_probe | jacobian_count: ['post_exmain'] vs ['post_exmain (permuted indices)'] [agreement (serial vs run0)] |
+ARM jac: FAIL  (gated)
+ARM jacrhs: FAIL  (report only)
+jacrhs: run0's iteration-0 fnrm (parallel RHS) was 0.1057089980129120E+32 > ftol=1e20, so nksol iterated once more
+(ijactot 2, fnrm 0.8724380714266029E-02 at iteration 1); run1 printed 0.1527028258321631 and stopped (ijactot 1);
+serial 0.3221264477609989. The core therefore reports jacobian_count ['post_exmain'] vs ['post_exmain (permuted
+indices)'] for run0; the permuted post-exmain Jacobian is compared by position, not mapped to cells, hence '?' in the
+mismatch-rows column. All mismatches mapped to cells are in Te rows.

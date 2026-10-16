@@ -92,3 +92,17 @@ $PY tests/deterministic_omp/harness/cli.py check --preset tebox --arm jac --thre
 
 Exit 0 agree, 1 mismatch, 2 harness error. Set `OMP_STACKSIZE` (the harness uses 512M): per-thread automatic arrays
 scale with `neq`. On `v9-develop` this case fails in the electron-energy rows (AIUE-8).
+
+**Bitwise OpenMP-vs-serial test flow** (AIUE-8 reproducer, `tests/deterministic_omp/README.md`): with the OpenMP
+build's Python `PY`, `$PY tests/deterministic_omp/harness/cli.py flow --configs tebox --threads 4 --python $PY --out DIR`
+answers "does OpenMP equal serial here, and where not?" in seconds; without `--configs` it runs the quick set (`tebox`,
+`full` at 2 and 4 threads), `--all` every configuration (`tebox`, `full`, `te`, `ti`, `ni`, `up`, `ng`, `phi`) at 2,
+4, 8 threads. Each (configuration, arm, threads) group runs K fresh processes (`--repeats`, default 2) against one serial
+reference of the same build and must agree with serial and across repeats. There is one verdict per arm (`jac` =
+`OMPParallelJac`, `jacrhs` = plus `OMPParallelPandf1`); the exit code follows `--gate jac|jacrhs|all|none` (default
+`jac`): 0 pass, 1 fail, 2 harness error. Every record goes through the harness's `check_arm` against the requested
+spec (the arm's switches and `ParallelJac`/`ParallelPandf1`, `Nthreads`, `OMP_NUM_THREADS`, diagnostic switches off,
+the capture source, iterations recorded), so a run where the arm did not take effect (e.g. a `--serial` build) is a
+harness error, never a pass; so is a comparison report with errors. Output: `summary.md` (first mismatch as equation and cell) and `flow.json`.
+The code is `tests/deterministic_omp/harness/flow.py`; its unit tests need no build
+(`python -m pytest tests/deterministic_omp/harness`).
