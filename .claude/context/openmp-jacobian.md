@@ -113,8 +113,8 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
    package loaded before `bbb` (`com`, `grd`, `flx`) must not have threadprivate scalars, and no later package's block
    (`api`, `aph`, `ppp`, …) may be larger than `bbb`'s, or a copy writes past the block (AIUE-60: `com` timers made
    `bbb`'s copy overwrite `com`'s `/iotable/`). `api` (12 scalars, 96 B) is an allowed later, smaller block; new
-   threadprivate scalars go in `bbb`. Check: `docs/reviews/AIUE-60-common-check.py`; in CI `tests/deterministic_omp/ci/common_check.py`
-   (the same check, run by `build-test-omp.yml`). Upstream: AIUE-71.
+   threadprivate scalars go in `bbb`. Check: `tests/deterministic_omp/ci/common_check.py`
+   (run by `build-test-omp.yml`; a port of AIUE-60's G-common script). Upstream: AIUE-71.
 6. A full `pandf(-1,-1)` must recompute every module variable a later local `pandf` reads (the fixed partition relies
    on it, see above). State that only a local evaluation sets and a full one leaves alone would make the OpenMP
    Jacobian depend on the thread count.
