@@ -62,7 +62,7 @@ OMPJacFixedChunks   integer [none] /1/   # [1] (default): fixed contiguous chunk
                                          # the same for any number of OpenMP threads (OMP_NUM_THREADS); it still differs
                                          # from serial at round-off on some platforms. Validated only where exmain allows
                                          # OpenMP (ismcnon=0, isimpon 0,2,6,7) and NOT for nxpt=2, limiter sputtering,
-                                         # coupled walls, istabon=5,6 (AIUE-69); see .claude/context/openmp-jacobian.md.
+                                         # coupled walls, istabon=5,6 (AIUE-60/69); see .claude/context/openmp-jacobian.md.
                                          # OMPJacNchunks, OMPLoadBalance, OMPAutoBalance are then ignored.
                                          # [0]: the partition used before AIUE-61 (varies from run to run at
                                          # round-off). OpenMP build only; takes effect at the next exmain.
