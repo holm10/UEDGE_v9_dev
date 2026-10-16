@@ -23,7 +23,7 @@ The acceptance criteria are what the reviewer checks against, so quote them verb
 `PIV record` Jira comments when there is no epic PRD page), and entries are sent only at milestones: each closed review
 round, the end of `execute`, an escalation or owner decision, the commit (`ticket-page` → "When to flush"). Pass
 `--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
-review loop. Atlassian failures never stop a step; the entries stay queued for the next flush.
+review loop, and run `validate` with `--ticket <KEY>`. Atlassian failures never stop a step; the entries stay queued for the next flush.
 
 **Stacking.** A ticket may start on a parent ticket's branch while the parent is still in review. When the parent
 changes (review fixes, rebase), rebase the child onto it and re-run the child's validation before its review.

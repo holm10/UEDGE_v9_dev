@@ -56,6 +56,8 @@ For EACH task in "Step by Step Tasks":
   <why>"` and `ticket-page <KEY> publish`.
 - At the end (after step 4): **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
   <first>..<last>; <deviations or none>" --flush`. It also sends the validate entries queued during execution.
+- Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
+  queued for the end-of-execute flush.
 - A failed ticket-page call never stops execution: note it in the report; the entries stay queued.
 
 ### 3. Implement Testing Strategy

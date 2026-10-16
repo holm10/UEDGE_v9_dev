@@ -10,8 +10,9 @@ same thing.
 
   render    Build the ticket page body: header, the four log sections and the plan (or RCA) mirrored from a
             committed revision. Log sections = the current page's entries, plus any entry of the local sent log that
-            the page lost, plus the outbox, plus --entry. Refuses (exit 2) to build a body for an existing page
-            without a parseable current page or --local, so it can't erase the page's log.
+            the page lost, plus the outbox, plus --entry. For an existing page it refuses (exit 2) unless it gets a
+            current page with all four log headings and at least the entries this worktree last sent, or --local
+            with the version this worktree last wrote, or --new-page with exactly the stub of a page just created.
   queue     The per-ticket outbox (entries not yet sent) and sent log (every entry that reached the page or Jira),
             both untracked, in the worktree's git directory: add, list, mark sent, list sent.
   state     Small per-ticket state: page id, last version written, plan revision, fallback comment ids and count.
@@ -21,12 +22,13 @@ same thing.
 
 Usage:
   ticket_page.py render --repo WT --plan PATH [--plan-rev REV] [--plan-title Plan|RCA] --meta meta.json
-                        (--current page.md|page.json | --local) [--entry SECTION SOURCE TEXT]... [--outbox DIR]
-                        [--date YYYY-MM-DD] --out body.md
+                        [--current page.md|page.json [--new-page] [--allow-fewer] | --local --page-version N]
+                        [--entry SECTION SOURCE TEXT]... [--outbox DIR] [--date YYYY-MM-DD] --out body.md
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
                         (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
-  ticket_page.py verify --body body.md --page-id ID [--log PATH] [--repo WT]
+  ticket_page.py verify --body body.md --page-id ID [--after-version N] [--log PATH] [--repo WT]
+  ticket_page.py stub --key KEY        (prints the one-line body to create a new ticket page with)
   ticket_page.py sanitize --repo WT [--max-chars 1500] < text > text
 
 meta.json keys: key, key_url, summary, epic, epic_url, prd_title, prd_url, branch, status, updated, skill;
@@ -68,8 +70,11 @@ SECRET_PATTERNS = [
      r"[a-z0-9]+_(token|secret|key|password))[\"']?\s*[:=]\s*[\"']?[^\s\"'`]{8,}"),
 ]
 
-# Local absolute paths under these roots. The look-behind keeps URL paths (https://host/home/...) and relative paths.
-PATH_ROOTS = r"(?:Users|home|private|tmp|var|Volumes|opt|mnt|srv|root)"
+# Local absolute paths under these roots (workstations and HPC clusters: /scratch, /gpfs, /global/homes, /p/lustre*,
+# /g/g*, /usr/workspace, ...). The look-behind keeps URL paths (https://host/home/...) and relative paths; file://
+# URLs are handled separately.
+PATH_ROOTS = (r"(?:Users|home|homes|private|tmp|var|Volumes|opt|mnt|srv|root|scratch|gpfs|global|lustre|nfs|work|"
+              r"project|projects|data|p|g|usr/workspace|usr/WS\d+)")
 ABS_PATH = re.compile(r"(?<![\w:/.\-~{}])/" + PATH_ROOTS + r"(?=/|\b)(?:/[^\s`'\"<>()\[\]{}|,;]*)?")
 
 
@@ -104,6 +109,8 @@ def _replace_prefix(text, prefix, placeholder):
 def sanitize(text, repo):
     """Replace local absolute paths with placeholders that survive Confluence's markdown import."""
     repo = Path(repo).resolve()
+    # file:///abs/path: hide the scheme behind a marker so the path is handled like any other absolute path.
+    text = re.sub(r"\bfile://(?=/)", "\x00", text)
     for p in _variants(repo):
         text = _replace_prefix(text, p, "{worktree}")
     for p in _variants(repo.parent):
@@ -117,6 +124,7 @@ def sanitize(text, repo):
     text = ABS_PATH.sub(_other, text)
     # User names encoded in path-derived identifiers, e.g. -Users-<name>-Documents-... (session and project dirs).
     text = re.sub(r"-(Users|home)-[A-Za-z0-9._]+-", r"-\1-{user}-", text)
+    text = text.replace("\x00", "file://")
     return text
 
 
@@ -214,18 +222,20 @@ def load_current(path):
 
 
 def parse_sections(md, plan_title):
-    """Return ({section: [entries]}, number of log headings found) for the part of a page before the mirror."""
-    cur, seen = None, 0
+    """Return ({section: [entries]}, set of log headings found) for the part of a page before the mirror.
+    Only the four log headings and the mirror's heading are boundaries; any other heading-like line (for example a
+    `# ...` line of an entry whose escape a round trip dropped) stays in the section it is in."""
+    cur, seen = None, set()
     lines = {s: [] for s in SECTIONS}
     for ln, in_fence in split_fences(md.splitlines()):
         if not in_fence:
             m = re.match(r"^#{1,2}\s+(.*?)\s*#*\s*$", ln)
-            if m:
-                title = m.group(1).strip().strip("*").strip()
-                if title in (plan_title, "Plan", "RCA"):
-                    break
-                cur = title if title in SECTIONS else None
-                seen += cur is not None
+            title = m.group(1).strip().strip("*").strip() if m else None
+            if title in (plan_title, "Plan", "RCA"):
+                break
+            if title in SECTIONS:
+                cur = title
+                seen.add(title)
                 continue
         if cur is not None:
             lines[cur].append(ln)
@@ -233,8 +243,17 @@ def parse_sections(md, plan_title):
 
 
 def entry_text(e):
-    text = e["text"].strip().replace("\n", "\n  ")
-    return f"- **{e['date']}** · {e['source']} · {text}"
+    """One entry as a list item. Continuation lines are indented, and a line starting with '#' outside a code fence
+    is escaped, so it can't become a heading on the page."""
+    out = []
+    for i, (ln, in_fence) in enumerate(split_fences(e["text"].strip().splitlines())):
+        if i and not in_fence and ln.lstrip().startswith("#"):
+            ln = "\\" + ln.lstrip()
+        out.append(ln if i == 0 else "  " + ln)
+    return f"- **{e['date']}** · {e['source']} · " + "\n".join(out)
+
+
+STUB = "Plan page for {key}; content follows."
 
 
 # ---------------------------------------------------------------- local files
@@ -259,10 +278,12 @@ def cmd_render(a):
     if missing:
         die("meta.json is missing " + ", ".join(missing))
     if meta.get("page_id") and not (a.current or a.local):
-        die("the page exists (meta has page_id): pass --current (the page read with contentFormat \"markdown\") or "
-            "--local (only when the page's version equals the last version in the state file)")
+        die("the page exists (meta has page_id): pass --current (the page read with contentFormat \"markdown\"), "
+            "--local --page-version N, or for the first fill of a just-created stub --new-page --current <stub>")
     d = store_dir(a.repo, a.outbox)
     key = meta["key"]
+    state_p = d / f"{key}.state.json"
+    state = json.loads(state_p.read_text()) if state_p.exists() else {}
     rev = a.plan_rev or "HEAD"
     tip = git(a.repo, "rev-parse", "--short", "HEAD").strip()
     # The commit that last changed the mirrored file at that revision, so the header doesn't move with other commits.
@@ -272,29 +293,59 @@ def cmd_render(a):
 
     logs = {s: [] for s in SECTIONS}
     current = a.current
-    if a.local:  # the page is what this worktree last sent (the caller checked the version)
+    if a.local:  # the page is what this worktree last sent: the helper checks the version the caller read
+        if a.page_version is None:
+            die("--local needs --page-version N (the version the CQL check returned)")
+        if str(state.get("version")) != str(a.page_version):
+            die(f"--local: the page is at version {a.page_version}, but this worktree last wrote version "
+                f"{state.get('version', 'none')}; read the page and pass --current")
         current = d / f"{key}.last-body.md"
         if not current.exists():
             die(f"--local: {current} doesn't exist; read the page and pass --current")
-    if current:
+    if a.new_page:
+        # First fill of a page just created with the stub body: accepted only for exactly that stub, and only before
+        # this worktree has written any version of the page.
+        if not (meta.get("page_id") and a.current):
+            die("--new-page needs page_id in meta.json and --current with the page as read after the create")
+        if state.get("version"):
+            die(f"--new-page: this worktree already wrote version {state['version']} of the page; use --local or "
+                "--current")
+        if norm(load_current(a.current)) != norm(STUB.format(key=key)):
+            die("--new-page: the current page is not the stub '" + STUB.format(key=key) + "'; refusing")
+    elif current:
         logs, seen = parse_sections(load_current(current), a.plan_title)
-        if meta.get("page_id") and seen == 0:
-            die("no log section headings (## Progress, ## Validation, ## Reviews, ## Findings and decisions) in "
-                "--current; refusing to build a body that would erase the page's log")
+        if meta.get("page_id") and len(seen) < len(SECTIONS):
+            die("--current lacks the log section heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS
+                                                                          if s not in seen)
+                + "; refusing to build a body that would drop their entries (a truncated copy?)")
+
     sent = read_jsonl(d / f"{key}.sent.jsonl")
     pending = read_jsonl(d / f"{key}.jsonl")
     extra = [{"section": s, "source": src, "text": sanitize(t, a.repo), "date": a.date or date.today().isoformat()}
              for s, src, t in (a.entry or [])]
     restored = added = 0
-    for group, e in [("sent", e) for e in sent] + [("new", e) for e in pending + extra]:
-        if e["section"] not in SECTIONS:
-            die(f"unknown section {e['section']!r}")
-        block = entry_text(e)
-        if norm(block) in {norm(x) for x in logs[e["section"]]}:
-            continue
-        logs[e["section"]].append(block)
-        restored += group == "sent"
-        added += group == "new"
+
+    def merge(entries):
+        n = 0
+        for e in entries:
+            if e["section"] not in SECTIONS:
+                die(f"unknown section {e['section']!r}")
+            block = entry_text(e)
+            if norm(block) not in {norm(x) for x in logs[e["section"]]}:
+                logs[e["section"]].append(block)
+                n += 1
+        return n
+    restored = merge(sent)
+    # After restoring this worktree's own entries, the page must still hold everything this worktree last sent:
+    # fewer entries means a truncated copy, an overwrite by another worktree, or a person's deliberate removal.
+    last = d / f"{key}.last-body.md"
+    if a.current and not a.new_page and last.exists() and not a.allow_fewer:
+        before, _ = parse_sections(load_current(last), a.plan_title)
+        fewer = [s for s in SECTIONS if len(logs[s]) < len(before[s])]
+        if fewer:
+            die("the page has fewer entries than this worktree last sent in " + ", ".join(fewer)
+                + "; read the page again; if a person removed them on purpose, pass --allow-fewer")
+    added = merge(pending + extra)
 
     page_ref = f"[page {meta['page_id']}]({meta['page_url']})" if meta.get("page_id") else "not yet created"
     status = meta["status"] + (f" ({meta['status_note']})" if meta.get("status_note") else "")
@@ -410,6 +461,11 @@ def cmd_verify(a):
             sent = str(ti.get("body", "")).rstrip()
             m = re.search(r'number\\*"?:\s*(\d+)', json.dumps(d.get("tool_response")))
             version = int(m.group(1)) if m else None
+            if a.after_version is not None and (version is None or version <= a.after_version):
+                print(f"ticket_page: the last logged update of page {a.page_id} returned version {version}, not one "
+                      f"after {a.after_version}: the update just made was not logged as successful; don't retry "
+                      "blindly, check the update call's result", file=sys.stderr)
+                return 3
             if sent == want:
                 print(f"ticket_page: verified: the last update of page {a.page_id} sent the rendered body "
                       f"({len(sent)} chars); version {version}")
@@ -420,6 +476,11 @@ def cmd_verify(a):
             return 1
     print(f"ticket_page: no logged updateConfluencePage call for page {a.page_id}; unverified", file=sys.stderr)
     return 3
+
+
+def cmd_stub(a):
+    print(STUB.format(key=a.key))
+    return 0
 
 
 def cmd_sanitize(a):
@@ -443,6 +504,11 @@ def main():
     g = r.add_mutually_exclusive_group()
     g.add_argument("--current")
     g.add_argument("--local", action="store_true")
+    r.add_argument("--page-version", help="with --local: the page version the CQL check returned")
+    r.add_argument("--new-page", action="store_true",
+                   help="first fill of a page just created with the stub body (--current = the stub)")
+    r.add_argument("--allow-fewer", action="store_true",
+                   help="accept a page with fewer entries than the last body sent (a deliberate correction)")
     r.add_argument("--entry", nargs=3, action="append", metavar=("SECTION", "SOURCE", "TEXT"))
     r.add_argument("--date")
     r.add_argument("--outbox", help="directory of the outbox, sent log and state (default <git dir>/ticket-page-outbox)")
@@ -467,14 +533,19 @@ def main():
     v.add_argument("--body", required=True)
     v.add_argument("--page-id", required=True)
     v.add_argument("--log")
+    v.add_argument("--after-version", type=int,
+                   help="the version checked before the update: only a logged update that returned a later version "
+                        "counts")
     v.add_argument("--repo")
+    st = sub.add_parser("stub")
+    st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
     z.add_argument("--repo", required=True)
     z.add_argument("--max-chars", type=int, default=1500)
     a = ap.parse_args()
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
-                "sanitize": cmd_sanitize}[a.cmd](a)
+                "stub": cmd_stub, "sanitize": cmd_sanitize}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:

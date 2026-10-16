@@ -60,7 +60,8 @@ short plan) **before writing code**.
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
-With a Jira key, queue the reproduction before/after (`log Progress`); `validate` queues its result. They go out
+With a Jira key, queue the reproduction before/after (`log Progress`), and run `validate` with `--ticket <KEY>` (the
+issue branch name has no key), so it queues its result. They go out
 with the implementation review's flush (4c) and the final commit's flush.
 
 ## 4b. AI-layer facts

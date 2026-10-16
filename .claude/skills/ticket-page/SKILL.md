@@ -36,18 +36,27 @@ lost. The repo stays the source of truth; the page mirrors it and logs the steps
 | Plan (or RCA) written, revised or amended | `plan-feature`, `implement-fix`, the review loop | `publish` |
 | A review round closes: APPROVE, or REVISE once its response is written | the review loop | the verdict and the response; for a plan revision this flush is the `publish` |
 | End of `execute` | `execute` | **one** Progress summary (tasks, commits, deviations), the validate entries queued during it |
-| `validate` run on its own (not inside `execute`, `implement-fix` or `end-to-end-feature`) | `validate` | its result |
+| A `validate` result | `validate` | its result: flushed at once when `validate` runs on its own; inside `execute`, `implement-fix` or `end-to-end-feature` it goes out with the flush that ends the same step (end of `execute`, or the review round whose re-validation it is) |
 | An owner decision or an escalation | whoever records it | the Findings and decisions entry, `status Escalated` |
 | The final commit | `commit` step of `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed` |
 
 Everything else is `log` without `--flush`. Per-task entries are not logged at all; `execute` sends one summary.
 
-**Cost.** The Confluence update tool takes the whole page body, which the model has to emit: for AIUE-61 that is
-48.5 KB, about 14k output tokens per flush. A flush also makes a small version check (one CQL search) and reads the
-whole page (about 50 KB in) only when someone else wrote since this worktree's last flush. A ticket with one plan
-round and one implementation round flushes 5 times (publish, plan verdict, end of execute, implementation verdict,
-commit), about 70k output tokens; each extra review round adds one flush. The Jira fallback costs little (comments of
-at most 1500 characters).
+**Deliberate batching of `validate`.** The decision lists each validate result as a milestone. Every result does reach
+the page (failures included, verbatim), but inside a larger step it rides on that step's flush instead of making its
+own: a `validate` inside `execute` is followed by the end-of-`execute` flush, and a re-validation in a review round by
+that round's flush. That saves one full-page flush per validate run (see Cost) and delays the entry by at most the
+rest of the step.
+
+**Cost.** The Confluence update tool takes the whole page body, which the model has to emit, so every flush costs
+about the page size twice: for AIUE-61 (48.5 KB) about 14k output tokens to emit it, and about 14k input tokens to
+have it in context first (reading `body.md`). Both stay in the session's context, so each flush grows it by about
+28k tokens; reading the page back, only when someone else wrote since this worktree's last flush, adds about 14k
+more. A ticket with one plan round and one implementation round flushes 5 times (publish, plan verdict, end of
+execute, implementation verdict, commit): about 70k output tokens and 140k of context growth if one session runs them
+all (`end-to-end-feature`); each extra review round adds one flush. The version check is one small CQL search. A
+session that runs short of context should hand the flush to a fresh agent with the scratch directory, not skip it.
+The Jira fallback costs little (comments of at most 1500 characters).
 
 ## Configuration
 
@@ -56,10 +65,10 @@ at most 1500 characters).
 | Container page | child of the epic's PRD page, title `Ticket plans: <EPIC>`, one per epic |
 | Ticket page | child of the container, title `Plan: <KEY> - <Jira summary without trailing period>` |
 | Page id in the repo | the plan's (or RCA's) Summary line `**Ticket page**: Confluence page <id> (<url>)`, or `**Ticket page**: none (no epic PRD page); PIV record in Jira comments on <KEY>` |
-| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `state`, `verify`, `sanitize`; `--help`) |
+| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `queue`, `state`, `verify`, `stub`, `sanitize`; `--help`); its end-to-end test without Atlassian: `.claude/skills/ticket-page/selftest.sh` (run it after changing the helper) |
 | Local store (untracked, per worktree) | `<git dir>/ticket-page-outbox/`: `<KEY>.jsonl` (queued), `<KEY>.sent.jsonl` (every entry sent, append-only), `<KEY>.state.json` (page id, last version written, plan revision, status, fallback comment ids), `<KEY>.last-body.md` (the last body sent). `git worktree remove` deletes it, so flush before removing a worktree |
 | Scratch for bodies | the session scratchpad, or `${TMPDIR:-/tmp}/ticket-page/` |
-| Jira fallback | at most 8 `PIV record` comments per ticket, each at most 1500 characters |
+| Jira fallback | at most 8 `PIV record` comments per ticket (9 if the running summary has to be superseded once), each at most 1500 characters |
 
 ## Process: Confluence route
 
@@ -91,10 +100,12 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
 ### 3. Check the version, then build the body
 
 1. **Version check** (existing page): CQL `id = <page id>` with `expand: "content.version"` (plain `version` returns
-   no number); the number is `content.version.number`. If the version equals
-   `state.version`, the page is what this worktree last sent: render with `--local` (it reads `<KEY>.last-body.md`).
-   Otherwise read the page (`getConfluencePage`, `contentFormat: "markdown"`) and pass it as `--current`: a saved tool
-   result file works as it is (plain or MCP-wrapped JSON); otherwise save the part before `## Plan` (or `## RCA`).
+   no number); the number is `content.version.number`. If it equals `state.version`, the page is what this worktree
+   last sent: render with `--local --page-version <number>` (the helper re-checks the number against the state file
+   and reads `<KEY>.last-body.md`). Otherwise read the page (`getConfluencePage`, `contentFormat: "markdown"`) and pass
+   it as `--current`: a saved tool result file works as it is (plain or MCP-wrapped JSON); otherwise save the part
+   before `## Plan` (or `## RCA`) **in full**: the helper refuses a copy that lacks any of the four log headings, or
+   that has fewer entries than this worktree last sent (after re-adding its own lost ones from the sent log).
 2. Write `meta.json` in the scratch directory: `key`, `key_url`, `summary`, `epic`, `epic_url`, `prd_title`,
    `prd_url`, `branch`, `status`, `status_note` (from the state file), `updated` (today, local date), `skill`
    (the caller), and `page_id`/`page_url` once known. A missing key stops the render (exit 2).
@@ -112,10 +123,16 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
    The log sections keep every entry of the current page, re-add any entry of the sent log the page lost, and append
    the queued entries; entries are compared ignoring formatting and line wrapping (Confluence returns `_x_` as `*x*`
    and drops continuation indents), so a retry never duplicates one. Local paths become `{worktree}`, `{worktrees}`,
-   `{home}`, `{local}/<name>`; a secret-like string stops the render (exit 1).
-   **Safety:** for an existing page, `render` refuses (exit 2) without `--current` or `--local`, when `--current` is
-   in storage (HTML) form, and when `--current` has none of the four section headings. Never work around it by
-   dropping `page_id`.
+   `{home}`, `{local}/<name>` (paths under the usual workstation and cluster roots: `/Users`, `/home`, `/tmp`,
+`/private`, `/var`, `/Volumes`, `/opt`, `/scratch`, `/gpfs`, `/global`, `/p`, `/g`, `/usr/workspace`, …, also inside
+`file://` URLs; other absolute paths are left as they are, so don't paste them); a secret-like string stops the render
+(exit 1).
+   A line of an entry that starts with `#` is escaped, so it stays text; only the four log headings and the mirror's
+   heading end a section when the page is read back.
+   **Safety:** for an existing page, `render` refuses (exit 2) without `--current`, `--local --page-version N` or
+   `--new-page`; when `--current` is in storage (HTML) form, lacks one of the four log headings, or has fewer entries
+   than the last body sent; and for `--local` when the version differs from the state file. Never work around it by
+   dropping `page_id`. `--allow-fewer` is only for a deliberate correction (see Corrections).
 
 ### 4. Write
 
@@ -129,21 +146,35 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
   the source of truth." Then repeat the container search: if there are now two (a sibling ticket created one at the
   same time), stop as in step 2.7.
 - **Page missing:** `createConfluencePage` (`parentId` = container id, the exact title, `contentFormat: "markdown"`,
-  a **one-line stub body** "Plan page for <KEY>; content follows."). The create call returns the whole stored body,
-  so never create with the full body. Then add the `**Ticket page**` line to the plan (or RCA), commit it ("Records
-  the <KEY> ticket page"), and render from that commit, so the page cites the plan as it now is.
+  and as body exactly the output of `ticket_page.py stub --key <KEY>`: "Plan page for <KEY>; content follows."). The
+  create call returns the whole stored body, so never create with the full body. Then:
+  1. Record only the page id: `state --set page_id=<id>`. The version is recorded after the first verified update;
+     until then `--new-page` is allowed.
+  2. Add the `**Ticket page**` line to the plan (or RCA) and commit it ("Records the <KEY> ticket page").
+  3. Read the new page (`getConfluencePage`, `contentFormat: "markdown"`; it is one line) and render the first fill:
+     `render … --plan-rev <that commit> --new-page --current <the read page>`. `--new-page` accepts only exactly the
+     stub, and only while the state file has no version; every other refusal stays.
+  4. Update, verify and record as below. A first fill that fails leaves the stub: the next flush finds no recorded
+     version, reads the stub again, and repeats step 3.
 - **Update:** `updateConfluencePage` (`contentFormat: "markdown"`, `versionMessage` naming the caller and the
   milestone, the new `title` if the Jira summary changed) with the body **exactly as rendered**.
-- **Verify:** `ticket_page.py verify --body <scratch>/body.md --page-id <id> --repo <worktree>` compares the body the
-  update call sent (from the PostToolUse hook log) with the rendered file. Mismatch (exit 1) → update again with the
-  file's content. No log (exit 3) → note "transcription unverified". Then record what is on the page:
+- **Verify, only after an update that returned a version** (a failed update returns an error and no version; then
+  nothing is verified or recorded, the entries stay queued, and the flush ends with the error reported):
+  `ticket_page.py verify --body <scratch>/body.md --page-id <id> --after-version <V> --repo <worktree>`, where `V` is
+  the version checked in step 3 (1 for a new page). It compares the body the update call sent (from the PostToolUse
+  hook log, which records successful calls only) with the rendered file. Exit 1 (mismatch) → **one** retry of the
+  update with the file's content, then verify again with `--after-version` = the version the first update returned;
+  a second mismatch → record nothing, report it, stop. Exit 3 (no logged update after `V`) → note "transcription
+  unverified" and go on. Then record what is on the page:
   `state --set version=<returned version> plan_rev=<rev> page_id=<id> --save-body <scratch>/body.md`, then
   `queue --mark-sent`.
-- **Another writer:** the update tool has no version check. If the returned version is more than one above the one
-  checked in step 3, an update in between was overwritten. Entries it carried from this worktree are in the sent log
-  and come back on the next render. Entries from another worktree can't be recovered here: queue
-  `Findings and decisions` "Possible lost entries: versions <N+1>..<M-1> were overwritten by a concurrent update;
-  compare the page history", read the page, render with `--current` and flush once more.
+- **Another writer:** the update tool has no version check. Expected version = `V` + the number of this flush's own
+  successful updates (1, or 2 after a retry). If the final returned version is higher, someone else's update in
+  between was overwritten. Entries it carried from this worktree are in the sent log and come back on the next
+  render. Entries from another worktree can't be recovered here: queue `Findings and decisions` "Possible lost
+  entries: versions <V+1>..<returned-1> other than this flush's own were overwritten by a concurrent update; compare
+  the page history", read the page, render with `--current` and flush once more. A jump fully explained by this
+  flush's own retry is not a finding.
 
 ### 5. Link it from the ticket (once)
 
@@ -183,7 +214,11 @@ over the cap → summarise again).
   The 8th is `**PIV record: running summary (updated in place)**`; later milestones update it with
   `addCommentToJiraIssue` and its `commentId` (`state.fallback_summary_id`), rewriting it to stay within 1500
   characters (latest status, then one line per milestone, oldest dropped first with "earlier: see comments above").
-  If the update fails, post nothing more and say so in the caller's report.
+  Check the returned comment id: it must equal `state.fallback_summary_id`. If the update fails, or returns another
+  id (a new comment was posted instead), post **once** a new comment that starts "Supersedes comment <id>." with the
+  current summary (as `close-epic` does for its epic comment), record its id as `fallback_summary_id` and set
+  `fallback_superseded=1`. If that happens again with `fallback_superseded=1`, post nothing more and say so in the
+  caller's report: at most 9 `PIV record` comments in all.
 - **Escalation.** In the fallback, the `PIV record` escalation comment is the Jira escalation comment that
   `end-to-end-feature` asks for: post one comment, not two.
 - `queue --mark-sent` after each successful post, so the sent log also records the fallback.
@@ -215,8 +250,8 @@ Findings and decisions:  Owner: <decision> (source) / Agent: <choice, why> / Rev
 
 The log sections are append-only: a later entry corrects an earlier one. Removing or rewording an entry happens only
 on the owner's or the coordinator's request: edit a copy of the current page's log part, render it with `--current`,
-send it with a `versionMessage` that says what was corrected and why, and say so in a Progress entry (a new one, or
-the corrected entry itself when that entry is what was wrong).
+render it with `--allow-fewer` if entries were removed, send it with a `versionMessage` that says what was corrected
+and why, and say so in a Progress entry (a new one, or the corrected entry itself when that entry is what was wrong).
 
 ## Failures
 

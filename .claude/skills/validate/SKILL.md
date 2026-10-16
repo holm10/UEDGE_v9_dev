@@ -1,7 +1,7 @@
 ---
 name: validate
 description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch, and the OpenMP serial-vs-parallel check when RHS/Jacobian code changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
-argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp] [--no-tracker]
+argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp] [--ticket <KEY>] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Validate
@@ -99,8 +99,12 @@ Quote failing output verbatim. Never loosen tolerances or skip a suite to get gr
 
 ## Ticket record
 
-On a ticket branch with a Jira key (from the branch name), run `ticket-page <KEY> log Validation "<entry>"`: the
-report block's lines with the branch tip, and for each ❌ the failing output verbatim, trimmed to the failing part
-(the first error, the mismatching fnrm or variable lines). Add `--flush` only when `validate` was run on its own;
-inside `execute`, `implement-fix` or `end-to-end-feature` the entry is queued and goes out at their next milestone.
-Skip it with `--no-tracker`. A failed call is noted under the report and never changes the verdict.
+The Jira key comes from `--ticket <KEY>` (callers pass it: `execute`, `implement-fix` and `end-to-end-feature`
+always do, since a `bugfix/v9-issue-<N>-…` branch has none), else from the branch name (`feature/v9-<KEY>-…`,
+`bugfix/v9-<KEY>-…`), else from the `**Ticket page**: … on <KEY>` line or the H1 of the branch's plan or RCA. No key:
+no record. With a key, run `ticket-page <KEY> log Validation "<entry>"`: the report block's lines with the branch tip,
+and for each ❌ the failing output verbatim, trimmed to the failing part (the first error, the mismatching fnrm or
+variable lines). Add `--flush` only when `validate` was run on its own; inside `execute`, `implement-fix` or
+`end-to-end-feature` the entry goes out with the flush that ends that step (`ticket-page` → "When to flush").
+`--no-tracker` skips it; `--tracker-dry-run` passes `--dry-run` (nothing is queued; the entry is shown). A failed call
+is noted under the report and never changes the verdict.
