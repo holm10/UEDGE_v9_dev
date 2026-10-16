@@ -1,0 +1,3 @@
+{
+ "error": "Traceback (most recent call last):\n  File \"/work/harness/tests/deterministic_omp/harness/worker.py\", line 263, in main\n    meta = run(spec)\n           ^^^^^^^^^\n  File \"/work/harness/tests/deterministic_omp/harness/worker.py\", line 182, in run\n    bbb.exmain()\nRuntimeError\n"
+}

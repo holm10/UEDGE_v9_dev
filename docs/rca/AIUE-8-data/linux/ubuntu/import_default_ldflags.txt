@@ -1,0 +1,5 @@
+$ cd /tmp && HOME=/tmp/h /work/venv-fixnold/bin/python -I -c 'import uedge; from uedge import bbb, ppp'
+/work/venv-fixnold/bin/python: symbol lookup error: /work/venv-fixnold/lib/python3.12/site-packages/uedge/bbbpy.cpython-312-x86_64-linux-gnu.so: undefined symbol: GOMP_parallel
+exit status 127
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+gcc -dumpspecs as-needed occurrences: 3
