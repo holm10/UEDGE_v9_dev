@@ -948,7 +948,7 @@ rdatlb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #inner recycp data for each
 rdatrb(ngspmx,50,nxptmx) _real      /0./ +maybeinput #outer recycp data for each ydatrb
 alblb(0:ny+1,ngspmx,nxptmx) _real        +input #inner plate albedo; used if <1 (calc)
 albrb(0:ny+1,ngspmx,nxptmx) _real        +input #outer plate albedo; used if <1 (calc)
-areapl          real   /0./ +work   # Work variable for plate projection area for 
+areapl          real   /0./ +work +threadprivate # Work variable for plate projection area for 
                                     # albedo-like recycling
 isoldalbarea    real   /0./ +input # Switch whether to use old (wrong) albedo
                                     # area which is perpendicular-to-poloidal flux
@@ -983,8 +983,8 @@ sputrlim_use(0:ny+1,ngspmx)      _real   +input #user-set sputt coef. right
                                                 #ng=ngrlim on limiter if < -1	
 sputflxlb(0:ny+1,ngspmx,nxptmx)  _real   +threadprivate #calc sput flux inner plate (iy,igsp)
 sputflxrb(0:ny+1,ngspmx,nxptmx)  _real   +threadprivate #calc sput flux outer plate (iy,igsp)
-sputflxllim(0:ny+1,ngspmx)       _real   #calc sput flux inner plate (iy,igsp)
-sputflxrlim(0:ny+1,ngspmx)       _real   #calc sput flux outer plate (iy,igsp)
+sputflxllim(0:ny+1,ngspmx)       _real +threadprivate #calc sput flux inner plate (iy,igsp)
+sputflxrlim(0:ny+1,ngspmx)       _real +threadprivate #calc sput flux outer plate (iy,igsp)
 sputflxw(0:nx+1,ngspmx)          _real   +threadprivate #calc sput flux outer wall (ix,igsp)
 sputflxpf(0:nx+1,ngspmx)         _real   +threadprivate #calc sput flux PF wall (ix,igsp)
 ngplatlb(ngspmx,nxptmx)          _real   +input #ng on inner plate if sputti < -1
@@ -4133,7 +4133,7 @@ ParallelMatsol      integer /0/     # [0]: serial matrix solve [1] parallel matr
 ParallelMatfac      integer /0/     # [0]: serial matrix factorization [1] parallel matrix factorization
 
 **** PandfTiming: # added by J.Guterl
-TimingPandfOn integer /0/
+TimingPandfOn integer /0/ +threadprivate # =1 if this pandf call times its parts (calc)
 TimingPandf integer /1/
 TimePandf real /0.0/
 TotTimePandf real /0.0/
@@ -4217,3 +4217,49 @@ VerboseDebug integer /0/
 dummy           real    /0./     # Dummy variable for testing etc.
 gridmorph       real    /0./     # Grid morphing factor to be used with UETOOLS 
 
+
+***** Jacobian_capture:
+# Raw-Jacobian capture hook (AIUE-47). jac_calc_interface copies the CSR Jacobian
+# returned by jac_calc or jac_calc_parallel, before sfsetnk/psetnk scale, normalise
+# or reorder it, into slot k = 1..jaccapn of the arrays below. Python: values are
+# jaccapv[:jaccapnnz[k-1],k-1], same 1-based index conventions as jac/jacj/jaci.
+# All variables are written only by the master thread outside any OpenMP parallel
+# region (jac_calc_interface is called from sfsetnk/psetnk), so none is +threadprivate.
+# Memory: slots are allocated as they are filled (slot dimension doubles, capped at
+# jaccapture); each slot costs about 16*nnz + 8*(neq+1) bytes (8-byte real and
+# integer), e.g. ~51 MB for nnz=3.19e6, neq=44352; a growth briefly holds old and
+# new arrays. After gfree("Jacobian_capture") the stored slots are gone: set
+# jaccapcount=0 and jaccapn=0 before capturing again.
+jaccapture      integer [ ] /0/ +input # Max. number of Jacobians kept; 0 = capture off.
+                                # A cap only: memory grows with the slots filled.
+                                # Not +threadprivate: written outside OpenMP regions.
+jaccapskip      integer [ ] /0/ +input # No. of Jacobians skipped (counted while capture
+                                # is on) before storing starts; jaccapture=1 with
+                                # jaccapskip=k-1 keeps only the k-th Jacobian
+jaccapcount     integer [ ] /0/ # No. of Jacobians seen by jac_calc_interface while
+                                # jaccapture>0 (stored or not). Not reset by exmain:
+                                # set jaccapcount=0 and jaccapn=0 to restart capturing
+jaccapn         integer [ ] /0/ # No. of Jacobians stored (slots 1..jaccapn)
+jaccapcur       integer [ ] /0/ # Caller of the current jac_calc_interface call:
+                                # 1 = sfsetnk, 2 = psetnk, 0 = other (set by caller)
+jaccapnnzmx     integer [ ] /0/ # Leading dim. of jaccapv, jaccapj (largest nnz stored)
+jaccapneqp1     integer [ ] /0/ # Leading dim. of jaccapi (largest neq+1 stored)
+jaccapnslot     integer [ ] /0/ # No. of allocated slots (>= jaccapn; never shrinks,
+                                # so it can exceed a later, lower jaccapture)
+jaccapv(jaccapnnzmx,jaccapnslot) _real [varies] # Nonzeros of the matrix returned by
+                                # jac_calc/jac_calc_parallel: finite-difference
+                                # d(yldot)/d(yl) incl. the -1/dtuse, -1/dtphi and
+                                # -nufak diagonal terms; entries with
+                                # |J*sfscal| <= jaccliplim dropped (sfscal of
+                                # the row, serial and parallel alike), so
+                                # the pattern depends on sfscal. No suscal/sfscal
+                                # scaling, unpermuted, CSR order; tail is zero
+jaccapj(jaccapnnzmx,jaccapnslot) _integer [ ] # Column indices of jaccapv (1-based)
+jaccapi(jaccapneqp1,jaccapnslot) _integer [ ] # Row pointers of jaccapv (1-based, neq+1)
+jaccapneq(jaccapnslot)  _integer [ ] # neq of the Jacobian in slot k
+jaccapnnz(jaccapnslot)  _integer [ ] # No. of nonzeros of the Jacobian in slot k
+jaccapsrc(jaccapnslot)  _integer [ ] # Routine that produced slot k: 1 = jac_calc
+                                # (serial), 2 = jac_calc_parallel (OpenMP; with
+                                # ppp.ForceSerialCheck>0 its result is serial)
+jaccapfrom(jaccapnslot) _integer [ ] # Caller of slot k: 1 = sfsetnk, 2 = psetnk
+jaccapseq(jaccapnslot)  _integer [ ] # Sequence number (value of jaccapcount) of slot k

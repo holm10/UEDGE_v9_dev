@@ -207,7 +207,7 @@ kyords_aph  integer /4/               # order of spline fit versus log10(ne)
                                   # kyords_aph=4 (default) is cubic interpolation
 xknots_aph(1:nxdata_aph+kxords_aph)     _real
 yknots_aph(1:nydata_aph+kyords_aph)     _real
-workh(1:nxdata_aph*nydata_aph+2*kxords_aph*(nxdata_aph+1)) _real # work array
+workh(1:nxdata_aph*nydata_aph+2*kxords_aph*nxdata_aph+2*kxords_aph) _real +threadprivate # work array
 rsacoef(1:nxdata_aph,1:nydata_aph)  _real # spline coeff's for ionization
 rracoef(1:nxdata_aph,1:nydata_aph)  _real # spline coeff's for recombination
 rqacoef(1:nxdata_aph,1:nydata_aph)  _real # spline coeff's for line emission

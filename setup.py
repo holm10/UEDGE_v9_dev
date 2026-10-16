@@ -766,8 +766,23 @@ class uedgeBuild(build):
         COMPILEFLAGS ='DEBUG = -v --fargs "{}"'.format(' '.join(FLAGS['FARGS']))
         if FLAGS['CARGS']!=[]:
             COMPILEFLAGS = COMPILEFLAGS+' --cargs="{}"'.format(' '.join(FLAGS['CARGS']))
+        # Linux OpenMP build: link every Forthon extension with -fopenmp (AIUE-64). Forthon's --omp,
+        # --fargs and --cargs reach only the compile lines, so bbbpy, ppppy and apipy were linked without
+        # the OpenMP runtime; where gcc links with --as-needed (Ubuntu 24.04; also seen on Debian 12), uedgeC
+        # drops it as well, and import failed with "undefined symbol: GOMP_parallel". setuptools appends
+        # LDFLAGS to every extension link. Set it for the Forthon make only, so the uedgeC link below is
+        # unchanged. macOS is left alone: there, uedgeC loads libomp and the flat-namespace extensions
+        # bind to it.
+        makeenv = None
+        if not arglist['serial'] and platform.startswith('linux'):
+            makeenv = dict(os.environ)
+            ldflags = makeenv.get('LDFLAGS', '')
+            if '-fopenmp' not in ldflags.split():
+                ldflags = (ldflags + ' -fopenmp').strip()
+            makeenv['LDFLAGS'] = ldflags
+            print("Linux OpenMP build: linking the Forthon extensions with LDFLAGS='{}'".format(makeenv['LDFLAGS']))
         # Call compiler
-        if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon']) != 0:
+        if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
             raise SystemExit("UEDGE build failure")
         build.run(self)
 

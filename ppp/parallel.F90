@@ -157,7 +157,7 @@ END SUBROUTINE jac_calc_parallel
 
 !-------------------------------------------------------------------------------------------------
 SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacElem,iJacRow,ichunk,nnz,&
-                            nnzmxperchunk,TimeJacRow)
+                            nnzmxperchunk,TimeJacRow,ifresh)
     ! ... Calculate Jacobian matrix (derivatives with respect to each
     ! ... Calculate Jacobian matrix (derivatives with respect to each
     !     dependent variable of the right-hand side of each rate equation).
@@ -183,6 +183,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
     IMPLICIT NONE
 
     integer,intent(in):: ichunk,nnzmxperchunk,ivmin,ivmax,neq
+    integer,intent(in):: ifresh   ! 1: start the chunk from the fresh full-RHS state (AIUE-61)
     integer,intent(inout)::nnz
     real,intent(in):: t           ! physical time
     real,intent(inout) ::yl(*)       ! dependent variables
@@ -208,6 +209,9 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
     external:: xerrab, kaboom
 
     nnz=1
+    ! Start this chunk from the fresh full-RHS state, so its columns don't depend on what this thread evaluated
+    ! before (AIUE-61; AIUE-8 root cause C2: column history). wk is re-initialised from yldot00 for every column.
+    if (ifresh.gt.0) call pandf (-1, -1, neq, t, yl, wk)
     loopiv: do iv=ivmin,ivmax
 
         if (OMPTimingJacRow.gt.0) Time=omp_get_wtime()
@@ -285,11 +289,11 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
             debug: if (ii==iidebugprint.and.iv==ivdebugprint) then
                 tid=omp_get_thread_num()
                 write(*,'(a,i3,a,i7,i7,i7, E20.12,E20.12,E20.12,E20.12,E20.12,E20.12)') '#', tid,&
-                    ' : ',iv,nnz,ii,jacelem,wk(ii),yldot00(ii),sfscal(iv),jaccliplim,nufak
+                    ' : ',iv,nnz,ii,jacelem,wk(ii),yldot00(ii),sfscal(ii),jaccliplim,nufak
                 call DebugHelper('dumpomp.txt') ! See at the end of this file
             endif debug
 
-            storage: if (abs(jacelem*sfscal(iv)) .gt. jaccliplim) then
+            storage: if (abs(jacelem*sfscal(ii)) .gt. jaccliplim) then
                 if (nnz .gt. nnzmxperchunk) then
                     write(*,*) 'nnz=',nnz,'nnzmxperchunk=',nnzmxperchunk
                     write(*,*) 'chunk',ichunk,'*** jac_calc -- More storage needed for Jacobian. Increase omplenpfac.'
