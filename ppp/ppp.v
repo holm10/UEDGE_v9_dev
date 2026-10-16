@@ -70,9 +70,9 @@ OMPJacNchunksFixed  integer [none] /64/  # Maximum number of chunks when OMPJacF
                                          # min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen)), independent of the
                                          # thread count. Use about 8 or more chunks per thread for load balance; a
                                          # different count changes the Jacobian at round-off. Next exmain.
-OMPJacMinChunkLen   integer [none] /300/ # Minimum number of Jacobian columns per chunk when OMPJacFixedChunks=1, so
-                                         # small problems get fewer chunks (each chunk costs one full pandf).
-                                         # Next exmain.
+OMPJacMinChunkLen   integer [none] /300/ # Min. Jacobian columns per chunk (OMPJacFixedChunks=1; a chunk costs one full pandf).
+                                         # Small problems get few chunks: up to neq~5000 at 8 threads the Jacobian may take ~2x
+                                         # (neq<600: 1 chunk, ~3x) the OMPJacFixedChunks=0 time; lower it or use 0. Next exmain.
 OMPJacStamp     character*20    /"*OMPJac* "/ 
                                     # Stamp for hybrid output (not an user input)
 
