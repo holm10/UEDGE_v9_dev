@@ -1,7 +1,7 @@
 ---
 name: ticket-page
 description: Keeps a ticket's hosted PIV record, one per ticket for its whole life. For a Jira ticket under an epic with a PRD page, it keeps one Confluence page under the PRD (container "Ticket plans <EPIC>", page "Plan <KEY> - <summary>"), created by spec when it files the ticket with the ticket's scope, then filled by plan-feature with the plan (or by implement-fix with the RCA), published from the ticket's local, untracked working copy, with append-only Progress, Validation, Reviews and Findings-and-decisions sections, linked once from the ticket. A ticket with no epic or no PRD page gets a few short "PIV record" Jira comments instead. Entries are queued locally and sent only at milestones. Called by spec, plan-feature, execute, validate, implement-fix and the end-to-end-feature review loop; never blocks them. Supports --dry-run and --no-tracker.
-argument-hint: "<KEY> create [--ticket <file>] | publish [--plan <file> | --rca <file>] | log <Section> <text> [--flush] | flush | status <status> [<note>] [--dry-run] [--no-tracker]"
+argument-hint: "<KEY> create [--ticket <file>] | publish [--plan <file> | --rca <file>] | log <Section> <text> [--flush] | progress <text> | flush | status <status> [<note>] [--dry-run] [--no-tracker]"
 ---
 
 # Ticket page: the hosted record of a ticket's PIV loop
@@ -38,6 +38,12 @@ detected and reported).
   section only changes on `publish`.
 - `log <Section> <text>`: queue one dated entry locally. `<Section>` is `Progress`, `Validation`, `Reviews` or
   `Findings and decisions`. **No Atlassian call** unless `--flush` is given.
+- `progress <text>`: queue one dated line for the epic's progress page `Progress: <EPIC>` (a child of the PRD):
+  `ticket_page.py queue --repo <worktree> --key <KEY> --epic --add - <caller> "<text>"`; the line is prefixed with the
+  key and the caller. Callers: `execute` (its end), `validate` (a run on its own), the review loop (approval or
+  escalation), `end-to-end-feature` and `implement-fix` (the commit), and whoever records an owner decision. It goes
+  out with the next flush (step 6). No PRD page (the Jira fallback): there is no progress page; mark the lines sent
+  (`queue --epic --mark-sent`) and say so.
 - `flush`: send the queued entries (and the current status) now. Only at the milestones below.
 - `status <status> [<note>]`: one of `Planned` or `Backfilled` (set by `spec` on the skeleton), `Planning`,
   `Plan review`, `Executing`, `Validating`, `Implementation review`, `Approved`, `Escalated`, `Committed`, with an
@@ -58,7 +64,11 @@ detected and reported).
 | A `validate` result | `validate` | its result: flushed at once when `validate` runs on its own; inside `execute`, `implement-fix` or `end-to-end-feature` it goes out with the flush that ends the same step (end of `execute`, or the review round whose re-validation it is) |
 | An owner decision or an escalation | whoever records it | the Findings and decisions entry, `status Escalated` |
 | The final commit | `commit` step of `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed` |
-| Before the worktree is removed | whoever removes it | `flush`, then `queue --list` must print nothing: the working folder and this store go with the worktree |
+| Before the worktree is removed | whoever removes it | `flush`, then `queue --list` (and `queue --epic --list`) must print nothing: the working folder and this store go with the worktree |
+| Before a subagent doing ticket work returns | that subagent | `flush` and the same empty-queue check; a flush that failed is reported to the caller with the worktree path, so the caller flushes later (`.claude/context/branching.md`: ticket work never runs in an automatically removed worktree) |
+
+The epic progress lines queued with `progress` go out with any flush: after the ticket page's update, step 6 appends
+them to `Progress: <EPIC>`.
 
 Everything else is `log` without `--flush`. Per-task entries are not logged at all; `execute` sends one summary.
 
@@ -88,7 +98,7 @@ KB), and in a batch a share of two container listings (`spec` → Step 6b, "Cost
 | Ticket page | child of the container, title `Plan: <KEY> - <Jira summary without trailing period>` (the title the first pages had; kept so `close-epic` and existing pages keep working) |
 | Page layout | header (Jira, epic, PRD, branch, the plan's publish date and sha256, this page, status, last update, "posted by an agent"), `## Ticket` (the scope as filed: the ticket's breakdown entry, or the Jira description), `## Progress`, `## Validation`, `## Reviews`, `## Findings and decisions`, then `## Plan` (or `## RCA`): a placeholder until the plan is published |
 | Where the page id is recorded | the ticket's Jira link comment (`Ticket page: … (Confluence page id <id>)`, by `spec` or the first creator); the ticket's entry on the epic breakdown page (`- **Ticket page:** Confluence page <id> (<url>)`, written by `spec`); the worktree's state file (`page_id`, or `fallback=1` for a ticket on the Jira fallback). Nothing in the repo: plans written before this rule may still carry a `**Ticket page**` line, which `find --plan` reads |
-| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `ticket`, `find`, `extract-plan`, `queue`, `state`, `verify`, `stub`, `summary`, `sanitize`; `--help`); its end-to-end test without Atlassian: `.claude/skills/ticket-page/selftest.sh` (run it after changing the helper) |
+| Helper | `uv run .claude/skills/ticket-page/ticket_page.py` (`render`, `ticket`, `find`, `extract-plan`, `progress`, `queue`, `state`, `verify`, `stub`, `summary`, `sanitize`; `--help`); its end-to-end test without Atlassian: `.claude/skills/ticket-page/selftest.sh` (run it after changing the helper) |
 | Working folder (untracked, per worktree) | `<worktree>/.claude/work/<KEY>/` (gitignored): `plan.md` or `rca.md`, `reviews/`, `validation/`, the execution report and system-review notes. Never committed; the page is their lasting record |
 | Local store (untracked, per worktree) | `<git dir>/ticket-page-outbox/`: `<KEY>.jsonl` (queued), `<KEY>.sent.jsonl` (every entry sent, append-only), `<KEY>.state.json` (page id, last version written, the published plan's sha256, date and title, status, fallback comment ids), `<KEY>.last-body.md` (the last body sent), `<KEY>.plan.md` (the plan as last published). `git worktree remove` deletes it and the working folder, so **flush before removing a worktree** and check that `queue --list` prints nothing |
 | Scratch for bodies | the session scratchpad, or `${TMPDIR:-/tmp}/ticket-page/` |
@@ -174,8 +184,12 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
    `publish`. `--mirrored` refuses when the store has no published copy (a fresh worktree, or another session's): then
    read the page (as for `--current`), `ticket_page.py extract-plan --current <the page as read> --out <file>`
    (`.claude/work/<KEY>/plan.md` if the working folder has none, else the scratch directory; exit 3 means the page has
-   no plan yet, so there is nothing to repeat: publish first), and `state --save-plan <file> --set plan_title=<Plan|RCA>
-   plan_source="page version <N>"`; the header then says the copy was rebuilt from the page. The body has no H1
+   no plan yet, so there is nothing to repeat: publish first), and `state --save-plan <file> --plan-title <Plan|RCA>
+   --set plan_source="page version <N>"` (the title `extract-plan` printed); the header then says the copy was rebuilt
+   from the page. A rebuilt copy keeps the plan's heading levels (headings deeper than the page's six levels carry `▸`
+   marks there, which `extract-plan` reverses) and fenced code, but local paths come back as the placeholders
+   `{worktree}`, `{worktrees}`, `{home}`, `{local}/<name>` and Confluence may have changed some formatting, so its
+   sha256 differs from the original's: fix the paths by hand before the next `publish` if they matter. The body has no H1
    (Confluence shows the title): a header (Jira link, epic, PRD, branch and its tip, the plan's publish date and
    sha256, this page, status, last updated by which skill, the "posted by an agent" line), `## Ticket`, the four log
    sections, and `## Plan` (or `## RCA`), the published copy with headings demoted two levels. The Ticket section
@@ -222,9 +236,7 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
      breakdown file is the breakdown page as read (`getConfluencePage`, `contentFormat: "markdown"`; a saved tool
      result works as it is; the source then names its version), or `spec`'s working copy
      `.claude/work/<EPIC>/breakdown.md` of what it publishes (the source names the page "as published by this spec
-     run"). The ticket's entry
- is found by `` `<KEY>` `` in
-     its heading, else by a `Branch:` line (plain or bold) naming `v9-<KEY>-` or `v9-ai-<KEY>-` among the entry's own
+     run"). The ticket's entry is found by `` `<KEY>` `` in its heading, else by a `Branch:` line (plain or bold) naming `v9-<KEY>-` or `v9-ai-<KEY>-` among the entry's own
      lines, else by the key in a heading that names no other key. Exit 3 (no entry, e.g. a ticket added after the
      breakdown, or an epic without a breakdown page) or exit 2 (several entries match; report it) → write the Jira
      description's scope and acceptance criteria to a file and use `ticket … --text <file> --source "the Jira
@@ -270,8 +282,8 @@ kind: rewrite the text). For `status`: `ticket_page.py state … --set status=<s
   a second mismatch → record nothing, report it, stop. Exit 3 (no logged update after `V`) → note "transcription
   unverified" and go on. Then record what is on the page:
   `state --set version=<returned version> page_id=<id> --save-body <scratch>/body.md`, on `publish` also
-  `--save-plan <the working copy> --set plan_title=<Plan|RCA>` (the copy every later flush repeats), then
-  `queue --mark-sent`.
+  `--save-plan <the working copy> --plan-title <Plan|RCA>` (the copy every later flush repeats, and the section it is
+  mirrored under; required), then `queue --mark-sent`.
 - **Another writer:** the update tool has no version check. Expected version = `V` + the number of this flush's own
   successful updates (1, or 2 after a retry). If the final returned version is higher, someone else's update in
   between was overwritten. Entries it carried from this worktree are in the sent log and come back on the next
@@ -293,6 +305,19 @@ _Posted by an agent (ticket-page skill) through the owner's account._
 ```
 
 Older tickets have the same comment headed `Plan page:`; both count (step 2.6, `prime`).
+
+### 6. Epic progress lines (after the update, when `queue --epic --list` is not empty)
+
+1. Find `Progress: <EPIC>`: CQL `type = page AND parent = <PRD id> AND title = "Progress: <EPIC>"`. Two → stop as in
+   step 2.7. None (an epic sliced before `spec` created it) → `ticket_page.py progress --new --meta <scratch>/meta.json
+   --repo <worktree> --out <scratch>/progress.md` and `createConfluencePage` (PRD's `spaceId`, `parentId` = PRD id,
+   that title, `contentFormat: "markdown"`), verified with `verify --created`.
+2. Read it (`getConfluencePage`, markdown, saved) and `ticket_page.py progress --repo <worktree> --key <KEY> --current
+   <saved page> --out <scratch>/progress-body.md`: the page's entries, any of this worktree's epic lines the page lost
+   (from `<KEY>.epic.sent.jsonl`), then the queued lines. It refuses a page without its `## Entries` heading.
+3. `updateConfluencePage` with the body exactly as rendered (`versionMessage` "<KEY> progress lines, <caller>"),
+   `verify --page-id <id> --after-version <V>` as in step 4, then `queue --epic --mark-sent`. A failure leaves the
+   lines queued for the next flush and never blocks the caller. The page is small, so this costs little.
 
 ## Jira fallback: no epic, or no PRD page
 
@@ -398,9 +423,10 @@ and why, and say so in a Progress entry (a new one, or the corrected entry itsel
 Atlassian failures never block the caller. Report the error verbatim in the caller's output as "ticket record not
 updated: <error>; <n> entries kept queued". The entries stay queued (with the working files, the record until then)
 and the next flush sends them. They are lost with the worktree, so a worktree is removed only after a flush that
-left nothing queued. Don't retry into
-another page or space. In an unattended run, every "stop and ask" above becomes "report, write nothing, keep the
+left nothing queued, and a subagent doing ticket work flushes and checks the queue before it returns. Don't retry
+into another page or space. In an unattended run, every "stop and ask" above becomes "report, write nothing, keep the
 entries queued".
+
 
 ## Output
 

@@ -9,7 +9,8 @@
 # the Ticket-section safety checks; (K) find on real read-only Jira/Confluence responses (fixtures/), its evidence
 # rules, stale and moved records, the breakdown Branch-line match and the backfill header; (L) paged listings,
 # the stale-record rule and the missing link comment; (M) the local plan: the mirror moves only on publish, the
-# published copy's checks, extract-plan in a fresh worktree, --state-id, and git status staying clean. Other
+# published copy's checks, extract-plan in a fresh worktree, --state-id, and git status staying clean; (N) h5/h6
+# headings round-trip, the recorded plan title, and the epic's Progress page. Other
 # Atlassian responses
 # and the PostToolUse hook log are simulated.
 # Usage: .claude/skills/ticket-page/selftest.sh [workdir]   (default: a new temporary directory)
@@ -74,7 +75,7 @@ grep -qE '/Users/someone|/scratch/someone|/p/lustre1|file:///Users' "$W/b1.md"; 
 grep -q '^#### not a heading inside a fence' "$W/b1.md"; ok $? 1 "A4 fenced '##' line not demoted"
 fakelog 900 "$W/b1.md" 2
 $T verify --body "$W/b1.md" --page-id 900 --after-version 1 --log "$W/hook.jsonl" >/dev/null; ok $? 0 "A5 verify the first update (v2)"
-$T state --repo "$R" --key T-1 --outbox "$ST" --set version=2 page_id=900 --save-body "$W/b1.md" --save-plan "$R/$P" --date 2026-10-16 >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$ST" --set version=2 page_id=900 --save-body "$W/b1.md" --save-plan "$R/$P" --plan-title Plan --date 2026-10-16 >/dev/null
 $T queue --repo "$R" --key T-1 --outbox "$ST" --mark-sent >/dev/null
 $T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/stub.md" --new-page --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "A6 --new-page refused once a version is written"
 echo "== B. later flushes"
@@ -265,7 +266,7 @@ grep -q '^#### Tasks' "$W/p1.md" && grep -q 'Plan published' "$W/p1.md"; ok $? 0
 $T render --repo "$R" --plan $P --meta "$W/meta.json" --current "$W/spage.json" --new-page --outbox "$TS" --out "$W/x.md" 2>/dev/null; ok $? 2 "J7 --new-page refused on a spec-created page (not a stub)"
 fakelog 950 "$W/p1.md" 2
 $T verify --body "$W/p1.md" --page-id 950 --after-version 1 --log "$W/hook.jsonl" >/dev/null; ok $? 0 "J8 verify the plan publish (v2)"
-$T state --repo "$R" --key T-1 --outbox "$TS" --set version=2 page_id=950 --save-body "$W/p1.md" --save-plan "$R/$P" >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$TS" --set version=2 page_id=950 --save-body "$W/p1.md" --save-plan "$R/$P" --plan-title Plan >/dev/null
 $T queue --repo "$R" --key T-1 --outbox "$TS" --mark-sent >/dev/null
 # execute (with validate queued inside it): --local flush
 $T queue --repo "$R" --key T-1 --outbox "$TS" --add Validation validate "build ok, smoke test ok at abc1234" >/dev/null
@@ -428,7 +429,7 @@ $T extract-plan --current "$W/m1page.json" --out "$W/rebuilt.md" >/dev/null; ok 
 grep -qx '# Feature: T-1 demo' "$W/rebuilt.md" && grep -qx '## Tasks' "$W/rebuilt.md" && grep -qx '## not a heading inside a fence' "$W/rebuilt.md" && ! grep -q 'Added later' "$W/rebuilt.md"; ok $? 0 "M5 headings promoted back two levels, fenced lines untouched, the published version"
 $T extract-plan --current "$W/spage.json" --out "$W/x.md" 2>/dev/null; ok $? 3 "M6 a page with only the Plan placeholder: nothing to rebuild (3)"
 $T state --repo "$R" --key T-1 --outbox "$W/st-fresh" --set page_id=950 >/dev/null
-$T state --repo "$R" --key T-1 --outbox "$W/st-fresh" --save-plan "$W/rebuilt.md" --set plan_source="page version 4" >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$W/st-fresh" --save-plan "$W/rebuilt.md" --plan-title Plan --set plan_source="page version 4" >/dev/null
 $T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/m1page.json" --outbox "$W/st-fresh" --out "$W/m7.md" >/dev/null; ok $? 0 "M7 a fresh worktree flushes with the rebuilt copy"
 grep -q 'rebuilt from page version 4' "$W/m7.md" && grep -q 'tasks 1-3 done' "$W/m7.md"; ok $? 0 "M7 header says the copy was rebuilt from the page; log entries kept"
 $T render --repo "$R" --plan .claude/work/T-1/nope.md --meta "$W/meta.json" --current "$W/spage.json" --outbox "$W/st-fresh" --out "$W/x.md" 2>/dev/null; ok $? 2 "M8 --plan naming a missing working copy is refused"
@@ -436,5 +437,39 @@ $T ticket --repo "$PL" --key T-1 --breakdown "$W/T-0-demo.md" --out "$W/x.md" 2>
 $T find --key T-1 --state-id 950 --comments "$W/issue.json" --search "$W/cql.json" | grep -q '"state file"'; ok $? 0 "M10 find reads the state file's page id"
 $T render --repo "$R" --plan $P --mirrored --meta "$W/meta.json" --current "$W/spage.json" --outbox "$TS" --out "$W/x.md" 2>/dev/null; ok $? 2 "M11 --plan and --mirrored together are refused"
 [ -z "$(git -C "$R" status --porcelain --untracked-files=all)" ]; ok $? 0 "M12 after the whole lifecycle git status is still clean (working copies untracked)"
+echo "== N. review round 1 of the working-docs change: heading depth, plan title, the epic Progress page"
+printf '# T\n\n#### four\n\n##### five\n\n###### six\n\n```\n##### fenced\n```\n' > "$R/.claude/work/T-1/deep.md"
+$T render --repo "$R" --plan .claude/work/T-1/deep.md --meta "$W/meta.json" --current "$W/spage.json" --outbox "$W/st-deep" --out "$W/deep-body.md" >/dev/null; ok $? 0 "N1 a plan with h4-h6 renders"
+grep -qx '###### ▸ five' "$W/deep-body.md" && grep -qx '###### ▸▸ six' "$W/deep-body.md"; ok $? 0 "N1 an h5 beyond markdown's six levels keeps its depth as a mark"
+roundtrip_json(){ python3 - "$1" "$2" <<'EOF'
+import json,re,sys
+s=open(sys.argv[1]).read(); s=re.sub(r"^  ", "", s, flags=re.M); s=re.sub(r"^- ", "* ", s, flags=re.M)
+json.dump([{"type":"text","text":json.dumps({"id":"950","body":s})}],open(sys.argv[2],"w"))
+EOF
+}
+roundtrip_json "$W/deep-body.md" "$W/deep-page.json"
+$T extract-plan --current "$W/deep-page.json" --out "$W/deep-back.md" >/dev/null; ok $? 0 "N2 extract-plan of the deep plan"
+cmp -s "$R/.claude/work/T-1/deep.md" "$W/deep-back.md"; ok $? 0 "N2 h4, h5, h6 and the fenced line come back exactly"
+$T state --repo "$R" --key T-1 --outbox "$W/st-deep" --save-plan "$W/deep-back.md" >/dev/null 2>&1; ok $? 2 "N3 --save-plan without --plan-title is refused"
+$T render --repo "$R" --plan .claude/work/issue-7/rca.md --plan-title RCA --meta "$W/meta.json" --current "$W/spage.json" --outbox "$W/st-rca2" --out "$W/rca2.md" >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$W/st-rca2" --set version=2 page_id=950 --save-body "$W/rca2.md" --save-plan "$R/.claude/work/issue-7/rca.md" --plan-title RCA >/dev/null
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --page-version 2 --outbox "$W/st-rca2" --out "$W/rca3.md" >/dev/null; ok $? 0 "N4 a later flush of an RCA ticket (--mirrored)"
+grep -qx '## RCA' "$W/rca3.md" && ! grep -qx '## Plan' "$W/rca3.md"; ok $? 0 "N4 the recorded title keeps the section '## RCA'"
+python3 -c "import json;json.dump(dict(epic='T-0',epic_url='https://x/browse/T-0',prd_title='PRD: T-0 - Demo',prd_url='https://x/wiki/1'),open('$W/pmeta.json','w'))"
+$T progress --new --meta "$W/pmeta.json" --repo "$R" --out "$W/prog0.md" >/dev/null; ok $? 0 "N5 Progress page skeleton"
+grep -qx '## Entries' "$W/prog0.md"; ok $? 0 "N5 it has the Entries heading"
+PS="$W/st-prog"
+$T queue --repo "$R" --key T-1 --outbox "$PS" --epic --add - execute "tasks 1-3 done, commits a..b" >/dev/null
+$T queue --repo "$R" --key T-1 --outbox "$PS" --epic --add - loop "implementation APPROVE (round 1)" >/dev/null
+$T queue --repo "$R" --key T-1 --outbox "$PS" --list | grep -q 'tasks 1-3'; ok $? 1 "N6 epic entries are kept apart from the ticket page's outbox"
+$T progress --repo "$R" --key T-1 --current "$W/prog0.md" --outbox "$PS" --out "$W/prog1.md" | grep -q '2 new'; ok $? 0 "N6 two epic entries appended"
+grep -q 'T-1 execute · tasks 1-3 done' "$W/prog1.md"; ok $? 0 "N6 each line names the ticket and the skill"
+$T queue --repo "$R" --key T-1 --outbox "$PS" --epic --mark-sent >/dev/null
+roundtrip_json "$W/prog1.md" "$W/prog1.json"
+$T progress --repo "$R" --key T-1 --current "$W/prog1.json" --outbox "$PS" --out "$W/prog2.md" | grep -q '0 new, 0 restored'; ok $? 0 "N7 after a round trip: no duplicates"
+python3 -c "s=open('$W/prog1.md').read(); i=s.index('- **'); j=s.index('\n', i); open('$W/prog-lost.md','w').write(s[:i]+s[j+1:])"
+$T progress --repo "$R" --key T-1 --current "$W/prog-lost.md" --outbox "$PS" --out "$W/prog3.md" | grep -q '1 restored'; ok $? 0 "N8 an own entry the page lost is restored from the epic sent log"
+printf 'no heading here\n' > "$W/prog-bad.md"
+$T progress --repo "$R" --key T-1 --current "$W/prog-bad.md" --outbox "$PS" --out "$W/x.md" 2>/dev/null; ok $? 2 "N9 a page without the Entries heading is refused"
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

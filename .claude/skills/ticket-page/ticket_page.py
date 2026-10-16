@@ -23,6 +23,8 @@ same thing.
   ticket    Build the Ticket section: the ticket's entry in the epic breakdown (a local file: the breakdown page as
             read from Confluence, or spec's working copy of what it published; found by key), or a given text (the
             Jira description), with its source.
+  progress  The epic's `Progress: <EPIC>` page: its skeleton (--new), or its entries plus this worktree's queued
+            epic entries (queue --epic), one dated line per ticket milestone.
   extract-plan  Rebuild the plan (or RCA) working copy from the page's mirror (headings promoted back two levels),
             for a worktree that has no local plan (a fresh worktree, another session).
   find      Find a ticket's page id from the state file (--state-id), an older plan's Ticket page line, the ticket's
@@ -50,9 +52,13 @@ Usage:
                         [--fallback]   (exit 0 found; 3 none, only on a complete listing and comment list
                         (--fallback: the comment list); 2 several or can't tell: stop and report)
   ticket_page.py queue  --repo WT --key KEY [--outbox DIR]
-                        (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
+                        [--epic] (--add SECTION SOURCE TEXT [--date D] | --list | --mark-sent | --sent)
+                        (--epic: the epic Progress page's queue; SECTION is ignored, pass -)
+  ticket_page.py progress (--new --meta meta.json | --repo WT --key KEY --current page [--entry SOURCE TEXT]...)
+                        [--outbox DIR] --out body.md
   ticket_page.py state  --repo WT --key KEY [--outbox DIR] [--set NAME=VALUE ...] [--save-body body.md]
-                        [--save-plan FILE [--date D]]
+                        [--save-plan FILE --plan-title Plan|RCA [--date D]]
+
   ticket_page.py extract-plan --current page.md|page.json --out FILE   (exit 3: the page has no plan mirrored yet)
   ticket_page.py verify --body body.md (--page-id ID [--after-version N] | --created --title T [--parent-id P])
                         [--log PATH] [--repo WT]
@@ -191,6 +197,37 @@ def split_fences(lines):
                 yield ln, True
                 continue
         yield ln, fence is not None
+
+
+DEEP = "\u25b8"  # marks a heading deeper than markdown's six levels after demotion: "###### \u25b8 h5", "\u25b8\u25b8 h6"
+
+
+def demote_marked(md, by=2):
+    """Demote headings (outside fences) by `by`; a heading pushed past level 6 stays at 6 and keeps its depth as one
+    DEEP mark per level beyond 6, so extract-plan can restore it."""
+    out = []
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            m = re.match(r"^(#{1,6})(\s+)(.*)$", ln)
+            if m:
+                lvl = len(m.group(1)) + by
+                extra = max(0, lvl - 6)
+                ln = "#" * min(6, lvl) + " " + (DEEP * extra + " " if extra else "") + m.group(3)
+        out.append(ln)
+    return "\n".join(out)
+
+
+def promote_marked(md, by=2):
+    """Undo demote_marked: promote headings (outside fences) by `by`, restoring the DEEP-marked ones."""
+    out = []
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence:
+            m = re.match(r"^(#{1,6})\s+(" + DEEP + r"*)\s*(.*)$", ln)
+            if m and len(m.group(1)) > by:
+                lvl = len(m.group(1)) + len(m.group(2)) - by
+                ln = "#" * lvl + " " + m.group(3)
+        out.append(ln)
+    return "\n".join(out)
 
 
 def demote(md, by=2):
@@ -540,7 +577,7 @@ def cmd_render(a):
     if skeleton:
         body += ["## Plan", "", PLAN_BACKFILLED if meta.get("backfilled") else PLAN_PLACEHOLDER, ""]
     else:
-        body += [f"## {plan_title}", "", demote(plan.strip(), 2), ""]
+        body += [f"## {plan_title}", "", demote_marked(plan.strip(), 2), ""]
     text = sanitize("\n".join(body), a.repo)
     refuse_secrets(text, "the page body")
     Path(a.out).write_text(text)
@@ -556,10 +593,13 @@ def cmd_render(a):
 
 def cmd_queue(a):
     d = store_dir(a.repo, a.outbox)
-    box, sent = d / f"{a.key}.jsonl", d / f"{a.key}.sent.jsonl"
+    tag = ".epic" if a.epic else ""
+    box, sent = d / f"{a.key}{tag}.jsonl", d / f"{a.key}{tag}.sent.jsonl"
     if a.add:
         sec, source, text = a.add
-        if sec not in SECTIONS:
+        if a.epic:
+            sec, source = EPIC_SECTION, f"{a.key} {source}"
+        elif sec not in SECTIONS:
             die(f"section must be one of {SECTIONS}")
         text = sanitize(text, a.repo)
         refuse_secrets(text, "the entry")
@@ -594,10 +634,13 @@ def cmd_state(a):
         (d / f"{a.key}.last-body.md").write_text(Path(a.save_body).read_text())
         print(f"ticket_page: saved {a.save_body} as the last body sent")
     if a.save_plan:
+        if not a.plan_title:
+            die("--save-plan needs --plan-title Plan|RCA (the section the page mirrors it under)")
         text = Path(a.save_plan).read_text()
         d.mkdir(parents=True, exist_ok=True)
         (d / f"{a.key}.plan.md").write_text(text)
-        st.update(plan_hash=plan_hash(text), plan_published=a.date or date.today().isoformat())
+        st.update(plan_hash=plan_hash(text), plan_published=a.date or date.today().isoformat(),
+                  plan_title=a.plan_title)
         st.pop("plan_source", None)
         print(f"ticket_page: saved {a.save_plan} as the published plan (sha256 {st['plan_hash']})")
     for kv in a.set or []:
@@ -995,20 +1038,69 @@ def cmd_extract_plan(a):
                 break
     body = "\n".join(lines[start:]).strip() if start is not None else ""
     if not body or norm(body) in (norm(PLAN_PLACEHOLDER), norm(PLAN_BACKFILLED), norm(OLD_PLAN_BACKFILLED)):
-
         print("ticket_page: the page has no plan mirrored yet (no Plan/RCA section, or only its placeholder)",
               file=sys.stderr)
         return 3
-    out = []
-    for ln, in_fence in split_fences(body.splitlines()):
-        if not in_fence:
-            m = re.match(r"^(#{3,6})(\s.*)$", ln)
-            if m:
-                ln = "#" * (len(m.group(1)) - 2) + m.group(2)
-        out.append(ln)
-    Path(a.out).write_text("\n".join(out).rstrip() + "\n")
-    print(f"ticket_page: wrote {a.out} ({title} section, {len(out)} lines; rebuilt from the page, so formatting may "
-          "differ from the original working copy)")
+    text = promote_marked(body, 2)
+    Path(a.out).write_text(text.rstrip() + "\n")
+    print(f"ticket_page: wrote {a.out} ({title} section, {len(text.splitlines())} lines; rebuilt from the page: local "
+          "paths come back as the placeholders {worktree}, {worktrees}, {home}, {local}/<name>, and Confluence may "
+          f"have changed some formatting). Record it with: state --save-plan {a.out} --plan-title {title}")
+    return 0
+
+
+EPIC_SECTION = "Entries"
+
+
+def cmd_progress(a):
+    """The epic's `Progress: <EPIC>` page: --new builds the skeleton; otherwise the current page's entries, plus any
+    entry of this worktree's epic sent log the page lost, plus the queued epic entries (and --entry)."""
+    if a.new:
+        meta = json.loads(Path(a.meta).read_text())
+        missing = [k for k in ("epic", "epic_url", "prd_title", "prd_url") if not meta.get(k)]
+        if missing:
+            die("meta.json is missing " + ", ".join(missing))
+        body = [f"> **Epic:** [{meta['epic']}]({meta['epic_url']}) · **PRD:** [{meta['prd_title']}]({meta['prd_url']})",
+                ">",
+                "> **Posted by an agent** through the owner's Atlassian account. The epic's progress log: one dated line"
+                " per ticket milestone (execute finished, a validate run on its own, approval, escalation, commit) and"
+                " per owner decision (marked Owner only with its source), appended by the ticket-page skill."
+                " Append-only; `close-epic` reads it.", "", f"## {EPIC_SECTION}", "", EMPTY, ""]
+        text = sanitize("\n".join(body), a.repo or ".")
+        refuse_secrets(text, "the page body")
+        Path(a.out).write_text(text)
+        print(f"ticket_page: wrote {a.out} (Progress page skeleton)")
+        return 0
+    if not (a.repo and a.key and a.current):
+        die("progress needs --new --meta, or --repo --key --current")
+    md = load_current(a.current)
+    head, entries, seen = [], [], False
+    for ln, in_fence in split_fences(md.splitlines()):
+        if not in_fence and _heading(ln)[1] == EPIC_SECTION:
+            seen = True
+            continue
+        (entries if seen else head).append(ln)
+    if not seen:
+        die(f"--current lacks the '## {EPIC_SECTION}' heading; refusing to build a body that would drop its entries")
+    have = entry_blocks(entries)
+    d = store_dir(a.repo, a.outbox)
+    sent, pending = read_jsonl(d / f"{a.key}.epic.sent.jsonl"), read_jsonl(d / f"{a.key}.epic.jsonl")
+    extra = [{"section": EPIC_SECTION, "source": f"{a.key} {src}", "text": sanitize(t, a.repo),
+              "date": a.date or date.today().isoformat()} for src, t in (a.entry or [])]
+    counts = []
+    for group in (sent, pending + extra):
+        n = 0
+        for e in group:
+            block = entry_text(e)
+            if norm(block) not in {norm(x) for x in have}:
+                have.append(block)
+                n += 1
+        counts.append(n)
+    text = "\n".join(head).rstrip() + f"\n\n## {EPIC_SECTION}\n\n" + "\n".join(have or [EMPTY]) + "\n"
+    text = sanitize(text, a.repo)
+    refuse_secrets(text, "the page body")
+    Path(a.out).write_text(text)
+    print(f"ticket_page: wrote {a.out} ({len(have)} entries; {counts[1]} new, {counts[0]} restored from the sent log)")
     return 0
 
 
@@ -1060,6 +1152,8 @@ def main():
     qg.add_argument("--list", action="store_true")
     qg.add_argument("--mark-sent", action="store_true")
     qg.add_argument("--sent", action="store_true")
+    q.add_argument("--epic", action="store_true",
+                   help="the epic's Progress page instead of the ticket page (--add's SECTION is ignored)")
     q.add_argument("--date")
     s = sub.add_parser("state")
     s.add_argument("--repo", required=True)
@@ -1069,6 +1163,7 @@ def main():
     s.add_argument("--save-body", metavar="BODY", help="record BODY as the last body sent (after a verified update)")
     s.add_argument("--save-plan", metavar="FILE",
                    help="record FILE as the published plan (after a verified publish): its copy, sha256 and date")
+    s.add_argument("--plan-title", choices=["Plan", "RCA"], help="with --save-plan: Plan or RCA (required)")
     s.add_argument("--date")
     v = sub.add_parser("verify")
     v.add_argument("--body", required=True)
@@ -1115,6 +1210,16 @@ def main():
     xp = sub.add_parser("extract-plan")
     xp.add_argument("--current", required=True, help="the page as read (markdown, or the saved tool result)")
     xp.add_argument("--out", required=True)
+    pr = sub.add_parser("progress")
+    pr.add_argument("--new", action="store_true", help="the skeleton of a new Progress page (needs --meta)")
+    pr.add_argument("--meta")
+    pr.add_argument("--repo")
+    pr.add_argument("--key")
+    pr.add_argument("--current", help="the Progress page as read (markdown, or the saved tool result)")
+    pr.add_argument("--entry", nargs=2, action="append", metavar=("SOURCE", "TEXT"))
+    pr.add_argument("--outbox")
+    pr.add_argument("--date")
+    pr.add_argument("--out", required=True)
     st = sub.add_parser("stub")
     st.add_argument("--key", required=True)
     z = sub.add_parser("sanitize")
@@ -1124,7 +1229,8 @@ def main():
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
                 "stub": cmd_stub, "summary": cmd_summary, "sanitize": cmd_sanitize, "ticket": cmd_ticket,
-                "find": cmd_find, "extract-plan": cmd_extract_plan}[a.cmd](a)
+                "find": cmd_find, "extract-plan": cmd_extract_plan,
+                "progress": cmd_progress}[a.cmd](a)
     except subprocess.CalledProcessError as e:
         die("git failed: " + (e.stderr or "").strip())
     except (OSError, ValueError, KeyError) as e:
