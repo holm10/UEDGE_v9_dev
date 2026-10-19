@@ -11,8 +11,12 @@ harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with 
 
 `tests/yldot/` holds the case families of the yldot suite (epic AIUE-9): `families/<f>/` with `input.py` in normal
 form (it never loads a state), the grid, `reference_state.h5`, a seeded perturbed `base_state.h5` and `family.toml`
-(provenance, convergence norms, σ, seed, floors); the rate files once in `data/`; and
-`tests/yldot/tools/make_base_state.py` (`check`, `make`). There is no pytest collection yet (harness: AIUE-82).
+(provenance, convergence norms, σ, seed, floors, `[evaluation]` W/P/timeout/Δt placeholders); the rate files once in
+`data/`; and `tests/yldot/tools/make_base_state.py` (`check`, `make`). The harness `tests/yldot/harness/` (package
+`yldot.harness`) runs every evaluation in an isolated child: `process.py` (`Runner`: forkserver preloading `uedge`,
+or spawn; HOME/cwd in an empty directory; timeouts; results `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family
+defect) and `state.py` (the PRD §6 protocol, `steady` and `timestep`, returning `yldot` and `yldot_J`). Run it as
+`pytest tests/yldot` (never `pytest tests/`); `tests/yldot/test_smoke.py` is the smoke test (about 15 s).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
