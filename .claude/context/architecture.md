@@ -44,10 +44,10 @@
 
 ## Build pipeline
 
-1. `pip install .` → `setup.py` `uedgeBuild.run` (`setup.py:698`).
-2. `mppl2f90` converts every `*.m` → `*.F` in place via the `M2F` rule list (`setup.py:632-674`).
-3. `make -f Makefile.Forthon` runs `Forthon3` per package with `--interfacefile <pkg>/<pkg>.v`, producing the `uedge/<pkg>py.so` extensions (not `uedgeC`). In the OpenMP build on Linux, `setup.py` runs that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link (`setup.py:775-791`). macOS relies on `uedgeC` loading libomp.
-4. `build.run` then builds the C extension `uedgeC` (`setup.py:793,804,820`), linked with `-fopenmp`.
+1. `pip install .` → `setup.py` `uedgeBuild.run` (`setup.py:705`).
+2. `mppl2f90` converts every `*.m` → `*.F` in place via the `M2F` rule list (`setup.py:639-681`).
+3. `make -f Makefile.Forthon` runs `Forthon3` per package with `--interfacefile <pkg>/<pkg>.v`, producing the `uedge/<pkg>py.so` extensions (not `uedgeC`). In the OpenMP build on Linux, `setup.py` runs that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link (`setup.py:777-793`). macOS relies on `uedgeC` loading libomp.
+4. `build.run` then builds the C extension `uedgeC` (`setup.py:795,806,822`), linked with `-fopenmp` in the OpenMP build. A `--serial` build removes its OpenMP flags at module level, before `setup()` copies `FLAGS['CARGS']` into the `uedgeC` link arguments (`setup.py:99-104`, AIUE-109).
 5. `src/uedge/__init__.py` imports each `<pkg>py` with `RTLD_GLOBAL` so cross-package symbols resolve; order matters.
 
 BASIS build (legacy, CI via Docker `build-basis.yml`) uses `*/Package`, `*/PackageMake`, `uedge.pack`.

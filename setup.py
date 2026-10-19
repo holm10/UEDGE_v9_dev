@@ -96,6 +96,13 @@ FLAGS  = {
     'OMPargs': ['--omp'],
 }
 
+# A serial build drops the OpenMP flags here, before setup() below copies FLAGS['CARGS'] into the uedgeC link
+# line. Removed only in uedgeBuild.run, they still reached that link (AIUE-109).
+if arglist['serial']:
+    FLAGS['OMPargs'].remove('--omp')
+    FLAGS['FARGS'].remove('-fopenmp')
+    FLAGS['CARGS'].remove('-fopenmp')
+
 fcompiler = FCompiler(machine=machine,
                       debug=int(arglist['debug']),
                       fcompname=fcomp)
@@ -729,15 +736,10 @@ class uedgeBuild(build):
             build.run(self)
             return
         '''
-        # If serial buid requested, remove parallel flags
+        # Flag for localrules (a serial build removed its OpenMP flags above, at module level)
         if arglist['serial']:
-            FLAGS['OMPargs'].remove('--omp')
-            FLAGS['FARGS'].remove('-fopenmp')
-            FLAGS['CARGS'].remove('-fopenmp')
-            # Flag for localrules
             os.environ["OMP"] = "FALSE"
         else:
-            # Flag for localrules
             os.environ["OMP"] = "TRUE"
         # Unoptimised build without FPE traps, for the yldot round-off measurement (AIUE-85)
         if arglist['noopt']:
