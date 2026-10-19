@@ -5,7 +5,7 @@
 | Pkg | Role | Key files |
 |---|---|---|
 | `com` | Shared constants/dims/geometry used by every package (`nx`, `ny`, `nxpt`, `ixm1/ixp1`, `iprint`) | `com.v`, `comutil.m`, `misc.m`, `blasext.m`, `petscMod.F90` |
-| `aph` | Hydrogenic atomic rates (reads `rates/aph/*.dat`, `aph.crmdir` set in `__init__.py`) | `aphrates.m`, `aphread.m` |
+| `aph` | Hydrogenic atomic rates (reads the CRUMPET files `rates/aph/*.dat`, installed as `uedge/rates/aph/`; `aph.crmdir` points there, set in `__init__.py`) | `aphrates.m`, `aphread.m` |
 | `api` | Impurities: rates, sputtering, force balance (`fmombal`) | `apifcn.m`, `sputt.m`, `fmombal.m`, `inelrates.m` |
 | `flx` | Flux-surface construction from EFIT eqdsk | `flxcomp.m`, `flxdriv.m`, `flxread.m` |
 | `grd` | Mesh generation from flux surfaces, `gridue` I/O | `grdcomp.m`, `grddriv.m`, `grdread.m` |
