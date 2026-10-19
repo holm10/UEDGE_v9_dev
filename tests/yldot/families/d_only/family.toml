@@ -5,7 +5,8 @@
 name = "d_only"
 grid = "gridue"
 store = "full"
-rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py
+rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+                # relative paths: every evaluation must run with the family directory as cwd
 neq = 420
 
 [source]

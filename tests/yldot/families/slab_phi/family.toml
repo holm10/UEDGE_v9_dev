@@ -3,16 +3,17 @@
 
 [family]
 name = "slab_phi"
-grid = "gridue"
+grid = "generated"  # slab mesh generated from the grd.* settings in input.py; no grid file
 store = "full"
-rate_files = ["ehr2.dat"]  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py
+rate_files = ["ehr2.dat"]  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+                # relative paths: every evaluation must run with the family directory as cwd
 neq = 4522
 
 [source]
 repo = "llnl/UEDGE"
 ref = "b535508"  # branch pytests
 input = "pytests/unittests/slab_D_only/slab/default/input.py"
-grid = "templates/grids/slab/gridue"
+grid = "templates/grids/slab/gridue"  # 0 bytes in the source, not copied
 state = "templates/grids/slab/solution.h5"
 state_sha256 = "e8eee22ddc1dc81583576f00f309fbaea91c868074f9be75e261635d42724880"
 input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (164-166) removed; aph.aphdir set"
