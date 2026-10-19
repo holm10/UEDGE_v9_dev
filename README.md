@@ -86,6 +86,7 @@ There are a number of build options available for building the code:
   noclean - does not clean the build directory between builds
   checkbounds - turns on boundary checks for non-debug builds 
   debug - turns on compiler debugging flags
+  noopt - compiles the Fortran at -O0 without FPE traps (round-off studies; not with debug)
 
 The options are passed to the build using the following syntax
 
