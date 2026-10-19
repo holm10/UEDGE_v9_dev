@@ -14,7 +14,11 @@ How it knows: `.claude/context/refs.lock.json` stores, for every cited `file:lin
 when someone last checked the reference by hand. A reference is
 
   OK       the cited line still has the locked text;
-  MOVED    the locked text now sits on exactly one other line (`--fix` rewrites the number in the doc);
+  MOVED    the locked text now sits on exactly one other line, or, for a number whose text is not unique (a
+           range end like `],`), on the line the nearest such number of the same reference moved it to
+           (`--fix` rewrites the number in the doc and moves its lock entry). The second kind is a heuristic,
+           marked `(with line k)`: check it in the doc diff. `--fix` holds back a move onto a line that another
+           reference cites as STALE or NEW, so no lock entry is overwritten;
   STALE    the locked text is gone. The claim must be re-checked by a person or agent, then `--update`;
   BROKEN   the file is missing, or the line is past the end of the file;
   NEW      the reference isn't in the lock yet. Check it, then `--update`;
@@ -107,7 +111,7 @@ def scan():
 
 
 def check(lock, changed=None):
-    problems, moved, seen = [], [], set()
+    problems, moved, seen, unsettled = [], [], set(), set()
     for doc, i, m, path in scan():
         where = f"{doc}:{i}"
         cited = m.group(0)
@@ -116,24 +120,37 @@ def check(lock, changed=None):
                 problems.append(("BROKEN", where, cited, "file not found"))
             continue
         lines = lines_of(path)
+        found = []  # (n, locked text, lines now holding it) for every number of this reference
         for a, b in numbers(m.group("nums")):
             for n in {a, b}:
-                key = f"{path}:{n}"
-                seen.add(key)
-                if n > len(lines):
-                    problems.append(("BROKEN", where, cited, f"{path} has only {len(lines)} lines"))
+                seen.add(f"{path}:{n}")
+                want = lock.get(f"{path}:{n}")
+                gone = n <= len(lines) and want is not None and want != norm(lines[n - 1])
+                found.append((n, want, [k for k, t in enumerate(lines, 1) if norm(t) == want] if gone else []))
+        # numbers whose text sits on exactly one other line; a number whose text is not unique (a range end
+        # like `],`) moves by the shift of the nearest of these, if its text is on the shifted line
+        shifts = [(n, hits[0] - n) for n, _want, hits in found if len(hits) == 1]
+        for n, want, hits in found:
+            if n > len(lines):
+                problems.append(("BROKEN", where, cited, f"{path} has only {len(lines)} lines"))
+                continue
+            have = norm(lines[n - 1])
+            if want is None:
+                unsettled.add(f"{path}:{n}")
+                problems.append(("NEW", where, cited, f"line {n}: {have[:70]!r}"))
+            elif want != have:
+                if len(hits) == 1:
+                    moved.append((doc, i, m.start(), path, n, hits[0]))
+                    problems.append(("MOVED", where, cited, f"line {n} -> {hits[0]}"))
                     continue
-                want = lock.get(key)
-                have = norm(lines[n - 1])
-                if want is None:
-                    problems.append(("NEW", where, cited, f"line {n}: {have[:70]!r}"))
-                elif want != have:
-                    hits = [k for k, t in enumerate(lines, 1) if norm(t) == want]
-                    if len(hits) == 1:
-                        moved.append((doc, i, path, n, hits[0]))
-                        problems.append(("MOVED", where, cited, f"line {n} -> {hits[0]}"))
-                    else:
-                        problems.append(("STALE", where, cited, f"line {n} was {want[:60]!r}, now {have[:60]!r}"))
+                for k, d in sorted(shifts, key=lambda s: abs(s[0] - n)):
+                    if 0 < n + d <= len(lines) and norm(lines[n + d - 1]) == want:
+                        moved.append((doc, i, m.start(), path, n, n + d))
+                        problems.append(("MOVED", where, cited, f"line {n} -> {n + d} (with line {k})"))
+                        break
+                else:
+                    unsettled.add(f"{path}:{n}")
+                    problems.append(("STALE", where, cited, f"line {n} was {want[:60]!r}, now {have[:60]!r}"))
     for doc in docs():
         rel = str(doc.relative_to(ROOT))
         for i, line in enumerate(doc.read_text().splitlines(), 1):
@@ -144,25 +161,24 @@ def check(lock, changed=None):
                 if "/" in p and not p.startswith(EXTERNAL) and "<" not in p and "*" not in p \
                         and not (ROOT / p).exists():
                     problems.append(("MISSING", f"{rel}:{i}", p, "path does not exist"))
-    return problems, moved, seen
+    return problems, moved, seen, unsettled
 
 
 def fix(moved):
-    """Rewrite moved line numbers in the docs (only exact `path:N` occurrences on the reporting line)."""
+    """Rewrite moved line numbers in the docs (only in the reference that reported the move)."""
     by_line = {}
-    for doc, i, path, old, new in moved:
-        by_line.setdefault((doc, i), []).append((path, old, new))
+    for doc, i, start, _path, old, new in moved:
+        by_line.setdefault((doc, i), []).append((start, old, new))
     for (doc, i), items in by_line.items():
         p = ROOT / doc
         text = p.read_text().splitlines(keepends=True)
         line = text[i - 1]
 
         def repl(m):
-            path = resolve(m.group("path"))
+            mp = {o: n for (s, o, n) in items if s == m.start()}  # offsets in the line as scanned
             parts = []
             for part in m.group("nums").split(","):
                 a, sep, b = part.partition("-")
-                mp = {o: n for (pp, o, n) in items if pp == path}
                 a2 = str(mp.get(int(a), int(a)))
                 b2 = str(mp.get(int(b), int(b))) if b else ""
                 parts.append(a2 + (sep + b2 if b else ""))
@@ -208,15 +224,33 @@ def main() -> int:
         print(f"locked {len(new)} references in {LOCK.relative_to(ROOT)}")
         return 0
 
-    problems, moved, seen = check(lock)
+    problems, moved, seen, unsettled = check(lock)
+    if a.fix and moved:
+        # a move onto a line another reference cites as STALE or NEW would overwrite that lock entry: hold it back,
+        # and its own old key stays cited, so repeat along chains
+        held, n_held = set(unsettled), 0
+        while True:
+            keep = [mv for mv in moved if f"{mv[3]}:{mv[5]}" not in held]
+            if len(keep) == len(moved):
+                break
+            held |= {f"{mv[3]}:{mv[4]}" for mv in moved if mv not in keep}
+            n_held += len(moved) - len(keep)
+            moved = keep
+        if n_held:
+            print(f"held back {n_held} move(s) onto lines another reference cites as STALE or NEW: "
+                  f"re-check those, then --fix again")
     if a.fix and moved:
         fix(moved)
-        for _doc, _i, path, old, new in moved:  # the locked text travels with the line
-            lock[f"{path}:{new}"] = lock[f"{path}:{old}"]
-        LOCK.write_text(json.dumps(dict(sorted(lock.items())), indent=1) + "\n")
+        snap = dict(lock)  # in a chain (a -> b, b -> c), b's entry is overwritten before it is copied
+        for _doc, _i, _s, path, old, new in moved:  # the locked text travels with the line
+            lock[f"{path}:{new}"] = snap[f"{path}:{old}"]
         _cache.clear()
         print(f"fixed {len(moved)} moved line number(s) in the docs and the lock")
-        problems, moved, seen = check(lock)
+        olds = {f"{path}:{old}" for _doc, _i, _s, path, old, _new in moved}
+        problems, moved, seen, unsettled = check(lock)
+        for key in olds - seen:  # moved-from entries that nothing cites any more
+            del lock[key]
+        LOCK.write_text(json.dumps(dict(sorted(lock.items())), indent=1) + "\n")
 
     if a.changed:
         try:
