@@ -73,6 +73,7 @@ ueplot = [
 packages = [
     "uedge",
     "uedge.rates",
+    "uedge.rates.aph",
 ]
 script-files = [
     "pyscripts/pdb2hdf5",
