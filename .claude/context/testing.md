@@ -4,10 +4,15 @@
 `LLNL/UEDGE` (`upstream/pytests`), and CI checks it out after building (`.github/workflows/build-test-wheel.yml:55-95`).
 There are no unit tests of individual Fortran routines and no coverage measurement.
 
-The repository holds one test case: `tests/deterministic_omp/`, the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
+The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
 data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
 harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with the test flow `cli.py flow`, see
 `openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet.
+
+`tests/yldot/` holds the case families of the yldot suite (epic AIUE-9): `families/<f>/` with `input.py` in normal
+form (it never loads a state), the grid, `reference_state.h5`, a seeded perturbed `base_state.h5` and `family.toml`
+(provenance, convergence norms, σ, seed, floors); the rate files once in `data/`; and
+`tests/yldot/tools/make_base_state.py` (`check`, `make`). There is no pytest collection yet (harness: AIUE-82).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
