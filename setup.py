@@ -38,6 +38,7 @@ arglist = {
         'serial': False,
         'checkbounds': False,
         'noclean': False,
+        'noopt': False,
 #        'petsc': False,
 }
 
@@ -738,6 +739,11 @@ class uedgeBuild(build):
         else:
             # Flag for localrules
             os.environ["OMP"] = "TRUE"
+        # Unoptimised build without FPE traps, for the yldot round-off measurement (AIUE-85)
+        if arglist['noopt']:
+            if arglist['debug']:
+                raise SystemExit("--noopt cannot be combined with --debug")
+            FLAGS['FARGSOPT'] = ['-O0']
         # Add boundary checking to non-debug build
         if arglist['checkbounds']:
             FLAGS['FARGSOPT'] = FLAGS['FARGSOPT']  + [
