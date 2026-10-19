@@ -39,7 +39,7 @@ Arguments after "--" are passed to the child:
   --iprint N         com.iprint (default 1, so nksol prints the fnrm sequence)
 
 --add-file PATH copies an extra file into the run directory (e.g. rates/aph/crumpet_nrates.dat
-and crumpet_Erates.dat, which the installed package does not ship; the D_mols decks need both).
+and crumpet_Erates.dat, which D_mols decks need in the cwd only on builds before AIUE-110).
 
 Environment of the child: HOME is an empty temporary directory; OMP_NUM_THREADS
 (--threads, default 1), OMP_STACKSIZE (default 512M) and any --env K=V are set.
@@ -201,7 +201,7 @@ def run_one(python, case, deck, child_args, threads, envs, keep, add_files=()):
     work = tempfile.mkdtemp(prefix="capchk_")
     rundir = os.path.join(work, "case")
     shutil.copytree(case, rundir, ignore=shutil.ignore_patterns("__pycache__"))
-    for f in add_files:  # e.g. rate files the installed package does not ship
+    for f in add_files:  # e.g. rate files that builds before AIUE-110 do not install
         shutil.copy(f, rundir)
     home = os.path.join(work, "home")
     os.mkdir(home)

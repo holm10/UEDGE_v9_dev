@@ -58,7 +58,7 @@ from harness.compare import compare_records, format_report  # noqa: E402
 from harness.config import PRESETS, RunSpec  # noqa: E402
 from harness.runner import REPO_DIR, HarnessError, Record, parse_iterations, run_spec  # noqa: E402
 
-CRUMPET = ["rates/aph/crumpet_nrates.dat", "rates/aph/crumpet_Erates.dat"]  # D_mols decks read them from cwd
+CRUMPET = ["rates/aph/crumpet_nrates.dat", "rates/aph/crumpet_Erates.dat"]  # base builds before AIUE-110 read them from cwd
 CAPTURE_SLOTS = 16  # raw Jacobians kept per run with the AIUE-47 hook (more is a harness error)
 BASE_REF = "origin/v9-develop"
 
@@ -103,7 +103,7 @@ ALL = (["repro-full-it3", "repro-full", "repro-ni", "repro-up", "repro-te_phi", 
        + sorted(n for n in CASES if n.startswith("pytests-unit-")))
 # Cases that fail on v9-develop itself (0fac655), in both builds: left out of "all", still runnable by name.
 EXCLUDED = {
-    "pytests-orthogonal": "input.py stops with 'ueinit -- error in sign sx, sy'; the upstream test fails the same way",
+    "pytests-orthogonal": "input.py stops with 'ueinit -- error in sign sx, sy' on builds before AIUE-110",
 }
 assert sorted(ALL + list(EXCLUDED)) == sorted(CASES) and not set(ALL) & set(EXCLUDED) and set(QUICK) <= set(ALL)
 
