@@ -1,0 +1,50 @@
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
+# [evaluation] W, P, child reuse: AIUE-86 · timeouts: AIUE-82/86 · [regions], guard cells: AIUE-83
+
+[family]
+name = "d_mols"
+grid = "gridue"
+store = "full"
+rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py
+neq = 480
+
+[source]
+repo = "llnl/UEDGE"
+ref = "b535508"  # branch pytests
+input = "pytests/unittests/D_mols/nonog_mols/default/input.py"
+grid = "templates/grids/nonog_mols/gridue"
+state = "templates/grids/nonog_mols/solution.h5"
+state_sha256 = "b521e53720d21714da6ebddd0df58068655ff25da19673dd8429d79e5f59e964"
+input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (152-154) removed"
+
+[reference_state]
+file = "reference_state.h5"
+origin = "pytests template state, used as is, no reconvergence (owner, 2026-10-19)"
+norm = "nksol max |sfscal*yldot| <= ftol"
+ftol = 1e-08
+fmax = 8.6316e-01
+fnrm_l2 = 2.2085e+00
+converged = false  # information only, gates nothing
+build_commit = "e7f5e9f4d63b838261af682649aa6e610e799bb7"
+build = "serial"
+uedge_ver = "8.1.2-beta.0"
+
+[perturbation]
+sigma = 0.05
+seed = 81002
+rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
+min_block_ratio = 15.22
+floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
+near_floor_factor = 1.1
+near_floor_tes = { reference = 0, base = 0 }
+near_floor_tis = { reference = 0, base = 0 }
+near_floor_tgs = { reference = 0, base = 0 }
+near_floor_ngs = { reference = 0, base = 0 }
+base_state_sha256 = "2849f2412735b94a2ac4063dfb29b42f6071216e728281f1c3df0e6c0f9d97af"
+reference_state_sha256 = "c12ebae52fd732eb961e31a7b752b8dbdfc624df9ee990ed14a32001daa3b564"
+base_state_data_sha256 = "996dec43e3d802543415ada51cd83cf56b38da9589c366b0aed8838df15db391"
+reference_state_data_sha256 = "a04684aede776d3d5dd5057ec6de62ccce404a66e3823fc98975609fe4f59be9"
+
+[limiter_report]
+flalfe_qr_ge_1_reference = 2
+flalfe_qr_ge_1_base = 6
