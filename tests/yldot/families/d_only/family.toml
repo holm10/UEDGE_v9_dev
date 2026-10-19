@@ -1,0 +1,51 @@
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
+# [evaluation] W, P, child reuse: AIUE-86 · timeouts: AIUE-82/86 · [regions], guard cells: AIUE-83
+
+[family]
+name = "d_only"
+grid = "gridue"
+store = "full"
+rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+                # relative paths: every evaluation must run with the family directory as cwd
+neq = 420
+
+[source]
+repo = "llnl/UEDGE"
+ref = "b535508"  # branch pytests
+input = "pytests/unittests/D_only/nonog/default/input.py"
+grid = "templates/grids/nonog/gridue"
+state = "templates/grids/nonog/solution.h5"
+state_sha256 = "b2c9564ba927b2b1fe10346c753c48cd7b06e82d83373e58c274a52aa50480b7"
+input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (107-109) removed"
+
+[reference_state]
+file = "reference_state.h5"
+origin = "pytests template state, used as is, no reconvergence (owner, 2026-10-19)"
+norm = "nksol max |sfscal*yldot| <= ftol"
+ftol = 1e-08
+fmax = 3.9813e-10
+fnrm_l2 = 4.5937e-10
+converged = true  # information only, gates nothing
+build_commit = "e7f5e9f4d63b838261af682649aa6e610e799bb7"
+build = "serial"
+uedge_ver = "8.1.2-beta.0"
+
+[perturbation]
+sigma = 0.02
+seed = 81001
+rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
+min_block_ratio = 1.88e+09
+floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
+near_floor_factor = 1.1
+near_floor_tes = { reference = 0, base = 0 }
+near_floor_tis = { reference = 0, base = 0 }
+near_floor_tgs = { reference = 0, base = 0 }
+near_floor_ngs = { reference = 0, base = 0 }
+base_state_sha256 = "dc4d862c0b3d42220a79b644f9e44902b684b62bbcc2669886abcc8e3a5b2d62"
+reference_state_sha256 = "2cfe33a47e76d85913462a9df45195458266c2046a9c9be8b73b75d6d476f32d"
+base_state_data_sha256 = "dbce9ef6edb3e61949d57935ded32587333690c3e65194982a8f23c851cc61d3"
+reference_state_data_sha256 = "dbd6a93ed2194d456b43c7b9ac4c85324ec92b0cbbfcf62728d5eeba6733113c"
+
+[limiter_report]
+flalfe_qr_ge_1_reference = 0
+flalfe_qr_ge_1_base = 0

@@ -1,0 +1,51 @@
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
+# [evaluation] W, P, child reuse: AIUE-86 · timeouts: AIUE-82/86 · [regions], guard cells: AIUE-83
+
+[family]
+name = "ortho"
+grid = "gridue"
+store = "full"
+rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+                # relative paths: every evaluation must run with the family directory as cwd
+neq = 420
+
+[source]
+repo = "llnl/UEDGE"
+ref = "b535508"  # branch pytests
+input = "templates/fulltests/orthogonal_unittest/input.py"
+grid = "templates/fulltests/orthogonal_unittest/gridue"
+state = "templates/fulltests/orthogonal_unittest/solution.h5"
+state_sha256 = "594ded809952557ed8f105ca1c5f8fde088e6d361673c5b291259449ba27384a"
+input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (106-108) removed"
+
+[reference_state]
+file = "reference_state.h5"
+origin = "pytests template state, used as is, no reconvergence (owner, 2026-10-19)"
+norm = "nksol max |sfscal*yldot| <= ftol"
+ftol = 1e-08
+fmax = 1.0781e-12
+fnrm_l2 = 1.4321e-12
+converged = true  # information only, gates nothing
+build_commit = "e7f5e9f4d63b838261af682649aa6e610e799bb7"
+build = "serial"
+uedge_ver = "8.1.2-beta.0"
+
+[perturbation]
+sigma = 0.02
+seed = 81004
+rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
+min_block_ratio = 1.852e+13
+floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
+near_floor_factor = 1.1
+near_floor_tes = { reference = 0, base = 0 }
+near_floor_tis = { reference = 0, base = 0 }
+near_floor_tgs = { reference = 0, base = 0 }
+near_floor_ngs = { reference = 0, base = 0 }
+base_state_sha256 = "f003df2e4bd25031aae904001b24b72564163342f262ef938896bcd3ecaff0cc"
+reference_state_sha256 = "36bb9e02360f246ce62018ebdb3423db1ca8af3ced3ed251fa94e12a39f42e7f"
+base_state_data_sha256 = "91086e4ac07bfdfd3094ed10629fe68ead8567e181edb3ef6f4266d04f0fc393"
+reference_state_data_sha256 = "4582bbdc7edb5995d0c8a70c1fe8a8b756045e19920bbf0af408a95e3b6cfaf7"
+
+[limiter_report]
+flalfe_qr_ge_1_reference = 0
+flalfe_qr_ge_1_base = 0
