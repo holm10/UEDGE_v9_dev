@@ -1,7 +1,7 @@
 # MPPL Fortran — writing `.m` source that survives conversion
 
 `.m` files are fixed-form Fortran with MPPL extensions. They are **converted by text substitution**
-(`M2F.subrules`, `setup.py:635-661`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
+(`M2F.subrules`, `setup.py:642-668`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
 are not a parser.
 
 ## File skeleton (copy from `bbb/pandf_plasma_continuity.m:1-21`)
@@ -29,14 +29,14 @@ c     Full-line comment: 'c' in column 1
       END SUBROUTINE my_routine
 ```
 
-- `Use(Group)` → `use Group` (`Use2use`, `setup.py:161`). Groups are defined in `.v` files.
-- Declarations may be written before or after `Use(...)`; `MoveDecs` (`setup.py:218`) reorders them.
+- `Use(Group)` → `use Group` (`Use2use`, `setup.py:168`). Groups are defined in `.v` files.
+- Declarations may be written before or after `Use(...)`; `MoveDecs` (`setup.py:225`) reorders them.
 - Continuation: non-blank char (convention `.`) in column 6 (`bbb/pandf.m:573-575`).
-- Preprocessor: `c!ifdef`/`c!else`/`c!endif`/`c!include` → `#ifdef`/… (`setup.py:638,644,645,654`).
-- Conditional lines: `c!omp …` enabled only when building with OpenMP (`Omp`, `setup.py:210-216`);
+- Preprocessor: `c!ifdef`/`c!else`/`c!endif`/`c!include` → `#ifdef`/… (`setup.py:645,651,652,661`).
+- Conditional lines: `c!omp …` enabled only when building with OpenMP (`Omp`, `setup.py:217-223`);
   `cpetsc`/`cunipetsc` for PETSc; `c!nopdb` when no PACT.
 
-## Substitution hazards (`setup.py:635-661`)
+## Substitution hazards (`setup.py:642-668`)
 
 | Written | Becomes | Consequence |
 |---|---|---|
