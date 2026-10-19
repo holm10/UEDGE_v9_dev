@@ -69,8 +69,15 @@ elif path.exists(_homefile):
 # Ensure that the UEDGE internal version matches the Python release
 bbb.uedge_ver = __version__
 
-# Set up crmpath to point to the included 
-aph.crmdir = __path__[0]
+def _set_crmdir(dirname):
+    if not dirname.isascii():
+        raise Exception("aph.crmdir must be an ASCII path, got {!r}".format(dirname))
+    aph.crmdir = dirname
+    if aph.crmdir[0].decode().strip() != dirname:
+        raise Exception("aph.crmdir holds {} characters, too few for {!r}".format(aph.crmdir.dtype.itemsize, dirname))
+
+# Point crmdir at the CRUMPET rate files installed with the package
+_set_crmdir(path.join(__path__[0], "rates", "aph"))
 
 #
 # Check version: included from checkver

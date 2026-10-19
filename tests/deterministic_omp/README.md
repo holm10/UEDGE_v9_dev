@@ -251,11 +251,13 @@ python $H --list                                    # the case set
 - **Case sets:** `all` (the default, and the gate) is everything above. `quick` = `repro-tebox`, `repro-tebox-it5`,
   `pytests-{D_only,D+C,D_mols,full-d_c-16x8}`, `pytests-{D_only,D+C}-it5`.
   - Ad hoc names: `repro:<preset>[@itN]` and `pytests:<path below pytests/>[@itN]`.
-  - `pytests-orthogonal` fails on `v9-develop` itself in both builds (`ueinit -- error in sign sx, sy`; the upstream
-    test fails the same way), so `all` leaves it out. It still runs by name.
+  - `pytests-orthogonal` fails on `v9-develop` before AIUE-110 in both builds (`ueinit -- error in sign sx, sy`;
+    `cosangfx` was 0 for `isnonog=0`). AIUE-110 fixes it, but `all` leaves it out until the base includes the fix. It
+    still runs by name.
   - There is no runnable double-null case: the pytests suite is all `snull` or slab, and `builder/test/rensink/dnull/`
     holds only BASIS mesh-generation decks. The gap is left to AIUE-9.
-  - The D_mols decks read `rates/aph/crumpet_{n,E}rates.dat` from the working directory, and the tool copies them in.
+  - Builds before AIUE-110 do not install `rates/aph/crumpet_{n,E}rates.dat`, so the D_mols decks read them from the
+    working directory, and the tool copies them in. Builds with AIUE-110 read the installed copies (`aph.crmdir`).
 - **pytests checkout:** `--pytests-dir`, else `$UEDGE_PYTESTS_DIR`, else `../uedge-pytests` or `../../uedge-pytests`
   next to the repository (`git worktree add ../uedge-pytests upstream/pytests`).
 - **What is compared:** `compare.compare_records` (above), bit for bit:

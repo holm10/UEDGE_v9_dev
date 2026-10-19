@@ -192,8 +192,8 @@ c...  Set-up tables for particle and energy sinks due to molecules
 c                     call findFile(crmnfname, aphdirx, aphdirx, adname, isaphdir)
                      call findFile(crmnfname, crmdir, aphdirx, adname, isaphdir)
                      call readcrumpetn(TRIM(adname))
-                     call findFile(crmefname, aphdirx, aphdirx, adname, isaphdir)
-c                     call findFile(crmefname, crmdir, aphdirx, adname, isaphdir)
+c                     call findFile(crmefname, aphdirx, aphdirx, adname, isaphdir)
+                     call findFile(crmefname, crmdir, aphdirx, adname, isaphdir)
                      call readcrumpete(TRIM(adname))
 
 

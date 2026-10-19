@@ -20,5 +20,6 @@ flat old-style, UETOOLS-style, and `uedge.hdf5` groups. Restored values land in 
 
 ## Packaging
 
-`pyproject.toml` maps `uedge` → `src/uedge`, `uedge.rates` → `rates/`; package data `*.dat`. CLI scripts:
+`pyproject.toml` maps `uedge` → `src/uedge`, `uedge.rates` → `rates/`, `uedge.rates.aph` → `rates/aph/`; package data
+`*.dat`, which installs the CRUMPET files (`aph.crmdir` points at them, `_set_crmdir` in `__init__.py`). CLI scripts:
 `pyscripts/pdb2hdf5`, `bas2py`, `hdf52pdb`.

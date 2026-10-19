@@ -846,7 +846,7 @@ c ... Jump to here for domain decomposition
 *  -- of a cell, vtag; in radians (0 is orthogonal); angfx is angle on x-face
          call s2fill (nx+2, ny+2, 0., vtag, 1, nx+2)
          call s2fill (nx+2, ny+2, 0., angfx, 1, nx+2)
-         call s2fill (nx+2, ny+2, 0., cosangfx, 1, nx+2)
+         call s2fill (nx+2, ny+2, 1., cosangfx, 1, nx+2) # cos(angfx) for angfx=0; nonorthg resets it if isnonog>=1
          do iu = 0, 1
             call s2fill (nx+2, ny+2, 1., fx0(0:nx+1,0:ny+1,iu), 1, nx+2)
             call s2fill (nx+2, ny+2, 0., fxm(0:nx+1,0:ny+1,iu), 1, nx+2)
