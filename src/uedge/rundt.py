@@ -548,8 +548,8 @@ class UeRun():
                 bbb.ylodt = bbb.yl
                 bbb.dt_tot += bbb.dtreal
                 bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
-                self.fnrm_old = sum((bbb.yldot[:bbb.neq-1]*\
-                    bbb.sfscal[:bbb.neq-1])**2)**0.5
+                self.fnrm_old = sum((bbb.yldot[:bbb.neq]*\
+                    bbb.sfscal[:bbb.neq])**2)**0.5
                 self.savesuccess(savefname,
                     #bbb.label[0].strip(\).decode('UTF-8'), 
                     self.fnrm_old)
@@ -587,7 +587,7 @@ class UeRun():
             ''' Calculates the initial fnrm '''
             from uedge import bbb
             bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
-            return sum((bbb.yldot[:bbb.neq-1]*bbb.sfscal[:bbb.neq-1])**2)**0.5
+            return sum((bbb.yldot[:bbb.neq]*bbb.sfscal[:bbb.neq])**2)**0.5
  
         ''' TIME-SLICING SETUP '''
         if tsnapshot is None:
