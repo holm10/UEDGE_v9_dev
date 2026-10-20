@@ -19,7 +19,9 @@
 
 
 def hash_outside_pytests(path):
-    """Return a sha256 over every attribute and dataset outside 'pytests'."""
+    """Return a sha256 over everything outside 'pytests': every group and
+    dataset name, attribute, dataset dtype, shape, storage layout and filters,
+    and value."""
     from hashlib import sha256
     from h5py import File, Dataset
     digest = sha256()
@@ -32,8 +34,19 @@ def hash_outside_pytests(path):
             digest.update(key.encode())
             digest.update(repr(obj.attrs[key]).encode())
         if isinstance(obj, Dataset):
-            digest.update(obj[()].tobytes() if obj.shape != () else
-                          repr(obj[()]).encode())
+            digest.update(repr((obj.dtype.str, obj.shape, obj.chunks,
+                obj.compression, obj.compression_opts, obj.shuffle,
+                obj.fletcher32, obj.scaleoffset)).encode())
+            value = obj[()]
+            if obj.dtype.kind == 'O':
+                # Object data (e.g. variable-length strings): hash the
+                # values, not the pointers
+                digest.update(repr(value.tolist() if obj.shape != ()
+                                   else value).encode())
+            elif obj.shape != ():
+                digest.update(value.tobytes())
+            else:
+                digest.update(repr(value).encode())
 
     with File(path, 'r') as f:
         for key in sorted(f.attrs.keys()):
