@@ -10,7 +10,7 @@ import site
 from Forthon.compilers import FCompiler
 import getopt
 import logging
-from subprocess import call
+from subprocess import call, check_output
 from sys import hexversion, argv, platform
 import numpy
 try:
@@ -39,6 +39,7 @@ arglist = {
         'checkbounds': False,
         'noclean': False,
         'noopt': False,
+        'coverage': False,
 #        'petsc': False,
 }
 
@@ -65,6 +66,10 @@ for arg, _ in arglist.items():
     if "--{}".format(arg) in argv:
         argv.remove("--{}".format(arg))
         arglist[arg] = True
+
+# A coverage build is serial: gcov's counter updates are not atomic, so OpenMP threads would race on them (AIUE-105)
+if arglist['coverage']:
+    arglist['serial'] = True
 
         
 # Flags for makefile. Flags are easier to handle from setup.py and it prevents dealing with the makefile.)
@@ -746,6 +751,11 @@ class uedgeBuild(build):
             if arglist['debug']:
                 raise SystemExit("--noopt cannot be combined with --debug")
             FLAGS['FARGSOPT'] = ['-O0']
+        # gcov build for the yldot coverage report: -O0 and --coverage on every Fortran compile (AIUE-105)
+        if arglist['coverage']:
+            if arglist['debug']:
+                raise SystemExit("--coverage cannot be combined with --debug")
+            FLAGS['FARGSOPT'] = ['-O0', '--coverage']
         # Add boundary checking to non-debug build
         if arglist['checkbounds']:
             FLAGS['FARGSOPT'] = FLAGS['FARGSOPT']  + [
@@ -789,6 +799,22 @@ class uedgeBuild(build):
                 ldflags = (ldflags + ' -fopenmp').strip()
             makeenv['LDFLAGS'] = ldflags
             print("Linux OpenMP build: linking the Forthon extensions with LDFLAGS='{}'".format(makeenv['LDFLAGS']))
+        # gfortran's --coverage objects need GCC's libgcov, but Forthon links each extension with the C compiler
+        # and without --fargs, so add it to LDFLAGS for the Forthon make only, as for OpenMP above (AIUE-105).
+        # setuptools puts LDFLAGS before the objects. On Linux, gcc's --coverage adds -lgcov after them (GNU ld
+        # searches an archive only where it stands); on macOS clang would link LLVM's runtime instead, so give it
+        # GCC's archive, which ld64 resolves wherever it stands.
+        if arglist['coverage']:
+            if platform.startswith('linux'):
+                gcovlink = '--coverage'
+            else:
+                gcovlink = check_output([fcompiler.fcompexec, '-print-file-name=libgcov.a'], text=True).strip()
+                if not os.path.isabs(gcovlink) or not os.path.isfile(gcovlink):
+                    raise SystemExit("--coverage: {} has no libgcov.a".format(fcompiler.fcompexec))
+            if makeenv is None:
+                makeenv = dict(os.environ)
+            makeenv['LDFLAGS'] = (makeenv.get('LDFLAGS', '') + ' ' + gcovlink).strip()
+            print("Coverage build: linking the Forthon extensions with LDFLAGS='{}'".format(makeenv['LDFLAGS']))
         # Call compiler
         if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
             raise SystemExit("UEDGE build failure")
