@@ -37,7 +37,7 @@ pip install . -C "--build-option=--noopt"         # -O0, no FPE traps (round-off
 python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 
 # Regression tests live on a separate branch (upstream/pytests); tests/deterministic_omp/ holds the OpenMP reproducer,
-# tests/yldot/ the yldot-suite case families and their tools (epic AIUE-9; no tests collected yet)
+# tests/yldot/ the yldot suite (epic AIUE-9): families, harness, smoke test; run `pytest tests/yldot`, never `pytest tests/`
 git worktree add ../uedge-pytests upstream/pytests
 pip install pytest pytest-isolate
 cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s

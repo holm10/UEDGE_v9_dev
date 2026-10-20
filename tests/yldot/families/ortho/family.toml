@@ -1,5 +1,5 @@
 # yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
-# [evaluation] W, P, child reuse: AIUE-86 · timeouts: AIUE-82/86 · [regions], guard cells: AIUE-83
+# [evaluation] placeholders: AIUE-82 · W, P, child reuse measured: AIUE-86 · [regions], guard cells: AIUE-83
 
 [family]
 name = "ortho"
@@ -49,3 +49,9 @@ reference_state_data_sha256 = "4582bbdc7edb5995d0c8a70c1fe8a8b756045e19920bbf0af
 [limiter_report]
 flalfe_qr_ge_1_reference = 0
 flalfe_qr_ge_1_base = 0
+
+[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-86 measures them
+w = 2  # exmain warm-up count, PRD section 6 step 5
+p = 2  # pandf repeats, steps 8 and 8b
+timeout_s = 120  # per child
+dt_timestep_s = 1e-6  # timestep configuration, step 6c
