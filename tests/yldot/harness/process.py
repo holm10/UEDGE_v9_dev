@@ -2,6 +2,8 @@
 
     Use:  r = Runner();  res = r.evaluate("d_only", config="timestep")
           res.status in {"ok", "error", "crash", "timeout"}; res.data["yldot"], res.data["yldot_J"]
+          r.evaluate("d_only", variant=v)  (v from variants.plan(); res.data["variant"] holds d and the applied
+          value), r.evaluate("d_only", variant=v, replay=rec["applied"]) applies a recorded value again
 
 Every evaluation runs in a new child process (Forthon state is global). Children come from a multiprocessing
 forkserver that preloads uedge and numpy, or, where forkserver is unavailable or YLDOT_START_METHOD=spawn, from
@@ -26,10 +28,10 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import state
+from . import state, variants
+from .variants import CONFIGS
 
 FAMILIES = Path(__file__).resolve().parent.parent / "families"
-CONFIGS = ("steady", "timestep")
 START_METHODS = ("forkserver", "spawn")
 # family.toml [evaluation] fallbacks: placeholders (owner, 2026-10-19) until AIUE-86 measures W, P and timeouts
 EVALUATION_DEFAULTS = {"w": 2, "p": 2, "timeout_s": 120.0, "dt_timestep_s": 1e-6}
@@ -144,9 +146,23 @@ class Runner:
             # The server is one per process and starts on the first start(); a later call has no effect then.
             self.ctx.set_forkserver_preload(["uedge", "numpy"])
 
-    def evaluate(self, family, config="steady", diagnostics=False, pre=None, post=None, timeout=None):
-        """One evaluation of the family in the given configuration. pre/post: 'module:function' hooks called as
-        f(bbb, com) in the PRE and POST phases (variants, AIUE-93). timeout: seconds, default from family.toml."""
+    def evaluate(self, family, config=None, diagnostics=False, pre=None, post=None, timeout=None, variant=None,
+                 replay=None):
+        """One evaluation of the family. config: steady or timestep; None takes the variant's configuration, else
+        steady. pre/post: 'module:function' hooks called as f(bbb, com) in the PRE and POST phases, before the
+        variant. variant: a variants.Variant (or its dict), applied in its phase with d read live; replay: a
+        recorded applied value (variants.encode form) used instead of the rules. timeout: seconds, default from
+        family.toml."""
+        spec = None
+        if variant is not None:
+            v = variant if isinstance(variant, variants.Variant) else variants.Variant.from_dict(variant)
+            spec = {"variant": v.to_dict(), "replay": replay}
+            if config is None:
+                config = v.config
+        elif replay is not None:
+            raise ValueError("replay without a variant")
+        if config is None:
+            config = "steady"
         if config not in CONFIGS:
             raise ValueError("config {!r}, expected one of {}".format(config, CONFIGS))
         fdir = family_dir(family)
@@ -155,7 +171,7 @@ class Runner:
         with tempfile.TemporaryDirectory(prefix="yldot-child-") as tmp:
             job = {"family": str(fdir), "config": config, "mode": self.mode, "w": int(ev["w"]), "p": int(ev["p"]),
                    "dt": float(ev["dt_timestep_s"]), "diagnostics": bool(diagnostics), "pre": pre, "post": post,
-                   "log": os.path.join(tmp, "child.log")}
+                   "variant": spec, "log": os.path.join(tmp, "child.log")}
             recv, send = self.ctx.Pipe(duplex=False)
             proc = self.ctx.Process(target=state.run, args=(send, job), name="yldot-{}-{}".format(fdir.name, config))
             t0 = time.monotonic()
