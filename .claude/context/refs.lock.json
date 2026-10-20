@@ -102,7 +102,7 @@
  "bbb/pandf_plasma_continuity.m:388": "ix2 = ixp1(ix,iy)",
  "bbb/pandf_plasma_continuity.m:7": "SUBROUTINE initialize_ismcnon(ylneq)",
  "bbb/pandf_plasma_energy.m:1239": "SUBROUTINE calc_plasma_heatconductivities",
- "bbb/pandf_plasma_energy.m:1537": "SUBROUTINE calc_plasma_equipartition",
+ "bbb/pandf_plasma_energy.m:1539": "SUBROUTINE calc_plasma_equipartition",
  "bbb/pandf_plasma_energy.m:7": "SUBROUTINE calc_plasma_energy(xc, yc)",
  "bbb/pandf_plasma_energy.m:964": "SUBROUTINE calc_plasma_energy_residuals(xc, yc)",
  "bbb/pandf_plasma_momentum.m:1203": "SUBROUTINE calc_plasma_diffusivities",
