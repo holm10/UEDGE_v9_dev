@@ -125,6 +125,50 @@ reason = "gas species index of the left-hand plate sources, 1..ngsp (bbb/bbb.v:9
 bound = "com.ngsp"
 reason = "gas species index of the right-hand plate sources, 1..ngsp (bbb/bbb.v:1000); owner 2026-10-20"
 
+# ---------------------------------------------------------------- cell indices (owner 2026-10-20: keep d+1)
+
+["bbb.ixfixnc"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:521"
+
+["bbb.incixc"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:522"
+
+["bbb.ixbpmin"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1350"
+
+["bbb.ix_sjcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1840"
+
+["bbb.ix_ejcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1841"
+
+["bbb.iy_sjcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1842"
+
+["bbb.iy_ejcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1843"
+
+["bbb.ixgb"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:104"
+
+# ---------------------------------------------------------------- potential wall BC selectors (owner 2026-10-20)
+
+["bbb.iphibcwi"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwo"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwiix"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwoix"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
 # ---------------------------------------------------------------- timestep configuration (PRD section 6)
 
 ["bbb.fdtnixy"]

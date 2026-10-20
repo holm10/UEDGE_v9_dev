@@ -51,6 +51,7 @@ def test_matches_built_module(tmp_path):
     assert proc.returncode == 0, proc.stderr
     built = {"{}.{}".format(m, v) for m, names in json.loads(proc.stdout.splitlines()[-1]).items() for v in names}
     parsed = set(inputs.tagged())
+    assert inputs.summary()["tagged"] == len(built)
     assert parsed == built, "only parsed: {}; only built: {}".format(
         sorted(parsed - built)[:10], sorted(built - parsed)[:10])
 
@@ -92,6 +93,13 @@ def test_overrides_valid():
     ('["bbb.kye"]\nexclude = true\nwhy = "x"\nreason = "x"\n', "unknown fields"),
     ('["bbb.jxsori"]\nbound = "com.nxpt"\nvalues = [2]\nreason = "x"\n', "values and bound"),
     ('["bbb.kye"]\nbound = "com.nxpt"\nreason = "x"\n', "bound on a real"),
+    ('["bbb.kye"]\nexclude = true\nvalues = [1.0]\nreason = "x"\n', "exclude together with"),
+    ('["bbb.kye"]\nexclude = true\nphase = "PRE"\nreason = "x"\n', "exclude together with"),
+    ('["bbb.jxsori"]\nexclude = true\nbound = "com.nxpt"\nreason = "x"\n', "exclude together with"),
+    ('["bbb.svrpkg"]\nvalues = [1]\nreason = "x"\n', "character variable"),
+    ('["bbb.svrpkg"]\nbound = "com.nxpt"\nreason = "x"\n', "bound on a character"),
+    ('["bbb.methn"]\nvalues = ["a"]\nreason = "x"\n', "integers or floats"),
+    ('["bbb.methn"]\nvalues = [true]\nreason = "x"\n', "integers or floats"),
 ])
 def test_overrides_refused(tmp_path, text, match):
     f = tmp_path / "overrides.toml"
@@ -119,6 +127,22 @@ def test_plan_exclusions(plan):
     for key in CHARACTER | LAYOUT | {"bbb.restart", "bbb.ismcnon", "bbb.isimpon=other"}:
         assert excluded.get(key, "").strip(), key
     assert "AIUE-10" in excluded["bbb.isimpon=other"]
+
+
+CELL_INDEX = ["bbb.ixfixnc", "bbb.incixc", "bbb.ixbpmin", "bbb.ix_sjcsor", "bbb.ix_ejcsor", "bbb.iy_sjcsor",
+              "bbb.iy_ejcsor", "bbb.ixgb"]  # owner decision 5
+PHI_BC = ["bbb.iphibcwi", "bbb.iphibcwo", "bbb.iphibcwiix", "bbb.iphibcwoix"]  # owner decision 6
+
+
+def test_plan_cell_index_and_phi_bc(plan):
+    by_id = {v.id: v for v in plan}
+    for key in CELL_INDEX:
+        assert by_id[key].rule == "default" and not by_id[key].excluded and by_id[key].reason.strip(), key
+    for key in PHI_BC:
+        assert key not in by_id
+        for val in (0, 1, 3, 4):
+            v = by_id["{}={}".format(key, val)]
+            assert v.rule == "value" and v.value == val and not v.excluded, v.id
 
 
 def test_plan_values_phases_configs(plan):

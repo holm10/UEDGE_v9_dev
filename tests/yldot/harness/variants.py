@@ -102,8 +102,15 @@ def load_overrides(path=OVERRIDES, repo=inputs.REPO):
                 raise bad("bound {!r} is not an integer scalar".format(o["bound"]))
             if var.type != "integer":
                 raise bad("bound on a {} variable".format(var.type))
-        if "values" in o and (not isinstance(o["values"], list) or not o["values"]):
-            raise bad("values must be a non-empty list")
+        if "values" in o:
+            if not isinstance(o["values"], list) or not o["values"]:
+                raise bad("values must be a non-empty list")
+            if any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in o["values"]):
+                raise bad("values must be integers or floats")
+        if o.get("exclude") and {"values", "others", "bound", "phase"} & set(o):
+            raise bad("exclude together with values, others, bound or phase")
+        if var.type == "character" and ("values" in o or "bound" in o):
+            raise bad("values or bound on a character variable")
     return raw
 
 
@@ -177,7 +184,9 @@ def decode(e):
 def apply(spec, phase, previous=None):
     """Apply the variant of spec ({"variant": Variant.to_dict(), "replay": None or encode(value)}) if it belongs to
     this phase, in the child. previous: this variant's record from the first POST of the timestep configuration; its
-    applied value is applied again and d must not have changed. Returns the record, or None if not this phase."""
+    applied value is applied again and d must not have changed. Returns the record, or None if not this phase.
+    An unallocated dynamic array (the read raises "unallocated", or it has size 0) gives status "unallocated" with
+    d = None and applied = None: there is nothing to apply, with or without a replay or previous."""
     if not spec:
         return None
     v = Variant.from_dict(spec["variant"])
@@ -187,9 +196,18 @@ def apply(spec, phase, previous=None):
         raise ValueError("{}: EXCLUDED ({}), never applied".format(v.id, v.reason))
     uedge = importlib.import_module("uedge")
     pkg = getattr(uedge, v.package)
-    live = getattr(pkg, v.name)
+    try:
+        live = getattr(pkg, v.name)
+    except Exception as e:
+        if "unallocated" not in str(e):
+            raise
+        return {"id": v.id, "key": v.key, "phase": v.phase, "config": v.config, "d": None, "status": "unallocated",
+                "applied": None}
     d = np.array(live)
     record = {"id": v.id, "key": v.key, "phase": v.phase, "config": v.config, "d": encode(d)}
+    if isinstance(live, np.ndarray) and live.size == 0:
+        record.update(d=None, status="unallocated", applied=None)
+        return record
     if previous is not None:
         # the second POST of the timestep configuration: the first application either survived allocate and the
         # restore ("kept") or was reset to d ("reset"); anything else is irregular
@@ -201,9 +219,6 @@ def apply(spec, phase, previous=None):
         record["d"] = previous["d"]
         record["second_pass"] = "reset" if "d" in found else "kept"
         d = same["d"]
-    if isinstance(live, np.ndarray) and live.size == 0:
-        record.update(status="unallocated", applied=record["d"])
-        return record
     bound = None
     if spec.get("replay") is not None:
         applied = decode(spec["replay"])

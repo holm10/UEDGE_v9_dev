@@ -64,3 +64,43 @@ def test_excluded_never_applied(runner, plan):
     x = runner.evaluate(FAMILY, variant=plan["bbb.restart"])
     assert x.status == "error", describe(x)
     assert "EXCLUDED" in x.message
+
+
+def test_unallocated_array(runner, plan):
+    """A POST variant on a dynamic array that d_only never allocates: nothing is applied, yldot is unchanged."""
+    v = plan["com.chgstate_format"]
+    assert (v.phase, v.rule) == ("POST", "default")
+    default = runner.evaluate(FAMILY)
+    res = runner.evaluate(FAMILY, variant=v)
+    assert default.ok and res.ok, describe(default if not default.ok else res)
+    rec = res.data["variant"]["POST"]
+    assert rec["status"] == "unallocated" and rec["d"] is None and rec["applied"] is None
+    for k in ("yldot", "yldot_J"):
+        assert res.data[k].tobytes() == default.data[k].tobytes(), k
+
+
+def test_scalar_selector_value(runner, plan):
+    """An explicit value of a PRE scalar: applied as listed, read back as such."""
+    v = plan["bbb.iphibcwi=1"]
+    assert (v.phase, v.rule, v.value) == ("PRE", "value", 1)
+    res = runner.evaluate(FAMILY, variant=v)
+    assert res.ok, describe(res)
+    rec = res.data["variant"]["PRE"]
+    assert rec["status"] == "applied"
+    assert variants.decode(rec["applied"]).item() == 1 and variants.decode(rec["d"]).item() != 1
+    default = runner.evaluate(FAMILY)
+    print("\nbbb.iphibcwi=1 changes yldot:", bool((res.data["yldot"] != default.data["yldot"]).any()))
+
+
+def test_replay_uses_recorded_value(runner, plan):
+    """A replayed value that differs from the rule value is the one applied, and it moves yldot."""
+    v = plan["bbb.kye"]
+    gen = runner.evaluate(FAMILY, variant=v)
+    assert gen.ok, describe(gen)
+    d = variants.decode(gen.data["variant"]["PRE"]["d"])
+    other = variants.encode(np.float64(d * 1.2))
+    rep = runner.evaluate(FAMILY, variant=v, replay=other)
+    assert rep.ok, describe(rep)
+    rec = rep.data["variant"]["PRE"]
+    assert rec["applied"] == other and rec["applied"] != gen.data["variant"]["PRE"]["applied"]
+    assert (rep.data["yldot"] != gen.data["yldot"]).any()
