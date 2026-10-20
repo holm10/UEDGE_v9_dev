@@ -87,7 +87,9 @@ There are a number of build options available for building the code:
   checkbounds - turns on boundary checks for non-debug builds 
   debug - turns on compiler debugging flags
   noopt - compiles the Fortran at -O0 without FPE traps (round-off studies; not with debug)
-  coverage - serial -O0 build with gcov instrumentation (--coverage) for coverage reports; not with debug; gcc links on Linux
+  coverage - serial -O0 build with gcov instrumentation (--coverage) for coverage reports; not with debug or noclean
+             (noclean keeps uninstrumented objects from an earlier build); on Linux the extensions must link with
+             the gcc that matches gfortran (do not set CC to clang)
 
 The options are passed to the build using the following syntax
 
