@@ -21,6 +21,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   cannot run twice in one process) and a `[history]` table; an unmeasured one keeps the 2/2 placeholders.
   Both states are round-trip fixed points: re-saved after one `exmain`, so a further `exmain` changes no saved entry
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
+  The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
+  `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5` and states are release
+  assets, listed with SHA-256 in `family.toml` `[assets]` and gitignored, and the smoke test skips such a family
+  while its assets are absent.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect).
