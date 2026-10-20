@@ -1386,6 +1386,8 @@ c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
                   a = max (tiave, temin*ev)
                else
                   a = afix*ev
+c ... Fixed conductivity: no ion mean-free-path limit (lmfpi = 0 below)
+                  tiave = 0.
                endif
                hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld)*rrv(ix,iy)*
      .                                            rrv(ix,iy)*a*a*sqrt(a)

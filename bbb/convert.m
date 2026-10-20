@@ -522,6 +522,7 @@ c...  Calculates various plasmas quantities used repeatedly in pandf
       Use(Phyvar)      # pi,ev
       Use(Imprad)      # isimpon
       Use(ParallelEval)
+      Use(Share)       # isnonog
 
       if(ixl .lt. 0 .or. yinc .ge. 6) then
          is = 0
@@ -592,6 +593,13 @@ ccc         enddo
         do ix = is, ie
 	        pre(ix,iy) = ne(ix,iy) * te(ix,iy)
             pr(ix,iy) = pr(ix,iy) + pre(ix,iy)
+c ... Refresh the nonorthogonal log arrays for every cell: convsr_vo1 only
+c ... sets them where te, ti, ng, tg are unloaded from yl, which misses
+c ... is*offxy cells, atoms carried in ni (isupgon=1) and tg set from ti
+            if (isnonog.eq.1) then
+               logte(ix,iy) = log(te(ix,iy))
+               logti(ix,iy) = log(ti(ix,iy))
+            endif
             do igsp = 1, ngsp
                if(istgcon(igsp) > -1.e-20) 
      .              tg(ix,iy,igsp) = 
@@ -599,6 +607,10 @@ ccc         enddo
      .                          istgcon(igsp)*tgas(igsp)*ev
 	       pg(ix,iy,igsp) = ng(ix,iy,igsp)*tg(ix,iy,igsp)
            if(mod(methg,10).eq.6) logpg(ix,iy,igsp) = log(pg(ix,iy,igsp))
+           if (isnonog.eq.1) then
+              logng(ix,iy,igsp) = log(ng(ix,iy,igsp))
+              logtg(ix,iy,igsp) = log(tg(ix,iy,igsp))
+           endif
            enddo
         enddo
       enddo
