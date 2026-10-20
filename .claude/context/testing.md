@@ -15,8 +15,13 @@ form (it never loads a state), the grid, `reference_state.h5`, a seeded perturbe
 `data/`; and `tests/yldot/tools/make_base_state.py` (`check`, `make`). The harness `tests/yldot/harness/` (package
 `yldot.harness`) runs every evaluation in an isolated child: `process.py` (`Runner`: forkserver preloading `uedge`,
 or spawn; HOME/cwd in an empty directory; timeouts; results `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family
-defect) and `state.py` (the PRD §6 protocol, `steady` and `timestep`, returning `yldot` and `yldot_J`). Run it as
-`pytest tests/yldot` (never `pytest tests/`); `tests/yldot/test_smoke.py` is the smoke test (about 15 s).
+defect) and `state.py` (the PRD §6 protocol, `steady` and `timestep`, returning `yldot` and `yldot_J`). The variants
+(PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser (968
+`+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value rules,
+`plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable through
+`Runner.evaluate(..., variant=, replay=)`); and `tests/yldot/overrides.toml` holds the additions, exclusions, explicit
+values, bounds, phase and configuration, each with a reason. Run it as `pytest tests/yldot` (never `pytest tests/`);
+`tests/yldot/test_smoke.py` is the smoke test (about 15 s).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
