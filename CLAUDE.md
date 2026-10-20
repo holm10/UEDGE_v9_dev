@@ -32,7 +32,7 @@ pip install . -C "--build-option=--serial"        # what CI builds (build-test-w
 pip install . -C "--build-option=--debug"         # -fcheck=all, FPE traps, -Og (setup.py:90-97)
 pip install . -C "--build-option=--checkbounds"
 pip install . -C "--build-option=--noopt"         # -O0, no FPE traps (round-off measurement); not with --debug
-pip install . -C "--build-option=--coverage"      # serial, -O0 --coverage (gcov); writes .gcno/.gcda under build/; not with --debug
+pip install . -C "--build-option=--coverage"      # serial, -O0 --coverage (gcov); writes .gcno/.gcda under build/; not with --debug or --noclean; Linux links with gcc
 
 # Smoke test
 python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
