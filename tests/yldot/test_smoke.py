@@ -1,9 +1,11 @@
-"""Smoke test of the yldot harness (AIUE-82): every small family in both configurations and both flags, in
-forkserver and spawn mode; .uedgerc.py isolation; classified failures; collection separation (decision 15).
+"""Smoke test of the yldot harness (AIUE-82): every family in both configurations and both flags, in forkserver and
+spawn mode; .uedgerc.py isolation; classified failures; collection separation (decision 15). An owner family whose
+release assets are absent is skipped, naming them, until AIUE-84 fetches them; present assets must match family.toml.
 
 Hooks for the failure tests are module-level functions here, passed as 'yldot.test_smoke:<name>' and imported by
 the child. Planted .uedgerc.py files live only under tmp_path, never in ~, the repo or the real family directories.
 """
+import hashlib
 import os
 import shutil
 import signal
@@ -62,6 +64,32 @@ def family_neq(family):
         return tomllib.load(f)["family"]["neq"]
 
 
+def family_assets(family):
+    """family.toml [assets] files, name -> SHA-256: the owner families' release assets (owner, 2026-10-19)."""
+    with open(FAMILIES / family / "family.toml", "rb") as f:
+        return tomllib.load(f).get("assets", {}).get("files", {})
+
+
+def missing_assets(family):
+    return [name for name in family_assets(family) if not (FAMILIES / family / name).is_file()]
+
+
+def family_params():
+    """FAMILY_NAMES, a family whose release assets are all absent marked skip with their names (fetched by
+    AIUE-84). A family with only some of them present is not skipped: its tests fail, as test_assets_sha256 does."""
+    params = []
+    for family in FAMILY_NAMES:
+        missing = missing_assets(family)
+        reason = "{}: release assets not present: {} (fetched by AIUE-84's fetch_data.py)".format(
+            family, ", ".join(missing))
+        absent = missing and len(missing) == len(family_assets(family))
+        params.append(pytest.param(family, marks=pytest.mark.skip(reason=reason)) if absent else family)
+    return params
+
+
+FAMILY_PARAMS = family_params()
+
+
 def first_difference(a, b):
     d = np.flatnonzero(a.view(np.uint64) != b.view(np.uint64))
     return "first differing row {} of {}: {!r} vs {!r}".format(d[0], d.size, a[d[0]], b[d[0]]) if d.size else ""
@@ -82,8 +110,22 @@ def copy_family(tmp_path, family="d_only"):
 # ---------------------------------------------------------------- acceptance 1: both modes, bitwise
 
 
+@pytest.mark.parametrize("family", [f for f in FAMILY_NAMES if family_assets(f)])
+def test_assets_sha256(family):
+    """An owner family's release assets, when present, are the files its family.toml records: all absent skips
+    (until AIUE-84 fetches them); partly present or another SHA-256 fails (owner, 2026-10-19)."""
+    files = family_assets(family)
+    missing = missing_assets(family)
+    if len(missing) == len(files):
+        pytest.skip("{}: release assets not present (fetched by AIUE-84's fetch_data.py)".format(family))
+    assert not missing, "{}: release assets partly present, missing {}".format(family, missing)
+    differ = [name for name, digest in files.items()
+              if hashlib.sha256((FAMILIES / family / name).read_bytes()).hexdigest() != digest]
+    assert not differ, "{}: SHA-256 differs from family.toml [assets] for {}".format(family, differ)
+
+
 @pytest.mark.parametrize("config", CONFIGS)
-@pytest.mark.parametrize("family", FAMILY_NAMES)
+@pytest.mark.parametrize("family", FAMILY_PARAMS)
 def test_modes_bitwise(runners, family, config):
     res = {mode: r.evaluate(family, config=config) for mode, r in runners.items()}
     for x in res.values():
@@ -107,7 +149,7 @@ def test_modes_bitwise(runners, family, config):
         assert fs["dtreal"] == 1e20
 
 
-@pytest.mark.parametrize("family", FAMILY_NAMES)
+@pytest.mark.parametrize("family", FAMILY_PARAMS)
 def test_timestep_state(runner, family):
     """Steps 6b and 6c took effect at the pandf calls: ylodt is the reference state's y_c (not the base state's yl),
     and the saved arrays hold reference_state.h5 as stored (read here with h5py, independently of UEDGE)."""

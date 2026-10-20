@@ -46,3 +46,12 @@ docs/prds/
 docs/specs/
 docs/reviews/
 docs/rca/
+
+# yldot owner families (epic AIUE-9): grids, inputs.h5 and states are release assets (yldot-data-v<N>, owner
+# 2026-10-19), listed with SHA-256 in each family.toml [assets] and fetched by tests/yldot/tools/fetch_data.py (AIUE-84)
+tests/yldot/families/large_dd2c/*.h5
+tests/yldot/families/large_dd2c/*.hdf5
+tests/yldot/families/dnull_imp2/*.h5
+tests/yldot/families/dnull_imp2/*.hdf5
+tests/yldot/families/imp7/*.h5
+tests/yldot/families/imp7/*.hdf5

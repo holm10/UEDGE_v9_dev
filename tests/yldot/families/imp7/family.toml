@@ -1,0 +1,71 @@
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1), an owner case. Written by AIUE-91 (make_base_state.py);
+# later tickets add their keys: W, P, child reuse measured: AIUE-86 · [regions], guard cells: AIUE-83 ·
+# release assets and manifest: AIUE-84
+# isimpon=7: fixed-fraction neon (mist_ne.dat, afracs=1.5e-2) with force-balance carbon, upper single null 70x42 (owner, 2026-10-19)
+
+[family]
+name = "imp7"
+grid = "gridue.hdf5"
+store = "sketch"  # owner, 2026-10-19
+rate_files = ["ehr2.dat", "C_rates.adas", "mist_ne.dat"]  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir / com.coronalimpfname;
+                # relative paths: every evaluation must run with the family directory as cwd
+neq = 44352
+
+[source]
+owner = "epic owner"
+delivered = "2026-10-19"
+case = "isimpon7"  # the owner's case directory
+input = "input_mod4.py"
+input_sha256 = "ec4b68a0099e9fabf736ea45f1184b1fbb6a271ecf6f003aaf17aef1ba5eecc5"
+grid = "gridue.hdf5"
+grid_sha256 = "a4b38ab63e8ff5a951920a44b47f36a310ae04cc581eebfc8e96cc081122ab2f"
+state = "b0p1.hdf5"
+state_sha256 = "e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5"
+mist = "mist.dat"
+mist_sha256 = "3547f7d703dd90111094eda0cd9567146198de7d22e5b0a41b08bd4649f6b7cb"
+input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.dat (the case's mist.dat); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5"
+
+[assets]  # release assets (owner, 2026-10-19), not in git; until AIUE-84 fetches them the smoke test skips
+          # this family when they are absent and fails when one is present with another SHA-256
+release = "pending: yldot-data-v<N> (AIUE-84)"
+files = { "gridue.hdf5" = "a4b38ab63e8ff5a951920a44b47f36a310ae04cc581eebfc8e96cc081122ab2f", "inputs.h5" = "fd08a8c47ac7d602947e66b0532003a996219bd01b7c7a04bf7d7ee27feb0802", "reference_state.h5" = "c1d17ff4cf141fc0128b44474c2f07e9519a74edde6b893fa3b724dcbac431db", "base_state.h5" = "cb72f883593a4250fc1843cb5775d069b6000515cd77c72456acffd9000abbf9" }
+
+[reference_state]
+file = "reference_state.h5"
+origin = "owner case state (b0p1.hdf5), used as supplied, no reconvergence (owner, 2026-10-19)"
+norm = "nksol max |sfscal*yldot| <= ftol"
+ftol = 1e-08
+fmax = 1.5370e-10
+fnrm_l2 = 3.6776e-10
+converged = true  # information only, gates nothing
+build_commit = "0480272785480247dbd6290ac7f5542e47255d19"
+build = "serial"
+uedge_ver = "8.1.2-beta.0"
+
+[perturbation]
+sigma = 0.02
+seed = 91003
+rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
+min_block_ratio = 1.655e+10
+floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
+near_floor_factor = 1.1
+near_floor_tes = { reference = 0, base = 0 }
+near_floor_tis = { reference = 0, base = 0 }
+near_floor_tgs = { reference = 0, base = 0 }
+near_floor_ngs = { reference = 0, base = 0 }
+near_floor_nis_imp = { reference = 0, base = 0 }
+base_state_sha256 = "cb72f883593a4250fc1843cb5775d069b6000515cd77c72456acffd9000abbf9"
+reference_state_sha256 = "c1d17ff4cf141fc0128b44474c2f07e9519a74edde6b893fa3b724dcbac431db"
+base_state_data_sha256 = "c5ed028f9776c451c1a0aaa9bbaf70ea459ad0c55c4859dd67afcf7bb6341c81"
+reference_state_data_sha256 = "aa08e46049778db22d4de5c93c601ae5b863cde3f8863425073cf12cdd535546"
+source_state_sha256 = "e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5"
+
+[limiter_report]
+flalfe_qr_ge_1_reference = 159
+flalfe_qr_ge_1_base = 902
+
+[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-86 measures them
+w = 2  # exmain warm-up count, PRD section 6 step 5
+p = 2  # pandf repeats, steps 8 and 8b
+timeout_s = 120  # per child
+dt_timestep_s = 1e-6  # timestep configuration, step 6c
