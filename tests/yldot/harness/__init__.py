@@ -10,6 +10,6 @@ os.environ["UEDGE_BANNER"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
-from .process import CONFIGS, FAMILIES, FamilyError, Result, Runner, load_evaluation  # noqa: E402
+from .process import CONFIGS, FAMILIES, INTAKE, FamilyError, Result, Runner, load_evaluation  # noqa: E402
 
-__all__ = ["CONFIGS", "FAMILIES", "FamilyError", "Result", "Runner", "load_evaluation"]
+__all__ = ["CONFIGS", "FAMILIES", "INTAKE", "FamilyError", "Result", "Runner", "load_evaluation"]

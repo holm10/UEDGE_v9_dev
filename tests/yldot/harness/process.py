@@ -32,6 +32,7 @@ from . import state, variants
 from .variants import CONFIGS
 
 FAMILIES = Path(__file__).resolve().parent.parent / "families"
+INTAKE = "intake"  # the intake residual check (PRD section 7.1), not a reference configuration
 START_METHODS = ("forkserver", "spawn")
 # family.toml [evaluation] fallbacks: placeholders (owner, 2026-10-19) until AIUE-86 measures W, P and timeouts
 EVALUATION_DEFAULTS = {"w": 2, "p": 2, "timeout_s": 120.0, "dt_timestep_s": 1e-6}
@@ -148,11 +149,11 @@ class Runner:
 
     def evaluate(self, family, config=None, diagnostics=False, pre=None, post=None, timeout=None, variant=None,
                  replay=None):
-        """One evaluation of the family. config: steady or timestep; None takes the variant's configuration, else
-        steady. pre/post: 'module:function' hooks called as f(bbb, com) in the PRE and POST phases, before the
-        variant. variant: a variants.Variant (or its dict), applied in its phase with d read live; replay: a
-        recorded applied value (variants.encode form) used instead of the rules. timeout: seconds, default from
-        family.toml."""
+        """One evaluation of the family. config: steady, timestep or intake (the unperturbed reference_state.h5,
+        never with a variant); None takes the variant's configuration, else steady. pre/post: 'module:function'
+        hooks called as f(bbb, com) in the PRE and POST phases, before the variant. variant: a variants.Variant (or
+        its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form)
+        used instead of the rules. timeout: seconds, default from family.toml."""
         spec = None
         if variant is not None:
             v = variant if isinstance(variant, variants.Variant) else variants.Variant.from_dict(variant)
@@ -163,8 +164,10 @@ class Runner:
             raise ValueError("replay without a variant")
         if config is None:
             config = "steady"
-        if config not in CONFIGS:
-            raise ValueError("config {!r}, expected one of {}".format(config, CONFIGS))
+        if config not in CONFIGS + (INTAKE,):
+            raise ValueError("config {!r}, expected one of {}".format(config, CONFIGS + (INTAKE,)))
+        if config == INTAKE and spec is not None:
+            raise ValueError("the intake configuration takes no variant")
         fdir = family_dir(family)
         ev = load_evaluation(fdir)
         timeout = float(ev["timeout_s"] if timeout is None else timeout)

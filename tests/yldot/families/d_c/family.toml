@@ -56,3 +56,15 @@ w = 2  # exmain warm-up count, PRD section 6 step 5
 p = 2  # pandf repeats, steps 8 and 8b
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[regions]  # owner, 2026-10-20 (AIUE-83 ticket page): six disjoint regions, one guard region; inner = the ix = 0 side
+guard = "ix in {0, nx+1} or iy in {0, ny+1}"
+nx = 16
+ny = 8
+ix_inner_leg = [1, 4]
+ix_core = [5, 12]
+ix_outer_leg = [13, 16]
+iy_closed = [1, 4]  # core and private flux
+iy_open = [5, 8]  # SOL and legs
+source = { ixpt1 = 4, ixpt2 = 12, iysptrx = 4 }  # mhdgeo = 1: com.ixpt1, ixpt2, iysptrx
+cells = { guard = 52, core = 32, pf = 32, inner_leg = 16, sol = 32, outer_leg = 16 }
