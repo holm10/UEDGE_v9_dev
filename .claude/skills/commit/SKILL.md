@@ -20,7 +20,8 @@ description: Creates a git commit for the current work with an explicit file lis
      ticket branch;
    - AI-layer process files on a ticket branch → if they only keep `CLAUDE.md`/`.claude/context/` accurate about
      code this branch changes, add the trailer `AI-layer: code-facts`. Otherwise unstage them and move them to a
-     `feature/v9-ai-<slug>` branch.
+     `feature/v9-ai-<slug>` branch. `--staged` can't see the message, so for `CLAUDE.md`/`.claude/context/` it prints
+     a `NOTE:` instead of a VIOLATION; add `--message "<the message>"` to check the trailer before committing.
    The PreToolUse hook runs the same check on `git commit` and blocks violations, so fix them here instead of
    working around the block. **Never** add the trailer to get a process change through.
 3. **Stage explicitly** by path: only files that belong to this change. Never `git add -A` / `git add .`.

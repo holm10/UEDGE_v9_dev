@@ -30,10 +30,17 @@ stage bbb/pandf.m docs/physics_specs/x.md; ck --staged; ok $? 0 "A5 physics chan
 grep -q 'product  docs/physics_specs/x.md' "$W/out.txt"; ok $? 0 "A5 the physics spec is product"
 stage docs/physics_specs/x-review-round1.md; ck --staged; ok $? 0 "A6 a file under docs/physics_specs is product (no exception)"
 stage bbb/pandf.m; ck --staged; ok $? 0 "A7 plain product commit"
-stage .claude/context/testing.md; ck --staged; ok $? 1 "A8 context without the code-facts trailer refused (unchanged)"
+stage .claude/context/testing.md; ck --staged; ok $? 0 "A8 context, --staged without a message: a note, not a violation"
+grep -q "^NOTE: .*\.claude/context/testing\.md.*AI-layer: code-facts.*hook checks it on git commit" "$W/out.txt" \
+  && ! grep -q VIOLATION "$W/out.txt"; ok $? 0 "A8 the note names the trailer and the file"
+ck --staged --message 'x'; ok $? 1 "A8 context with a message lacking the trailer refused"
 ck --staged --message $'x\n\nAI-layer: code-facts'; ok $? 0 "A8 context with the trailer allowed (unchanged)"
+grep -q '^NOTE' "$W/out.txt"; ok $? 1 "A8 no note when the message is given"
 stage .claude/skills/commit/SKILL.md; ck --staged; ok $? 1 "A9 a skill on a ticket branch refused (unchanged)"
+grep -q '^NOTE' "$W/out.txt"; ok $? 1 "A9 a skill gets no note"
 stage docs/physics_specs/foo.md .claude/skills/a/SKILL.md; ck --staged; ok $? 1 "A9 physics spec + skill: the skill refused"
+stage CLAUDE.md .claude/skills/a/SKILL.md; ck --staged; ok $? 1 "A9 CLAUDE.md + skill: the skill still refused"
+grep -q '^NOTE: .*CLAUDE.md' "$W/out.txt" && grep -c '^VIOLATION' "$W/out.txt" | grep -qx 1; ok $? 0 "A9 CLAUDE.md as a note, the skill as the one violation"
 clean; git -C "$R" rm -q docs/prds/E-1-old.md; ck --staged; ok $? 0 "A10 deleting a tracked legacy PRD copy allowed"
 clean; echo more >> "$R/.claude/plans/T-1.md"; git -C "$R" add -f .claude/plans/T-1.md; ck --staged; ok $? 1 "A11 modifying a tracked legacy plan refused"
 clean; git -C "$R" mv .claude/plans/T-1.md doc/plan-T-1.md; ck --staged; ok $? 1 "A12 renaming a working document into a product path refused"
@@ -72,6 +79,9 @@ clean; git -C "$R" mv .claude/plans/T-1.md doc/plan-T-1.md
 pre 'git commit -m x'; ok $? 2 "C11 a staged rename out of a working path blocked"
 clean; mkdir -p "$R/.claude/skills/a"; echo k > "$R/.claude/skills/a/SKILL.md"
 pre 'git add .claude/skills/a/SKILL.md && git commit -m x'; ok $? 2 "C12 a skill on a ticket branch blocked (unchanged)"
+clean; stage .claude/context/testing.md
+pre 'git commit -m x'; ok $? 2 "C13 committing context without the trailer is still blocked (the --staged note defers to this)"
+pre $'git commit -m "x\n\nAI-layer: code-facts"'; ok $? 0 "C13 with the trailer allowed"
 clean
 
 echo "== D. here-documents are text, not commands"
