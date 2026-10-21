@@ -45,7 +45,8 @@ output: re-read those passages and confirm they are still true (⚠️ until you
 pip install -v --no-build-isolation . -C "--build-option=--serial" 2>&1 | tee /tmp/uedge-build.log | tail -30
 ```
 
-Build in the worktree's own venv with the install mode of the base venv it is compared with: same Python, same
+Build in the worktree's own venv, with its `bin` first on `PATH` (the build runs `Forthon3` from `PATH`), and with
+the install mode of the base venv it is compared with: same Python, same
 Forthon/numpy/setuptools, `--no-build-isolation`, same `CC` (`.claude/context/testing.md` → "Compared builds use one
 install mode"). A venv with none of them installed yet: `pip install "forthon>=0.10.7" numpy setuptools h5py` first.
 

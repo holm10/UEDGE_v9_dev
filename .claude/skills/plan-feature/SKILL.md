@@ -29,8 +29,11 @@ Classify first — it decides the workflow and how the defaults rule applies (`C
 If the type is unclear, ask the user before continuing.
 
 **Tier** (`.claude/context/process-tiers.md`): take it from the ticket's breakdown entry (`Tier:`), else assign it now
-from what the change touches (L: the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v`, the build, physics; S:
-investigation, characterisation, doc/tooling, small fixes elsewhere; M: the rest). The tier sets the plan's budget:
+from what the change touches (L: the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v`, the build, physics; at
+least M: any other `.m` source, whose implementation review runs on Opus; S: investigation, characterisation,
+doc/tooling, small fixes elsewhere; M: the rest). Check the files the plan modifies against `HIGH_RISK` (L) and
+`FORTRAN` (at least M) in `.claude/hooks/change_kind.py`, so the review gate doesn't re-tier the ticket after the
+code is written. The tier sets the plan's budget:
 **S ≤150 lines, M ≤300, L ≤300** (up to 500 with a one-line reason in Notes). Omit template sections that don't apply
 ("n/a") rather than filling them.
 
@@ -88,7 +91,10 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
    assignment types Forthon accepts, what a link line pulls in. Cite the probe in the plan (the command and the output
-   line that settles it). A claim not probed, including behaviour that only the ticket's own change creates, is marked
+   line that settles it). When the conclusion depends on what an input value means (a solver option set to 0, a flag
+   that selects a path), cite the source line that defines that meaning next to the output: an output code alone
+   (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200 iterations,
+   `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates, is marked
    *assumed*, and the task that relies on it checks it first. For a build change, plan a link check on every
    platform the change claims (the link line, plus `nm -u` or an import), and give every runtime gate a way to fail
    (a count, not a file's existence).

@@ -19,7 +19,8 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
     With --range it also checks the PR size budget and prints `WARNING: PR size budget: ...` lines (never a violation,
     never a change of the exit code): too many added files or lines outside product source and tests, an added file
     over the size cap, or data-like files. It also prints `HIGH-RISK: yes (<up to 5 paths>)` or `HIGH-RISK: no`
-    (the diff touches the L-tier code of `process-tiers.md`; exit code unchanged). Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
+    (the diff touches the L-tier code of `process-tiers.md`) and `FORTRAN: yes (<up to 5 paths>)` or `FORTRAN: no`
+    (any other `.m` source: at least tier M, Opus implementation review); the exit code is unchanged. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
 
 Path classes
   working   .claude/work/** (the local working folder) and the legacy working-document paths .claude/plans/**,
@@ -77,12 +78,18 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
                "summarise them on the ticket page; if they really belong in the PR, say why in its description")
 
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
-HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|.*jac[^/]*$|.*\.v$|.*\.m$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
+HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|.*jac[^/]*$|.*\.v$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
+# Any other MPPL source (process-tiers.md -> Tiers, M row): at least tier M, implementation review on Opus.
+FORTRAN = re.compile(r"^.*\.m$", re.IGNORECASE)
 
 
 def high_risk_paths(paths):
     return sorted({_clean(p) for p in paths if p and HIGH_RISK.match(_clean(p))})
+
+
+def fortran_paths(paths):
+    return sorted({_clean(p) for p in paths if p and FORTRAN.match(_clean(p)) and not HIGH_RISK.match(_clean(p))})
 
 
 def path_kind(path: str) -> str:
@@ -313,6 +320,8 @@ def main() -> int:
     if a.range:
         hr = high_risk_paths(ch.paths)
         print(f"HIGH-RISK: yes ({', '.join(hr[:5])}{', ...' if len(hr) > 5 else ''})" if hr else "HIGH-RISK: no")
+        fo = fortran_paths(ch.paths)
+        print(f"FORTRAN: yes ({', '.join(fo[:5])}{', ...' if len(fo) > 5 else ''})" if fo else "FORTRAN: no")
         try:
             for w in budget_warnings(a.range):
                 print("WARNING: PR size budget: " + w)

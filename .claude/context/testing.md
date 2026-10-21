@@ -85,11 +85,20 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
   - the same build dependencies, installed in the venv (`forthon`, `numpy`, `setuptools`, `h5py`, at the versions
     `pip list` shows in the base venv), and `pip install -v --no-build-isolation .` (plus `-C
     "--build-option=--serial"` for the serial kind). Without `--no-build-isolation`, pip builds in an isolated
-    environment with unpinned Forthon, numpy and setuptools;
+    environment with unpinned Forthon, numpy and setuptools. Put the venv's `bin` first on `PATH` (activate it, or
+    `export PATH=<venv>/bin:$PATH` in the build script) even when calling `<venv>/bin/pip` directly: the build runs
+    `Forthon3` from `PATH` (`Makefile.Forthon:8`), and otherwise picks up another Python's (seen: a pyenv 3.14 shim,
+    `No module named 'setuptools'`);
   - the same `CC` (and `CFLAGS`) as the base venv was built with. On macOS the OpenMP build needs an OpenMP-capable
     compiler: a libomp clang (`CC=$(brew --prefix llvm)/bin/clang`) or `CC=gcc-15 CFLAGS="-std=gnu17
     -Wno-error=incompatible-pointer-types"`, which built `base-omp-0480272`. Record the one used next to the base
     venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
+- **Probing initialisation without a solve** (grid-change interpolation, `ueinit` checks): after the restore and the
+  input changes, `bbb.ifexmain = 1; bbb.allocate(); bbb.ifexmain = 0; bbb.ueinit()`. With `ifexmain = 0`, `allocate`
+  sets `nxold`/`nyold` to the new size and reallocates `Interp` (`bbb/odesetup.m:523-527`), and `ueinit` stops with
+  `ERROR: ni <= 0` (probed on d3dHsm 8x4 → 16x8 in base-a8446eb-serial).
+  Going through `exmain` instead runs the Newton solve (`itermx = 0` means nksol's default of 200 iterations,
+  `svr/nksol.m:973`), and after a converged solve `gridseq` overwrites the `Interp` meshes.
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
   are summarised on the ticket page; they are never committed.
 - **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (ignored by
