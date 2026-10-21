@@ -19,7 +19,9 @@ python -m pip install "forthon>=0.10.7" numpy h5py
 python -m pip install matplotlib scipy scikit-image   # optional: plotting extra (ueplot)
 ```
 
-CI uses Python 3.11 and `numpy==1.26.4`; match that if results must be comparable to CI.
+CI uses Python 3.11 and `numpy==1.26.4`; match that if results must be comparable to CI. Venvs whose builds are
+compared with each other (base and ticket venvs) use one Python and one set of build dependencies, and build with
+`--no-build-isolation` (`.claude/context/testing.md` → "Compared builds use one install mode").
 
 ## 2. Compiler toolchain
 
@@ -55,12 +57,14 @@ Run from outside the repo so the installed package (not `src/`) is imported. Wat
 ## 5. Regression tests (optional, needed for `validate`)
 
 ```bash
-git remote get-url upstream || git remote add upstream https://github.com/LLNL/UEDGE.git
-git fetch upstream pytests
-git worktree add ../uedge-pytests upstream/pytests
+git fetch origin pytests                 # v9: the fork's pytests branch holds v9's references
+git worktree add --detach ../uedge-pytests origin/pytests
 pip install pytest pytest-isolate
 cd ../uedge-pytests && pytest --isolate --tb=short pytests/unittests/D_only -s
 ```
+
+LLNL's `upstream/pytests` holds the references for LLNL UEDGE; the cases in `V9_REFERENCE_CHANGES.md` (on
+`origin/pytests`) fail there for v9 by design (`.claude/context/testing.md`).
 
 ## 6. Claude Code hooks
 

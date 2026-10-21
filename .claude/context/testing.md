@@ -1,7 +1,9 @@
 # Testing — what actually exists
 
-**The regression suite is not in this repository.** It lives on the `pytests` branch of
-`LLNL/UEDGE` (`upstream/pytests`), and CI checks it out after building (`.github/workflows/build-test-wheel.yml:55-95`).
+**The regression suite is not in this repository.** It lives on a `pytests` branch. **v9 work uses `origin/pytests`**
+(the holm10 fork): it holds v9's own references, regenerated for the v9 physics and listed with their reason in
+`V9_REFERENCE_CHANGES.md` on that branch, for a later merge into LLNL's `upstream/pytests`. CI still checks out
+LLNL's branch after building (`.github/workflows/build-test-wheel.yml:55-95`, quirks below).
 There are no unit tests of individual Fortran routines and no coverage measurement.
 
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
@@ -56,16 +58,47 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
   native `ubuntu-latest`) instead of an emulated or many-thread local matrix; quote its result.
 - **Reuse builds**: one base venv per build kind (`--serial`, default OpenMP) per branch point, built once from a clean
   committed `origin/v9-develop` tree and shared by the tickets based on it (read-only: never reinstall into it); each
-  ticket worktree keeps its own venv for its own build and rebuilds only when its sources changed.
+  ticket worktree keeps its own venv for its own build and rebuilds only when its sources changed. Name base venvs by
+  their commit, `uedge-wt/venvs/base-{serial,omp}-<sha>`, so a stale one is visible; build a new pair when
+  `v9-develop` moves past it.
+- **Compared builds use one install mode.** Builds whose results or logs are compared (base vs ticket venvs, the
+  serial bitwise check, a build-log diff) must differ only in the source tree:
+  - the same interpreter: create the venv with the Python named in the base venv's `pyvenv.cfg` (`home`/`version`;
+    pyenv 3.13.12 so far), not whatever `python` resolves to;
+  - the same build dependencies, installed in the venv (`forthon`, `numpy`, `setuptools`, `h5py`, at the versions
+    `pip list` shows in the base venv), and `pip install -v --no-build-isolation .` (plus `-C
+    "--build-option=--serial"` for the serial kind). Without `--no-build-isolation`, pip builds in an isolated
+    environment with unpinned Forthon, numpy and setuptools;
+  - the same `CC`: on macOS the OpenMP build needs a libomp-capable clang (`CC=$(brew --prefix llvm)/bin/clang`); the
+    serial build has not needed one since AIUE-109 (62ac2b1).
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
   are summarised on the ticket page; they are never committed.
+- **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (untracked,
+  not ignored) and refuses to start if it exists. Set `OMP_CI_OUT` to a new path in `.claude/work/<KEY>/` for each run,
+  e.g. one for the base and one for the ticket build.
 
-## Suite structure (`upstream/pytests`)
+### Bisecting old commits on macOS
+
+Every commit before AIUE-109 (62ac2b1) passes `-fopenmp` to the C compiler, even with `--serial` (which `setup.py` has
+had since d32c88b, 2025-01), so Apple clang fails the link. With `CC=gcc-15`, gcc 15's C23 default makes the pointer
+assignments in `bbb/exmain.c:71,117` hard errors. Build each bisect step with
+
+```bash
+CC=gcc-15 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" OMP_NUM_THREADS=1 \
+    pip install -v --no-build-isolation .     # add -C "--build-option=--serial" from d32c88b on
+```
+
+(as a script file: the permission check refuses `VAR=… cmd` prefixes, `CLAUDE.md` → Gotchas). Mark a step whose build
+fails `git bisect skip`; without these flags a whole range is skipped and the bisect stalls at "N revisions left".
+
+## Suite structure (`pytests` branch)
 
 ```
 pytests/fulltests/<case>/{input.py, conftest.py, test_<case>.py, gridue, *.h5 reference}
 pytests/unittests/{D+C, D_mols, D_only, slab_D_only}/<case>/<variant>/{input.py, conftest.py, test_*.py, ...}
-MakeTests.py      # regenerates reference solutions
+MakeTests.py              # regenerates whole test directories (re-perturbs every case)
+tools/rereference.py      # origin/pytests only: regenerates one case's reference, keeping its stored state
+V9_REFERENCE_CHANGES.md   # origin/pytests only: every reference that differs from LLNL's, and why
 ```
 
 Each test (`TestClass.test_reference`):
@@ -86,20 +119,36 @@ Each test (`TestClass.test_reference`):
 ```bash
 pip install . -C "--build-option=--serial"     # mirror CI
 pip install pytest pytest-isolate
-git fetch upstream pytests
-git worktree add ../uedge-pytests upstream/pytests
+git fetch origin pytests
+git worktree add ../uedge-pytests origin/pytests      # an existing checkout: git -C ../uedge-pytests checkout --detach origin/pytests
 cd ../uedge-pytests
 pytest --isolate --tb=long pytests/unittests/D_only -s        # fastest
 pytest --isolate --tb=long pytests/fulltests -s
 ```
 
 Pick the suite that exercises your change (impurities → `D+C`, molecules → `D_mols`, slab geometry →
-`slab_D_only`). Physics-neutral changes must pass **all** suites unchanged.
+`slab_D_only`). Physics-neutral changes must pass **all** suites unchanged. On LLNL's `upstream/pytests` the cases
+listed in `V9_REFERENCE_CHANGES.md` fail for v9 by design; don't use it for v9 work.
+
+## Known failures on `v9-develop`
+
+`validate` marks a failure listed here ⚠️ pre-existing without a base re-run; anything else is the change's until a
+base run shows otherwise. Remove an entry when its fix merges. Before scoping a ticket about a failing test, run
+**every** suite on a base venv of the branch point and record here what is red there.
+
+Last full run: all suites on a serial build of `v9-develop` 00acc43 against `origin/pytests` f695acd (2026-10-20):
+157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3).
+- **Failures:** none.
+- **Passes with a warning:** D_only `nonog/icnucx`, "Fnrms outside of tolerances, but similar" (2.91902895e+00 vs
+  2.91897620e+00); seen since AIUE-93 at least.
 
 ## When results change intentionally
 
-New physics should be off by default, so references stay valid. If a reference must change (bugfix), regenerate
-it with `MakeTests.py` on the `pytests` branch in a separate PR and explain the diff in the main PR.
+New physics should be off by default, so references stay valid. If a reference must change (a bug fix, or an owner
+decision on a physics default), regenerate that case with `tools/rereference.py <case dir>` on `origin/pytests`, in a
+separate PR to that branch, add the case to `V9_REFERENCE_CHANGES.md` (old and new `fnrm`, the change that moved it,
+who decided it), and explain the diff in the main PR. Not `MakeTests.py`: it rebuilds the whole directory and
+re-perturbs every case with unseeded random numbers, so every reference in it would move.
 
 ## CI facts / quirks
 

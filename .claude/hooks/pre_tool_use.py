@@ -67,11 +67,13 @@ ENV_DUMP = (
 
 BLOCKED_ENV_MESSAGE = (
     "BLOCKED: access to secrets is not allowed.\n"
-    "Read a committed .env.example template instead."
+    "Read a committed .env.example template instead. If the command only carries code that mentions the "
+    "environment (os.environ in a heredoc or a -c string), write that code to a script file in the scratchpad "
+    "and run the file (CLAUDE.md -> Gotchas)."
 )
 BLOCKED_RM_MESSAGE = (
     "BLOCKED: rm -rf is only allowed on paths inside this repository "
-    "(not the repo root or .git/). Reason: {reason}"
+    "(not the repo root or .git/). Reason: {reason}. Write the target as a literal path."
 )
 
 UNRESOLVABLE = re.compile(r"[$`]|<\(")
