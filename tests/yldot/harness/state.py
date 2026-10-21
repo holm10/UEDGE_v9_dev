@@ -20,6 +20,12 @@ The steps, numbered as in the PRD (the timestep configuration adds 6a-6c):
     8b  yl[neq] = +1 (Jacobian flag), pandf x P: yldot_J; yl[neq] = -1 again
     9   results back through the pipe
 
+The intake configuration (PRD section 7.1, decision 20) replaces steps 3-8b: allocate, restore reference_state.h5,
+restart = 1, POST hook; issfon = 1, ftol = 1e50, dtreal = 1e20; exmain once; step 7; pandf once. It returns yldot and
+sfscal (no yldot_J): the sequence of make_base_state.py check, which recorded family.toml [reference_state] fmax.
+
+Every configuration also returns the index arrays, the equation masks and the grid indices (index truth, decision 19).
+
 uedge is never imported at module level: spawn imports this module to unpickle the target, before run() can check
 the isolation.
 """
@@ -35,6 +41,10 @@ from . import variants
 
 STATE_VARS = ["nis", "ups", "tes", "tis", "ngs", "tgs", "phis"]  # the saved arrays of step 6c
 INDEX_ARRAYS = ["idxn", "idxu", "idxte", "idxti", "idxg", "idxtg", "idxphi", "igyl"]
+MASK_ARRAYS = ["isnionxy", "isuponxy", "isteonxy", "istionxy", "isngonxy", "istgonxy", "isphionxy"]
+GRID = {"bbb": ["ixmnbcl", "ixmxbcl", "iymnbcl", "iymxbcl", "mhdgeo"],
+        "com": ["nx", "ny", "nxpt", "iysptrx", "ixpt1", "ixpt2", "ixlb", "ixrb", "nxcore", "nxleg", "nycore", "nysol",
+                "geometry"]}
 DIAGNOSTIC_GROUPS = ("Rhsides", "Comflo")  # res*, sources; fluxes (owner, 2026-10-19)
 LOG_TAIL = 40
 
@@ -86,6 +96,43 @@ def steady(bbb):
     bbb.dtreal = 1e20
 
 
+def index_data(bbb, com):
+    """The index arrays, equation masks and grid indices (bbb/convert.m:31-152 builds the rows from them)."""
+    out = {name: np.array(getattr(bbb, name)).copy() for name in INDEX_ARRAYS}
+    out["masks"] = {name: np.array(getattr(bbb, name)).copy() for name in MASK_ARRAYS}
+    grid = {}
+    for pkg, module in (("bbb", bbb), ("com", com)):
+        for name in GRID[pkg]:
+            v = getattr(module, name)
+            grid[name] = text(v) if name == "geometry" else np.array(v).copy()
+    out["grid"] = grid
+    return out
+
+
+def intake(bbb, com, post):
+    """The intake configuration: the unperturbed reference_state.h5, evaluated with nksol's scaling (issfon = 1)."""
+    from uedge.hdf5 import hdf5_restore
+
+    ftol_case = float(bbb.ftol)
+    bbb.allocate()
+    hdf5_restore("reference_state.h5")
+    bbb.restart = 1
+    post(bbb, com)
+    steady(bbb)
+    bbb.issfon = 1
+    bbb.exmain()
+    neq = int(bbb.neq)
+    if bbb.yl.size < neq + 2:
+        raise Stop("error", "yl holds {} entries, need neq+2 = {}".format(bbb.yl.size, neq + 2))
+    bbb.yl[neq] = -1.0
+    bbb.yl[neq + 1] = 0.0
+    bbb.pandf(-1, -1, neq, 0.0, bbb.yl, bbb.yldot)
+    out = {"neq": neq, "yldot": bbb.yldot[:neq].copy(), "sfscal": bbb.sfscal[:neq].copy(), "ftol_case": ftol_case,
+           "uedge_ver": text(bbb.uedge_ver)}
+    out.update(index_data(bbb, com))
+    return out
+
+
 def diagnostics(bbb):
     """Every allocated real array of the diagnostic groups, copied."""
     out = {}
@@ -127,6 +174,12 @@ def evaluate(job):
     pre(bbb, com)
     rec_pre = variants.apply(variant, "PRE")
     rec_post = None
+
+    if job["config"] == "intake":
+        out = intake(bbb, com, post)
+        if job["diagnostics"]:
+            out["diagnostics"] = diagnostics(bbb)
+        return out
 
     # 6a
     if timestep:
@@ -191,8 +244,7 @@ def evaluate(job):
     # 9
     out = {"neq": neq, "yldot": yldot, "yldot_J": yldot_j, "dtreal": float(bbb.dtreal),
            "uedge_ver": text(bbb.uedge_ver)}
-    for name in INDEX_ARRAYS:
-        out[name] = np.array(getattr(bbb, name)).copy()
+    out.update(index_data(bbb, com))
     if timestep:
         # what steps 6b and 6c left in place at the pandf calls, for the smoke test
         out["timestep_state"] = {"y_c": y_c, "ylodt": bbb.ylodt[:neq].copy(), "yl": bbb.yl[:neq].copy(),

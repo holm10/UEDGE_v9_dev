@@ -55,3 +55,17 @@ w = 2  # exmain warm-up count, PRD section 6 step 5
 p = 2  # pandf repeats, steps 8 and 8b
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[regions]  # owner, 2026-10-20 (AIUE-83 ticket page): mhdgeo = -1, so geometry does not apply; the mesh comes from
+           # nxcore/nxleg: a half mesh with a reflective (symmetry) boundary at ix = 0 and one divertor leg, core/SOL
+           # split by nycore/nysol. The ixpt1 = 12, ixpt2 = 20 that isgrdsym = 1 produces are not used.
+guard = "ix in {0, nx+1} or iy in {0, ny+1}"
+nx = 32
+ny = 17
+ix_inner_leg = []
+ix_core = [1, 8]
+ix_outer_leg = [9, 32]
+iy_closed = [1, 1]  # core and private flux
+iy_open = [2, 17]  # SOL and leg
+source = { nxcore = 8, nxleg = 24, nycore = 1 }  # com.nxcore[0,1], nxleg[0,1], nycore[0]
+cells = { guard = 102, core = 8, pf = 24, inner_leg = 0, sol = 128, outer_leg = 384 }

@@ -13,17 +13,24 @@ harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with 
 
 `tests/yldot/` holds the case families of the yldot suite (epic AIUE-9): `families/<f>/` with `input.py` in normal
 form (it never loads a state), the grid, `reference_state.h5`, a seeded perturbed `base_state.h5` and `family.toml`
-(provenance, convergence norms, σ, seed, floors, `[evaluation]` W/P/timeout/Δt placeholders); the rate files once in
-`data/`; and `tests/yldot/tools/make_base_state.py` (`check`, `make`). The harness `tests/yldot/harness/` (package
-`yldot.harness`) runs every evaluation in an isolated child: `process.py` (`Runner`: forkserver preloading `uedge`,
-or spawn; HOME/cwd in an empty directory; timeouts; results `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family
-defect) and `state.py` (the PRD §6 protocol, `steady` and `timestep`, returning `yldot` and `yldot_J`). The variants
-(PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser (968
-`+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value rules,
-`plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable through
-`Runner.evaluate(..., variant=, replay=)`); and `tests/yldot/overrides.toml` holds the additions, exclusions, explicit
-values, bounds, phase and configuration, each with a reason. Run it as `pytest tests/yldot` (never `pytest tests/`);
-`tests/yldot/test_smoke.py` is the smoke test (about 15 s).
+(provenance, convergence norms, σ, seed, floors, `[evaluation]` W/P/timeout/Δt placeholders, owner-confirmed
+`[regions]`); the rate files once in `data/`; `tests/yldot/tools/make_base_state.py` (`check`, `make`) and
+`tests/yldot/tools/intake_check.py` (per-row scaled residuals at `reference_state.h5`, tables for the owner, no
+automatic flag). The harness `tests/yldot/harness/` (package `yldot.harness`) runs every evaluation in an isolated
+child: `process.py` (`Runner`: forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts;
+results `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect) and `state.py` (the PRD §6 protocol,
+`steady` and `timestep`, returning `yldot` and `yldot_J`, plus the `intake` configuration: `issfon=1` at
+`reference_state.h5`, no variant, returning `yldot` and `sfscal`; every configuration also returns `idx*`, `igyl`,
+the `is<eq>onxy` masks and the grid indices). `tests/yldot/harness/compare.py` maps every row to (equation, species,
+ix, iy, region) from those arrays only, checked as a bijection (`IndexTruthError`), and holds the PRD §7.4 per-entry
+tolerance (σ = 0 floors, `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in
+`pandf` order. The variants (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's
+own `.v` parser (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py`
+holds the value rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and
+replayable through `Runner.evaluate(..., variant=, replay=)`); and `tests/yldot/overrides.toml` holds the additions,
+exclusions, explicit values, bounds, phase and configuration, each with a reason. Run it as `pytest tests/yldot`
+(never `pytest tests/`); `tests/yldot/test_smoke.py` is the smoke test (about 15 s), `test_compare_unit.py` the
+comparator's unit tests, `test_inventory.py` index truth per family.
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
