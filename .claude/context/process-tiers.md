@@ -20,7 +20,8 @@ Summary. Decide by **what the change touches**, not by effort. When in doubt, ta
 **High-risk** = the L list. A plan review runs only for high-risk changes; low-risk S and M tickets skip it.
 **Other Fortran** = any `.m` source outside the L list (`bbb/odesetup.m`, `bbb/griddubl.m`, `svr/nksol.m`, …): at
 least M, from planning on. It needs no plan review, but its implementation review runs in full on Opus and its
-validation includes the serial bitwise check (`testing.md`). Owner decision 2026-10-21 (AIUE-137).
+validation includes the serial bitwise check (`validate` step 5: bitwise unchanged, or for a fix meant to change
+results only the cases the plan names move). Owner decision 2026-10-21 (AIUE-137).
 
 **Check the tier against the diff.** Before choosing the implementation reviewer, run
 `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and read its `HIGH-RISK:` and `FORTRAN:` lines
