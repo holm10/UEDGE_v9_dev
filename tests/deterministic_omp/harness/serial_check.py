@@ -129,7 +129,7 @@ def find_pytests_dir(arg=None):
             if os.path.isdir(os.path.join(d, "unittests")):
                 return os.path.normpath(d)
     raise HarnessError("no pytests checkout found (tried {}); create one with "
-                       "'git worktree add ../uedge-pytests upstream/pytests' or pass --pytests-dir"
+                       "'git worktree add --detach ../uedge-pytests origin/pytests' or pass --pytests-dir"
                        .format(candidates))
 
 
