@@ -1166,7 +1166,7 @@ c --  Local variables
       do 40 ix = ixs, ixf
          do 30 iy = iys, iyf
             ixl = ixos
-            do 30 ixo = ixos, ixof
+            do 20 ixo = ixos, ixof
                if(xo(ixo,iy).gt.xn(ix,iy) .or. ixo.eq.ixof) goto 25
                ixl = ixo
   20        continue
