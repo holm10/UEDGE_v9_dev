@@ -1,0 +1,204 @@
+# Per-variable overrides of the yldot variant rules (epic AIUE-9, PRD section 7.2; read by harness/variants.py).
+#
+# One table per package-qualified key. Fields:
+#   reason  = "..."                  required, non-empty: why the entry exists
+#   add     = true                   the variable is not tagged +input/+maybeinput and is added to the inventory
+#   exclude = true                   EXCLUDED: never run, the reason goes into every manifest
+#   values  = [...]                  explicit variant values, one variant each (instead of the default rule)
+#   others  = "..."                  with values: every other value is EXCLUDED with this reason
+#   bound   = "pkg.var"              bounded-index rule: d+1 if <= the bound's live value, else d-1 if >= 1, else d
+#   phase   = "PRE" | "POST"         force the phase (default: POST for dynamic arrays, PRE otherwise)
+#   config  = "steady" | "timestep"  the configuration the variant runs in (default: steady)
+# The meth* values are in the rules table of harness/variants.py, not here. Character variables are EXCLUDED by the
+# type rule there.
+#
+# Owner rule (decision 23): if the meaning of an index, term, flag or yldot layout is uncertain, or a test, variant
+# or block behaves irregularly, stop and ask the epic owner and record the answer on the ticket page. Never adjust a
+# tolerance, exclusion, override or indexing to make a test pass.
+
+# ---------------------------------------------------------------- additions (owner confirmed 2026-10-20, AIUE-93)
+
+["bbb.isflxvar"]
+add = true
+reason = "untagged; sets the variables for the ODE and Jacobian, affects yldot (bbb/bbb.v:1298); owner confirmed 2026-10-20"
+
+["bbb.isrscalf"]
+add = true
+reason = "untagged; rescales the ODE rhs if isflxvar != 1 (bbb/bbb.v:1301); owner confirmed 2026-10-20"
+
+["bbb.xlinc"]
+add = true
+reason = "untagged; Jacobian stencil width, affects locality (bbb/bbb.v:1111); owner confirmed 2026-10-20"
+
+["bbb.xrinc"]
+add = true
+reason = "untagged; Jacobian stencil width, affects locality (bbb/bbb.v:1112); owner confirmed 2026-10-20"
+
+["bbb.yinc"]
+add = true
+reason = "untagged; Jacobian stencil width, affects locality (bbb/bbb.v:1113); owner confirmed 2026-10-20"
+
+["bbb.isjaccorall"]
+add = true
+reason = "untagged; Jacobian corner cells, affects locality (bbb/bbb.v:1114); owner confirmed 2026-10-20"
+
+["bbb.isbcwdt"]
+add = true
+config = "timestep"
+reason = "+solver, not +input; varied by owner decision 30; acts only when dtreal < 1e15 (bbb/pandf.m:738)"
+
+["bbb.ismcnon"]
+add = true
+exclude = true
+reason = "unclear whether the Monte Carlo neutral path works; value 4 couples to external Monte Carlo neutral codes (owner, decision 22)"
+
+# ---------------------------------------------------------------- model selectors
+
+["bbb.isimpon"]
+values = [2, 6, 7]
+others = "candidate for elimination, AIUE-10 (decision 30)"
+reason = "selects impurity models (bbb/bbb.v:3875-3885), so d+1 does not apply; 2, 6 and 7 are the most used (decision 30)"
+
+# ---------------------------------------------------------------- pinned by the harness and solver path
+
+["bbb.restart"]
+exclude = true
+reason = "pinned by harness (state.py sets restart = 1)"
+
+["bbb.svrpkg"]
+exclude = true
+reason = "character input; the harness asserts svrpkg == 'nksol' (decision 30)"
+
+# ---------------------------------------------------------------- layout-changing (owner 2026-10-20: the 7 Dim counts)
+
+["com.nhsp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.nzsp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.nisp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.nusp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.nfsp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.ngsp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+["com.nhgsp"]
+exclude = true
+reason = "layout-changing: needs a new family (owner 2026-10-20)"
+
+# ---------------------------------------------------------------- index-like (owner 2026-10-20: bounded next index)
+
+["bbb.jxsori"]
+bound = "com.nxpt"
+reason = "index of the mesh region (X-point) of an inner wall source, 1..nxpt (bbb/bbb.v:644); owner 2026-10-20"
+
+["bbb.jxsoro"]
+bound = "com.nxpt"
+reason = "index of the mesh region (X-point) of an outer wall source, 1..nxpt (bbb/bbb.v:646); owner 2026-10-20"
+
+["bbb.igspsori"]
+bound = "com.ngsp"
+reason = "gas species index of the inner wall sources, 1..ngsp (bbb/bbb.v:639); owner 2026-10-20"
+
+["bbb.igspsoro"]
+bound = "com.ngsp"
+reason = "gas species index of the outer wall sources, 1..ngsp (bbb/bbb.v:640); owner 2026-10-20"
+
+["bbb.igspsorlb"]
+bound = "com.ngsp"
+reason = "gas species index of the left-hand plate sources, 1..ngsp (bbb/bbb.v:999); owner 2026-10-20"
+
+["bbb.igspsorrb"]
+bound = "com.ngsp"
+reason = "gas species index of the right-hand plate sources, 1..ngsp (bbb/bbb.v:1000); owner 2026-10-20"
+
+# ---------------------------------------------------------------- cell indices (owner 2026-10-20: keep d+1)
+
+["bbb.ixfixnc"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:521"
+
+["bbb.incixc"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:522"
+
+["bbb.ixbpmin"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1350"
+
+["bbb.ix_sjcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1840"
+
+["bbb.ix_ejcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1841"
+
+["bbb.iy_sjcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1842"
+
+["bbb.iy_ejcsor"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:1843"
+
+["bbb.ixgb"]
+reason = "cell index: d+1 shifts one cell; an out-of-range case shows up as INVALID (owner 2026-10-20); bbb/bbb.v:104"
+
+# ---------------------------------------------------------------- potential wall BC selectors (owner 2026-10-20)
+
+["bbb.iphibcwi"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwo"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwiix"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+["bbb.iphibcwoix"]
+values = [0, 1, 3, 4]
+reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+# ---------------------------------------------------------------- timestep configuration (PRD section 6)
+
+["bbb.fdtnixy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdtupxy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdttexy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdttixy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdtngxy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdttgxy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.fdtphixy"]
+config = "timestep"
+reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
+
+["bbb.cfqydt"]
+config = "timestep"
+reason = "acts only when dtreal is finite (bbb/pandf_potencur.m:217-222,286)"
