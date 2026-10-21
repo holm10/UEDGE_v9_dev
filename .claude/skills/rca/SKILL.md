@@ -61,6 +61,24 @@ Look for:
 - Related bug fixes
 - Refactorings that might have introduced the issue
 
+**A regression against stored references (a pytests case, a saved state):** establish a known-good baseline before
+building or bisecting anything.
+- Replay the failing case on LLNL's published wheels first: in a scratch venv, `pip install "uedge==<version>"` for a
+  few releases (the release history at https://pypi.org/project/uedge/#history; `pip index versions uedge` may find
+  none for your Python), then run the case from the pytests checkout. Also build the last upstream merge
+  (`git merge-base origin/v9-develop upstream/master`). Minutes, not hours.
+- If they reproduce the references, the references are right and the divergence is **fork-only**: bisect the fork's
+  own commits, `git bisect start --first-parent <bad> <last upstream merge>`. If they don't, the reference or the
+  test is suspect; say so before going further.
+- Before bisecting, record the **final value** (e.g. the case's `fnrm`) at the bad end and confirm that the good end
+  reproduces the reference. Then classify each step by the final value, not by "matches the reference": equals the
+  final value → `bad`; runs and gives any other value → `good`; doesn't build or crashes → `git bisect skip`. This
+  keeps a window where the case is wrong in another way from hiding the change. If the skips leave several
+  candidates, git names them: read their diffs. The bisect finds the commit that first produced the final value; if
+  an earlier commit also moved the value (its parent still differs from the reference), bisect again with that
+  parent as the bad end and the parent's value as the new final value. Building old commits on
+  macOS needs the flags in `.claude/context/testing.md` → "Bisecting old commits on macOS".
+
 ### 4. Investigate Root Cause
 
 **Analyze the code to determine:**
@@ -69,6 +87,11 @@ Look for:
 - What was the original intent?
 - Is this a logic error, edge case, or missing validation?
 - Are there related issues or symptoms?
+
+**Attributions come from the diff.** A claim that commit X introduced, changed or set a default or a value quotes the
+diff line that does it (`git show X -- <file> | grep -n '<name>'`). `git log -S`/`-G` only finds commits that touch
+the string: the commit that added a variable with one default is not the one that changed it (AIUE-116: f5bd464
+added `ismolcrm` with `/0/`; 174ce09 set `/1./`).
 
 **Consider (UEDGE-typical causes):**
 - Index errors at guard cells, cuts or X-points (`ix±1` instead of `ixm1`/`ixp1`; `nxpt=2`; snowflake/slab
