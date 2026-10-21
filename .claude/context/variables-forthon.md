@@ -40,7 +40,8 @@ These are grep counts of lines, not of variables. To count variables, use Fortho
 (`Forthon.interfaceparser.processfile`, with the `--macros` of `Makefile.Forthon`) or the built module's
 `getvarattr`: grep also counts `#` comment lines, `$` private remarks (`bbb/bbb.v:384`) and a `+attr` on a
 continuation line, which Forthon attaches to the variable above (`bbb/bbb.v:1430`). Over all packages, 968 variables
-carry `+input` (Forthon's parser and `getvarattr` agree; AIUE-93) where a line grep finds 973.
+carry `+input` or `+maybeinput` (Forthon's parser and `getvarattr` agree; AIUE-93), where a line grep for either tag
+(`git ls-files '*.v' | xargs grep -hE '\+(input|maybeinput)\b' | wc -l`) finds 973.
 Extra words in a group header become an attribute on every variable in that group (Forthon `interfaceparser.py`; only `hidden` is special-cased).
 Seven `bbb` groups carry `restart`: `Model_choice`, `Coefeq`, `Bcond`, `Err_msg_out`, `Comtra`, `Variable_perturbation`, `Jacobian_clipping` (`bbb/bbb.v:268,272,419,1126,1325,3300,3307`).
 Nothing in UEDGE's Python or in Forthon reads this attribute (Forthon's `pydump` selects on `dump`), so it is inert in the Python build. Put new input variables in these groups as usual; the tag has no effect.

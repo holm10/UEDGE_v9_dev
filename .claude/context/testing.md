@@ -120,7 +120,7 @@ Each test (`TestClass.test_reference`):
 pip install . -C "--build-option=--serial"     # mirror CI
 pip install pytest pytest-isolate
 git fetch origin pytests
-git worktree add ../uedge-pytests origin/pytests      # an existing checkout: git -C ../uedge-pytests checkout --detach origin/pytests
+git worktree add --detach ../uedge-pytests origin/pytests   # an existing checkout: git -C ../uedge-pytests checkout --detach origin/pytests
 cd ../uedge-pytests
 pytest --isolate --tb=long pytests/unittests/D_only -s        # fastest
 pytest --isolate --tb=long pytests/fulltests -s
