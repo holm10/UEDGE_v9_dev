@@ -69,8 +69,10 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
     `pip list` shows in the base venv), and `pip install -v --no-build-isolation .` (plus `-C
     "--build-option=--serial"` for the serial kind). Without `--no-build-isolation`, pip builds in an isolated
     environment with unpinned Forthon, numpy and setuptools;
-  - the same `CC`: on macOS the OpenMP build needs a libomp-capable clang (`CC=$(brew --prefix llvm)/bin/clang`); the
-    serial build has not needed one since AIUE-109 (62ac2b1).
+  - the same `CC` (and `CFLAGS`) as the base venv was built with. On macOS the OpenMP build needs an OpenMP-capable
+    compiler: a libomp clang (`CC=$(brew --prefix llvm)/bin/clang`) or `CC=gcc-15 CFLAGS="-std=gnu17
+    -Wno-error=incompatible-pointer-types"`, which built `base-omp-0480272`. Record the one used next to the base
+    venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
   are summarised on the ticket page; they are never committed.
 - **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (untracked,
