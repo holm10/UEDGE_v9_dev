@@ -5,6 +5,7 @@
  "Makefile.Forthon:27": "$(BUILDDIR)/bbbpydep: $(BUILDDIR)/compydep bbb/pandf_boundary.F bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/oderhs.F bbb/pandf.F bbb/pandf_gas_energy.F bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F bbb/bbb.v com/com.v",
  "Makefile.Forthon:28": "$(FORTHON) -a $(INSTALLARGS) -a $(FCOMP) $(DEBUG) --interfacefile bbb/bbb.v --macros com/com.v $(READLINE) -d com -f bbb/pandf_boundary.F bbb bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/pandf.F bbb/pandf_gas_energy.F bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/oderhs.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F",
  "Makefile.Forthon:44": "$(FORTHON) -a $(INSTALLARGS) -a $(FCOMP) $(DEBUG) --interfacefile svr/svr.v --macros bbb/bbb.v -d bbb -f svr/daspk.F svr svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f $(PETSC-UEDGE)",
+ "Makefile.Forthon:8": "FORTHON = Forthon3",
  "bbb/bbb.v:1126": "***** Err_msg_out restart:",
  "bbb/bbb.v:1325": "***** Comtra restart:",
  "bbb/bbb.v:1351": "isbohmcalc integer /1/ +input",
@@ -68,6 +69,8 @@
  "bbb/oderhs.m:4676": "subroutine jac_calc_interface(neq, t, yl, yldot00, ml, mu, wk,",
  "bbb/oderhs.m:4716": "if (jaccapture .gt. 0) then",
  "bbb/oderhs.m:4738": "subroutine jac_capture (neq, jac, ja, ia, isrc)",
+ "bbb/odesetup.m:523": "if (ifexmain.eq.0 .or. iallcall.eq.0) then",
+ "bbb/odesetup.m:527": "endif",
  "bbb/odesetup.m:6769": "c... Roadblockers for call to pandf through openmp structures (added by J.Guterl)",
  "bbb/odesetup.m:6787": "endif",
  "bbb/odesetup.m:6814": "call xerrab(\"Invalid cfvisxneoq/cfvisxneov\")",
@@ -185,5 +188,6 @@
  "src/uedge/hdf5.py:70": "raise Exception(\"\\nUnable to read data from {}\".file(file))",
  "src/uedge/hdf5.py:82": "def hdf5_save(file, varlist=['bbb.ngs', 'bbb.ng',",
  "src/uedge/rundt.py:1300": "def rundt(**kwargs):",
- "src/uedge/rundt.py:17": "class UeRun():"
+ "src/uedge/rundt.py:17": "class UeRun():",
+ "svr/nksol.m:973": "if (itermx .eq. 0) itermx = 200"
 }

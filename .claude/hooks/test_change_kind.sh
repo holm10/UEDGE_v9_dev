@@ -144,6 +144,16 @@ done
 git -C "$R" checkout -q -b feature/v9-T-9-low v9-develop; echo x > "$R/doc/y.txt"; git -C "$R" add doc/y.txt
 git -C "$R" -c core.hooksPath=/dev/null commit -qm low; ck --range v9-develop...HEAD
 grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G2 a doc-only diff is not high-risk"
+grep -q '^FORTRAN: no$' "$W/out.txt"; ok $? 0 "G2 a doc-only diff has no other Fortran source"
+git -C "$R" checkout -q -b feature/v9-T-9-fortran v9-develop; mkdir -p "$R/bbb"; echo x > "$R/bbb/griddubl.m"; echo x > "$R/bbb/pandf_y.m"
+git -C "$R" add -f bbb/griddubl.m bbb/pandf_y.m; git -C "$R" -c core.hooksPath=/dev/null commit -qm m; ck --range v9-develop...HEAD
+grep -q '^HIGH-RISK: yes (bbb/pandf_y.m)$' "$W/out.txt"; ok $? 0 "G3 a pandf .m is high-risk, another .m is not"
+grep -q '^FORTRAN: yes (bbb/griddubl.m)$' "$W/out.txt"; ok $? 0 "G3 another .m is listed as FORTRAN, the pandf one is not"
+git -C "$R" checkout -q -b feature/v9-T-9-f90 v9-develop; mkdir -p "$R/com" "$R/svr" "$R/ppp" "$R/bbb"
+for f in com/x.f svr/y.F90 ppp/z.F90 bbb/gen.F; do echo x > "$R/$f"; done
+git -C "$R" add -f com/x.f svr/y.F90 ppp/z.F90 bbb/gen.F; git -C "$R" -c core.hooksPath=/dev/null commit -qm f; ck --range v9-develop...HEAD
+grep -q '^FORTRAN: yes (com/x.f, svr/y.F90)$' "$W/out.txt"; ok $? 0 "G4 hand-written .f and .F90 outside ppp/ are FORTRAN; ppp/ .F90 and a .F are not"
+grep -q '^HIGH-RISK: yes (ppp/z.F90)$' "$W/out.txt"; ok $? 0 "G4 a ppp/ .F90 stays high-risk"
 clean
 
 echo "RESULT: $PASS passed, $FAIL failed"

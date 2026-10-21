@@ -129,8 +129,10 @@ and 3b **are** those skills' review gates: run each loop once, not again from `p
 **Who reviews.** Never review your own plan or code, and never use a fork or an agent that saw the drafting. Spawn a
 **fresh** `uedge-reviewer` agent for every round (Agent tool, `subagent_type: "uedge-reviewer"`), with the `model`
 from `process-tiers.md` → Model mix, after the tier check against the diff (`change_kind.py --range` prints
-`HIGH-RISK: yes|no`; `yes` on an S/M ticket re-tiers it to L, see Tiers; also for a verification round's fix diff) (opus for a round-1 review of high-risk code or physics; sonnet for AI-layer and
-low-risk reviews and for verification rounds whose fix diff stays outside the high-risk areas). If you can't spawn
+`HIGH-RISK: yes|no` and `FORTRAN: yes|no`; `HIGH-RISK: yes` on an S/M ticket re-tiers it to L, `FORTRAN: yes` an S
+ticket to M, see Tiers; also for a verification round's fix diff) (opus for a round-1 review of high-risk code,
+physics or any other Fortran source (`.m`, `.F90`, hand-written `.f`); sonnet for AI-layer and low-risk reviews and for verification rounds whose fix diff
+says `no` on both lines). If you can't spawn
 one (no Agent tool, nesting limit reached, running as a subagent without it), **stop after validation** and return
 to your caller: the work state, the validation output, the handoff note and the ready-to-use reviewer prompt below.
 The caller then runs the loop, and also owns the rest of this skill for that ticket: Step 4 (commit), Step 5 (Learn)

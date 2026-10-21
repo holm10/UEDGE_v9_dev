@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch, and the OpenMP serial-vs-parallel check when RHS/Jacobian code changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
+description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch, the OpenMP serial-vs-parallel check when RHS/Jacobian code changed, and the serial old-vs-new bitwise check when Fortran, `.v` or `ppp/` changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
 argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp] [--ticket <KEY>] [--no-tracker] [--tracker-dry-run]
 ---
 
@@ -45,7 +45,8 @@ output: re-read those passages and confirm they are still true (⚠️ until you
 pip install -v --no-build-isolation . -C "--build-option=--serial" 2>&1 | tee /tmp/uedge-build.log | tail -30
 ```
 
-Build in the worktree's own venv with the install mode of the base venv it is compared with: same Python, same
+Build in the worktree's own venv, with its `bin` first on `PATH` (the build runs `Forthon3` from `PATH`), and with
+the install mode of the base venv it is compared with: same Python, same
 Forthon/numpy/setuptools, `--no-build-isolation`, same `CC` (`.claude/context/testing.md` → "Compared builds use one
 install mode"). A venv with none of them installed yet: `pip install "forthon>=0.10.7" numpy setuptools h5py` first.
 
@@ -99,6 +100,13 @@ bbb.exmain()
 ❌ if the serial/parallel comparison reports differences. Prefer a double-null or snowflake case when the change
 touches X-point or boundary code. Rebuild serial afterwards if you will run step 3 again.
 
+## 5. Serial old-vs-new bitwise check (when any Fortran — `*.m`, `*.F90`, hand-written `*.f` — a `.v` file or `ppp/` changed)
+
+Run `tests/deterministic_omp/harness/serial_check.py` against base venvs of the branch point, as in
+`.claude/context/testing.md` → "Serial old-vs-new bitwise check" (four venvs from clean committed trees). ✅ on
+`RESULT: AGREE (bitwise identical; complete gate)`. For an intended change to results (a bug fix or physics that is
+meant to move cases), ⚠️ when exactly the cases the plan or RCA names move, ❌ for any other. Quote the `RESULT` line.
+
 ## Report
 
 ```
@@ -107,6 +115,7 @@ UEDGE validation — <branch> @ <short sha>
   Smoke import .......... ✅/❌  uedge_ver=<…>
   Suites ................ ✅/⚠️/❌  <suite: passed/failed, moved cases>
   OpenMP check .......... ✅/❌/skipped  <why skipped>
+  Serial bitwise ........ ✅/⚠️/❌/skipped  <RESULT line, moved cases, or why skipped>
   Branch / AI-layer facts ✅/⚠️/❌  <policy violations; drift check result; docs re-read>
 Overall: ✅ READY / ❌ NOT READY
 ```
