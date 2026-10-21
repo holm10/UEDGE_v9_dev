@@ -259,7 +259,9 @@ python $H --list                                    # the case set
   - Builds before AIUE-110 do not install `rates/aph/crumpet_{n,E}rates.dat`, so the D_mols decks read them from the
     working directory, and the tool copies them in. Builds with AIUE-110 read the installed copies (`aph.crmdir`).
 - **pytests checkout:** `--pytests-dir`, else `$UEDGE_PYTESTS_DIR`, else `../uedge-pytests` or `../../uedge-pytests`
-  next to the repository (`git worktree add ../uedge-pytests upstream/pytests`).
+  next to the repository (`git worktree add --detach ../uedge-pytests origin/pytests`). v9 work uses `origin/pytests`,
+  which holds v9's references; the cases whose references differ from LLNL's `upstream/pytests` are listed in
+  `V9_REFERENCE_CHANGES.md` on that branch. The check compares two builds, so either branch gives the same verdict.
 - **What is compared:** `compare.compare_records` (above), bit for bit:
   - **Raw captured Jacobians:** every `sfsetnk`/`psetnk` Jacobian captured by the AIUE-47 hook, when both builds
     have the hook. If only one has it, nothing is captured on either side and a warning says so.
@@ -312,9 +314,9 @@ python $H --list                                    # the case set
     `RESULT: INCOMPLETE ... not the gate` and lists what was skipped. `--partial-ok` turns an agreeing incomplete run
     into exit 0, `RESULT: AGREE, PARTIAL`.
   - A harness error wins over a mismatch.
-- `pytests-D_mols` does not reproduce its stored reference `fnrm` on `v9-develop` (2.4166 against 0.9957). The
-  upstream test fails the same way, with the same number. That does not matter here: the check compares two builds,
-  not a build with a reference.
+- `pytests-D_mols` gives `fnrm` 2.4166 on `v9-develop`. LLNL's `upstream/pytests` stores 0.9957, so its test fails
+  there; `origin/pytests` stores v9's 2.4165856501082246 (AIUE-116, `V9_REFERENCE_CHANGES.md`). Neither matters here:
+  the check compares two builds, not a build with a reference.
 
 The owner's original check, from inside a copy of `case/` (with the environment above):
 

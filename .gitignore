@@ -26,6 +26,9 @@ logs/
 # Per-worktree virtualenvs (.claude/context/branching.md)
 .venv/
 
+# Default output directory of tests/deterministic_omp/ci/run_omp_ci.sh (OMP_CI_OUT overrides it)
+omp-ci-out/
+
 # Ticket and epic working documents: never committed; their lasting content goes to the ticket's or the epic's
 # Confluence pages (.claude/context/branching.md). .claude/work/<KEY>/ is the working folder; the other paths are
 # where these documents used to be committed (change_kind.py refuses them too).

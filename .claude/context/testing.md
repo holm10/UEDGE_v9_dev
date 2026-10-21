@@ -92,8 +92,8 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
     venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
   are summarised on the ticket page; they are never committed.
-- **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (untracked,
-  not ignored) and refuses to start if it exists. Set `OMP_CI_OUT` to a new path in `.claude/work/<KEY>/` for each run,
+- **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (ignored by
+  `.gitignore`) and refuses to start if it exists. Set `OMP_CI_OUT` to a new path in `.claude/work/<KEY>/` for each run,
   e.g. one for the base and one for the ticket build.
 
 ### Bisecting old commits on macOS
