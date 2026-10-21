@@ -14,6 +14,8 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
         uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD   # every file a branch touches
 
     Exit 0 = clean, 1 = violations (printed), 2 = could not run (not a git repo, bad range).
+    --staged can't see the commit message: without --message, CLAUDE.md or .claude/context/ on a ticket branch gets a
+    `NOTE:` (the code-facts trailer is checked when committing) instead of a violation.
     With --range it also checks the PR size budget and prints `WARNING: PR size budget: ...` lines (never a violation,
     never a change of the exit code): too many added files or lines outside product source and tests, an added file
     over the size cap, or data-like files. It also prints `HIGH-RISK: yes (<up to 5 paths>)` or `HIGH-RISK: no`
@@ -271,7 +273,8 @@ def main() -> int:
     g.add_argument("--range", help="check every file changed in a git range, e.g. origin/v9-develop...HEAD "
                    "(three dots: the branch's own changes since it forked)")
     ap.add_argument("--branch", help="branch to check against (default: current branch)")
-    ap.add_argument("--message", default="", help="commit message (for the code-facts trailer)")
+    ap.add_argument("--message", default=None,
+                    help="commit message (for the code-facts trailer; when given, even empty, it is checked)")
     a = ap.parse_args()
     try:
         branch = a.branch or current_branch()
@@ -279,7 +282,7 @@ def main() -> int:
     except subprocess.CalledProcessError as e:
         print(e.stderr.strip() or str(e), file=sys.stderr)
         return 2
-    message = a.message
+    message = a.message or ""
     if a.range and not message:
         # On a range, the trailer may sit in any commit of the branch.
         try:
@@ -292,6 +295,17 @@ def main() -> int:
         print(f"  {path_kind(p):8s} {p}" + ("  (deleted)" if p in ch.deleted else "")
               + (f"  (renamed from {ch.renamed[p]})" if p in ch.renamed else ""))
     v = violations(branch, ch.paths, message, ch.deleted, ch.renamed)
+    if not a.range and a.message is None:
+        # --staged can't see the commit message, so a missing code-facts trailer is a note here; the PreToolUse hook
+        # checks it on `git commit`. Every other violation stands.
+        with_trailer = violations(branch, ch.paths, CODE_FACTS_TRAILER, ch.deleted, ch.renamed)
+        if len(with_trailer) < len(v):
+            facts = sorted(p for p in set(map(_clean, ch.paths)) if CODE_FACTS.match(p))
+            print(f"NOTE: '{branch}' is a ticket branch: {', '.join(facts)} may change only in a code-facts "
+                  f"edit (it only keeps the AI layer factually in line with code this branch changes), with the "
+                  f"trailer '{CODE_FACTS_TRAILER}' in the commit message. --staged can't see the message: the "
+                  f"PreToolUse hook checks it on git commit (or pass --message to check it now).")
+            v = with_trailer
     for line in v:
         print("VIOLATION: " + line)
     if not v:

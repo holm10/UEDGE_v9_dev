@@ -179,6 +179,8 @@ bash .claude/hooks/test_change_kind.sh                    # after changing chang
 ```
 
 Exit 0 means clean, 1 means violations (printed with the offending paths), 2 means the check couldn't run.
+`--staged` can't see the commit message: `CLAUDE.md` or `.claude/context/` on a ticket branch gets a `NOTE:` (exit 0)
+and the trailer is checked on `git commit`; `--staged --message "<message>"` checks it now.
 
 `--range` also checks the **PR size budget** and prints `WARNING: PR size budget …` lines (never a failure): more
 than 40 added files or 3,000 added lines outside product source and tests, any added file over 1 MB, or data-like
