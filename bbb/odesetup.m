@@ -1569,9 +1569,14 @@ c...  method chosen.
          if (nis(nxold+1,nyold+1,1) .eq. 0.) then
             call xerrab ('variable nis=0, no saved solution for interp')
          endif
-       if(nx.ne.nxold .and. ny.ne.nyold) then
-         if(nx.ne.2*nxold .and. ny.ne.2*nyold) then
-            call xerrab ('must double both nx and ny to interpolate')
+       if(nx.ne.nxold .or. ny.ne.nyold) then
+         if(nx.ne.2*nxold .or. ny.ne.2*nyold) then
+            if (isnintp .eq. 1) then   # here only with isimesh=1: no gridseq data on the old mesh
+               call remark('*** ueinit: nx or ny changed, but no old-mesh data is saved for the isnintp=1 interpolator')
+               call xerrab('*** isimesh=1: converge on the old mesh first, or double both nx and ny ***')
+            else
+               call xerrab ('must double both nx and ny to interpolate')
+            endif
          endif
 
 c...  If the grid is doubled in each direction, interpolate the solution
