@@ -7,14 +7,14 @@ c-----------------------------------------------------------------------
 
       Use(Dim)      # nx,ny,nhsp,nisp,ngsp,nxpt
       Use(Xpoint_indices)   # ixlb,ixpt1,ixpt2,ixrb,iysptrx
-      Use(Interp)   # ixlbo,ixpt1o,ixpt2o,ixrbo,iysptrxo
+      Use(Interp)   # ixlbo,ixpt1o,ixpt2o,ixrbo,iysptrxo,nxpto,geometryo
                     # xnrmo,xvnrmo,ynrmo,yvnrmo,
                     # nis,tes,tis,tgs,ups,phis,ngs,isimesh,afracs,
                     # ixst,ixend,ixsto,ixendo
       Use(Imprad)   # afrac,isimpon
       Use(Compla)   # ni,up,ng,te,ti,phi
       Use(Comgeo)   # xnrm,xvnrm,ynrm,yvnrm
-      Use(Share)    # nyomitmx
+      Use(Share)    # nyomitmx,geometry
       Use(Npes_mpi) # ismpion
       Use(Cut_indices)	# ixcut1,iycut1,ixcut2,iycut2,ixcut3,iycut3
                         # ixcut4,iycut4
@@ -26,6 +26,8 @@ c-----------------------------------------------------------------------
       if (ismpion == 0) isimesh = 0  #turn-off switch; at least one mesh calc
 
       iysptrxo = iysptrx
+      nxpto = nxpt
+      geometryo = geometry
       do jx=1,nxpt
          ixlbo(jx) = ixlb(jx)
          ixpt1o(jx) = ixpt1(jx)
