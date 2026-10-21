@@ -77,6 +77,13 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 5. Check build implications: new `.m` files (both `Makefile.Forthon` lists + `Package`), new `.v` routines,
    `.h` parameter mirrors, save/restore lists (`src/uedge/hdf5.py`).
 6. Recent history in the area: `git log --oneline -15 -- <paths>`.
+   Then the parallel work on the same files: the open PRs (`gh pr list --repo holm10/UEDGE_v9_dev --state open
+   --limit 100 --json number,headRefName,files`; the fork, since plain `gh` resolves to upstream LLNL/UEDGE), the
+   other active ticket worktrees (`git worktree list`; `git diff --name-only origin/v9-develop...<branch>`), and the
+   Files touched of the other tickets in the same wave (their breakdown entries or plans). A sibling that has no
+   commits or PR yet is not evidence of no overlap: its breakdown entry is. Without `gh`, use the worktrees and the
+   breakdown, and say so in Notes. For each file this plan modifies that another ticket also touches, record the
+   expected conflict and the merge order in Notes (the second to merge rebases and re-runs its tests).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which

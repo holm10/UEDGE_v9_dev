@@ -109,7 +109,7 @@ build, or new physics is L.
 
 ### Step 3 — Slice for parallelizability
 
-Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel** (separate branches/worktrees, each with its own Python env since UEDGE installs compiled modules). Mark which tickets are independent and which form a dependency chain. Slicing along package and equation boundaries (`bbb/pandf_*` files, `.v` groups, `src/uedge/` modules) maximizes independence; tickets that both touch `bbb/bbb.v` or the `pandf` tree usually conflict. Parallel is a means, not a goal: a wave runs in parallel only where that shortens the critical path, with at most about 3 tickets (background agents) at once (`.claude/context/process-tiers.md` → Session SOP).
+Map dependencies between tickets. **Independent tickets** — ones that don't touch the same files or rely on each other's output — can run in **parallel** (separate branches/worktrees, each with its own Python env since UEDGE installs compiled modules). Mark which tickets are independent and which form a dependency chain. Slicing along package and equation boundaries (`bbb/pandf_*` files, `.v` groups, `src/uedge/` modules) maximizes independence; tickets that both touch `bbb/bbb.v` or the `pandf` tree usually conflict. So do tickets that extend the same shared entry point in test or tooling code (a harness's runner and its configuration list, e.g. `tests/yldot/harness/process.py` and `state.py`) or rewrite the same paragraph of a context module: list such modified files under each ticket's Files touched, not only the new ones, and if those tickets still share a wave, give the wave a merge order (the second to merge rebases and re-runs its tests). Parallel is a means, not a goal: a wave runs in parallel only where that shortens the critical path, with at most about 3 tickets (background agents) at once (`.claude/context/process-tiers.md` → Session SOP).
 
 ### Step 4 — Write the ticket breakdown
 
@@ -124,7 +124,7 @@ without an epic key):
    ### TICKET-1 — <title> · `<KEY>` (fill in the key after Step 6)
    - Tier: S | M | L (why, in a few words)
    - Scope / acceptance criteria
-   - Files touched (estimate)
+   - Files touched (estimate: new and modified files, including shared harness files and the context-module paragraph it updates)
    - Depends on: <none / TICKET-x>
    - Branch: `feature/v9-<KEY>-<slug>` (fill in the key after Step 6) · base: `v9-develop` | `<parent ticket branch>` (stacked)
    - **Ticket page:** Confluence page <id> (<url>) (filled in by Step 6b) | none (no epic PRD page); PIV record in Jira comments on <KEY>
