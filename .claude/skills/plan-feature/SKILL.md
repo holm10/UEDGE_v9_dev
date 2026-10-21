@@ -30,7 +30,7 @@ If the type is unclear, ask the user before continuing.
 
 **Tier** (`.claude/context/process-tiers.md`): take it from the ticket's breakdown entry (`Tier:`), else assign it now
 from what the change touches (L: the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v`, the build, physics; at
-least M: any other `.m` source, whose implementation review runs on Opus; S: investigation, characterisation,
+least M: any other Fortran source (`.m`, `.F90`, hand-written `.f`), whose implementation review runs on Opus; S: investigation, characterisation,
 doc/tooling, small fixes elsewhere; M: the rest). Check the files the plan modifies against `HIGH_RISK` (L) and
 `FORTRAN` (at least M) in `.claude/hooks/change_kind.py`, so the review gate doesn't re-tier the ticket after the
 code is written. The tier sets the plan's budget:

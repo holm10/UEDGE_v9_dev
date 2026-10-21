@@ -20,7 +20,7 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
     never a change of the exit code): too many added files or lines outside product source and tests, an added file
     over the size cap, or data-like files. It also prints `HIGH-RISK: yes (<up to 5 paths>)` or `HIGH-RISK: no`
     (the diff touches the L-tier code of `process-tiers.md`) and `FORTRAN: yes (<up to 5 paths>)` or `FORTRAN: no`
-    (any other `.m` source: at least tier M, Opus implementation review); the exit code is unchanged. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
+    (any other Fortran source, `.m`, `.F90` or hand-written `.f`: at least tier M, Opus implementation review); the exit code is unchanged. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
 
 Path classes
   working   .claude/work/** (the local working folder) and the legacy working-document paths .claude/plans/**,
@@ -80,8 +80,9 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
 HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|.*jac[^/]*$|.*\.v$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
-# Any other MPPL source (process-tiers.md -> Tiers, M row): at least tier M, implementation review on Opus.
-FORTRAN = re.compile(r"^.*\.m$", re.IGNORECASE)
+# Any other Fortran source (process-tiers.md -> Tiers, M row): at least tier M, implementation review on Opus.
+# Case-sensitive for .f so a generated .F (gitignored) never counts; .M is accepted like HIGH_RISK's matches.
+FORTRAN = re.compile(r"^.*\.([mM]|f|[fF]90)$")
 
 
 def high_risk_paths(paths):

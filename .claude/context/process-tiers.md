@@ -13,19 +13,20 @@ Summary. Decide by **what the change touches**, not by effort. When in doubt, ta
 
 | Tier | Typical tickets | Plan | Plan review | Implementation review | Validation |
 |---|---|---|---|---|---|
-| **S** | investigation, characterisation, doc/tooling, AI-layer changes, small fixes outside the high-risk areas and the `.m` sources | ≤150 lines, written straight to the ticket page (`ticket-page publish`) | none | one round (round 2 only for an open BLOCKER/MAJOR) | `validate` with the suites the change can affect |
-| **M** | Python layer, CI, refactors outside the high-risk areas, bug fixes with a clear RCA; **any `.m` source outside the L list** (at least M) | ≤300 lines | only if high-risk (below) | as below; on Opus for an `.m` source | `validate`; serial bitwise check for an `.m` source |
+| **S** | investigation, characterisation, doc/tooling, AI-layer changes, small fixes outside the high-risk areas and the Fortran sources | ≤150 lines, written straight to the ticket page (`ticket-page publish`) | none | one round (round 2 only for an open BLOCKER/MAJOR) | `validate` with the suites the change can affect |
+| **M** | Python layer, CI, refactors outside the high-risk areas, bug fixes with a clear RCA; **any Fortran source outside the L list** (at least M) | ≤300 lines | only if high-risk (below) | as below; on Opus for a Fortran source | `validate`; serial bitwise check for a Fortran source |
 | **L** | the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v` files, the build (`setup.py`, `pyproject.toml`, `Makefile.Forthon`), new physics | ≤300 lines (up to 500 with a one-line reason in the plan) | **required** | as below | full `validate`, OpenMP check, serial bitwise check |
 
 **High-risk** = the L list. A plan review runs only for high-risk changes; low-risk S and M tickets skip it.
-**Other Fortran** = any `.m` source outside the L list (`bbb/odesetup.m`, `bbb/griddubl.m`, `svr/nksol.m`, …): at
+**Other Fortran** = any Fortran source outside the L list: `.m` (`bbb/odesetup.m`, `bbb/griddubl.m`, `svr/nksol.m`,
+…), `.F90` and hand-written `.f` (`com/*.f`, `ncl/*.f`, `svr/daux1.f`, `svr/petsc-uedge.F90`): at
 least M, from planning on. It needs no plan review, but its implementation review runs in full on Opus and its
 validation includes the serial bitwise check (`validate` step 5: bitwise unchanged, or for a fix meant to change
-results only the cases the plan names move). Owner decision 2026-10-21 (AIUE-137).
+results only the cases the plan names move). Owner decisions 2026-10-21 (AIUE-137; `.F90`/`.f` included after review).
 
 **Check the tier against the diff.** Before choosing the implementation reviewer, run
 `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and read its `HIGH-RISK:` and `FORTRAN:` lines
-(patterns `HIGH_RISK` and `FORTRAN` in that file: the L list above, and every other `.m` source).
+(patterns `HIGH_RISK` and `FORTRAN` in that file: the L list above, and every other Fortran source).
 - `HIGH-RISK: yes` on an S or M ticket: **re-tier to L**. Run the plan review if it did not run, review the
   implementation in full on Opus, and add one Findings-and-decisions entry to the ticket page ("re-tiered S/M -> L:
   diff touches <paths>").
@@ -79,8 +80,8 @@ Agent frontmatter fixes the model where an agent is always one kind of work (`ue
 | Work | `model` |
 |---|---|
 | RCA, design and planning of L tickets, physics, implementation of L tickets | `opus` (default) |
-| Review of the `pandf` tree, Jacobian, `ppp/`, `.v`, build, physics (plan or implementation, round 1), and the implementation review of any other `.m` source | `opus` (the reviewer's default) |
-| Review of an AI-layer change, of S/M tickets outside the high-risk areas and the `.m` sources, and verification rounds whose fix diff stays outside both | `sonnet` |
+| Review of the `pandf` tree, Jacobian, `ppp/`, `.v`, build, physics (plan or implementation, round 1), and the implementation review of any other Fortran source | `opus` (the reviewer's default) |
+| Review of an AI-layer change, of S/M tickets outside the high-risk areas and the Fortran sources, and verification rounds whose fix diff stays outside both | `sonnet` |
 | Mechanical work: merging or rebasing branches, moving or consolidating documents, backfilling records, applying a listed set of minor fixes | `sonnet` |
 
 ## Report caps
