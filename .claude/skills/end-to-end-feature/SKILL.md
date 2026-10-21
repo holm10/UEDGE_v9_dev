@@ -38,7 +38,8 @@ finding and the response, the validate report block, and the criteria not indepe
 one page `spec` created when it filed the ticket (`Ticket plans: <EPIC>` → `Plan: <KEY> - …` under the epic's PRD; or
 short `PIV record` Jira comments when there is no epic PRD page): `plan-feature` fills its Plan section (creating the
 page only if the ticket has none), and entries are sent only at milestones: each closed review
-round, the end of `execute`, an escalation or owner decision, the commit (`ticket-page` → "When to flush"). Pass
+round (with the end-of-`execute` entries before it), an escalation or owner decision, and the end of the ticket (the
+commit, execution report and system review in one flush; `ticket-page` → "When to flush"). Pass
 `--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
 review loop, and run `validate` with `--ticket <KEY>`. Atlassian failures never stop a step; the entries stay queued for the next flush.
 

@@ -78,7 +78,7 @@ For EACH task in "Step by Step Tasks":
   this skill runs as a subagent, it checks before returning that `queue --list` and `queue --epic --list` print
   nothing (flush if not); a flush that fails is reported with the worktree path.
 - Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
-  queued for the end-of-execute flush.
+  queued with the end-of-execute summary (sent by the review verdict's flush, or by its `--flush` fallback).
 - A failed ticket-page call never stops execution: note it in the report; the entries stay queued, and with the
   working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
   it before a flush that leaves nothing queued.
