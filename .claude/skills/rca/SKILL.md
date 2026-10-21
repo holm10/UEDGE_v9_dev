@@ -74,8 +74,9 @@ building or bisecting anything.
   reproduces the reference. Then classify each step by the final value, not by "matches the reference": equals the
   final value → `bad`; runs and gives any other value → `good`; doesn't build or crashes → `git bisect skip`. This
   keeps a window where the case is wrong in another way from hiding the change. If the skips leave several
-  candidates, git names them: read their diffs. The bisect finds the last commit that produced the final value; if
-  an earlier commit also moved it, bisect again with that commit's parent as the bad end. Building old commits on
+  candidates, git names them: read their diffs. The bisect finds the commit that first produced the final value; if
+  an earlier commit also moved the value (its parent still differs from the reference), bisect again with that
+  parent as the bad end and the parent's value as the new final value. Building old commits on
   macOS needs the flags in `.claude/context/testing.md` → "Bisecting old commits on macOS".
 
 ### 4. Investigate Root Cause
