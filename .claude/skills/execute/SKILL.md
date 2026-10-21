@@ -71,12 +71,14 @@ For EACH task in "Step by Step Tasks":
   "Plan amended: <why>"` and `ticket-page <KEY> publish` (the page records the new date and sha256).
 - At the end (after step 4): `ticket-page <KEY> progress "execute done: tasks <list>, commits <first>..<last>"` (one
   line for the epic's progress page) and **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
-  <first>..<last>; <deviations or none>" --flush`. It also sends the validate entries queued during execution.
+  <first>..<last>; <deviations or none>"`. It stays queued with the validate entries, and the review verdict's flush
+  in step 6 sends them all (`ticket-page` → "When to flush"). Add `--flush` if the review won't run in this session
+  (no reviewer can be spawned, or this skill runs as a subagent that returns first).
 - Run in the ticket's explicit worktree (never an Agent `isolation: "worktree"` one, `branching.md` → Worktrees). If
   this skill runs as a subagent, it checks before returning that `queue --list` and `queue --epic --list` print
   nothing (flush if not); a flush that fails is reported with the worktree path.
 - Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
-  queued for the end-of-execute flush.
+  queued with the end-of-execute summary (sent by the review verdict's flush, or by its `--flush` fallback).
 - A failed ticket-page call never stops execution: note it in the report; the entries stay queued, and with the
   working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
   it before a flush that leaves nothing queued.

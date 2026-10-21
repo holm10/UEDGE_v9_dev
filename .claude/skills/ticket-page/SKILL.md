@@ -57,18 +57,30 @@ Everything else is convention in this file.
 | Ticket filed (or a backfill) | `spec` | `create`: the skeleton and the link comment (fallback: the `ticket filed` / `record started` comment) |
 | Plan (or RCA) written, revised or amended | `plan-feature`, `implement-fix`, the review loop | `publish` |
 | A review round closes (APPROVE, or REVISE once its response is written) | the review loop | verdict and response |
-| End of `execute` | `execute` | **one** Progress summary, plus the validate entries queued during it |
+| End of `execute` | `execute` | **one** Progress summary, plus the validate entries queued during it (sent by the review verdict's flush, below) |
 | A `validate` run on its own | `validate` | its result (inside a larger step it rides on that step's flush) |
 | An owner decision or an escalation | whoever records it | the Findings and decisions entry, `status Escalated` |
-| The final commit | `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed` |
+| The final commit, execution report and system review | `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed`, the two Findings and decisions entries: one flush, by `system-review` |
 | Before a worktree is removed, or a subagent doing ticket work returns | that agent | `flush`, then `queue --list` and `queue --epic --list` must print nothing; a failed flush is reported with the worktree path |
 
 Everything else is `log` without `--flush`; per-task entries are not logged. Epic progress lines go out with any flush.
 
-**Cost.** The update tool takes the whole body, so each flush costs about the page size twice (AIUE-61, 48.5 KB: about
-14k output tokens plus 14k in context). Reading the page back adds about 14k more, so `--local` (step 3) is the
-default when nobody else wrote. A ticket with one plan and one implementation round flushes about 5 times. A session
-short of context hands the flush to a fresh agent with the scratch directory; it never skips it.
+**Milestones in one session share one flush.** When the next milestone follows in the same session, queue this one's
+entries and let the next flush send both. Nothing is lost meanwhile: the queue lives in the worktree. Two pairs
+always qualify:
+- the end of `execute` and the implementation review verdict that follows it (the review loop's flush sends both);
+- the final commit, the execution report and the system review at the end of `end-to-end-feature` or
+  `implement-fix` (one flush, after the system review entry).
+
+Never defer past a point that can lose the queue: a subagent returning, a worktree being removed, or the session
+ending (flush first). An owner decision or an escalation still flushes at once.
+
+**Cost.** The update tool takes the whole body, so each flush costs about the page size twice. Ticket pages run 24-31
+KB (AIUE-82, AIUE-83, AIUE-93), about 70% of it the Plan section, which only changes on `publish`. A 30 KB page is
+about 9k output tokens plus 9k in context per flush. Reading the page back adds about 9k more, so `--local` (step 3) is
+the default when nobody else wrote. With shared flushes, a ticket with one plan and one implementation round flushes
+about 3-4 times (plan, review verdict, end; plus any plan revision). `render` warns on stderr when a body passes 25 KB.
+A session short of context hands the flush to a fresh agent with the scratch directory; it never skips it.
 
 ## Configuration
 
@@ -116,8 +128,10 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
 
 ### 3. Version check, then render
 
-1. CQL `id = <page id>` with `expand: "content.version"` → `content.version.number`. Equal to `state.version` → the
-   page is what this worktree last sent: render with `--local --page-version <N>`. Otherwise read the page
+1. `searchConfluenceUsingCql` with `cql: "id = <page id>"` and `expand: "content.version"` (exactly this; `expand:
+   "version"` returns no version) → `results[0].content.version.number` (also `.when` and `.message`; checked
+   2026-10-20 on page 5373979). Equal to `state.version` → the page is what this worktree last sent: render with
+   `--local --page-version <N>`. Otherwise, or if the result has no version number, read the page
    (`getConfluencePage`, `contentFormat: "markdown"`) and pass it as `--current` (the saved tool result works as it
    is). A page made by `spec` is an ordinary page here: the first `publish` reads it and fills the Plan placeholder.
 2. `meta.json` in scratch: `key`, `key_url`, `summary`, `epic`, `epic_url`, `prd_title`, `prd_url`, `branch`,

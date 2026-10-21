@@ -38,7 +38,8 @@ finding and the response, the validate report block, and the criteria not indepe
 one page `spec` created when it filed the ticket (`Ticket plans: <EPIC>` → `Plan: <KEY> - …` under the epic's PRD; or
 short `PIV record` Jira comments when there is no epic PRD page): `plan-feature` fills its Plan section (creating the
 page only if the ticket has none), and entries are sent only at milestones: each closed review
-round, the end of `execute`, an escalation or owner decision, the commit (`ticket-page` → "When to flush"). Pass
+round (with the end-of-`execute` entries before it), an escalation or owner decision, and the end of the ticket (the
+commit, execution report and system review in one flush; `ticket-page` → "When to flush"). Pass
 `--no-tracker` or `--tracker-dry-run` on to every skill, to every sub-agent's prompt, and to whoever takes over a
 review loop, and run `validate` with `--ticket <KEY>`. Atlassian failures never stop a step; the entries stay queued for the next flush.
 
@@ -210,8 +211,10 @@ reserves for the owner: prepare the evidence and the options, and stop at the de
 
 Commit what is not yet committed (any last fixes; never the working documents in `.claude/work/`) with the `commit`
 skill (`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committed`, `progress "committed <sha>"` and
-`log Progress "Committed <sha>: <subject>" --flush`. Check that nothing is left queued (`ticket_page.py queue --repo
-<worktree> --key <KEY> --list`, and with `--epic`): the worktree must not be removed while anything is.
+`log Progress "Committed <sha>: <subject>"`. It stays queued: Step 5's system review flushes it with the lessons
+(`ticket-page` → "When to flush"); when Step 5 is skipped (an S ticket with no process lessons), add `--flush` here.
+After the last flush, check that nothing is left queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list`,
+and with `--epic`): the worktree must not be removed while anything is.
 
 ---
 
@@ -219,7 +222,8 @@ skill (`.claude/skills/commit/SKILL.md`). Then `ticket-page <KEY> status Committ
 
 Run the `execution-report` skill and then the `system-review` skill on the plan and the report (both local, in
 `.claude/work/<KEY>/`). For an S ticket, only when the run diverged from the plan or hit a process problem; otherwise
-say "no process lessons" in the Final Summary. Each puts its findings on the ticket page (a flushed Findings and decisions entry), and
+say "no process lessons" in the Final Summary. Each puts its findings on the ticket page (a Findings and decisions
+entry; the system review's flush sends both, with the commit entry), and
 `system-review` files each recommendation as an `ai-layer` issue. Nothing in `.claude/skills`, `.claude/agents` or
 `.claude/hooks` changes on this branch.
 
