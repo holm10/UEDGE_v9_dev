@@ -209,6 +209,10 @@ $T render --repo "$R" --plan .claude/work/issue-7/rca.md --plan-title RCA --meta
 $T state --repo "$R" --key T-1 --outbox "$W/st-rca" --set page_id=950 --save-plan "$R/.claude/work/issue-7/rca.md" --plan-title RCA >/dev/null
 $T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/rca.md" --outbox "$W/st-rca" --out "$W/rca2.md" >/dev/null && grep -q '^## RCA$' "$W/rca2.md" && ! grep -q '^## Plan$' "$W/rca2.md"; ok $? 0 "D9 a later flush keeps the recorded title (RCA)"
 [ -z "$(git -C "$R" status --porcelain --untracked-files=all)" ]; ok $? 0 "D10 after the lifecycle git status is clean (working copies and store untracked)"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/b5.md" --outbox "$W/st-fresh" --out "$W/x.md" >/dev/null 2>"$W/err.txt"; ! grep -q 'WARNING' "$W/err.txt"; ok $? 0 "D11 a small body: no size warning"
+python3 -c "print('# Big plan\n\n' + 'filler line for the size warning test\n' * 900)" > "$R/.claude/work/T-1/big.md"
+$T render --repo "$R" --plan .claude/work/T-1/big.md --meta "$W/meta.json" --current "$W/b5.md" --outbox "$W/st-big" --out "$W/big.md" >/dev/null 2>"$W/err.txt"; ok $? 0 "D11 a body over 25 KB still renders"
+grep -q 'WARNING: the body is [0-9]* KB (over 25 KB)' "$W/err.txt"; ok $? 0 "D11 ... with a size warning on stderr"
 
 echo "== E. sanitising and secrets"
 printf 'x%.0s' $(seq 1 1600) | $T sanitize --repo "$R" >/dev/null 2>&1; ok $? 1 "E1 the 1500-char cap (Jira fallback)"

@@ -38,6 +38,8 @@ from pathlib import Path
 SECTIONS = ["Progress", "Validation", "Reviews", "Findings and decisions"]
 EPIC_SECTION = "Entries"
 EMPTY = "_No entries yet._"
+# Every flush re-sends the whole body (the update tool has no partial update): warn above this many characters.
+BODY_WARN_CHARS = 25_000
 META_KEYS = ["key", "key_url", "summary", "epic", "epic_url", "prd_title", "prd_url", "branch", "status", "updated",
              "skill"]
 PLAN_PLACEHOLDER = ("_Not written yet: `plan-feature` mirrors the ticket's plan here (`implement-fix` mirrors its RCA"
@@ -373,6 +375,10 @@ def cmd_render(a):
     print(f"ticket_page: wrote {a.out} ({len(text)} chars; " + ("skeleton" if skeleton else f"{plan_title} sha256 "
           f"{plan_hash(plan)}") + "; " + ", ".join(f"{s}: {len(logs[s])}" for s in SECTIONS)
           + f"; {added} new, {restored} restored from the sent log)")
+    if len(text) > BODY_WARN_CHARS:
+        print(f"ticket_page: WARNING: the body is {len(text) // 1000} KB (over {BODY_WARN_CHARS // 1000} KB) and every "
+              "flush re-sends all of it: send the milestones that fall in this session in one flush (SKILL.md -> When "
+              "to flush), and keep log entries to their caps", file=sys.stderr)
     return 0
 
 

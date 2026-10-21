@@ -25,8 +25,9 @@ fraction of that): divergences and lessons, not a retelling of the plan; omit se
 
 For a Jira ticket, put its lasting content on the ticket page once it is written: `ticket-page <KEY> log "Findings and
 decisions" "Agent: execution report: <each divergence in a line: planned / actual / why>; skipped: <items or none>;
-deferred MINORs: <ids or none>; recommendations: <one line each>" --flush` (it runs after the commit's flush, so it
-flushes itself). `--no-tracker` skips it. Without a ticket record the report stays local: say so, and put anything a
+deferred MINORs: <ids or none>; recommendations: <one line each>"`. It stays queued: the `system-review` that follows
+flushes it with the commit entry (`ticket-page` → "When to flush"); run on its own, add `--flush`. `--no-tracker`
+skips it. Without a ticket record the report stays local: say so, and put anything a
 later reader needs in the PR description.
 
 ### Meta Information

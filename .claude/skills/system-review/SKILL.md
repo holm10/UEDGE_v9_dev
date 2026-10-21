@@ -195,7 +195,9 @@ Don't apply any of these actions yourself. Each one is a **process change** and 
 
 List the filed issue keys (or backlog entries) in the report. For a Jira ticket, record them on the ticket page:
 `ticket-page <KEY> log "Findings and decisions" "Agent: system review <score>/10; ai-layer issues <keys> (or not
-filed yet: <one line per action>)" --flush`.
+filed yet: <one line per action>)" --flush`. This is the end-of-ticket flush of `end-to-end-feature` and
+`implement-fix`: it also sends the commit and execution-report entries queued before it. Then check that `queue
+--list` and `queue --epic --list` print nothing.
 
 #### Key Learnings
 

@@ -70,7 +70,7 @@ Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
 With a Jira key, queue the reproduction before/after (`log Progress`), and run `validate` with `--ticket <KEY>` (the
 issue branch name has no key), so it queues its result. They go out
-with the implementation review's flush (4c) and the final commit's flush.
+with the implementation review's flush (4c) or the end-of-ticket flush (step 6).
 
 ## 4b. AI-layer facts
 
@@ -126,7 +126,9 @@ in the PR description; post it on the issue only when the user asks.
 ## 5b. Ticket record after the commit
 
 With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed`, `ticket-page <KEY> progress
-"committed <sha>"` and `ticket-page <KEY> log Progress "Committed <sha>: <subject>" --flush`. If this skill runs as a
+"committed <sha>"` and `ticket-page <KEY> log Progress "Committed <sha>: <subject>"`, queued: step 6's
+`system-review` flushes it (`ticket-page` → "When to flush"); add `--flush` if step 6 won't run in this session. If
+this skill runs as a
 subagent, it runs in the issue's explicit worktree (never an Agent `isolation: "worktree"` one) and checks before
 returning that `queue --list` and `queue --epic --list` print nothing.
 
