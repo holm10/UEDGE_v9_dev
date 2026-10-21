@@ -34,6 +34,7 @@ stage .claude/context/testing.md; ck --staged; ok $? 0 "A8 context, --staged wit
 grep -q "^NOTE: .*\.claude/context/testing\.md.*AI-layer: code-facts.*hook checks it on git commit" "$W/out.txt" \
   && ! grep -q VIOLATION "$W/out.txt"; ok $? 0 "A8 the note names the trailer and the file"
 ck --staged --message 'x'; ok $? 1 "A8 context with a message lacking the trailer refused"
+ck --staged --message ''; ok $? 1 "A8 an explicitly empty message is checked, not noted"
 ck --staged --message $'x\n\nAI-layer: code-facts'; ok $? 0 "A8 context with the trailer allowed (unchanged)"
 grep -q '^NOTE' "$W/out.txt"; ok $? 1 "A8 no note when the message is given"
 stage .claude/skills/commit/SKILL.md; ck --staged; ok $? 1 "A9 a skill on a ticket branch refused (unchanged)"
