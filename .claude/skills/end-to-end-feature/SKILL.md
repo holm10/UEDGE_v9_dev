@@ -156,9 +156,12 @@ For AI-layer changes, one round plus their tests; round 2 only for an open BLOCK
    - for `implementation`: the diff range (`git diff <base>...HEAD` plus uncommitted changes) and the validation
      output you got;
    - the **run budget**: which builds/venvs it may use (never to be reinstalled), what it may build in a scratch
-     worktree, and a time limit; and which acceptance criteria can't be reproduced in its environment (another OS,
-     CI, many-run statistics), so it records those as *not independently verified* instead of failing or trusting
-     them;
+     worktree, and a time limit. If it needs scratch files (venvs, logs, builds), it makes a scratch worktree in the
+     session scratchpad, keeps them inside it, and removes it before returning with `git worktree remove --force`
+     (this deletes untracked and ignored files too); the hook refuses `rm -rf` outside the session's project
+     directory (`CLAUDE.md` → Gotchas). Also say which acceptance criteria can't be reproduced in its environment
+     (another OS, CI, many-run statistics), so it records those as *not independently verified* instead of failing
+     or trusting them;
    - the binding decisions and constraints (`CLAUDE.md` hard rules, epic decisions), so the reviewer checks against
      them instead of re-opening them;
    - the **absolute** report path in the working folder: `<worktree>/.claude/work/<KEY>/reviews/<KEY>-<stage>-round<N>.md`
