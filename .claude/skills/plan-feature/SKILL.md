@@ -77,7 +77,15 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 5. Check build implications: new `.m` files (both `Makefile.Forthon` lists + `Package`), new `.v` routines,
    `.h` parameter mirrors, save/restore lists (`src/uedge/hdf5.py`).
 6. Recent history in the area: `git log --oneline -15 -- <paths>`.
-7. Use `research-agent` instances in parallel only when the user has asked for subagents.
+7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
+   the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
+   (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
+   assignment types Forthon accepts, what a link line pulls in. Cite the probe in the plan (the command and the output
+   line that settles it). A claim not probed, including behaviour that only the ticket's own change creates, is marked
+   *assumed*, and the task that relies on it checks it first. For a build change, plan a link check on every
+   platform the change claims (the link line, plus `nm -u` or an import), and give every runtime gate a way to fail
+   (a count, not a file's existence).
+8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
 
@@ -91,6 +99,12 @@ literature belongs in the physics spec, not here.
   slab geometry, time-dependent vs steady-state (`dtreal`), MC-neutral paths (`ismcnon`).
 - Solver impact: differentiability, Jacobian sparsity, preconditioner.
 - Backward compatibility of inputs and save files.
+- **Owner questions cover the whole class.** When a rule needs exceptions that are the owner's to decide (the meaning
+  of an index, term, flag or layout; an epic rule such as AIUE-9's decision 23), list every member of the class, not
+  only the examples the ticket or PRD names, and ask once, during planning. Build the list with the same tool or query
+  the ticket implements, e.g. every integer input whose name or `.v` comment marks an index, a cell range or an
+  enumerated selector. Unattended (no owner to ask), put the whole list in the plan's Notes as one open owner
+  decision with the proposed answer for each member, and stop there as `end-to-end-feature` does for owner decisions.
 
 ## Phase 5: Write the plan
 
@@ -166,6 +180,7 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 - Within the tier's line budget; no section padded to look complete.
 - Another developer could execute it with no extra context; every file reference has line numbers.
 - Every task has a runnable validation step.
+- Every run-time or build claim cites its probe or is marked *assumed* (Phase 2, step 7).
 - No generic placeholders left; no physics invented in a non-physics plan.
 
 ## Phase 6: Publish the plan to the ticket record (no commit)
