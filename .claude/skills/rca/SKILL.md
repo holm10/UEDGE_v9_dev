@@ -61,6 +61,19 @@ Look for:
 - Related bug fixes
 - Refactorings that might have introduced the issue
 
+**A regression against stored references (a pytests case, a saved state):** establish a known-good baseline before
+building or bisecting anything.
+- Replay the failing case on LLNL's published wheels first: in a scratch venv, `pip install "uedge==<version>"` for a
+  few releases (`pip index versions uedge` lists them), then run the case from the pytests checkout. Also build the
+  last upstream merge (`git merge-base origin/v9-develop upstream/master`). Minutes, not hours.
+- If they reproduce the references, the references are right and the divergence is **fork-only**: bisect the fork's
+  own commits, `git bisect start --first-parent <bad> <last upstream merge>`. If they don't, the reference or the
+  test is suspect; say so before going further.
+- When the bisect range crosses a window where the case is broken in another way (fails to build, crashes, a
+  different wrong value), classify each step by "equals the final (bad) value" → bad, anything else → good, not by
+  "matches the reference". Otherwise the window hides the real change. Building old commits on macOS needs the flags
+  in `.claude/context/testing.md` → "Bisecting old commits on macOS"; a step that doesn't build is `git bisect skip`.
+
 ### 4. Investigate Root Cause
 
 **Analyze the code to determine:**
@@ -69,6 +82,11 @@ Look for:
 - What was the original intent?
 - Is this a logic error, edge case, or missing validation?
 - Are there related issues or symptoms?
+
+**Attributions come from the diff.** A claim that commit X introduced, changed or set a default or a value quotes the
+diff line that does it (`git show X -- <file> | grep -n '<name>'`). `git log -S`/`-G` only finds commits that touch
+the string: the commit that added a variable with one default is not the one that changed it (AIUE-116: f5bd464
+added `ismolcrm` with `/0/`; 174ce09 set `/1./`).
 
 **Consider (UEDGE-typical causes):**
 - Index errors at guard cells, cuts or X-points (`ix±1` instead of `ixm1`/`ixp1`; `nxpt=2`; snowflake/slab
