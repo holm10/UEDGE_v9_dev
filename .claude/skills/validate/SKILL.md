@@ -42,8 +42,12 @@ output: re-read those passages and confirm they are still true (⚠️ until you
 ## 1. Build (serial, as CI)
 
 ```bash
-pip install . -C "--build-option=--serial" 2>&1 | tee /tmp/uedge-build.log | tail -30
+pip install -v --no-build-isolation . -C "--build-option=--serial" 2>&1 | tee /tmp/uedge-build.log | tail -30
 ```
+
+Build in the worktree's own venv with the install mode of the base venv it is compared with: same Python, same
+Forthon/numpy/setuptools, `--no-build-isolation`, same `CC` (`.claude/context/testing.md` → "Compared builds use one
+install mode"). A venv with none of them installed yet: `pip install "forthon>=0.10.7" numpy setuptools h5py` first.
 
 - ❌ on any compile error. Report the first error with its `.F` line **mapped back to the `.m` source** (the `.F`
   is generated; fix the `.m`).
@@ -61,14 +65,18 @@ If new variables/routines were added in a `.v` file, also confirm they are visib
 ## 3. Regression suites (pytests branch)
 
 ```bash
-git fetch upstream pytests
-[ -d ../uedge-pytests ] || git worktree add ../uedge-pytests upstream/pytests
+git fetch origin pytests                 # v9: the fork's pytests branch holds v9's references (testing.md)
+[ -d ../uedge-pytests ] || git worktree add --detach ../uedge-pytests origin/pytests
+git -C ../uedge-pytests log -1 --oneline  # must be origin/pytests; if not: git -C ../uedge-pytests checkout --detach origin/pytests
 pip install -q pytest pytest-isolate
 cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/<suite> -s
 ```
 
 Choose suites by what changed: impurities/`api` → `D+C`; molecules / gas → `D_mols`; slab or geometry →
 `slab_D_only`; anything in `bbb/pandf*`, `convert.m`, `odesetup.m`, `svr/` → all `unittests` + `fulltests`.
+
+A failure listed in `.claude/context/testing.md` → "Known failures on `v9-develop`" is ⚠️ pre-existing (quote it and
+say so). Any other failure is the change's until a run on the base venv shows the same output.
 
 Interpret failures with the **defaults rule** (`CLAUDE.md` → Hard rules):
 - **Refactor / restructuring:** any fnrm or variable mismatch is a ❌ — the refactor changed results.

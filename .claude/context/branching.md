@@ -41,12 +41,13 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   ticket, and `Close-out: <EPIC> - …`. Local working copies (the PRD draft, review reports, the breakdown draft, the
   close-out record and its sources snapshot) go in `.claude/work/<EPIC>/` of the checkout the skill runs in.
 - **No planning branch.** An epic no longer has a `feature/v9-<EPIC>-planning` branch: nothing it held is committed
-  any more. Existing planning branches are left as they are; `close-epic` may read one as a historical source.
-  **Before a planning branch is ever deleted**: tag its tip `archive/<EPIC>-planning` and push the tag (`git tag
-  archive/<EPIC>-planning <branch> && git push origin archive/<EPIC>-planning`), and write its PRD review rounds
-  (verdict, counts, one line per finding, the response) to `PRD reviews: <EPIC>`, citing the tag. Pending:
-  `feature/v9-AIUE-5-planning` and `feature/v9-AIUE-9-planning` (PRD copies and PRD review rounds, not yet on
-  Confluence); nothing is done to them until someone wants to delete them.
+  any more. Existing planning branches are left as they are; `close-epic` may read one, or its archive tag, as a
+  historical source. **Before a planning branch is ever deleted**: tag its tip `archive/<EPIC>-planning` and push the
+  tag (`git tag archive/<EPIC>-planning <branch> && git push origin archive/<EPIC>-planning`), and write its PRD review
+  rounds (verdict, counts, one line per finding, the response) to `PRD reviews: <EPIC>`, citing the tag. Done for all
+  three: the planning branches of AIUE-5, AIUE-8 and AIUE-9 are deleted, and live on as the pushed tags
+  `archive/AIUE-5-planning`, `archive/AIUE-8-planning` and `archive/AIUE-9-planning` (AIUE-5's and AIUE-9's review
+  rounds are on `PRD reviews: AIUE-5` and `PRD reviews: AIUE-9`).
 - **Physics specs stay in the repo.** `docs/physics_specs/<feature>.md` is product documentation: the approved spec
   is committed on the ticket branch with the physics change it specifies (`CLAUDE.md` → Hard rules,
   `physics-workflow.md`). Its review reports are working documents like any other.

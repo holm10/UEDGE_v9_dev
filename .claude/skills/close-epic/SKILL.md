@@ -160,7 +160,8 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
    resolved, `includeReplies: true`) on the PRD, the breakdown page and the ticket pages.
 
 **Legacy planning branch** (epics started before working documents left git): if `feature/v9-<EPIC-KEY>-planning`
-exists (`git branch -a --list '*v9-<EPIC-KEY>-planning'`), or the tag `archive/AIUE-8-docs` holds the epic's files,
+exists (`git branch -a --list '*v9-<EPIC-KEY>-planning'`), or its archive tag does (`git ls-remote --tags origin
+'archive/<EPIC-KEY>-planning'`; AIUE-5, AIUE-8 and AIUE-9 have one), or the tag `archive/AIUE-8-docs` holds the epic's files,
 read with `git show` the PRD copy (`docs/prds/<EPIC-KEY>-*.md`), the breakdown and the progress log
 (`docs/specs/*.md`) and the review reports (`docs/reviews/<EPIC-KEY>-*`) as historical sources, and read all of a
 progress log found there as for the progress page. Newer epics have no planning branch; nothing is written to one.
