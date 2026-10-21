@@ -155,11 +155,11 @@ listed in `V9_REFERENCE_CHANGES.md` fail for v9 by design; don't use it for v9 w
 base run shows otherwise. Remove an entry when its fix merges. Before scoping a ticket about a failing test, run
 **every** suite on a base venv of the branch point and record here what is red there.
 
-Last full run: all suites on a serial build of `v9-develop` 00acc43 against `origin/pytests` f695acd (2026-10-20):
-157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3).
+Last full run: all suites on a serial build of the AIUE-132 change (same-mesh restart copies, on `v9-develop` c82a515)
+against `origin/pytests` f695acd (2026-10-21): 157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3).
 - **Failures:** none.
-- **Passes with a warning:** D_only `nonog/icnucx`, "Fnrms outside of tolerances, but similar" (2.91902895e+00 vs
-  2.91897620e+00); seen since AIUE-93 at least.
+- **Passes with a warning:** none. The D_only `nonog/icnucx` warning seen before ("Fnrms outside of tolerances, but
+  similar") came from the second exmain interpolating onto the same mesh, fixed by AIUE-132.
 
 ## When results change intentionally
 

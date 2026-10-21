@@ -824,6 +824,7 @@ c-----------------------------------------------------------------------
       integer ifld_fcs, ifld_lcs, igsp_lcs, jz
       #Former Aux module variables
       integer ix,iy,igsp
+      integer isamemesh
       real tv
 
 *=======================================================================
@@ -1561,11 +1562,47 @@ c...  method chosen.
          endif
       endif
 
+c...  After a gridseq (isimesh=0): the magnetic topology must not change, and an
+c...  unchanged mesh is copied, not interpolated onto itself (AIUE-132)
+      isamemesh = 0
+      if (isimesh .eq. 0) then
+         if (nxpt .ne. nxpto .or.
+     .       (nxpt .eq. 2 .and. geometry .ne. geometryo)) then
+            call remark('*** nxpt or nxpt=2 geometry differs from the last converged exmain,')
+            call remark('*** or isimesh=0 before any; load a state for this mesh, then isimesh=1')
+            call xerrab('** topology changed; set isimesh=1 **')
+         endif
+         if (nx .eq. nxold .and. ny .eq. nyold .and.
+     .       iysptrx .eq. iysptrxo) then
+            isamemesh = 1
+c...        A Python allocate() can re-size Interp below nxpt: then interpolate
+            if (size(ixlbo) .lt. nxpt .or. size(ixpt1o) .lt. nxpt .or.
+     .          size(ixpt2o) .lt. nxpt .or. size(ixrbo) .lt. nxpt) then
+               isamemesh = 0
+            else
+               do jx = 1, nxpt
+                  if (ixlb(jx) .ne. ixlbo(jx)
+     .                .or. ixpt1(jx) .ne. ixpt1o(jx)
+     .                .or. ixpt2(jx) .ne. ixpt2o(jx)
+     .                .or. ixrb(jx) .ne. ixrbo(jx)) isamemesh = 0
+               enddo
+            endif
+            do iy = 0, ny+1
+               do ix = 0, nx+1
+                  if (xnrm(ix,iy) .ne. xnrmo(ix,iy) .or.
+     .                xvnrm(ix,iy) .ne. xvnrmo(ix,iy) .or.
+     .                ynrm(ix,iy) .ne. ynrmo(ix,iy) .or.
+     .                yvnrm(ix,iy) .ne. yvnrmo(ix,iy)) isamemesh = 0
+               enddo
+            enddo
+         endif
+      endif
+
 *     ------------------------------------------------------------------
 *     interpolate plasma state to the larger grid; either same or double
 *     ------------------------------------------------------------------
 
-      if(isnintp.eq.0 .or. isimesh.eq.1) then  # Use old interp or copy
+      if(isnintp.eq.0 .or. isimesh.eq.1 .or. isamemesh.eq.1) then  # Use old interp or copy
          if (nis(nxold+1,nyold+1,1) .eq. 0.) then
             call xerrab ('variable nis=0, no saved solution for interp')
          endif

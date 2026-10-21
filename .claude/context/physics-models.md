@@ -35,7 +35,7 @@ Boundary conditions for all equations: `bouncon` `bbb/pandf_boundary.m:4`, which
 |---|---|---|---|---|
 | Inertial (parallel-momentum) neutrals | `isupgon` `bbb/bbb.v:221` | off | `bbb/pandf_gas_continuity.m`, `bbb/pandf_plasma_momentum.m` | pre-spec |
 | Molecular hydrogen | `ishymol` `bbb/bbb.v:152` (needs `nhgsp=2`); CRUMPET rates `ismolcrm` `bbb/bbb.v:257` | off; CRUMPET on | `bbb/pandf_gas_*.m`, `bbb/pandf_plasma_energy.m`, `bbb/oderhs.m` | pre-spec |
-| Impurities (fixed fraction / multi-charge-state) | `isimpon` `bbb/bbb.v:3875` | off | `api/` (rates, sputtering, `fmombal`), `bbb/pandf_plasma_momentum.m`, `bbb/pandf_plasma_energy.m` | pre-spec |
+| Impurities (fixed fraction / multi-charge-state) | `isimpon` `bbb/bbb.v:3877` | off | `api/` (rates, sputtering, `fmombal`), `bbb/pandf_plasma_momentum.m`, `bbb/pandf_plasma_energy.m` | pre-spec |
 | Volume recombination | `isrecmon` `bbb/bbb.v:62`, `cfrecom` `bbb/bbb.v:65` | off | `bbb/pandf_plasma_continuity.m`, `bbb/pandf_plasma_energy.m` | pre-spec |
 | Drifts: E×B, ∇B, diamagnetic, B×∇T | `cf2ef` `bbb/bbb.v:354`, `cfyef` `bbb/bbb.v:355`, `cftef` `bbb/bbb.v:356`, `cf2bf` `bbb/bbb.v:357`, `cfydd` `bbb/bbb.v:368`, `cfbgt` `bbb/bbb.v:350` | off (0.) | `calc_driftterms` `bbb/pandf_potencur.m:1254` | pre-spec |
 | Potential from toroidal momentum balance | `isnewpot` `bbb/bbb.v:233` | off | `bbb/pandf_potencur.m`, `bbb/pandf_boundary.m` | pre-spec |

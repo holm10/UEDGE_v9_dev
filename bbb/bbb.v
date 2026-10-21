@@ -3135,6 +3135,8 @@ ixpt1o(1:nxpt)               _integer  #prev. grid value for ixpt1
 ixpt2o(1:nxpt)               _integer  #prev. grid value for ixpt2
 ixrbo(1:nxpt)                _integer  #prev. grid value for ixrb
 iysptrxo                     integer   #prev. grid value for iysptrx
+nxpto                        integer /0/ [ ] #nxpt at the last gridseq (topology guard in ueinit)
+geometryo                    character*16 /" "/ [ ] #geometry at the last gridseq (topology guard)
 ixst(1:6)                    integer   #starting ix for 6 poloid region interp
 ixsto(1:6)		     integer   #value of ixst on previous grid
 ixend(1:6)                   integer   #end ix for 6 poloid region interp
