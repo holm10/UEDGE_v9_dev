@@ -7,7 +7,7 @@ a deliberately permuted map is rejected. Every diagnostic array is placed for th
 import numpy as np
 import pytest
 
-from yldot.harness import FAMILIES, INTAKE
+from yldot.harness import FAMILIES, INTAKE, variants
 from yldot.harness.compare import (PANDF_ORDER, REGIONS, UNORDERED, IndexTruthError, index_map, load_regions,
                                    region_cells)
 
@@ -52,6 +52,13 @@ def test_permuted_map_rejected(intake, family):
     data["idxte"] = idxte
     with pytest.raises(IndexTruthError, match="igyl disagrees"):
         index_map(data)
+
+
+def test_intake_takes_no_variant(runner):
+    """The intake check evaluates the unperturbed reference state only."""
+    v = next(iter(variants.plan()))
+    with pytest.raises(ValueError, match="takes no variant"):
+        runner.evaluate("d_only", config=INTAKE, variant=v)
 
 
 @pytest.mark.parametrize("family", ["d_only", "d_c"])
