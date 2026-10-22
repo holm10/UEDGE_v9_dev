@@ -584,8 +584,11 @@ class Scratch:
 
     def build(self, log):
         log.parent.mkdir(parents=True, exist_ok=True)
+        # setup.py's MPPL conversion returns to getenv("PWD"), not the cwd (setup.py:478-487): without PWD set
+        # here it converts and makes the caller's checkout, and the wheel ships that tree's build (AIUE-90)
+        env = dict(self.env, PWD=str(self.src))
         if self.stream([str(self.python), "-m", "pip", "install", "-v", "--no-build-isolation", "--no-deps", ".",
-                        "-C", "--build-option={}".format(mr.FLAGS)], cwd=self.src, env=self.env, log=log) != 0:
+                        "-C", "--build-option={}".format(mr.FLAGS)], cwd=self.src, env=env, log=log) != 0:
             raise Stop(2, "the build failed (log: {})".format(log))
         so = sorted(self.venv.glob("lib/python*/site-packages/uedge/bbbpy*.so"))
         if len(so) != 1:
