@@ -1,5 +1,7 @@
 Mutation: timestep_flag_gating
 Kind: flag-gating
+Equation: all
+Fault: gating
 Check: flag difference
 Configs: timestep
 Blocks: d_only: primary ni[1], ni[2], up[1], up[2], te[1], ti[1]

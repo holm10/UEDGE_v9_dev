@@ -1,0 +1,27 @@
+Mutation: range_loop_bound
+Kind: range
+Equation: all
+Fault: loop bound
+Check: locality
+Configs: steady
+Intermediate: none
+Families: d_only
+Pending: AIUE-100 (locality check)
+Source: bbb/pandf.m:73 (at 8a67572)
+Description: a wrong loop bound in initialize_ranges: the local (Jacobian) evaluation window around (xc,yc) loses
+ its last poloidal column. The full RHS (xc < 0) is unchanged, so yldot and the flag difference must not
+ fire; the locality check (PRD 7.5, AIUE-100) catches it. Run now as a negative control.
+
+diff --git a/bbb/pandf.m b/bbb/pandf.m
+index b628b3c..401f338 100644
+--- a/bbb/pandf.m
++++ b/bbb/pandf.m
+@@ -70,7 +70,7 @@ SUBROUTINE initialize_ranges(xc, yc, xlinc_loc, xrinc_loc, yinc_loc)
+          i2p = max(1, xc-xrinc_loc-1)
+          i3 = xc-xlinc_loc     # not used as loop indice (can be < 0)
+          i4 = max(0, xc-xlinc_loc)
+-         i5 = min(nx, xc+xrinc_loc)
++         i5 = min(nx, xc+xrinc_loc-1)
+          i5m = min(nx-1, xc+xrinc_loc)
+          i6 = min(nx+1, xc+xrinc_loc+1)
+          i7 = xc+xrinc     # not used as loop indice (can be > nx)

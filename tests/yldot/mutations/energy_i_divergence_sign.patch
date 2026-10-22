@@ -1,0 +1,29 @@
+Mutation: energy_i_divergence_sign
+Kind: physics
+Equation: ti
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ti[1]
+ ortho: primary ti[1]
+ d_mols: primary ti[1]
+ d_c: primary ti[1]
+ slab_phi: primary ti[1]
+Intermediate: resei
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1035 (at 8a67572)
+Description: sign flip of the ion energy flux divergence in resei.
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..435cae5 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1032,7 +1032,7 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+      .          + fluxfacy*(feey(ix,iy) - feey(ix,iy-1)) )
+ c ... ## IJ 2017 cfneutsor_ei flags above control neutral contrib.
+             resei(ix,iy) = resei(ix,iy)					
+-     .                  - ( feix(ix,iy) - feix(ix1,iy)
++     .                  + ( feix(ix,iy) - feix(ix1,iy)
+      .          + fluxfacy*(feiy(ix,iy) - feiy(ix,iy-1)) )
+ 
+ c ... ## IJ 2016/10/19 add MC neutral flux

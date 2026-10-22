@@ -1,0 +1,28 @@
+Mutation: potential_radial_dropped
+Kind: physics
+Equation: phi
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary phi[1]
+ ortho: primary phi[1]
+ d_mols: primary phi[1]
+ slab_phi: primary phi[1]
+Intermediate: resphi
+Families: d_only, ortho, d_mols, slab_phi
+Source: bbb/pandf_potencur.m:701 (at 8a67572)
+Description: drops the radial current divergence fqy from resphi. A small term (fqy about 0.1 against fqx about 1e4
+ in d_only): a test of the per-entry tolerance's sensitivity.
+
+diff --git a/bbb/pandf_potencur.m b/bbb/pandf_potencur.m
+index 46bb096..0350bbd 100755
+--- a/bbb/pandf_potencur.m
++++ b/bbb/pandf_potencur.m
+@@ -698,7 +698,6 @@ ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
+             else
+                resphi(ix,iy) =  ( nurlxp*dx0**2/sigbar0 ) *
+      .                            ( fqx(ix1,iy  ) - fqx(ix,iy)
+-     .                            + fqy(ix ,iy-1) - fqy(ix,iy)
+      .                            + voljcsor(ix,iy) )
+             endif
+   161    continue

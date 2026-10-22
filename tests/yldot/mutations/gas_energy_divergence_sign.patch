@@ -1,0 +1,28 @@
+Mutation: gas_energy_divergence_sign
+Kind: physics
+Equation: tg
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: large_dd2c: primary tg[2]
+Intermediate: reseg
+Families: large_dd2c
+Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
+Source: bbb/pandf_gas_energy.m:350 (at 8a67572)
+Description: sign flip of the gas energy flux divergence in reseg. Only large_dd2c evolves a gas temperature
+ (istgon(2) = 1, its molecules); no small family has a tg block (owner, 2026-10-22, AIUE-90 Q1: pending
+ AIUE-92; a small family evolving tg is proposed). Run now as a negative control.
+
+diff --git a/bbb/pandf_gas_energy.m b/bbb/pandf_gas_energy.m
+index 7ad1ab8..3feea9b 100644
+--- a/bbb/pandf_gas_energy.m
++++ b/bbb/pandf_gas_energy.m
+@@ -347,7 +347,7 @@ call fd2tra (nx,ny,floxge(0:nx+1,0:ny+1,igsp),
+ 
+ *           Divergence of gaseous flows & v-grad-P heating
+ *           ------------------------------------------------------------
+-            reseg(ix,iy,igsp)= -( fegx(ix,iy,igsp)-fegx(ix1,iy,  igsp)+
++            reseg(ix,iy,igsp)= +( fegx(ix,iy,igsp)-fegx(ix1,iy,  igsp)+
+      .                            fegy(ix,iy,igsp)-fegy(ix, iy1,igsp) )
+      .                                                + segc(ix,iy,igsp)
+ 

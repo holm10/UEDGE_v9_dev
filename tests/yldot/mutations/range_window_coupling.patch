@@ -1,0 +1,27 @@
+Mutation: range_window_coupling
+Kind: range
+Equation: phi
+Fault: window coupling
+Check: locality
+Configs: steady
+Intermediate: none
+Families: d_only
+Pending: AIUE-100 (locality check)
+Source: bbb/pandf.m:103 (at 8a67572)
+Description: a single weak coupling removed from the evaluation window: the potential's radial loops (j2p..j5p) of a
+ local evaluation stop one row short, dropping the phi coupling to the next radial cell. The full RHS is
+ unchanged (yc < 0 branch); the locality check (AIUE-100) catches it. Run now as a negative control.
+
+diff --git a/bbb/pandf.m b/bbb/pandf.m
+index b628b3c..4adb110 100644
+--- a/bbb/pandf.m
++++ b/bbb/pandf.m
+@@ -100,7 +100,7 @@ SUBROUTINE initialize_ranges(xc, yc, xlinc_loc, xrinc_loc, yinc_loc)
+          j5 = min(ny, yc+yinc_loc)
+          j5m = min(ny-1, yc+yinc_loc)
+          j6 = min(ny+1, yc+yinc_loc)
+-         j5p = min(ny, yc+yinc_loc+1)
++         j5p = min(ny, yc+yinc_loc)
+          j6p = min(ny+1, yc+yinc_loc+1)
+ c         j6 = min(ny+1, yc+yinc_loc+1)
+          j7 = yc+yinc_loc

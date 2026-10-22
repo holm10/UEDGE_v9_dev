@@ -1,0 +1,27 @@
+Mutation: gas_ionization_dropped
+Kind: physics
+Equation: ng
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_mols: primary ng[2]
+ d_c: primary ng[2]
+Intermediate: resng
+Families: d_mols, d_c
+Source: bbb/pandf_gas_continuity.m:1051 (at 8a67572)
+Description: drops the gas ionization sink psorg from resng (multiplied by 0: the term shares its line with the
+ parenthesis that psorcxg and psorrg close). psorg(,,2) is non-zero in d_mols and d_c (planning probe).
+
+diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
+index 21cf483..2abf0f5 100644
+--- a/bbb/pandf_gas_continuity.m
++++ b/bbb/pandf_gas_continuity.m
+@@ -1048,7 +1048,7 @@ call fd2tra (nx,ny,floxg,floyg,conxg,conyg,
+ 
+ c ... 2016/09/16 IJ: coding to blend MC neutral flux !!! here ***
+ c ... is it correct to use ng instead of ni??? i.e. will ng enter jacobian?
+-            resng(ix,iy,igsp) = cngsor * (psorg(ix,iy,igsp) +
++            resng(ix,iy,igsp) = cngsor * (0*psorg(ix,iy,igsp) +
+      .               psorcxg(ix,iy,igsp) + psorrg(ix,iy,igsp))
+      .             + volpsorg(ix,iy,igsp)
+      .             + psgov_use(ix,iy,igsp)*vol(ix,iy)

@@ -1,0 +1,28 @@
+Mutation: gas_divergence_sign
+Kind: physics
+Equation: ng
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_mols: primary ng[2]
+ d_c: primary ng[2]
+Intermediate: resng
+Families: d_mols, d_c
+Source: bbb/pandf_gas_continuity.m:1057 (at 8a67572)
+Description: sign flip of the gas flux divergence in resng (calc_gas_continuity_residuals). Only gas species 2 is
+ evolved in the small families: d_mols' molecules, d_c's carbon gas (isngon(1) = 0: the hydrogenic atoms
+ are ion species 2). rscalf couples ng only for igsp = 1 with isupgon(1) = 0: no coupled block.
+
+diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
+index 21cf483..d53af67 100644
+--- a/bbb/pandf_gas_continuity.m
++++ b/bbb/pandf_gas_continuity.m
+@@ -1054,7 +1054,7 @@ call fd2tra (nx,ny,floxg,floyg,conxg,conyg,
+      .             + psgov_use(ix,iy,igsp)*vol(ix,iy)
+             if (igsp.eq.1 .and. ishymol.eq.1)
+      .          resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
+-            resng(ix,iy,igsp) = resng(ix,iy,igsp) - cfneutdiv*
++            resng(ix,iy,igsp) = resng(ix,iy,igsp) + cfneutdiv*
+      .          cfneutdiv_fng*((fngx(ix,iy,igsp) - fngx(ix1,iy, igsp)) +
+      .          fluxfacy*(fngy(ix,iy,igsp) - fngy(ix,iy-1,igsp)) )
+ 

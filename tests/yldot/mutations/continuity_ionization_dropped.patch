@@ -1,0 +1,31 @@
+Mutation: continuity_ionization_dropped
+Kind: physics
+Equation: ni
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+ ortho: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+ d_mols: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+ d_c: primary ni[1], ni[2], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], up[2], te[1], ti[1]
+ slab_phi: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+Intermediate: resco
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_continuity.m:1036 (at 8a67572)
+Description: drops the ionization source psor from the plasma continuity residual resco of every ion species
+ (calc_plasma_particle_residuals). psor is non-zero for every species in every small family (planning
+ probe; d_c's C1+..C6+ included). Coupled blocks: rscalf turns the ni faults into up[1], up[2], te[1]
+ (charged species) and ti[1] (owner, AIUE-89).
+
+diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
+index 59433cf..92b1fab 100644
+--- a/bbb/pandf_plasma_continuity.m
++++ b/bbb/pandf_plasma_continuity.m
+@@ -1033,7 +1033,6 @@ call volave(nx, ny, j2, j5, i2, i5, ixp1(0:nx+1,0:ny+1),
+               resco(ix,iy,ifld) = 
+      .           snic(ix,iy,ifld)+sniv(ix,iy,ifld)*ni(ix,iy,ifld) +
+      .           volpsor(ix,iy,ifld) +
+-     .           cfneut * cfneutsor_ni * cnsor * psor(ix,iy,ifld) +
+      .           cfneut * cfneutsor_ni * cnsor * psorxr(ix,iy,ifld) +
+      .           cfneut * cfneutsor_ni * cnsor * psori(ix,iy,ifld) -
+      .           nuvl(ix,iy,ifld)*vol(ix,iy)*ni(ix,iy,ifld) +

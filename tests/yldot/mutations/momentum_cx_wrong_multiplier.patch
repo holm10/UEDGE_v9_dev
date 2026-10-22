@@ -1,0 +1,31 @@
+Mutation: momentum_cx_wrong_multiplier
+Kind: physics
+Equation: up
+Fault: wrong multiplier
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary up[1]
+ ortho: primary up[1]
+ d_mols: primary up[1]
+ d_c: primary up[1]
+ slab_phi: primary up[1]
+Intermediate: resmo
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_momentum.m:434 (at 8a67572)
+Description: the ion-atom charge-exchange momentum coupling of the main ions takes cfupimpg (the impurity-neutral
+ drag multiplier) in place of cfupcx. cfupcx = 1 and cfupimpg = 0 in every small family (planning
+ probe), so the coupling is dropped from up[1] (owner, 2026-10-22, AIUE-90 Q4).
+
+diff --git a/bbb/pandf_plasma_momentum.m b/bbb/pandf_plasma_momentum.m
+index 2d0b684..87a948c 100644
+--- a/bbb/pandf_plasma_momentum.m
++++ b/bbb/pandf_plasma_momentum.m
+@@ -431,7 +431,7 @@ c     The convective component is already already added through uu(ix,iy).
+                   if (ifld .eq. 1) then
+ c     The main ions, momentum coupling:
+                      resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+-     .                   + cfneut * cfneutsor_mi * cfupcx*0.25*volv(ix,iy)*
++     .                   + cfneut * cfneutsor_mi * cfupimpg*0.25*volv(ix,iy)*
+      .                       (nucx(ix,iy,1)+nucx(ix2,iy,1))*
+      .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
+      .                       (up(ix,iy,iigsp)-up(ix,iy,1))

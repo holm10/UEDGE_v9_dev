@@ -1,0 +1,27 @@
+Mutation: gas_energy_dissociation_factor2
+Kind: physics
+Equation: tg
+Fault: factor 2
+Check: yldot
+Configs: steady, timestep
+Blocks: large_dd2c: primary tg[2]
+Intermediate: reseg
+Families: large_dd2c
+Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
+Source: bbb/pandf_gas_energy.m:390 (at 8a67572)
+Description: factor 2 on the molecules' internal energy sink from dissociation (inside ishymol = 1 and igsp = 2;
+ large_dd2c sets ishymol = 1, input.py:104). Pending AIUE-92 as gas_energy_divergence_sign.
+
+diff --git a/bbb/pandf_gas_energy.m b/bbb/pandf_gas_energy.m
+index 7ad1ab8..bef7fbe 100644
+--- a/bbb/pandf_gas_energy.m
++++ b/bbb/pandf_gas_energy.m
+@@ -387,7 +387,7 @@ call fd2tra (nx,ny,floxge(0:nx+1,0:ny+1,igsp),
+ 
+ *               Internal molecular energy sink due to dissociation
+ *               ----------------------------------------------------
+-                reseg(ix,iy,2) = reseg(ix,iy,2) + psorg(ix,iy,2)*1.5*tg(ix,iy,2)
++                reseg(ix,iy,2) = reseg(ix,iy,2) + 2*psorg(ix,iy,2)*1.5*tg(ix,iy,2)
+ 
+ 
+ *               Drift heating energy source for molecules
