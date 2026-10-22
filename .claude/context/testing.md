@@ -43,7 +43,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   iysptrx2 per mesh half; guard also at the cut, ix = ixrb(1)+1 and ixlb(2); regions pf_upper, pf_lower,
   sol_between and four legs; owner, 2026-10-21, AIUE-91). The species in a label is Fortran's 1-based `ifld`/`igsp`.
   Then the PRD §7.4 per-entry tolerance (σ = 0 floors,
-  `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order.
+  `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order. A
+  `Store.check` report finds that diagnostic array-scaled: max|a-b| over the array's max |value| above
+  `DIAG_SCALED_RTOL = 1e-8`. The entry-relative measure always fires on round-off between macOS runs and the
+  Linux-built references; the scaled one stays below 3.5e-10 unmutated (owner, 2026-10-22, AIUE-89).
 - **Variants** (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
@@ -58,6 +61,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   2026-10-21). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`).
+- **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: a `Key: value` header (`Mutation`,
+  `Kind`, `Check`, `Configs`, `Blocks` per family, `Families` with the inner-loop family first, `Source`,
+  `Description`), a blank line, then a single-line `git diff`; `git apply` skips the header. Applied only in a scratch
+  worktree, never to a source on a branch. So far `continuity_ion_divergence_sign` and `timestep_flag_gating`
+  (AIUE-89, applied by hand); AIUE-90 adds the runner and the other patches.
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
   re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
   scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
@@ -99,9 +107,14 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
   `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
   intended flag change updates its `EXPECTED`, with the reason in the PR.
-- **Tests** (the whole suite: 308 tests, 3 of them the owner families' `test_history` skips, in about 300 s, serial
-  build, Darwin arm64, 2026-10-22, AIUE-88; about 250 s of that
+- **Tests** (the whole suite, `-m "not nightly"`: 363 tests, 3 of them the owner families' `test_history` skips, in
+  about 320 s, serial build, Darwin arm64, 2026-10-22, AIUE-89; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
+  `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
+  reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
+  headline, and `test_timestep_exercised` (about 2 s); `tests/yldot/test_thresholds.py` the synthetic threshold test
+  (PRD §7.11 b) of the full-vector, flag-difference and sketch comparators on the stored defaults, pure Python
+  (about 9 s). An absent reference file fails both through `open_store` (owner, 2026-10-22; policy AIUE-156);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
