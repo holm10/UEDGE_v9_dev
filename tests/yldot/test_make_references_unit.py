@@ -1,6 +1,8 @@
-"""tools/make_references.py (AIUE-88; PRD section 7.6): the child side evaluates d_only in fresh child processes and
-writes the same bytes twice, its files open through open_store; the host side's refusals, the exact git and docker
-commands of the Linux path, the host path's preview (release null), and the manifests in references/ that hold data.
+"""tools/make_references.py (AIUE-88, AIUE-94; PRD sections 7.2, 7.3 and 7.6): the child side evaluates d_only in
+fresh child processes and writes the same bytes twice, its files open through open_store; a short variant sweep
+gives each class as probed, --only keeps every other entry bit for bit, a second run that differs is INVALID
+"nondeterministic"; classify on synthetic results; the host side's refusals, the exact git and docker commands of the
+Linux path, the host path's preview (release null), the caps, and the manifests in references/ that hold data.
 The child tests need the built uedge (in the Runner's children); git, docker, pip and the container are fakes here,
 the real Linux run is the ticket's validation.
 """
@@ -38,7 +40,30 @@ def children(tmp_path_factory):
         d = tmp_path_factory.mktemp("child" + run)
         (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)",
                                                   "runner_image": "test image"}))
-        mr.child(["d_only"], d / "references", d / "build.json")
+        mr.child(["d_only"], d / "references", d / "build.json", sweep="none")
+        out.append(d)
+    return out
+
+
+# the probed classes of d_only (AIUE-94 planning sweep, .claude/work/AIUE-94/probes/full_d_only.txt, and a smoke run)
+SWEEP = {"bbb.cfvisx": "SENSITIVE", "bbb.isbcwdt": "SENSITIVE", "bbb.xlinc": "INERT", "bbb.lgvmax": "MARGINAL",
+         "bbb.isnion": "INVALID", "bbb.isphiofft": "INVALID", "bbb.methe=33": "EXCLUDED", "bbb.jxsori": "EXCLUDED",
+         "com.chgstate_format": "EXCLUDED", "com.geometry": "EXCLUDED"}
+
+
+def build_record(d):
+    (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)",
+                                              "runner_image": "test image"}))
+    return d / "build.json"
+
+
+@pytest.fixture(scope="module")
+def swept(tmp_path_factory):
+    """Two child runs of d_only over the SWEEP variants."""
+    out = []
+    for run in ("1", "2"):
+        d = tmp_path_factory.mktemp("swept" + run)
+        mr.child(["d_only"], d / "references", build_record(d), sweep=list(SWEEP))
         out.append(d)
     return out
 
@@ -108,7 +133,8 @@ class FakeStream:
 
 
 def args(**kw):
-    a = {"from_commit": "HEAD", "platform": "linux", "release": TAG, "out": None, "write": False, "family": []}
+    a = {"from_commit": "HEAD", "platform": "linux", "release": TAG, "out": None, "write": False, "family": [],
+         "defaults_only": False, "only": None, "full": False}
     a.update(kw)
     return Namespace(**a)
 
@@ -126,7 +152,7 @@ def test_child_writes_the_same_bytes_twice(children):
 def test_child_files_open_and_hold_the_defaults(tmp_path, children):
     suite = tmp_suite(tmp_path)
     out = children[0]
-    mr.install(mr.assemble(SHA, ["d_only"], out, TAG), out, suite)
+    mr.install(mr.assemble(SHA, ["d_only"], out, TAG)[0], out, suite)
     m = mf.load("d_only", suite)
     assert m["release"] == TAG and m["store"] == "full"
     assert set(m["guarded"]) == {"steady/default", "steady/sigma", "timestep/default", "timestep/sigma"}
@@ -286,15 +312,229 @@ def test_main_exit_codes(capsys):
 
 
 def test_manifests_with_data():
-    """Every manifest in references/ that holds reference data: its store is family.toml's, it stores no variants
-    yet, a release names its files (previews are never committed) and they were built in the pinned image (owner,
-    AIUE-88 D1)."""
+    """Every manifest in references/ that holds reference data: its store is family.toml's, a small family (one with
+    sigma.h5) classifies exactly the inventory's variants and an owner family none yet (AIUE-99), a release names its
+    files (previews are never committed) and they were built in the pinned image (owner, AIUE-88 D1)."""
+    from yldot.harness import variants
+
+    ids = {v.id for v in variants.plan()}
     for p in sorted((SUITE / "references").glob("*.manifest.json")):
         m = mf.load(p)
         if "datasets" not in m:
             continue
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
-        assert m["variables"] == {} and m["provenance"]["flags"] == "--serial", p.name
+        small = (FAMILIES / m["family"] / "sigma.h5").is_file()
+        assert set(m["variables"]) == (ids if small else set()), p.name
+        assert m["provenance"]["flags"] == "--serial", p.name
         assert m["release"] is not None, p.name
         assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name
+
+
+# ---------------------------------------------------------------- the variant sweep (AIUE-94)
+
+
+def test_sweep_classes_as_probed(swept):
+    ref = swept[0] / "references"
+    m = json.loads((ref / "d_only.json").read_text())
+    assert {vid: e["class"] for vid, e in m["variables"].items()} == SWEEP
+    v = m["variables"]
+    assert v["bbb.isnion"]["reason"] == "neq 420 -> 300"
+    assert v["bbb.isphiofft"]["reason"].startswith("error: RuntimeError: *** isphion.ne.0 while isphiofft.ne.0")
+    assert v["bbb.methe=33"]["reason"] == "not applicable in d_only: value equals d"
+    assert v["bbb.jxsori"]["reason"] == "not applicable in d_only: no valid index (bound 1)"
+    assert v["com.chgstate_format"]["reason"] == "not applicable in d_only: unallocated"
+    assert v["bbb.isbcwdt"]["config"] == "timestep" and v["bbb.cfvisx"]["phase"] == "PRE"
+    assert v["bbb.lgvmax"]["block_l2"] and v["bbb.lgvmax"]["sha256"] is None  # MARGINAL: norms, no data
+    assert v["bbb.xlinc"]["block_l2"] == {} and v["bbb.xlinc"]["applied"] is not None
+    assert json.loads((ref / "d_only.findings.json").read_text()) == []
+    assert (ref / "d_only.summary").read_text() == (
+        "d_only: 10 variants: 2 sensitive, 1 inert, 1 marginal, 2 invalid, 4 excluded; 0 nondeterministic\n")
+    cost = json.loads((ref / "d_only.cost.json").read_text())
+    assert cost["evaluations"] == 2 + 9 + 2  # the defaults, all but com.geometry, the SENSITIVE ones again
+    with np.load(ref / "samples" / "d_only.npz") as z:
+        # plan (inventory) order: bbb.isbcwdt is at bbb/bbb.v:179, bbb.cfvisx at :331
+        assert z["ids"].tolist() == ["bbb.isbcwdt", "bbb.cfvisx"] and z["configs"].tolist() == ["timestep", "steady"]
+        assert z["yldot"].shape == (2, 420) and z["tol_steady"].shape == (420,)
+
+
+def test_sweep_writes_the_same_bytes_twice_and_opens(tmp_path, swept):
+    a, b = (d / "references" for d in swept)
+    assert file_sha256(a / "d_only.h5") == file_sha256(b / "d_only.h5")
+    ja, jb = (json.loads((d / "d_only.json").read_text()) for d in (a, b))
+    for j in (ja, jb):
+        j["provenance"].pop("date")
+    assert ja == jb
+    suite = tmp_suite(tmp_path)
+    manifests, findings = mr.assemble(SHA, ["d_only"], swept[0], TAG)
+    assert findings == []
+    mr.install(manifests, swept[0], suite)
+    with open_store("d_only", suite) as s:
+        assert s.variants("steady") == ["bbb.cfvisx"] and s.variants("timestep") == ["bbb.isbcwdt"]
+
+
+def test_only_keeps_every_other_entry(tmp_path, swept):
+    """--only bbb.cfvisx against the installed sweep: the same file, bit for bit (every other variant copied)."""
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    d = tmp_path / "only"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.cfvisx"],
+             full=True, suite=suite)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
+    new, old = (json.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
+    assert new["variables"] == old["variables"]
+    cost = json.loads((d / "references" / "d_only.cost.json").read_text())
+    assert cost["evaluations"] == 2 + 2  # the defaults, cfvisx twice
+    with np.load(d / "references" / "full" / "d_only.bbb.cfvisx.npz") as z:
+        assert z["yldot"].shape == z["default"].shape == (420,) and len(z["labels"]) == 420
+
+
+def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    monkeypatch.setattr(mr, "default_shas", lambda data, sig: {})
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "only", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.cfvisx"],
+                 suite=suite)
+    assert e.value.code == 3 and "regenerate in full" in str(e.value)
+
+
+def test_only_needs_every_other_entry(tmp_path, swept):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    with pytest.raises(mr.Stop, match="bbb.yinc has none"):
+        mr.child(["d_only"], tmp_path / "only", build_record(tmp_path), sweep=list(SWEEP) + ["bbb.yinc"],
+                 only=["bbb.cfvisx"], suite=suite)
+
+
+def test_a_second_run_that_differs_is_nondeterministic(tmp_path, monkeypatch):
+    from yldot.harness.process import Runner
+
+    real, seen = Runner.evaluate, []
+
+    def flaky(self, family, **kw):
+        r = real(self, family, **kw)
+        v = kw.get("variant")
+        if v is not None:
+            seen.append(v.id)
+            if seen.count(v.id) == 2:
+                r.data["yldot"][7] += 1.0
+        return r
+
+    monkeypatch.setattr(Runner, "evaluate", flaky)
+    d = tmp_path / "flaky"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.cfvisx"])
+    m = json.loads((d / "references" / "d_only.json").read_text())
+    e = m["variables"]["bbb.cfvisx"]
+    assert e["class"] == "INVALID" and e["reason"] == "nondeterministic: 1 rows differ between two processes"
+    assert json.loads((d / "references" / "d_only.findings.json").read_text()) == [
+        {"id": "bbb.cfvisx", "finding": "nondeterministic: 1 rows differ; file a bugfix ticket"}]
+    _, findings = mr.assemble(SHA, ["d_only"], d, TAG)
+    assert findings == ["d_only bbb.cfvisx: nondeterministic: 1 rows differ; file a bugfix ticket"]
+
+
+def data(neq=4, y=(1.0, 2.0, 3.0, 4.0)):
+    from yldot.harness.state import INDEX_ARRAYS, MASK_ARRAYS
+
+    y = np.array(y)
+    d = {"neq": neq, "yldot": y, "yldot_J": y.copy(), "masks": {n: np.ones(3, np.int32) for n in MASK_ARRAYS}}
+    d.update({n: np.arange(neq) for n in INDEX_ARRAYS})
+    return d
+
+
+def result(d, status="ok", message="", applied="applied"):
+    if d is not None:
+        d["variant"] = {"PRE": {"status": applied, "d": None, "applied": None}, "POST": None}
+    return Result(status=status, family="fam", config="steady", mode="spawn", data=d, message=message)
+
+
+TOL = np.full(4, 1e-3)
+
+
+@pytest.mark.parametrize("change, want", [
+    (lambda d: None, ("INERT", "")),
+    (lambda d: d["yldot"].__setitem__(1, 2.0 + 0.2), ("SENSITIVE", "max |diff|/tol = 200")),
+    (lambda d: d["yldot_J"].__setitem__(1, 2.0 + 0.05), ("MARGINAL", None)),
+    (lambda d: d["yldot"].__setitem__(0, np.nan), ("INVALID", "non-finite yldot or yldot_J at rows [1]")),
+    (lambda d: d.update(neq=5), ("INVALID", "neq 4 -> 5")),
+])
+def test_classify(change, want):
+    d = data()
+    change(d)
+    cls, reason, finding = mr.classify(result(d), data(), TOL)
+    assert finding is None and cls == want[0]
+    if want[1] is not None:
+        assert reason == want[1]
+    if cls == "MARGINAL":
+        assert reason.startswith("max |diff|/tol = 50 <= M_cls = 100: treated as EXCLUDED")
+
+
+def test_classify_irregular_results_are_findings():
+    d = data()
+    d["igyl"] = d["igyl"][::-1].copy()
+    assert mr.classify(result(d), data(), TOL)[2] == "index arrays or equation masks changed at the same neq"
+    d = data(y=(-0.0, 2.0, 3.0, 4.0))
+    assert mr.classify(result(d), data(y=(0.0, 2.0, 3.0, 4.0)), TOL)[2].startswith("bitwise differences of size zero")
+
+
+def test_classify_failures_and_noops():
+    r = result(None, status="timeout", message="no result after 600 s; child killed")
+    assert mr.classify(r, data(), TOL) == ("INVALID", "timeout: no result after 600 s; child killed", None)
+    r = result(None, status="error", message="Traceback (most recent call last):\n  ...\nRuntimeError: boom\n")
+    assert mr.classify(r, data(), TOL) == ("INVALID", "error: RuntimeError: boom", None)
+    for status, why in mr.NOOP.items():
+        assert mr.classify(result(data(), applied=status), data(), TOL) == (
+            "EXCLUDED", "not applicable in fam: " + why, None)
+
+
+def test_tolerance_sample_is_seeded_and_keeps_timestep():
+    ids = ["bbb.v{:03d}".format(i) for i in range(60)]
+    a = mr.tolerance_sample(ids, ["bbb.v059"])
+    assert a == mr.tolerance_sample(list(ids), ["bbb.v059"]) and a == sorted(a)  # plan order kept
+    assert len(a) in (20, 21) and "bbb.v059" in a
+    assert mr.tolerance_sample(ids[:5], []) == ids[:5]
+
+
+def test_generate_passes_the_sweep_options(tmp_path, swept):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    stream = FakeStream(swept[0])
+    mr.generate(args(out=str(tmp_path / "gen"), only=["bbb.cfvisx"], full=True), suite, FakeRun(), stream)
+    assert stream.calls[0][0][-4:] == ["d_only", "--only", "bbb.cfvisx", "--full"]
+    stream = FakeStream(swept[0])
+    mr.generate(args(platform="host", release=None, out=str(tmp_path / "gen2"), defaults_only=True), suite,
+                FakeRun(), stream)
+    child_cmd = [c for c, _, _ in stream.calls if "_child" in c][0]
+    assert child_cmd[child_cmd.index("_child") + 1:][:3] == ["d_only", "--sweep", "none"]
+
+
+@pytest.mark.parametrize("kw, code, message", [
+    ({"full": True}, 2, "--full needs --only"),
+    ({"full": True, "only": ["bbb.x"], "write": True}, 2, "drop --write"),
+    ({"only": ["bbb.x"], "defaults_only": True}, 2, "together"),
+    ({"only": ["bbb.cfvisx"]}, 1, "--only regenerates against the installed references"),
+])
+def test_sweep_option_refusals(tmp_path, kw, code, message):
+    suite = tmp_suite(tmp_path)
+    stream = FakeStream(tmp_path)
+    with pytest.raises(mr.Stop) as e:
+        mr.generate(args(out=str(tmp_path / "gen"), **kw), suite, FakeRun(), stream)
+    assert e.value.code == code and message in str(e.value)
+    assert not stream.calls
+
+
+def test_defaults_only_never_writes_over_classified_variants(tmp_path, swept):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    with pytest.raises(mr.Stop, match="would drop the classified variants of d_only"):
+        mr.generate(args(out=str(tmp_path / "gen"), defaults_only=True, write=True), suite, FakeRun(),
+                    FakeStream(swept[0]))
+
+
+def test_over_its_cap_is_a_finding_and_nothing_is_written(tmp_path, swept, monkeypatch):
+    suite = tmp_suite(tmp_path)
+    monkeypatch.setitem(mr.CAPS_MB, "d_only", 0.1)
+    with pytest.raises(mr.Stop) as e:
+        mr.generate(args(out=str(tmp_path / "gen"), write=True), suite, FakeRun(), FakeStream(swept[0]))
+    assert e.value.code == 3 and "over its 0.1 MB cap" in str(e.value)
+    assert list((suite / "references").iterdir()) == []
