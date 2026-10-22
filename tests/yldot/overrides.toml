@@ -202,3 +202,13 @@ reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
 ["bbb.cfqydt"]
 config = "timestep"
 reason = "acts only when dtreal is finite (bbb/pandf_potencur.m:217-222,286)"
+
+# ---------------------------------------------------------------- suspected memory errors (owner 2026-10-22, AIUE-94)
+
+["com.isudsym"]
+exclude = true
+reason = "suspected memory error (AIUE-159): non-finite yldot in d_c, d_mols, d_only, 1e28-1e30 x tol in ortho and slab_phi, intermittent SIGBUS on the -O0 build; owner 2026-10-22"
+
+["bbb.ishymol"]
+exclude = true
+reason = "suspected uninitialized read (AIUE-160): ishymol = 0 with nhgsp = 2 (d_mols) gives build-dependent yldot, 5e16 x tol between builds; owner 2026-10-22"
