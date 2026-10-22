@@ -34,7 +34,8 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 
 - Read the RCA in full: root cause, fix strategy, files, reproduction, validation.
 - Read `CLAUDE.md` and the `.claude/context/` modules for the files involved (`mppl-fortran.md` for `.m`,
-  `variables-forthon.md` for `.v`, `openmp-jacobian.md` for anything in the `pandf` tree or `ppp/`).
+  `variables-forthon.md` for `.v`, `openmp-jacobian.md` for anything in the `pandf` tree or `ppp/`,
+  `uedge-gotchas.md` when reproducing or checking the fix runs cases).
 - Decide whether the fix **changes default results**. A bug fix in physics/numerics often does: if so, the
   moved cases are expected but must be listed and explained (`CLAUDE.md` → Hard rules). A fix in a refactor
   path or Python/build code should leave results unchanged.

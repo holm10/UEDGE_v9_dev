@@ -70,7 +70,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 ## Phase 2: Codebase intelligence
 
 1. Read `CLAUDE.md` and the matching `.claude/context/` modules (`architecture.md` always;
-   `mppl-fortran.md`, `variables-forthon.md`, `openmp-jacobian.md`, `python-layer.md`, `testing.md` as relevant).
+   `mppl-fortran.md`, `variables-forthon.md`, `openmp-jacobian.md`, `python-layer.md`, `testing.md`,
+   `uedge-gotchas.md` as relevant).
 2. Locate the code: the `pandf` call chain (`bbb/pandf.m:513`), the equation file
    (`bbb/pandf_<plasma|gas>_<eq>.m`), boundary code (`bbb/pandf_boundary.m`), setup/allocation (`bbb/odesetup.m`),
    and the `.v` groups involved (`Use(Group)` sites).
