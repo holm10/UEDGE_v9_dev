@@ -503,6 +503,8 @@ def test_generate_passes_the_sweep_options(tmp_path, swept):
                 FakeRun(), stream)
     child_cmd = [c for c, _, _ in stream.calls if "_child" in c][0]
     assert child_cmd[child_cmd.index("_child") + 1:][:3] == ["d_only", "--sweep", "none"]
+    # the inventory comes from the built commit's .v files, not from this tree's
+    assert child_cmd[child_cmd.index("--repo") + 1] == str(tmp_path / "gen2" / "src")
 
 
 @pytest.mark.parametrize("kw, code, message", [

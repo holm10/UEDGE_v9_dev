@@ -31,4 +31,6 @@ import json, subprocess, sys
 gfortran = subprocess.run(["gfortran", "--version"], capture_output=True, text=True).stdout.splitlines()[0]
 print(json.dumps({"commit": sys.argv[1], "compiler": gfortran, "runner_image": sys.argv[2]}, indent=1))
 EOF
-/opt/venv/bin/python /tests/yldot/tools/make_references.py _child "$@" --out /out/references --build /out/build.json
+# --repo: the variant inventory comes from the archive's .v files (only tests/ is mounted)
+/opt/venv/bin/python /tests/yldot/tools/make_references.py _child "$@" --repo /work/src --out /out/references \
+  --build /out/build.json
