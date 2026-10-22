@@ -9,6 +9,7 @@ files under families/<family>/ fails at setup, naming the cause, unless it is ma
 only); an absent reference file fails through open_store. Different files fail as before (test_smoke.py's
 test_external_files, open_store).
 """
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ sys.path.insert(0, str(SUITE / "tools"))
 import fetch_data  # noqa: E402
 
 FETCH_ERRORS = pytest.StashKey[list]()
+FAMILY_ERROR = re.compile(r"^error: [A-Za-z0-9_]+: ")
 
 
 def family_files(family):
@@ -55,11 +57,13 @@ def pytest_sessionstart(session):
     if config.getoption("yldot_no_fetch"):
         config.stash[FETCH_ERRORS] = ["--yldot-no-fetch given"]
         return
-    config.stash[FETCH_ERRORS] = []
     if config.option.collectonly or hasattr(config, "workerinput"):
         return
     lines = []
-    fetch_data.fetch(SUITE, out=lines.append)
+    try:
+        fetch_data.fetch(SUITE, out=lines.append)
+    except Exception as e:  # e.g. a PermissionError on .data/: the tests that need the files fail, the session runs
+        lines.append("error: fetch failed: {!r}".format(e))
     report = config.pluginmanager.get_plugin("terminalreporter")
     for line in lines:
         if report is not None and ("downloaded" in line or line.startswith("error:")):
@@ -82,7 +86,12 @@ def pytest_runtest_setup(item):
         return
     absent = absent_files(family)
     if absent:
-        cause = item.config.stash.get(FETCH_ERRORS, []) or ["the session fetch did not run"]
+        errors = item.config.stash.get(FETCH_ERRORS, None)
+        if errors is None:
+            cause = ["not fetched in this process (an xdist worker: the controller fetches; or --collect-only)"]
+        else:  # this family's lines and those of no family (fetch's own lines are "error: <family>: ...")
+            cause = [e for e in errors if e.startswith("error: {}: ".format(family)) or not FAMILY_ERROR.match(e)] \
+                or ["the fetch reported no error for {}".format(family)]
         pytest.fail("{}: release assets not present: {} ({}); run python tests/yldot/tools/fetch_data.py {}".format(
             family, ", ".join(Path(p).name for p in absent), "; ".join(cause), family), pytrace=False)
 

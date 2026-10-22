@@ -29,6 +29,7 @@ Exit codes: 0 every file verified and linked, 1 a file missing, different from i
 2 usage (an unknown family, an invalid manifest).
 """
 import argparse
+import http.client
 import os
 import shutil
 import subprocess
@@ -83,19 +84,22 @@ def download_https(tag, assets, dest, repo=REPO):
         try:
             with urllib.request.urlopen(url, timeout=TIMEOUT_S) as r, open(part, "wb") as f:
                 shutil.copyfileobj(r, f)
-        except (OSError, ValueError) as e:  # URLError, HTTPError and timeouts are OSErrors
+        except (OSError, ValueError, http.client.HTTPException) as e:  # URLError, HTTPError, timeouts: OSErrors
             part.unlink(missing_ok=True)
             raise FetchError("{} failed: {}".format(url, e))
         os.replace(part, Path(dest) / a)
 
 
 def download_any(tag, assets, dest, repo=REPO):
-    """HTTPS first; gh release download if that fails and gh is on PATH."""
+    """HTTPS first; gh release download if that fails and gh is on PATH (the assets HTTPS already wrote are removed
+    first: gh refuses to overwrite a file)."""
     try:
         download_https(tag, assets, dest, repo)
     except FetchError as e:
         if shutil.which("gh") is None:
             raise FetchError("{} (gh, the fallback, is not on PATH)".format(e))
+        for a in assets:
+            (Path(dest) / a).unlink(missing_ok=True)
         try:
             download(tag, assets, dest, repo)
         except FetchError as g:

@@ -1,7 +1,7 @@
 """Smoke test of the yldot harness (AIUE-82): every family in both configurations and both flags, in forkserver and
 spawn mode; .uedgerc.py isolation; classified failures; collection separation (decision 15). An owner family's
-release assets, when present, are the files its manifest names (references/<family>.manifest.json); while they are
-all absent, conftest.py skips the family's tests (tools/fetch_data.py fetches them).
+release assets are the files its manifest names (references/<family>.manifest.json); conftest.py fetches them at the
+start of the session (tools/fetch_data.py's fetch) and fails a test that needs one still absent (AIUE-156).
 
 Hooks for the failure tests are module-level functions here, passed as 'yldot.test_smoke:<name>' and imported by
 the child. Planted .uedgerc.py files live only under tmp_path, never in ~, the repo or the real family directories.
