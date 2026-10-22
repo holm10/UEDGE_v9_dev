@@ -36,9 +36,14 @@ _child    runs inside the built environment and writes, from the build record FI
 Classification (PRD section 7.2; M_CLS = 100, tol_i the default's per-entry tolerance of the variant's
 configuration, for yldot and yldot_J alike): SENSITIVE if some entry differs by more than M_cls*tol_i, then
 evaluated a second time in another process, and stored only if both runs agree bit for bit (else INVALID
-"nondeterministic", a finding: file a bugfix ticket); INERT if bitwise equal; MARGINAL if 0 < difference <=
-M_cls*tol_i; INVALID on an error, crash, timeout, neq change, an equation layout change at the same neq (index arrays
-or is*onxy masks; owner, 2026-10-22, AIUE-94 D4) or non-finite yldot; EXCLUDED as variants.plan() says, and where the
+"nondeterministic", a finding: file a bugfix ticket). Both runs are children of the one forkserver that preloaded
+uedge (harness/process.py), with the same heap and address layout, so the second run shows run-to-run
+nondeterminism only: a result that depends on the build or on the memory layout (an uninitialised read, like
+com.isudsym, bbb.ishymol and bbb.ziin: AIUE-159..161) is stable here and is found by replaying every stored variant
+on other builds (tools/variant_tolerances.py replay) and by AIUE-95's audit. INERT if bitwise equal; MARGINAL if
+0 < difference <= M_cls*tol_i; INVALID on an error (the reason holds the exception's text, for an xerrab the '***'
+message of the child's log), crash, timeout, neq change, an equation layout change at the same neq (index arrays or
+is*onxy masks; owner, 2026-10-22, AIUE-94 D4) or non-finite yldot; EXCLUDED as variants.plan() says, and where the
 application changes nothing in the family (value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94
 D1). Results that fit no class (bitwise differences of size zero, a harness FamilyError such as variants.Mismatch)
 and a reference file over its CAPS_MB cap (PRD 7.3) are findings for the epic owner (decision 23): generate prints
@@ -137,6 +142,15 @@ def tolerance(fdir, yldot, config, imap, suite=SUITE):
     return compare.tolerances(yldot, sigma(fdir, config), t["rtol"], t["rule"]["k"], imap).tol
 
 
+def variant_tolerance(fdir, ref, config, imap, suite=SUITE):
+    """The per-entry tolerance a SENSITIVE variant is checked with (owner, 2026-10-22, AIUE-94 D8):
+    tol_i(variant) = max(rtol_eq*|ref_i(variant)|, k*sigma_i), the PRD section 7.4 rule (compare.tolerances) with the
+    variant's own stored yldot ref in the rtol term and the default's sigma_i of the variant's configuration
+    (sigma.h5), floors as usual; for yldot and the flag difference alike. The classification against the default
+    keeps tolerance() of the default (M_CLS * tol_i)."""
+    return tolerance(fdir, ref, config, imap, suite)
+
+
 def applied_record(data):
     """The variant's apply record (variants.apply): the POST one for a POST variant, else the PRE one."""
     v = data.get("variant") or {}
@@ -146,6 +160,37 @@ def applied_record(data):
 def last_line(message):
     lines = [s for s in str(message).strip().splitlines() if s.strip()]
     return (lines[-1].strip() if lines else "")[:REASON_CHARS]
+
+
+BARE_EXCEPTION = re.compile(r"^[A-Za-z_][\w.]*$")  # a traceback's last line without text, e.g. "RuntimeError"
+
+
+def logged_error(tail):
+    """The last run of '***' lines in a child's log tail (blank lines inside it kept out), whitespace collapsed and
+    joined by ' / ': the message UEDGE printed (call remark) before an xerrab, which Forthon raises as a bare
+    RuntimeError; '' if there is none."""
+    lines = str(tail).splitlines()
+    marked = [i for i, s in enumerate(lines) if s.lstrip().startswith("***")]
+    if not marked:
+        return ""
+    run = []
+    for s in reversed(lines[:marked[-1] + 1]):
+        if s.lstrip().startswith("***"):
+            run.append(" ".join(s.split()))
+        elif s.strip():
+            break
+    return " / ".join(reversed(run))
+
+
+def error_reason(res):
+    """The INVALID reason of a failed evaluation: its status and the exception's last line, with the log's '***'
+    message (logged_error) when the exception carries no text (an xerrab), as "RuntimeError (log: ...)"."""
+    text = last_line(res.message)
+    if BARE_EXCEPTION.match(text):
+        logged = logged_error(res.log_tail)
+        if logged:
+            text = "{} (log: {})".format(text, logged)
+    return "{}: {}".format(res.status, text[:REASON_CHARS])
 
 
 def layout_changes(a, b):
@@ -161,7 +206,7 @@ def classify(res, base, tol, m_cls=M_CLS):
     section 7.2). tol: the default's per-entry tolerance, used for yldot and yldot_J alike (PRD 7.3). A finding (an
     irregular result for the epic owner, decision 23) has no class: (None, None, text)."""
     if not res.ok:
-        return "INVALID", "{}: {}".format(res.status, last_line(res.message)), None
+        return "INVALID", error_reason(res), None
     d = res.data
     rec = applied_record(d)
     if rec is not None and rec["status"] in NOOP:
@@ -347,7 +392,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     continue
                 rec_v = applied_record(r.data) if r.ok else None
                 if cls == "SENSITIVE":
-                    try:
+                    try:  # forked from the same forkserver: run-to-run nondeterminism only (module docstring)
                         again = runner.evaluate(name, variant=v, timeout=timeout)
                     except FamilyError as e:
                         findings.append({"id": v.id, "finding": "owner: {}".format(last_line(e))})

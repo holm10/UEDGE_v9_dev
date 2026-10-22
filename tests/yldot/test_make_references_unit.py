@@ -483,6 +483,89 @@ def test_classify_irregular_results_are_findings():
     assert mr.classify(result(d), data(y=(0.0, 2.0, 3.0, 4.0)), TOL)[2].startswith("bitwise differences of size zero")
 
 
+TOL_NU = 2.0 ** np.array([-10, -3, -10, -17])  # per entry, powers of two: the ratios below are exact
+
+
+@pytest.mark.parametrize("change, want", [
+    # with another entry's tol (TOL_NU[0] for the first, TOL_NU[3] for the second) the two would swap classes
+    (lambda d: d["yldot"].__setitem__(3, 4.0 + 200 * 2.0 ** -17), ("SENSITIVE", "max |diff|/tol = 200")),
+    (lambda d: d["yldot"].__setitem__(1, 2.0 + 50 * 2.0 ** -3), ("MARGINAL", "max |diff|/tol = 50 <= M_cls")),
+    # exactly M_cls * tol_i is not more than M_cls * tol_i: MARGINAL (strict >)
+    (lambda d: d["yldot"].__setitem__(0, 1.0 + 100 * 2.0 ** -10), ("MARGINAL", "max |diff|/tol = 100 <= M_cls")),
+    (lambda d: d["yldot"].__setitem__(0, 1.0 + 101 * 2.0 ** -10), ("SENSITIVE", "max |diff|/tol = 101")),
+    # yldot as the default's, only the yldot_J run differs
+    (lambda d: d["yldot_J"].__setitem__(2, 3.0 + 1000 * 2.0 ** -10), ("SENSITIVE", "max |diff|/tol = 1e+03")),
+    (lambda d: d["yldot_J"].__setitem__(3, 4.0 + 150 * 2.0 ** -17), ("SENSITIVE", "max |diff|/tol = 150")),
+])
+def test_classify_uses_the_per_entry_tol(change, want):
+    d = data()
+    change(d)
+    cls, reason, finding = mr.classify(result(d), data(), TOL_NU)
+    assert finding is None and cls == want[0] and reason.startswith(want[1])
+
+
+def test_child_classifies_with_the_variants_config_tol(tmp_path, monkeypatch):
+    """Each variant is classified against its configuration's default and that default's tol (d_only: bbb.cfvisx
+    steady, bbb.isbcwdt timestep)."""
+    tols, seen = {"steady": 1.0, "timestep": 2.0}, []
+
+    def fake_tolerance(fdir, yldot, config, imap, suite=mr.SUITE):
+        return np.full(len(yldot), tols[config])
+
+    def fake_classify(res, base, tol, m_cls=mr.M_CLS):
+        seen.append((res.config, float(tol[0]), np.asarray(base["yldot"]).copy()))
+        return "INERT", "", None
+
+    monkeypatch.setattr(mr, "tolerance", fake_tolerance)
+    monkeypatch.setattr(mr, "classify", fake_classify)
+    d = tmp_path / "cfg"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.cfvisx", "bbb.isbcwdt"])
+    assert [(c, t) for c, t, _ in seen] == [("timestep", 2.0), ("steady", 1.0)]  # plan order
+    with h5py.File(d / "references" / "d_only.h5", "r") as f:
+        for config, _, base in seen:
+            assert np.array_equal(base, f["/{}/default/yldot".format(config)][()])
+        assert not np.array_equal(f["/steady/default/yldot"][()], f["/timestep/default/yldot"][()])
+
+
+MIST = """Reading uedge.hdf5-style save-file 'base_state.h5'.
+>>> Save read successfully
+**** data file mist.dat not found --
+
+**** Data files for various impurities are available;
+**** check uedge/in/api or contact authors
+
+**** For UEDGE, the data file must be re-named mist.dat"""
+MCRATES = """ ***Impurity file using pre-2012 format is C_rates.strahl
+ TARGET MATERIAL IS      GRAPHITE
+ *** mcrates could not find za=                    0  zn=                    6
+ *** check mcfilenames array
+
+Reading uedge.hdf5-style save-file 'base_state.h5'.
+>>> Save read successfully"""
+BARE = ("Traceback (most recent call last):\n  File \"state.py\", line 215, in evaluate\n    bbb.exmain()\n"
+        "RuntimeError\n")
+
+
+def test_invalid_reasons_carry_the_error_text():
+    """Review I1-m1: an xerrab is a RuntimeError without text; its reason takes the '***' message of the log."""
+    def reason(message, tail):
+        return mr.classify(Result(status="error", family="fam", config="steady", mode="spawn", message=message,
+                                  log_tail=tail), data(), TOL)[1]
+
+    assert reason(BARE, MIST) == (
+        "error: RuntimeError (log: **** data file mist.dat not found -- / **** Data files for various impurities are "
+        "available; / **** check uedge/in/api or contact authors / **** For UEDGE, the data file must be re-named "
+        "mist.dat)")
+    # the last run of '***' lines only, not an earlier informational one
+    assert reason(BARE, MCRATES) == ("error: RuntimeError (log: *** mcrates could not find za= 0 zn= 6 / *** check "
+                                     "mcfilenames array)")
+    assert reason(BARE, "no marked line") == "error: RuntimeError"
+    # an exception with text keeps its text, whatever the log holds
+    assert reason(BARE.replace("RuntimeError\n", "RuntimeError: *** isphion.ne.0 ***\n"), MIST) == (
+        "error: RuntimeError: *** isphion.ne.0 ***")
+    assert len(reason(BARE, "*** " + "x" * 1000)) == len("error: ") + mr.REASON_CHARS
+
+
 def test_classify_failures_and_noops():
     r = result(None, status="timeout", message="no result after 600 s; child killed")
     assert mr.classify(r, data(), TOL) == ("INVALID", "timeout: no result after 600 s; child killed", None)

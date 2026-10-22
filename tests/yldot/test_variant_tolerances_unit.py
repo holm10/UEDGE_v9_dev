@@ -1,14 +1,19 @@
-"""tools/variant_tolerances.py (AIUE-94 D2; PRD section 7.4): check on synthetic sides (a pass, a ratio above 1, index
-arrays that differ, a missing side), and collect on d_only, whose replay on the same build reproduces the sample
-bit for bit (every ratio 0). collect needs the built uedge (in the Runner's children).
+"""tools/variant_tolerances.py (AIUE-94 D2 and D8; PRD section 7.4): check on synthetic sides (a pass, a ratio above
+1, a NaN in one term, index arrays that differ, a missing side), and collect on d_only, whose replay on the same
+build reproduces the sample bit for bit (every ratio 0); replay of every SENSITIVE variant under
+make_references.variant_tolerance (a pass, an entry off by 2 x tol_i(variant), a NaN, a failed evaluation, another
+commit) and the installed references. collect and replay need the built uedge (in the Runner's children).
 """
 import json
 import sys
+import tomllib
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from yldot.harness import compare
+from yldot.harness.process import family_dir
 from yldot.harness.state import INDEX_ARRAYS
 
 SUITE = Path(__file__).resolve().parent
@@ -88,3 +93,97 @@ def test_collect_refuses_another_commit(tmp_path, sampled):
     (tmp_path / "other.json").write_text(json.dumps({"commit": "f" * 40}))
     with pytest.raises(vt.Stop, match="the references are of"):
         vt.collect(sampled / "references", "mac-serial", tmp_path / "coll", tmp_path / "other.json", [])
+
+
+def test_a_nan_in_either_term_fails(tmp_path, capsys):
+    """Review I1-m3: max(0.5, nan) is 0.5; a NaN in yldot_J must fail although yldot's ratio is finite."""
+    assert vt.worst(np.array([0.5e-6, np.nan]), np.full(2, 1e-6)) == float("inf")
+    assert vt.worst(np.array([0.5e-6, 0.0]), np.full(2, 1e-6)) == 0.5
+    r, coll = refs(tmp_path)
+    with np.load(coll / "mac-serial" / "fam.npz") as z:
+        d = {k: z[k] for k in z.files}
+    d["yldot_J"][0, 3] = np.nan
+    np.savez(coll / "mac-serial" / "fam.npz", **d)
+    assert vt.main(["vt", "check", str(r), str(coll)]) == 3
+    assert "over 1: ['bbb.a']" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- replay (review I1-B1, owner D8)
+
+
+def test_variant_tolerance_is_the_prd_rule_with_the_variants_reference(sampled):
+    """D8: tol_i(variant) = max(rtol_eq*|ref_i(variant)|, k*sigma_i), sigma the default's; for the default's own yldot
+    it is the default's tol_i."""
+    fdir = family_dir("d_only")
+    with open(SUITE / "tolerances.toml", "rb") as f:
+        t = tomllib.load(f)
+    with vt.reference_stores(sampled / "references", []) as stores:
+        s = stores["d_only"]
+        for config, vid in (("steady", "bbb.cfvisx"), ("timestep", "bbb.isbcwdt")):
+            ref, _ = s.variant(config, vid)
+            tv = mr.variant_tolerance(fdir, ref, config, s.imap)
+            assert np.array_equal(tv, compare.tolerances(ref, s.sigma(config), t["rtol"], t["rule"]["k"],
+                                                         s.imap).tol)
+            assert (tv >= t["rule"]["k"] * s.sigma(config)).all()
+            assert not np.array_equal(tv, mr.tolerance(fdir, s.default(config), config, s.imap))
+            assert np.array_equal(mr.variant_tolerance(fdir, s.default(config), config, s.imap),
+                                  mr.tolerance(fdir, s.default(config), config, s.imap))
+
+
+def test_replay_reproduces_every_sensitive_variant(tmp_path, sampled, capsys):
+    out = tmp_path / "replay.json"
+    assert vt.main(["vt", "replay", str(sampled / "references"), "--build", str(sampled / "build.json"),
+                    "--json", str(out)]) == 0
+    assert "d_only: 2 SENSITIVE replayed, 0 fail, largest ratio 0 (" in capsys.readouterr().out
+    rows = json.loads(out.read_text())["families"]["d_only"]
+    assert rows == {"bbb.isbcwdt": {"ok": True, "ratio": 0.0}, "bbb.cfvisx": {"ok": True, "ratio": 0.0}}
+
+
+@pytest.mark.parametrize("kind", ["offset", "nan", "error"])
+def test_replay_fails_what_does_not_reproduce(tmp_path, sampled, monkeypatch, capsys, kind):
+    """Exit 3: an entry 2 x tol_i(variant) off (in the flag difference only), a NaN, a failed evaluation."""
+    from yldot.harness import Result
+    from yldot.harness.process import Runner
+
+    with vt.reference_stores(sampled / "references", []) as stores:
+        s = stores["d_only"]
+        tol = mr.variant_tolerance(family_dir("d_only"), s.variant("steady", "bbb.cfvisx")[0], "steady", s.imap)
+    real = Runner.evaluate
+
+    def changed(self, family, **kw):
+        r = real(self, family, **kw)
+        if kw["variant"].id != "bbb.cfvisx":
+            return r
+        if kind == "error":
+            return Result(status="error", family=family, config="steady", mode="spawn",
+                          message="Traceback\nRuntimeError\n", log_tail="*** boom")
+        r.data["yldot_J"][5] += 2 * tol[5] if kind == "offset" else np.nan
+        return r
+
+    monkeypatch.setattr(Runner, "evaluate", changed)
+    out = tmp_path / "replay.json"
+    assert vt.main(["vt", "replay", str(sampled / "references"), "--json", str(out)]) == 3
+    text = capsys.readouterr()
+    rows = json.loads(out.read_text())["families"]["d_only"]
+    assert rows["bbb.isbcwdt"] == {"ok": True, "ratio": 0.0} and not rows["bbb.cfvisx"]["ok"]
+    if kind == "offset":
+        assert rows["bbb.cfvisx"]["ratio"] == pytest.approx(2.0)
+    else:
+        assert rows["bbb.cfvisx"]["ratio"] == float("inf")
+    if kind == "error":
+        assert rows["bbb.cfvisx"]["message"] == "error: RuntimeError (log: *** boom)"
+    assert "d_only: 2 SENSITIVE replayed, 1 fail" in text.out and "the epic owner decides" in text.err
+
+
+def test_replay_refuses_another_commit_and_missing_families(tmp_path, sampled):
+    (tmp_path / "other.json").write_text(json.dumps({"commit": "f" * 40}))
+    with pytest.raises(vt.Stop, match="the references are of"):
+        vt.replay(sampled / "references", [], tmp_path / "other.json")
+    with pytest.raises(vt.Stop, match="no references with classified variants for"):
+        vt.replay(sampled / "references", ["ortho"])
+
+
+def test_replay_opens_the_installed_references():
+    with vt.reference_stores(vt.INSTALLED, ["d_only"]) as stores:
+        s = stores["d_only"]
+        assert s.manifest["release"] is not None and s.variants("steady")

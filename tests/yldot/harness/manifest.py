@@ -1,7 +1,8 @@
 """The per-family reference manifest of the yldot suite (PRD sections 7.3 and 7.6; decisions 12, 27, 29).
 
     m = load("d_only")                    # references/d_only.manifest.json, validated
-    dump(m, path("d_only"))               # deterministic text: sorted keys, two-space indent, trailing newline
+    dump(m, path("d_only"))               # deterministic text: sorted keys, two-space indent, trailing newline,
+                                          # each encoded value's data list on one line (dumps)
 
 The manifest is the reviewable text next to each family's one binary reference file. It holds:
     schema, family, store ("full" | "sketch"), release (the data release tag "yldot-data-v<N>", or null for a local
@@ -61,8 +62,23 @@ def asset_name(p):
     return p.replace("/", "--")
 
 
+def _text(o, level):
+    """json.dumps(o, indent=2, sort_keys=True) at nesting level, but an encoded value's data list on one line."""
+    pad, end = "  " * (level + 1), "  " * level
+    if isinstance(o, dict) and o:
+        flat = set(o) == {"dtype", "shape", "data"}
+        return "{\n" + ",\n".join("{}{}: {}".format(pad, json.dumps(k), json.dumps(o[k]) if flat and k == "data"
+                                                    else _text(o[k], level + 1)) for k in sorted(o)) + "\n" + end + "}"
+    if isinstance(o, list) and o:
+        return "[\n" + ",\n".join(pad + _text(v, level + 1) for v in o) + "\n" + end + "]"
+    return json.dumps(o)
+
+
 def dumps(m):
-    return json.dumps(m, indent=2, sort_keys=True) + "\n"
+    """The manifest's text: sorted keys, two-space indent, trailing newline (json.dumps(m, indent=2, sort_keys=True)),
+    except that each encoded value's data list (variants.encode: an applied value or d) is on one line (owner,
+    2026-10-22, AIUE-94 D9); json.loads gives m back."""
+    return _text(m, 0) + "\n"
 
 
 def dump(m, target):
