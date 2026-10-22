@@ -1,0 +1,33 @@
+Mutation: continuity_ion_divergence_sign
+Kind: physics
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ni[1]; coupled up[1], te[1], ti[1]
+ d_mols: primary ni[1]; coupled up[1], te[1], ti[1]
+ ortho: primary ni[1]; coupled up[1], te[1], ti[1]
+ slab_phi: primary ni[1]; coupled up[1], te[1], ti[1]
+ d_c: primary ni[1], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], te[1], ti[1]
+Intermediate: resco
+Families: d_only, d_mols, ortho, slab_phi, d_c
+Source: bbb/pandf_plasma_continuity.m:1057 (at 1087ede)
+Description: sign flip of the ion particle-flux divergence in the plasma continuity residual resco (the zi != 0
+ branch of calc_plasma_particle_residuals); owner, 2026-10-22 (AIUE-89). Primary blocks: the charged species' ni
+ (ni[2] is the atom slot, ziin = 0 in every small family; d_c's ni[3..8] are C1+..C6+, ziin 1..6). Coupled blocks
+ (owner, 2026-10-22): rscalf (bbb/oderhs.m:575-660) turns d(nv)/dt and d(nT)/dt into dv/dt and dT/dt from yldot(ni)
+ and resco under the defaults isflxvar = 0, isrscalf = 1, so every continuity fault reaches up[1], te[1] and ti[1].
+ A catch fires every primary block, no block outside primary and coupled, and names the intermediate first. The
+ flag difference is unchanged (the fault is the same under both flags). Observed by hand on all five, both configs.
+
+diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
+index 59433cf..a6d3de8 100644
+--- a/bbb/pandf_plasma_continuity.m
++++ b/bbb/pandf_plasma_continuity.m
+@@ -1054,7 +1054,7 @@ c           if (ifld .ne. iigsp) then
+               ix1 = ixm1(ix,iy)
+ 	        if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral  zi(ifld)=0
+                  resco(ix,iy,ifld) = resco(ix,iy,ifld)
+-     .                                   - ( (fnix(ix,iy,ifld) - fnix(ix1,iy, ifld))
++     .                                   + ( (fnix(ix,iy,ifld) - fnix(ix1,iy, ifld))
+      .                            + fluxfacy*(fniy(ix,iy,ifld) - fniy(ix,iy-1,ifld)) )
+               else ## zi==0
+                  resco(ix,iy,ifld) = resco(ix,iy,ifld)

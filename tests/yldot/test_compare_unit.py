@@ -498,6 +498,30 @@ def test_first_difference_structure_and_nan():
     assert d.name == "fqp" and d.max_rel == np.inf and d.index == (0,)
 
 
+def test_first_difference_scaled_ignores_cancellation_residue():
+    """Round-off in an entry that cancels to near zero is a large relative difference but tiny against its array
+    (macOS against the Linux references, AIUE-89): the scaled mode skips it and names the real change."""
+    ref = diag(fqp=np.array([1e10, 0.0, 5.0]), resco=np.array([1e6, 2e6, 3e6]))
+    new = diag(fqp=np.array([1e10, 1e-3, 5.0]), resco=np.array([1e6, -2e6, 3e6]))
+    assert first_difference(ref, new, rtol=1e-8).name == "fqp"
+    d = first_difference(ref, new, rtol=1e-8, scaled=True)
+    assert d.name == "resco" and d.scaled and d.index == (1,) and d.max_rel == pytest.approx(4e6 / 3e6)
+    assert "max difference / array max" in str(d)
+    assert first_difference(ref, new, rtol=2.0, scaled=True) is None
+    assert first_difference(ref, diag(fqp=ref["fqp"], resco=ref["resco"]), scaled=True) is None
+
+
+def test_first_difference_scaled_nan_and_zero_arrays():
+    zero = diag(fqp=np.zeros(3))
+    assert first_difference(zero, diag(fqp=np.zeros(3)), scaled=True) is None
+    d = first_difference(zero, diag(fqp=np.array([0.0, 1e-300, 0.0])), scaled=True)  # the scale is max of both sides
+    assert d.name == "fqp" and d.max_rel == 1.0 and d.index == (1,)
+    both = diag(fqp=np.array([np.nan, 1.0]))
+    assert first_difference(both, diag(fqp=np.array([np.nan, 1.0])), scaled=True) is None
+    d = first_difference(diag(fqp=np.array([1.0, 1.0])), diag(fqp=np.array([np.nan, 1.0])), scaled=True)
+    assert d.name == "fqp" and d.max_rel == np.inf and d.index == (0,)
+
+
 def test_report_names_the_first_difference(imap, case):
     ref, tol = case
     new = ref.copy()
