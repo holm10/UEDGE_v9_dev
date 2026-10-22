@@ -80,9 +80,10 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
 # Jacobian/preconditioner, whole files (AIUE-142): bbb/oderhs.m (jac_calc, jac_lu_decomp, psetnk, psolnk, ...),
 # svr/svrut3.m (precond5, GMRES helpers), svr/svrut4.m (ilut, lusol0, sparse utilities); bbb/pandf_jacobian.m is in
-# the pandf tree.
-HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|bbb/oderhs\.m$|svr/svrut[34]\.m$|.*\.v$|setup\.py$|pyproject\.toml$|"
-                       r"Makefile\.Forthon$|"
+# the pandf tree. Owner, 2026-10-21 (AIUE-142 follow-up): also bbb/odesetup.m (Jacobian stencil maps allocjacstnl,
+# map_var_jac, jacstnlout), svr/nksol.m (Newton-Krylov solver, spigmr) and svr/svrut1.m (jmap).
+HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|bbb/oderhs\.m$|bbb/odesetup\.m$|svr/nksol\.m$|svr/svrut[134]\.m$|"
+                       r".*\.v$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
 # Any other Fortran source (process-tiers.md -> Tiers, M row): at least tier M, implementation review on Opus.
 # Case-sensitive for .f so a generated .F (gitignored) never counts; .M is accepted like HIGH_RISK's matches.
