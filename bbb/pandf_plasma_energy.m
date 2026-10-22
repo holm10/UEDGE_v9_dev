@@ -599,7 +599,7 @@ c...  Electron radiation loss -- ionization and recombination
      .                                           eeli(ix,iy) = 13.6*ev + 
      .                               erliz(ix,iy)/(fac2sp*psor(ix,iy,1))
 
-                  if (ishymol .eq. 1) then   # ng(,,2) exists only with molecules (ngsp >= 2)
+                  if (ishymol .eq. 1) then   # ng(,,2) is the molecule density only if ishymol=1; absent if ngsp=1
                    edisse(ix,iy)=-(1-ishymol*ismolcrm)*ediss*ev*(-0.5*psordis(ix,iy,2)) +
      .                               ishymol*ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
      .                               sv_crumpet(te(ix,iy), ne(ix,iy), 20)
