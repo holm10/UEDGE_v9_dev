@@ -318,9 +318,9 @@
     "timestep/sigma": "77355bfa99ec6de3d993c4e4eab0e49f24780d3d385e45645b1a2cab2363edcd"
   },
   "provenance": {
-    "commit": "706daf7b814501c4d2fd5b1ea4f8a305002b501d",
+    "commit": "e05ae5b408c2794b8bace16c413304bebee62cb1",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-22T17:00:02+00:00",
+    "date": "2026-10-22T17:11:48+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
