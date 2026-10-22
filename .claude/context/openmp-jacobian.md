@@ -68,9 +68,9 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 
 `bbb.jac` after `exmain` is not the matrix `jac_calc` returned: `sfsetnk` scales its columns by `1/suscal`,
 and `psetnk` also scales rows by `sfscal`, normalises rows and factorises it. To get the unscaled matrix, set
-`bbb.jaccapture = K` (group `Jacobian_capture`, `bbb/bbb.v:4223`). `jac_calc_interface` (`bbb/oderhs.m:4676`) then
-copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/oderhs.m:4716`, routine
-`jac_capture` at `bbb/oderhs.m:4738`) into slots `1..bbb.jaccapn`:
+`bbb.jaccapture = K` (group `Jacobian_capture`, `bbb/bbb.v:4223`). `jac_calc_interface` (`bbb/oderhs.m:4682`) then
+copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/oderhs.m:4722`, routine
+`jac_capture` at `bbb/oderhs.m:4744`) into slots `1..bbb.jaccapn`:
 
 - What is captured is the `jac_calc`/`jac_calc_parallel` output: finite-difference `d(yldot)/d(yl)` including the
   `-1/dtuse`, `-1/dtphi` and `-nufak` diagonal terms, with entries `|J*sfscal| <= jaccliplim` dropped (`sfscal`
