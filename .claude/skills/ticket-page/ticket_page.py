@@ -10,13 +10,14 @@ this script only builds and checks text, so a dry run and a real run write the s
                 entries + any entry of the sent log the page lost + the queue + --entry) and the plan: --plan mirrors
                 the working copy (cited by publish date and sha256), --mirrored repeats the copy last published.
                 Neither: the skeleton a new page is created with. For an existing page it needs --current (the page
-                as read) or --local --page-version N (the page is what this worktree last sent), and it refuses a
+                as read) or --local --listing (the page is what this worktree last sent), and it refuses a
                 current page that lacks a log heading or holds fewer entries than this worktree last sent.
   ticket        The Ticket section: the ticket's entry in the epic breakdown (heading naming the key), or --text.
   find          A ticket's page id from the state file, the Jira link comment and a complete container listing.
                 Exit 3 (no page) only with a complete listing and a readable comment list; 2 = several or can't tell.
   queue         The local outbox and sent log (untracked, in the git dir): --add, --list, --mark-sent.
-  state         Per-ticket state: page id, last version written, published plan (sha256, date, title), status.
+  state         Per-ticket state: page id, parent id, last version written and its time (modified), published plan
+                (sha256, date, title), status.
   verify        The body the last logged create/update call sent (PostToolUse log) equals the rendered file.
   extract-plan  Rebuild the plan (or RCA) working copy from the page's mirror (a fresh worktree has none).
   progress      The epic's `Progress: <EPIC>` page: its skeleton (--new), or its entries + this worktree's epic lines.
@@ -200,7 +201,8 @@ def load_json(path):
 
 
 def load_current(path):
-    """The page body as markdown: a markdown file or a saved getConfluencePage result (plain or MCP-wrapped JSON)."""
+    """The page body as markdown: a markdown file, or a saved fetch or getConfluencePage result (plain or MCP-wrapped
+    JSON)."""
     raw = Path(path).read_text()
     try:
         data = json.loads(raw)
@@ -212,7 +214,13 @@ def load_current(path):
             data = json.loads(joined)
         except ValueError:
             return joined
+    if isinstance(data, dict):  # getConfluencePage: {"content": {"nodes": [page]}}; fetch: {"text", "metadata"}
+        nodes = data["content"].get("nodes") if isinstance(data.get("content"), dict) else None
+        if isinstance(nodes, list) and len(nodes) == 1 and isinstance(nodes[0], dict):
+            data = nodes[0]
     body = data.get("body") if isinstance(data, dict) else None
+    if body is None and isinstance(data, dict) and "metadata" in data:
+        body = data.get("text")
     if isinstance(body, str):
         return body
     die("--current: no markdown page body (read the page with contentFormat \"markdown\")")
@@ -273,7 +281,7 @@ def cmd_render(a):
     if skeleton and (pid or not a.ticket):
         die("the skeleton (no --plan/--mirrored) is only for creating a page: it needs --ticket and no page_id")
     if pid and not (a.current or a.local):
-        die("the page exists (meta has page_id): pass --current (the page read as markdown) or --local --page-version N")
+        die("the page exists (meta has page_id): pass --current (the page as read) or --local --listing <parent listing>")
     d = store_dir(a.repo, a.outbox)
     state = read_state(d, key)
     same_page = bool(pid) and str(state.get("page_id", "")) == pid  # the recorded version belongs to state.page_id
@@ -301,10 +309,18 @@ def cmd_render(a):
 
     last = d / f"{key}.last-body.md"
     current = a.current
-    if a.local:
-        if not recorded or str(recorded) != str(a.page_version) or not last.exists():
-            die(f"--local: the page is at version {a.page_version}, this worktree last wrote {recorded or 'none'}; "
-                "read the page and pass --current")
+    if a.local:  # the version check: the parent's child listing carries lastModified, never a version
+        nodes = []
+        for f in a.listing:
+            try:
+                nodes += load_json(f).get("results") or []
+            except (ValueError, AttributeError):
+                die(f"--local: {f} is not a saved getConfluencePageDescendants result; read the page and pass --current")
+        mod = next((n.get("lastModified") for n in nodes if isinstance(n, dict) and str(n.get("id")) == pid), None)
+        mine = state.get("modified") if same_page else None
+        if not mod or mod != mine or not recorded or not last.exists():
+            die(f"--local: page {pid} was last modified {mod or '(not in the listing)'}, this worktree's last update "
+                f"at {mine or 'unknown'}; read the page and pass --current")
         current = last
     logs, ticket = {s: [] for s in SECTIONS}, None
     if current:
@@ -738,9 +754,10 @@ def main():
                    + "; optional page_id, page_url, status_note, backfilled, jira_status")
     r.add_argument("--ticket", help="the Ticket section (from: ticket); default: carried over from the page")
     c = r.add_mutually_exclusive_group()
-    c.add_argument("--current", help="the page as read (markdown, or the saved getConfluencePage result)")
-    c.add_argument("--local", action="store_true", help="the page is what this worktree last sent (needs --page-version)")
-    r.add_argument("--page-version", help="with --local: the version the CQL check returned")
+    c.add_argument("--current", help="the page as read (markdown, or the saved fetch or getConfluencePage result)")
+    c.add_argument("--local", action="store_true", help="the page is what this worktree last sent (needs --listing)")
+    r.add_argument("--listing", action="append", help="with --local: the getConfluencePageDescendants result of the "
+                   "page's parent (one per page of results); its lastModified must equal state.modified")
     r.add_argument("--allow-fewer", action="store_true", help="a deliberate correction that removes entries")
     r.add_argument("--entry", nargs=3, action="append", metavar=("SECTION", "SOURCE", "TEXT"), help="dry run")
     q = cmd("queue", "repo", "key", "outbox", "date")
@@ -785,8 +802,8 @@ def main():
     z = cmd("sanitize", "repo")
     z.add_argument("--max-chars", type=int, default=1500)
     a = ap.parse_args()
-    if a.cmd == "render" and a.local and a.page_version is None:
-        die("--local needs --page-version N (the version the CQL check returned)")
+    if a.cmd == "render" and a.local and not a.listing:
+        die("--local needs --listing (the parent's getConfluencePageDescendants result)")
     try:
         return {"render": cmd_render, "queue": cmd_queue, "state": cmd_state, "verify": cmd_verify,
                 "ticket": cmd_ticket, "find": cmd_find, "extract-plan": cmd_extract_plan, "progress": cmd_progress,

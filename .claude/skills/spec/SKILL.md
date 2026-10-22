@@ -200,8 +200,10 @@ the job. Create the tickets for real:
    `Branch:` line), so Step 6b can find each entry by key; Step 6.6 publishes them.
 5. Run **Step 6b** for every ticket created here and every existing child that has no page yet.
 6. Update the breakdown's Confluence page (Step 5) **once**, with the keys and the `Ticket page:` lines. First check
-   its version (CQL `id = <id>`, `expand: "content.version"`): if it moved since Step 5 published it, someone edited
-   it there; don't overwrite it, report it. Skipped with `--pages-only`.
+   that it hasn't moved: its `lastModified` in `getConfluencePageDescendants` of the PRD (`depth: 1`) must equal the
+   `version.createdAt` Step 5's create or update returned (the CQL version check is unreliable; see `ticket-page`
+   step 3.1). Otherwise someone edited it there; don't overwrite it, report it. Skipped with
+   `--pages-only`.
 7. Report a table of the tickets: key, summary, URL, created or already present, and the ticket page (created,
    already present, or the Jira `PIV record` comment), plus anything that failed.
 

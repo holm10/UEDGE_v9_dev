@@ -1,0 +1,47 @@
+{
+  "results": [
+    {
+      "id": "3964929",
+      "status": "current",
+      "title": "Ticket plans: AIUE-9",
+      "parentId": "1343489",
+      "depth": 1,
+      "childPosition": 971,
+      "type": "page",
+      "lastModified": "2026-10-16T23:26:10.854Z"
+    },
+    {
+      "id": "5275649",
+      "status": "current",
+      "title": "Spec: AIUE-9 - Create end-to-end test suite - Ticket Breakdown",
+      "parentId": "1343489",
+      "depth": 1,
+      "childPosition": 1269,
+      "type": "page",
+      "lastModified": "2026-10-19T19:53:01.799Z"
+    },
+    {
+      "id": "5308417",
+      "status": "current",
+      "title": "Progress: AIUE-9",
+      "parentId": "1343489",
+      "depth": 1,
+      "childPosition": 1882,
+      "type": "page",
+      "lastModified": "2026-10-22T01:56:38.226Z"
+    },
+    {
+      "id": "7307266",
+      "status": "current",
+      "title": "PRD reviews: AIUE-9",
+      "parentId": "1343489",
+      "depth": 1,
+      "childPosition": 2402,
+      "type": "page",
+      "lastModified": "2026-10-20T16:18:05.373Z"
+    }
+  ],
+  "_links": {
+    "base": "https://holm10uedge.atlassian.net/wiki"
+  }
+}

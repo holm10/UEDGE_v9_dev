@@ -114,10 +114,11 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
 4. Container: CQL `type = page AND parent = <PRD id> AND title = "Ticket plans: <EPIC>"`.
 5. Page: CQL `type = page AND parent = <container id>` (save every page of results, following `next`), then
    `ticket_page.py find --key <KEY> [--state-id <id>] --comments <issue.json> --search <listing> [--search …]`:
-   - exit 0 prints the id → `state --set page_id=<id>`. `stale_records` (an id recorded elsewhere that the listing
-     doesn't hold): the listed page wins; confirm each stale id once with CQL `id = <id>`: gone → fine; exists → two
-     pages, stop (step 6). `not_listed`: the recorded page is not under this container; confirm it with CQL `id =
-     <id>`: exists → use it (a moved ticket keeps its page); gone → `find` again with `--gone <id>`.
+   - exit 0 prints the id → `state --set page_id=<id> parent_id=<container id>`. `stale_records` (an id recorded
+     elsewhere that the listing doesn't hold): the listed page wins; confirm each stale id once with CQL `id = <id>`:
+     gone → fine; exists → two pages, stop (step 6). `not_listed`: the recorded page is not under this container;
+     confirm it with CQL `id = <id>`: exists → use it (a moved ticket keeps its page; its flushes then read it, since
+     the container's listing lacks it); gone → `find` again with `--gone <id>`.
      `missing_link_comment: true` → post the link comment (step 5).
    - exit 3 → "Page missing" (below). `find` says "none" only with a complete listing and a readable comment list.
    - exit 2 (several, or can't tell) → stop (step 6); never treat it as "none".
@@ -128,12 +129,19 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
 
 ### 3. Version check, then render
 
-1. `searchConfluenceUsingCql` with `cql: "id = <page id>"` and `expand: "content.version"` (exactly this; `expand:
-   "version"` returns no version) → `results[0].content.version.number` (also `.when` and `.message`; checked
-   2026-10-20 on page 5373979). Equal to `state.version` → the page is what this worktree last sent: render with
-   `--local --page-version <N>`. Otherwise, or if the result has no version number, read the page
-   (`getConfluencePage`, `contentFormat: "markdown"`) and pass it as `--current` (the saved tool result works as it
-   is). A page made by `spec` is an ordinary page here: the first `publish` reads it and fills the Plan placeholder.
+1. Don't look for the version without the body: `searchConfluenceUsingCql` and `getConfluencePage` switch between two
+   response shapes, one with a version and one without (both seen in the same sessions, 2026-10-20 to 22; AIUE-143).
+   The check is the time of the last change instead. `getConfluencePageDescendants` kept one shape in every logged
+   call: `pageId` = `state.parent_id`, `depth: 1`, `limit: 100`; follow `_links.next` with its `cursor` until the page
+   is listed, saving each result. It has no bodies, and each child's `lastModified` is exactly the `version.createdAt`
+   that the child's last create or update returned. Render with `--local --listing <saved>` (one `--listing` per
+   result). It takes the version from the state file (`V` below) and refuses (exit 2) unless the page's
+   `lastModified` equals `state.modified`. On that refusal (someone else wrote, the page isn't listed, or the state
+   file has no `modified` yet) read the page with `fetch` (`id`: `ari:cloud:confluence:<cloudId>:page/<page id>`),
+   save the result and pass it as `--current`. Its `text` is the page as markdown (log entries are compared ignoring
+   formatting), and its `metadata.version` is `V`. No `state.parent_id` (step 2 is skipped once the page id is
+   known): run step 2.4 for the container id and record it. A page made by `spec` is an ordinary page here: the
+   first `publish` reads it and fills the Plan placeholder.
 2. `meta.json` in scratch: `key`, `key_url`, `summary`, `epic`, `epic_url`, `prd_title`, `prd_url`, `branch`,
    `status`, `status_note`, `updated` (today), `skill` (the caller), and `page_id`/`page_url` once known.
 3. Render:
@@ -141,7 +149,7 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
    ```bash
    uv run .claude/skills/ticket-page/ticket_page.py render --repo <worktree> \
      (--plan <working copy> [--plan-title RCA] | --mirrored) --meta <scratch>/meta.json \
-     (--local --page-version <N> | --current <page as read>) --out <scratch>/body.md
+     (--local --listing <saved listing> | --current <page as read>) --out <scratch>/body.md
    ```
 
    `--plan` on `publish`; `--mirrored` on any other flush (the copy last published, from the store). `--mirrored`
@@ -154,7 +162,7 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
    the queued ones (compared ignoring formatting, so a retry never duplicates). The Ticket section is carried over;
    `--ticket <file>` replaces it on purpose (say so in a Progress entry). A secret-like string stops the render.
    **Refusals (exit 2), never worked around by dropping `page_id`:** an existing page without `--current` or
-   `--local`; `--local` with another version than recorded; a `--current` in storage form, lacking a log heading,
+   `--local`; `--local` whose listing doesn't show the page at `state.modified`; a `--current` in storage form, lacking a log heading,
    holding fewer entries than the last body sent, or lacking its Ticket section (pass `--ticket`); the skeleton for a
    page that exists. `--allow-fewer` is only for a deliberate correction (see Corrections).
 
@@ -181,14 +189,15 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
      unverified"; take the id from the response.
   6. Link it from the ticket (step 5). `spec` keeps no state file; the link comment and the breakdown entry are the
      records.
-- **Page missing** (on `publish` or a flush): create it as above (`skill` the caller), `state --set page_id=<id>`,
+- **Page missing** (on `publish` or a flush): create it as above (`skill` the caller), `state --set page_id=<id> parent_id=<container id>`,
   read it and render the first fill with `--current` and `--plan`; then update as below.
 - **Update:** `updateConfluencePage` (`contentFormat: "markdown"`, `versionMessage` naming the caller and milestone,
   the new `title` if the summary changed) with the body **exactly as rendered**.
 - **Verify** (only after an update that returned a version): `ticket_page.py verify --body <scratch>/body.md --page-id
-  <id> --after-version <V> --repo <worktree>`, `V` the version checked in step 3. Exit 1 → **one** retry, verified
-  with `--after-version` = the first update's version; a second mismatch → record nothing, report, stop. Exit 3 →
-  "transcription unverified", go on. Then record: `state --set version=<returned> page_id=<id> --save-body
+  <id> --after-version <V> --repo <worktree>`, `V` the version checked in step 3 (`state.version` on the `--local`
+  path). Exit 1 → **one** retry, verified with `--after-version` = the first update's version; a second mismatch →
+  record nothing, report, stop. Exit 3 → "transcription unverified", go on. Then record: `state --set
+  version=<returned> modified=<returned version.createdAt> page_id=<id> parent_id=<container id> --save-body
   <scratch>/body.md` (on `publish` also `--save-plan <working copy> --plan-title <Plan|RCA>`), then `queue
   --mark-sent`. A failed update: nothing is recorded, entries stay queued, the error is reported.
 - **Another writer:** expected version = `V` + this flush's own updates. Higher → someone's update in between was
@@ -212,7 +221,8 @@ _Posted by an agent (ticket-page skill) through the owner's account._
 1. CQL `type = page AND parent = <PRD id> AND title = "Progress: <EPIC>"`. Two → stop (step 2.6). None → `ticket_page.py
    progress --new --meta <scratch>/meta.json --repo <worktree> --out <scratch>/progress.md`, `createConfluencePage`
    (`parentId` = PRD id), `verify --created`.
-2. Read it (markdown, saved), `ticket_page.py progress --repo <worktree> --key <KEY> --current <saved> --out
+2. Read it (`fetch` as in step 3.1, saved; always, since every ticket of the epic writes here; `metadata.version` is
+   `V`), `ticket_page.py progress --repo <worktree> --key <KEY> --current <saved> --out
    <scratch>/progress-body.md` (the page's entries, this worktree's lines the page lost, then the queued lines; it
    refuses a page without `## Entries`).
 3. `updateConfluencePage` with the body as rendered, `verify --page-id <id> --after-version <V>`, then `queue --epic
