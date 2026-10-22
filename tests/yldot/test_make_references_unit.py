@@ -469,10 +469,16 @@ def test_classify(change, want):
         assert reason.startswith("max |diff|/tol = 50 <= M_cls = 100: treated as EXCLUDED")
 
 
-def test_classify_irregular_results_are_findings():
+def test_classify_a_layout_change_at_the_same_neq_is_invalid():
+    """Owner, 2026-10-22 (AIUE-94 D4): like a neq change (bbb.isngon in d_c and d_mols swaps the gas equations)."""
     d = data()
-    d["igyl"] = d["igyl"][::-1].copy()
-    assert mr.classify(result(d), data(), TOL)[2] == "index arrays or equation masks changed at the same neq"
+    d["idxg"] = d["idxg"][::-1].copy()
+    d["masks"]["isngonxy"] = np.zeros(3, np.int32)
+    assert mr.classify(result(d), data(), TOL) == (
+        "INVALID", "equation layout changed (idxg, isngonxy) at the same neq", None)
+
+
+def test_classify_irregular_results_are_findings():
     d = data(y=(-0.0, 2.0, 3.0, 4.0))
     assert mr.classify(result(d), data(y=(0.0, 2.0, 3.0, 4.0)), TOL)[2].startswith("bitwise differences of size zero")
 
