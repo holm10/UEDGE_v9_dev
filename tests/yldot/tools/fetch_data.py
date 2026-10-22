@@ -9,8 +9,10 @@ release tag yldot-data-v<N>. For each manifest (default: all) this tool
 
   1. checks the files already in tests/yldot/.data/<tag>/ (gitignored) and refuses any whose SHA-256 or size
      differs from the manifest: it never overwrites one, remove it by hand and re-run;
-  2. downloads the missing ones with `gh release download <tag>` into a temporary directory, checks each and moves
-     it into .data/<tag>/; a file that fails the check is deleted and nothing is linked for it;
+  2. downloads the missing ones into a temporary directory over plain HTTPS (the release is public: no tool, no
+     login), or with `gh release download <tag>` if that fails and gh is on PATH (a private repository, HTTPS
+     blocked); checks each and moves it into .data/<tag>/; a file that fails the check is deleted and nothing is
+     linked for it;
   3. links each file at its manifest path with a relative symlink (owner, 2026-10-21, AIUE-84), e.g.
      families/large_dd2c/base_state.h5 -> ../../.data/yldot-data-v2/families--large_dd2c--base_state.h5, so the
      harness and input.py read them by name. A regular file already at that path is accepted only if its SHA-256
@@ -19,8 +21,9 @@ release tag yldot-data-v<N>. For each manifest (default: all) this tool
 A killed run can leave `.data/.<tag>-*` temporary directories behind; they are never read and may be removed by hand.
 
 --check verifies only (the cache and the links), never downloads. A manifest without a release (a local preview) is
-skipped. gh uses its own login; CI provides its token in the workflow. Release asset names are the external paths
-with "/" replaced by "--" (manifest.asset_name).
+skipped. gh, the fallback, uses its own login. Release asset names are the external paths with "/" replaced by "--"
+(manifest.asset_name). tests/yldot/conftest.py runs the same fetch at the start of every pytest session (decision 23,
+owner 2026-10-22, AIUE-156).
 
 Exit codes: 0 every file verified and linked, 1 a file missing, different from its manifest or not downloadable,
 2 usage (an unknown family, an invalid manifest).
@@ -31,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for the yldot package
@@ -39,6 +43,8 @@ from yldot.harness import manifest as mf  # noqa: E402
 from yldot.harness.store import file_sha256  # noqa: E402
 
 REPO = "holm10/UEDGE_v9_dev"
+URL = "https://github.com/{repo}/releases/download/{tag}/{asset}"
+TIMEOUT_S = 60  # per asset request
 
 
 class FetchError(Exception):
@@ -68,6 +74,34 @@ def download(tag, assets, dest, repo=REPO):
         raise FetchError("{} failed ({}): {}".format(" ".join(cmd), r.returncode, r.stderr.strip()))
 
 
+def download_https(tag, assets, dest, repo=REPO):
+    """Plain HTTPS download of the named assets of tag into dest; any failure (an HTTP error such as 404 included)
+    raises FetchError and leaves no partial file."""
+    for a in assets:
+        url = URL.format(repo=repo, tag=tag, asset=a)
+        part = Path(dest) / (a + ".part")
+        try:
+            with urllib.request.urlopen(url, timeout=TIMEOUT_S) as r, open(part, "wb") as f:
+                shutil.copyfileobj(r, f)
+        except (OSError, ValueError) as e:  # URLError, HTTPError and timeouts are OSErrors
+            part.unlink(missing_ok=True)
+            raise FetchError("{} failed: {}".format(url, e))
+        os.replace(part, Path(dest) / a)
+
+
+def download_any(tag, assets, dest, repo=REPO):
+    """HTTPS first; gh release download if that fails and gh is on PATH."""
+    try:
+        download_https(tag, assets, dest, repo)
+    except FetchError as e:
+        if shutil.which("gh") is None:
+            raise FetchError("{} (gh, the fallback, is not on PATH)".format(e))
+        try:
+            download(tag, assets, dest, repo)
+        except FetchError as g:
+            raise FetchError("{}; then {}".format(e, g))
+
+
 def manifests(suite, families):
     ref = Path(suite) / "references"
     found = {p.name[:-len(".manifest.json")]: p for p in sorted(ref.glob("*.manifest.json"))} if ref.is_dir() else {}
@@ -91,7 +125,7 @@ def link(target, at):
     return "linked"
 
 
-def fetch(suite=mf.SUITE, families=(), repo=REPO, check=False, download=download, out=print):
+def fetch(suite=mf.SUITE, families=(), repo=REPO, check=False, download=download_any, out=print):
     """Verify, download and link; returns the exit code."""
     suite = Path(suite)
     try:

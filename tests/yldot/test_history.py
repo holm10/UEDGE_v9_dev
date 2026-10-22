@@ -3,7 +3,8 @@ W+1 and P+1 in both configurations, one more pandf at -1 and at +1 after step 8b
 steady +1 and -1 differ only in rows that ishosor = 0 removes. measure_history.py check runs every evaluation in a
 fresh child; exit 4 is a defect (file a bugfix/v9-* ticket, never absorb it), exit 3 goes to the epic owner.
 
-A measured family (one with a [history] table) also records the owner's decision of 2026-10-21: no child reuse.
+A measured family (one with a [history] table) also records the owner's decision of 2026-10-21: no child reuse. An
+unmeasured one keeps the W = P = 2 placeholders, checked as such (no skip; owner, 2026-10-22, AIUE-156).
 """
 import subprocess
 import sys
@@ -29,9 +30,11 @@ def test_history(family):
 def test_evaluation_keys(family):
     with open(FAMILIES / family / "family.toml", "rb") as f:
         toml = tomllib.load(f)
-    if "history" not in toml:
-        pytest.skip("{}: W and P not measured yet (placeholders)".format(family))
     ev = toml["evaluation"]
+    if "history" not in toml:  # unmeasured: the owner's placeholders (2026-10-19) until AIUE-92 measures them
+        assert ev["w"] == 2 and ev["p"] == 2 and "child_reuse" not in ev, \
+            "{}: no [history] but not the W = P = 2 placeholders: {}".format(family, ev)
+        return
     assert isinstance(ev["w"], int) and ev["w"] >= 1, ev
     assert isinstance(ev["p"], int) and ev["p"] >= 1, ev
     assert ev["child_reuse"] is False, ev
