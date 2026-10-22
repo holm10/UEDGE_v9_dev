@@ -1,8 +1,8 @@
 """Harness of the yldot suite (epic AIUE-9, PRD section 6).
 
 process.py is the parent side (Runner: forkserver or spawn children, timeouts, classified results); state.py is
-the child side (the evaluation protocol). The environment pin of tests/yldot/__init__.py is repeated here for use
-outside pytest.
+the child side (the evaluation protocol); store.py and manifest.py hold the references (PRD section 7.3). The
+environment pin of tests/yldot/__init__.py is repeated here for use outside pytest.
 """
 import os
 
@@ -11,5 +11,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 from .process import CONFIGS, FAMILIES, INTAKE, FamilyError, Result, Runner, load_evaluation  # noqa: E402
+from .store import StoreError, StoreIntegrityError, open_store  # noqa: E402
 
-__all__ = ["CONFIGS", "FAMILIES", "INTAKE", "FamilyError", "Result", "Runner", "load_evaluation"]
+__all__ = ["CONFIGS", "FAMILIES", "INTAKE", "FamilyError", "Result", "Runner", "StoreError",
+           "StoreIntegrityError", "load_evaluation", "open_store"]
