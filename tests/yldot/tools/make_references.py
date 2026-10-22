@@ -259,8 +259,11 @@ def default_shas(data, sig):
     return out
 
 
-def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE):
+def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None):
     """Evaluate and write each family's reference file and manifest fields into out.
+
+    repo: the source tree of the built commit, whose */*.v files are the variant inventory (variants.plan; the
+    container mounts only tests/, so its repository root holds no .v file); None: this tree's.
 
     sweep "all": classify every variant of variants.plan() (PRD section 7.2), SENSITIVE ones twice in separate
     processes; "none": the defaults only (AIUE-88); a list of ids or keys: those only (tests). only: --only, a list of
@@ -277,7 +280,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     runner = Runner()
-    plan = variants.plan()
+    plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
     inventory = {v.id for v in plan}
     scope = set(select_ids(plan, sweep)) if isinstance(sweep, (list, tuple)) else None
     selected = set(select_ids(plan, only)) if only is not None else None
@@ -530,7 +533,7 @@ def build_host(sha, families, out, root, run=run, stream=stream, opts=()):
                                                                         platform.python_version())}
         (out / "build.json").write_text(json.dumps(rec, indent=1) + "\n")
         cmd = [str(venv / "bin" / "python"), str(Path(__file__).resolve()), "_child"] + families + list(opts) + [
-            "--out", str(out / "references"), "--build", str(out / "build.json")]
+            "--repo", str(src), "--out", str(out / "references"), "--build", str(out / "build.json")]
         if stream(cmd, cwd=out, env=env) != 0:
             raise Stop(2, "the evaluation failed")
     finally:
@@ -661,10 +664,12 @@ def main(argv):
     p.add_argument("--sweep", choices=("all", "none"), default="all")
     p.add_argument("--only", nargs="+")
     p.add_argument("--full", action="store_true")
+    p.add_argument("--repo", help="the built commit's source tree: its .v files are the inventory")
     args = parser.parse_args(argv[1:])
     try:
         if args.cmd == "_child":
-            child(args.family, args.out, args.build, sweep=args.sweep, only=args.only, full=args.full)
+            child(args.family, args.out, args.build, sweep=args.sweep, only=args.only, full=args.full,
+                  repo=args.repo)
         else:
             generate(args)
     except (Stop, mf.ManifestError) as e:
