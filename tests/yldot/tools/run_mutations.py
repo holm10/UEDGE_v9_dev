@@ -91,8 +91,7 @@ PENDING_RE = re.compile(r"^AIUE-\d+(, AIUE-\d+)* \(.+\)$")
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # the set PRD 7.8 fixes (decision 25; owner, 2026-10-22, AIUE-90 Q2: the quiet-cell mutation is one of the 21)
 COMPOSITION = {"physics": 23, "range": 2, "flag-gating": 2}
-VERDICTS = ("expected", "quiet", "missed", "unexpected", "crash", "not run")
-OWNER = "ask the epic owner (decision 23)"
+OWNER = "a gate failed: ask the epic owner (decision 23); never tune a tolerance, header or site to pass"
 
 
 class Stop(Exception):
@@ -445,7 +444,9 @@ def verdict(m, family, result, junit=None):
 def gates(matrix):
     """[(gate, ok, detail)] of PRD 7.11 (c) over the matrix: G1 every non-pending mutation expected on a family;
     G2 nothing missed, unexpected, crashed or flagged, and no non-pending mutation left unrun; G3 every equation with
-    a block in some referenced family caught in its own block; G4 every referenced family catches a mutation."""
+    a block in some referenced family caught by a mutation of that equation (its Equation key), in a primary block
+    of it; G4 every referenced family catches a mutation. G3 and G4 judge the whole set: a run of named mutations
+    (matrix["partial"]) reports them as not evaluated."""
     muts = matrix["mutations"]
     live = {n: m for n, m in muts.items() if m["header"]["pending"] is None}
     g1 = sorted(n for n, m in live.items() if not any(r["verdict"] == "expected" for r in m["results"].values()))
@@ -460,18 +461,21 @@ def gates(matrix):
     equations = sorted({e for f in matrix["families"].values() for e in f["equations"]})
     g3 = []
     for eq in equations:
-        if not any(r["verdict"] == "expected" and any(b.split("[")[0] == eq
-                                                       for b in m["header"]["blocks"][f]["primary"])
+        if not any(r["verdict"] == "expected" and m["header"]["equation"] == eq
+                   and any(b.split("[")[0] == eq for b in m["header"]["blocks"][f]["primary"])
                    for m in live.values() for f, r in m["results"].items()):
             g3.append(eq)
     g4 = sorted(f for f in matrix["families"]
                 if not any(m["results"].get(f, {}).get("verdict") == "expected" for m in live.values()))
+    partial = matrix.get("partial", False)
     return [("G1 every mutation caught in its expected check and block on a family", not g1,
              "not caught: {}".format(g1) if g1 else "{} mutations".format(len(live))),
             ("G2 no miss, unexpected firing, crash or flag", not g2, "; ".join(g2) if g2 else "none"),
-            ("G3 every equation caught in its own block", not g3,
+            ("G3 every equation caught in its own block", partial or not g3,
+             "not evaluated (a run of named mutations)" if partial else
              "uncaught: {}".format(g3) if g3 else ", ".join(equations)),
-            ("G4 every family catches a mutation", not g4,
+            ("G4 every family catches a mutation", partial or not g4,
+             "not evaluated (a run of named mutations)" if partial else
              "catch nothing: {}".format(g4) if g4 else ", ".join(sorted(matrix["families"])))]
 
 
@@ -518,7 +522,10 @@ def markdown(matrix):
 
 
 def exit_code(matrix):
-    return 0 if all(ok for _, ok, _ in gates(matrix)) else 3
+    if all(ok for _, ok, _ in gates(matrix)):
+        return 0
+    print(OWNER, file=sys.stderr)
+    return 3
 
 
 # ---------------------------------------------------------------- child side
@@ -642,17 +649,28 @@ class Scratch:
         rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
         if rc not in (0, 1):
             raise Stop(2, "test_default.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
-        res = {f: {} for f in families}
-        for case in ET.parse(out).getroot().iter("testcase"):
-            hit = re.match(r"^test_default\[(.+)\]$", case.get("name", ""))
-            if not hit:
-                continue
-            ids = hit.group(1).split("-")
-            family = next((i for i in ids if i in res), None)
-            config = next((i for i in ids if i in CONFIGS), None)
-            if family and config:
-                res[family][config] = case.find("failure") is not None or case.find("error") is not None
-        return res
+        return parse_junit(out, families)
+
+
+def parse_junit(path, families):
+    """{family: {config: failed}} of the test_default cases in a JUnit XML file. A skipped case has no entry (verdict()
+    then flags it against the check); a case collected twice is a harness error."""
+    res, seen = {f: {} for f in families}, set()
+    for case in ET.parse(path).getroot().iter("testcase"):
+        hit = re.match(r"^test_default\[(.+)\]$", case.get("name", ""))
+        if not hit:
+            continue
+        ids = hit.group(1).split("-")
+        family = next((i for i in ids if i in res), None)
+        config = next((i for i in ids if i in CONFIGS), None)
+        if not (family and config):
+            continue
+        if (family, config) in seen:
+            raise Stop(2, "test_default[{}-{}] collected twice ({})".format(family, config, path))
+        seen.add((family, config))
+        if case.find("skipped") is None:
+            res[family][config] = case.find("failure") is not None or case.find("error") is not None
+    return res
 
 
 def entry(m, family, result, junit):
@@ -712,7 +730,7 @@ def run(args, run=mr.run, stream=mr.stream):
         raise Stop(1, "--out {} is not empty".format(out))
     out.mkdir(parents=True, exist_ok=True)
     scratch = Scratch(sha, out, root, run, stream)
-    matrix = {"commit": sha, "families": stores, "mutations": {}}
+    matrix = {"commit": sha, "families": stores, "mutations": {}, "partial": bool(args.mutation)}
     try:
         scratch.setup()
         matrix["baseline_so"] = scratch.build(out / "baseline" / "build.log")

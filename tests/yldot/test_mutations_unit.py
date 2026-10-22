@@ -254,6 +254,45 @@ def test_gates_fail(change, gate):
     assert rm.exit_code(m) == 3
 
 
+def test_g3_needs_a_mutation_of_the_equation():
+    """A mutation of another equation (e.g. the timestep flag-gating, primary in every block) does not satisfy G3."""
+    m = matrix({**GOOD, "b": ("ni", None, {"d_only": "quiet", "d_mols": "quiet"}),
+                "g": ("all", None, {"d_only": "expected", "d_mols": "expected"})})
+    m["mutations"]["g"]["header"]["blocks"] = {f: {"primary": ["ni[1]", "te[1]"], "coupled": []}
+                                               for f in ("d_only", "d_mols")}
+    assert "G3" in failing(m), rm.gates(m)
+
+
+def test_partial_run_skips_g3_g4():
+    m = matrix({"a": ("te", None, {"d_only": "expected", "d_mols": "quiet"})})
+    assert sorted(failing(m)) == ["G3", "G4"]
+    m["partial"] = True
+    assert failing(m) == []
+    assert all("not evaluated" in d for name, _, d in rm.gates(m) if name.startswith(("G3", "G4")))
+
+
+JUNIT = """<testsuites><testsuite>
+<testcase classname="t" name="test_default[d_only-steady]"><failure message="x"/></testcase>
+<testcase classname="t" name="test_default[d_only-timestep]"/>
+<testcase classname="t" name="test_default[ortho-steady]"><skipped message="s"/></testcase>
+<testcase classname="t" name="test_timestep_exercised[d_only]"/>
+{}</testsuite></testsuites>"""
+
+
+def test_parse_junit(tmp_path):
+    p = tmp_path / "j.xml"
+    p.write_text(JUNIT.format(""))
+    assert rm.parse_junit(p, ["d_only", "ortho"]) == {"d_only": {"steady": True, "timestep": False}, "ortho": {}}
+    p.write_text(JUNIT.format('<testcase classname="t" name="test_default[ortho-steady]"/>'))
+    with pytest.raises(rm.Stop, match="collected twice"):
+        rm.parse_junit(p, ["d_only", "ortho"])
+
+
+def test_skipped_test_default_is_flagged(tmp_path):
+    v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
+    assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v
+
+
 def test_gate_flag_fails_g2():
     m = matrix(GOOD)
     m["mutations"]["a"]["results"]["d_only"]["flags"] = ["first differing intermediate x"]
