@@ -7,6 +7,7 @@ the release downloads and gh are fakes. No uedge import, no network.
 import hashlib
 import itertools
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,7 @@ from yldot.test_compare_unit import SPEC, make_data
 sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
 import check_reference_change as guard  # noqa: E402
+import fetch_data  # noqa: E402
 
 DATA = make_data()
 IMAP = index_map(DATA, SPEC)
@@ -198,7 +200,7 @@ class Repo:
     def check(self, body="", **kw):
         """(exit code, verdict, output) of check from the base to a new head commit."""
         head = self.commit()
-        lines = []
+        lines = self.lines = []
         out = self.scratch / "verdict-{}.json".format(next(COUNTER))
         code = guard.check(self.root, self.base, head, body, download=self.download, json_out=out,
                            out=lines.append, **kw)
@@ -238,6 +240,37 @@ def reqs(verdict):
     (G + "data/rates.txt", "M", "changed"),
     (G + "linux/Dockerfile", "M", "changed"),
     (G + "mutations/m01.patch", "A", None),
+    (G + "mutations/notes.txt", "A", None),
+    (G + "mutations/conftest.py", "A", "loosened"),  # pytest loads these: not exempt as additions
+    (G + "mutations/test_m.py", "A", "loosened"),
+    (G + "mutations/m_test.py", "A", "loosened"),
+    (G + "mutations/helper.py", "A", "changed"),
+    (G + "mutations/pytest.ini", "A", "loosened"),
+    (G + "mutations/tox.ini", "A", "loosened"),
+    (G + "mutations/setup.cfg", "A", "loosened"),
+    (G + "mutations/pyproject.toml", "A", "loosened"),
+    (G + "mutations/extra.cfg", "A", "changed"),
+    (G + "mutations/extra.toml", "A", "changed"),
+    (G + "mutations/extra.ini", "A", "changed"),
+    (G + "families/fam/conftest.py", "M", "loosened"),
+    (G + "families/fam/test_fam.py", "M", "loosened"),
+    (G + "families/fam/fam_test.py", "A", "loosened"),
+    (G + "pytest.ini", "M", "loosened"),
+    (G + "families/fam/tox.ini", "M", "loosened"),
+    (G + "setup.cfg", "M", "loosened"),
+    (G + "families/fam/pyproject.toml", "M", "loosened"),
+    ("conftest.py", "M", "loosened"),
+    ("tests/conftest.py", "A", "loosened"),
+    ("pytest.ini", "M", "loosened"),
+    ("tests/tox.ini", "M", "loosened"),
+    ("tox.ini", "A", "loosened"),
+    ("tests/pytest.ini", "D", "loosened"),
+    ("pyproject.toml", "M", "pytestcfg"),
+    ("setup.cfg", "M", "pytestcfg"),
+    ("tests/pyproject.toml", "M", "pytestcfg"),
+    ("tests/setup.cfg", "M", "pytestcfg"),
+    ("src/conftest.py", "M", None),
+    ("docs/pytest.ini", "M", None),
     (G + "mutations/m01.patch", "M", "changed"),
     (G + "mutations/m01.patch", "D", "loosened"),
     (G + "families/fam/input.py", "D", "loosened"),
@@ -708,3 +741,415 @@ def test_history_limits(repo):
     assert any("exceed 200 MB" in line for line in lines)
     assert guard.history(repo.root, repo.base, run=FakeGh({V1: [1]}), git_limit_mb=1e-6, out=lines.append) == 1
     assert guard.history(repo.root, repo.base, run=FakeGh({}, fail=True), out=lines.append) == 2
+
+
+# ---------------------------------------------------------------- round 1 of the review (AIUE-97)
+
+
+def test_added_files_pytest_loads_below_mutations(repo):
+    repo.write(G + "mutations/conftest.py", "import os\n")
+    code, v, _ = repo.check()
+    assert code == 1 and reqs(v) == {"changed", "loosened"} and v["codeowner_approval"]
+    repo.write(G + "mutations/conftest.py", None)
+    repo.write(G + "mutations/m02.patch", "diff\n")
+    assert repo.check()[1]["required"] == []
+
+
+PYPROJECT = '[project]\nname = "{}"\n\n[tool.pytest.ini_options]\naddopts = "{}"\n'
+SETUPCFG = "[metadata]\nname = {}\n\n[tool:pytest]\naddopts = {}\n"
+
+
+@pytest.mark.parametrize("path, base, head, loosened", [
+    ("pyproject.toml", PYPROJECT.format("a", "-q"), PYPROJECT.format("b", "-q"), False),  # not a pytest section
+    ("pyproject.toml", PYPROJECT.format("a", "-q"), PYPROJECT.format("a", "-x"), True),
+    ("pyproject.toml", PYPROJECT.format("a", "-q"), '[project]\nname = "a"\n', True),  # section removed
+    ("pyproject.toml", '[project]\nname = "a"\n', '[project]\nname = "a"\n[tool.pytest]\nx = 1\n', True),
+    ("pyproject.toml", None, PYPROJECT.format("a", "-q"), True),  # added with a pytest section
+    ("pyproject.toml", None, '[project]\nname = "a"\n', False),
+    ("pyproject.toml", PYPROJECT.format("a", "-q"), "[project\n", True),  # does not parse
+    ("pyproject.toml", "[project\n", PYPROJECT.format("a", "-q"), True),
+    ("tests/pyproject.toml", PYPROJECT.format("a", "-q"), PYPROJECT.format("a", "-x"), True),
+    ("setup.cfg", SETUPCFG.format("a", "-q"), SETUPCFG.format("b", "-q"), False),
+    ("setup.cfg", SETUPCFG.format("a", "-q"), SETUPCFG.format("a", "-x"), True),
+    ("setup.cfg", SETUPCFG.format("a", "-q"), "[metadata]\nname = a\n", True),
+    ("setup.cfg", SETUPCFG.format("a", "-q"), "name = a\n", True),  # no section header: does not parse
+    ("tests/setup.cfg", SETUPCFG.format("a", "-q"), SETUPCFG.format("a", "-x"), True),
+])
+def test_pytest_config_above_the_suite(repo, path, base, head, loosened):
+    if base is not None:
+        repo.write(path, base)
+        repo.base = repo.commit("pytest config")
+    repo.write(path, head)
+    code, v, text = repo.check("Test criteria: changed: pytest config\nTest criteria: loosened: owner review")
+    assert (reqs(v) == {"changed", "loosened"}) is loosened, text
+    assert code == 0 and v["codeowner_approval"] is loosened
+
+
+def test_stale_base_is_read_at_the_merge_base(repo):
+    """The base moved on after the PR branched: its manifests and guarded files are not charged to the PR."""
+    root = repo.base
+    repo.git("checkout", "-q", "-b", "pr")
+    repo.put_ref("fam", BASE_VARIABLES["fam"], release=V1, diag={"resco": np.arange(4.0) + 1.0})
+    pr_head = repo.commit("pr: diagnostics only")
+    repo.git("checkout", "-q", "main")
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.new": ("SENSITIVE", 5)}), release=V1, serve=False)
+    repo.write(G + "tools/fetch_data.py", "x = 3\n")
+    tip = repo.commit("base moves on")
+    lines = []
+    out = repo.scratch / "stale.json"
+    assert guard.check(repo.root, tip, pr_head, "", download=repo.download, json_out=out, out=lines.append) == 0, lines
+    text = "\n".join(lines)
+    assert "base {}, merge base {}".format(tip[:12], root[:12]) in text
+    assert json.loads(out.read_text())["required"] == [] and "fetch_data" not in text and "bbb.new" not in text
+    assert json.loads(out.read_text())["merge_base"] == root
+
+
+def test_no_common_ancestor(repo):
+    repo.git("checkout", "-q", "--orphan", "other")
+    repo.write("README.md", "other\n")
+    other = repo.commit("unrelated history")
+    lines = []
+    assert guard.check(repo.root, repo.base, other, "", out=lines.append) == 2 and "no merge base" in lines[0]
+
+
+# dataset, rename, release and external rules
+
+
+def manifest_dict(datasets, **kw):
+    return dict({"store": "full", "release": V1, "external": {}, "datasets": datasets, "guarded": {}, "unguarded": {},
+                 "variables": {}}, **kw)
+
+
+def test_changed_unguarded_dataset_is_a_default_result():
+    base = manifest_dict({"/index/block": "a", "/other/x": "b", "/steady/default/diagnostics/r": "c",
+                          "/steady/variants/v/yldot/index": "d"})
+    head = manifest_dict({"/index/block": "A", "/other/x": "B", "/steady/default/diagnostics/r": "C",
+                          "/steady/variants/v/yldot/index": "D"})
+    found, _ = guard.diff_manifest("fam", base, head, {})
+    assert sorted((f.req, f.item) for f in found) == [("default", "fam:/other/x"), ("default", "fam:index")]
+    found, _ = guard.diff_manifest("fam", base, manifest_dict({}), {})  # all removed
+    assert {f.item for f in found if f.req == "default"} == {"fam:/other/x", "fam:index"}
+
+
+def test_changed_index_in_a_pr(repo):
+    def tamper(m):
+        m["datasets"]["/index/block"] = "0" * 64
+
+    repo.put_ref("fam", BASE_VARIABLES["fam"], edit=tamper, release=V1)
+    code, v, _ = repo.check("Default results: changed\nfam:index")
+    assert v["items"] == ["fam:index"] and v["missing_items"] == []
+
+
+def two_manifests(tmp_path, seed=1):
+    m0, _ = make_ref(tmp_path, "fam", {"bbb.sens": ("SENSITIVE", 1)})
+    m1, _ = make_ref(tmp_path, "fam", {"bbb.renamed": ("SENSITIVE", seed)})
+    return m0, m1
+
+
+def same(m0, m1, **edits):
+    va, vb = m0["variables"]["bbb.sens"], dict(m1["variables"]["bbb.renamed"], **edits)
+    return guard.same_entry(m0, "bbb.sens", va, m1, "bbb.renamed", vb)
+
+
+@pytest.mark.parametrize("field, value", [
+    ("class", "INERT"), ("applied", APPLIED), ("d", 1.0), ("phase", "POST"), ("config", "timestep"),
+    ("block_l2", {"x": 1.0}), ("jflag_block_l2", {"x": 1.0})])
+def test_rename_needs_every_field_to_agree(tmp_path, field, value):
+    m0, m1 = two_manifests(tmp_path)
+    assert same(m0, m1) and same(m0, m1, reason="other words", sha256="0" * 64)
+    assert not same(m0, m1, **{field: value})
+
+
+def test_rename_needs_the_same_stored_datasets(tmp_path):
+    m0, m1 = two_manifests(tmp_path)
+    stored_keys = [k for k in m1["datasets"] if k.startswith("/steady/variants/bbb.renamed/")]
+    assert stored_keys
+    m1["datasets"][stored_keys[0]] = "0" * 64
+    assert not same(m0, m1)
+
+
+def test_rename_refused_when_the_stored_datasets_differ(repo):
+    variables = {k: c for k, c in BASE_VARIABLES["fam"].items() if k != "bbb.sens"}
+    repo.put_ref("fam", dict(variables, **{"bbb.renamed": ("SENSITIVE", 7)}))
+    code, v, _ = repo.check()
+    assert code == 1 and v["items"] == ["fam:bbb.sens"]
+
+
+def test_release_change_alone_reverifies_every_external(repo):
+    repo.put_ref("fam", BASE_VARIABLES["fam"], release=V2)
+    code, v, text = repo.check()
+    assert code == 0 and v["required"] == [], text
+    assert repo.download.calls == [(V2, sorted(mf.asset_name(p) for p in (mf.reference_path("fam"), STATE)))]
+
+
+def test_new_external_file_is_an_addition_and_verified(repo):
+    extra, content = "families/fam/extra.bin", b"extra" * 5
+    ext = dict(external(repo.files[STATE]), **{extra: {"sha256": hashlib.sha256(content).hexdigest(),
+                                                       "bytes": len(content)}})
+    repo.put_ref("fam", BASE_VARIABLES["fam"], release=V1, external=ext)
+    repo.assets[V1][mf.asset_name(extra)] = content
+    code, v, text = repo.check()
+    assert code == 0 and v["required"] == [] and "addition: external {}".format(extra) in text, text
+    assert repo.download.calls == [(V1, [mf.asset_name(extra)])]  # the reference and the state are unchanged
+    repo.assets[V1][mf.asset_name(extra)] = b"other" * 5  # same size, other bytes
+    code, v, _ = repo.check()
+    assert code == 1 and any(mf.asset_name(extra) in e and "SHA-256" in e for e in v["errors"])
+
+
+def test_moved_guarded_file_is_a_delete_and_an_add(repo):
+    repo.git("mv", G + "families/fam/input.py", G + "families/fam/input2.py")
+    code, v, _ = repo.check()
+    got = {(f["path"], f["req"]) for f in v["findings"]}
+    assert got == {(G + "families/fam/input.py", "loosened"), (G + "families/fam/input2.py", "changed")}
+    assert reqs(v) == {"changed", "loosened"}
+
+
+def test_fetch_error_is_an_error(repo):
+    def failing(tag, names, dest, gh_repo):
+        raise fetch_data.FetchError("gh failed: boom")
+
+    repo.download = failing
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.new": ("SENSITIVE", 5)}))
+    code, v, _ = repo.check()
+    assert code == 1 and any("fam: gh failed: boom" == e for e in v["errors"])
+
+
+def test_manifest_family_must_be_its_file_name(repo):
+    m = {"schema": mf.SCHEMA, "family": "zzz", "store": "sketch", "release": V1, "external": {}}
+    assert "names family 'zzz'" in guard.load_manifest(json.dumps(m).encode(), "oth")[1]
+    repo.write(G + "references/oth.manifest.json", json.dumps(m))
+    code, v, _ = repo.check()
+    assert code == 1 and any(e.startswith("oth:") and "names family" in e for e in v["errors"])
+
+
+@pytest.mark.parametrize("wrong", [b"state-1" * 8 + b"x", b"state-9" * 8])  # a longer file, same size other bytes
+def test_external_file_must_match_the_manifest_entry(repo, wrong):
+    """The datasets are right, the owner state file served is not: only fetch_data.matches notices."""
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.new": ("SENSITIVE", 5)}))
+    repo.assets[V2][mf.asset_name(STATE)] = wrong
+    code, v, _ = repo.check()
+    assert code == 1 and any(mf.asset_name(STATE) in e and ("bytes" in e or "SHA-256" in e) for e in v["errors"])
+
+
+def test_external_file_over_the_size_limit_is_refused_before_download(repo):
+    def huge(m):
+        m["external"][STATE]["bytes"] = 300 * 10**6
+
+    repo.put_ref("fam", BASE_VARIABLES["fam"], edit=huge)
+    code, v, _ = repo.check()
+    assert code == 1 and any(STATE in e and "over the 200 MB limit" in e for e in v["errors"])
+    assert repo.download.calls == [(V2, [mf.asset_name(mf.reference_path("fam"))])]
+
+
+def test_external_only_reference_entry_is_judged_without_datasets(repo):
+    ref = mf.reference_path("own")
+
+    def own(sha):
+        return json.dumps({"schema": mf.SCHEMA, "family": "own", "store": "sketch", "release": V1,
+                           "external": {ref: {"sha256": sha * 64, "bytes": 1}}})
+
+    repo.write(G + "references/own.manifest.json", own("a"))
+    repo.base = repo.commit("external-only manifest")
+    repo.write(G + "references/own.manifest.json", own("b"))
+    code, v, _ = repo.check(no_download=True)
+    assert code == 1 and v["items"] == ["own:" + ref]
+
+
+# checks of a downloaded reference file
+
+
+def ref_file(tmp_path, kind):
+    p = tmp_path / "{}-{}.h5".format(kind, next(COUNTER))
+    w = store.create(p, kind, "fam", DATA, IMAP)
+    for config in mf.CONFIG_NAMES:
+        w.write_default(config, Y, YJ, SIGMA, DIAG)
+    out = w.finish()
+    m = {"family": "fam", "store": kind, "datasets": out["datasets"]}
+    if kind == "sketch":
+        m["sketch"] = {"k": store.K, "seed": store.SEED}
+    return p, m
+
+
+@pytest.mark.parametrize("kind", ["full", "sketch"])
+def test_check_h5_accepts_the_file_it_describes(tmp_path, kind):
+    p, m = ref_file(tmp_path, kind)
+    assert guard.check_h5(p, m) == []
+
+
+def test_check_h5_dataset_set(tmp_path):
+    p, m = ref_file(tmp_path, "full")
+    extra = dict(m, datasets={k: v for k, v in m["datasets"].items() if k != "/index/block"})
+    missing = dict(m, datasets=dict(m["datasets"], **{"/zzz/not_in_the_file": "0" * 64}))
+    assert any("not in the manifest ['/index/block']" in x for x in guard.check_h5(p, extra))
+    assert any("not the file ['/zzz/not_in_the_file']" in x for x in guard.check_h5(p, missing))
+    wrong = dict(m, datasets=dict(m["datasets"], **{"/index/block": "0" * 64}))
+    assert any("SHA-256 differs" in x and "/index/block" in x for x in guard.check_h5(p, wrong))
+
+
+def test_check_h5_root_attributes(tmp_path):
+    p, m = ref_file(tmp_path, "full")
+    for edit in ({"family": "zzz"}, {"store": "sketch", "sketch": {"k": store.K, "seed": store.SEED}}):
+        assert any("root attributes" in x for x in guard.check_h5(p, dict(m, **edit)))
+
+
+def test_check_h5_sketch_parameters(tmp_path):
+    p, m = ref_file(tmp_path, "sketch")
+    for sketch in ({"k": store.K + 1, "seed": store.SEED}, {"k": store.K, "seed": store.SEED + 1}, None):
+        bad = dict(m, sketch=sketch)
+        assert any("k/seed" in x for x in guard.check_h5(p, bad)), sketch
+
+
+# the numeric and text rules
+
+
+@pytest.mark.parametrize("a, b, want", [
+    (3.0, 2.0, "changed"), (3.0, 3.5, "loosened"), (None, 3.0, "changed"), (3.0, None, "loosened"),
+    (3.0, math.nan, "loosened"), (math.nan, 3.0, "loosened"), (3.0, math.inf, "loosened"),
+    (math.inf, 3.0, "loosened"), (None, math.nan, "loosened"), (3.0, "x", "loosened"), (True, 2.0, "loosened")])
+def test_monotone(a, b, want):
+    assert guard.monotone(a, b) == want
+
+
+def test_non_finite_tolerance_is_a_loosening():
+    assert {r for r, _ in guard.diff_tolerances(tol(), tol(rule__k=math.nan))} == {"loosened"}
+    assert {r for r, _ in guard.diff_tolerances(tol(), tol(rtol__te=math.inf))} == {"loosened"}
+
+
+def test_strip_noise():
+    s = guard.strip_noise
+    assert s("a\n<!--\nTest criteria: changed: x\n-->\nb") == "a\n\nb"
+    assert s("a <!-- one --> b <!-- two --> c") == "a  b  c"
+    assert s("a\n<!-- never closed\nTest criteria: changed: x") == "a"
+    assert s("a\n```\nTest criteria: changed: x\n```\nb") == "a\nb"
+    assert s("a\n~~~sh\nTest criteria: changed: x\n~~~\nb") == "a\nb"
+    assert s("a\n````\n```\nTest criteria: changed: x\n````\nb") == "a\nb"  # a shorter fence does not close
+    assert s("a\n```\nTest criteria: changed: x") == "a"  # never closed
+    assert s("a\n  ```\nx\n  ```\nb") == "a\nb"
+    assert s("keep `inline` code and ``` mid-line") == "keep `inline` code and ``` mid-line"
+
+
+@pytest.mark.parametrize("body", [
+    "<!--\nTest criteria: changed: because\n-->",
+    "```\nTest criteria: changed: because\n```",
+    "~~~\nTest criteria: changed: because\n~~~",
+    "<!-- Test criteria: changed: because -->",
+    "```\nunclosed fence\nTest criteria: changed: because"])
+def test_declarations_in_comments_and_fences_do_not_count(repo, body):
+    repo.write(G + "tools/fetch_data.py", "x = 2\n")
+    code, v, _ = repo.check(body)
+    assert code == 1 and v["missing"] == ["Test criteria: changed"]
+
+
+def test_declaration_after_a_comment_counts(repo):
+    repo.write(G + "tools/fetch_data.py", "x = 2\n")
+    assert repo.check("<!-- template hint -->\n\nTest criteria: changed: really\n")[0] == 0
+
+
+def test_items_in_a_comment_do_not_count(repo):
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.sens": ("SENSITIVE", 9)}))
+    code, v, _ = repo.check("Default results: changed\n<!-- fam:bbb.sens -->\n```\nfam:bbb.sens\n```")
+    assert code == 1 and v["missing_items"] == ["fam:bbb.sens"]
+
+
+# control characters
+
+
+def test_control_characters_are_escaped(repo):
+    assert guard.clean("a\nb\r\x1b[0m\x7f\x00 ok\t") == "a\\x0ab\\x0d\\x1b[0m\\x7f\\x00 ok\\x09"
+    repo.write(G + "data/a\n::warning::x.txt", "1")
+    code, v, text = repo.check()
+    assert code == 1 and all("\n" not in line and "\r" not in line for line in repo.lines)
+    assert "a\\x0a::warning::x.txt" in text and not any(line.startswith("::") for line in repo.lines)
+
+
+def test_control_characters_in_the_summary():
+    v = guard.judge([guard.Finding("default", "p", "w", "fam:a\n::warning::b")], ["bad\n::error::x"], "Default results: changed")
+    md = guard.summary_md(v)
+    assert not any(line.startswith("::") for line in md.splitlines()) and "a\\x0a::warning::b" in md
+    assert "bad\\x0a::error::x" in md
+
+
+# an invalid manifest at the base
+
+
+def invalid_oth(repo):
+    m = repo.manifest("oth")
+    del m["provenance"]
+    repo.write(G + "references/oth.manifest.json", json.dumps(m))
+    repo.base = repo.commit("oth is invalid at the base")
+
+
+def test_invalid_base_manifest_does_not_fail_other_prs(repo):
+    invalid_oth(repo)
+    repo.put_ref("fam", BASE_VARIABLES["fam"], release=V1, diag={"resco": np.arange(4.0) + 1.0})
+    code, v, text = repo.check()
+    assert code == 0 and v["errors"] == [] and v["required"] == [], text
+
+
+def test_pr_repairing_an_invalid_base_manifest_declares_it(repo):
+    invalid_oth(repo)
+    repo.put_ref("oth", BASE_VARIABLES["oth"], release=V1)
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["oth:*"] and v["errors"] == []
+    assert "base manifest is invalid" in text
+    assert repo.check("Default results: changed\noth:*")[0] == 0
+
+
+# history
+
+
+def test_history_counts_every_blob_of_the_history(repo):
+    for byte in (b"a", b"b", b"c"):
+        repo.write(G + "data/big.bin", byte * 1_000_000)
+        head = repo.commit("big " + byte.decode())
+    lines = []
+    assert guard.history(repo.root, head, run=FakeGh({V1: [1]}), out=lines.append) == 0
+    tree = sum(int(x.split()[3]) for x in repo.git("ls-tree", "-r", "-l", head, "--", G).splitlines())
+    first = sum(int(x.split()[3]) for x in repo.git("ls-tree", "-r", "-l", repo.base, "--", G).splitlines())
+    want = first + 3_000_000  # every other file once, plus the three versions of big.bin
+    text = "\n".join(lines)
+    assert "{:.2f} MB in the tree".format(tree / 1e6) in text
+    assert "{:.2f} MB of blobs in its history".format(want / 1e6) in text
+    assert "{:.2f}".format(tree / 1e6) != "{:.2f}".format(want / 1e6)
+
+
+def test_history_git_cap_is_30_mb(repo):
+    repo.write(G + "data/big.bin", b"\0" * 29_000_000)
+    ok = repo.commit("29 MB")
+    assert guard.history(repo.root, ok, run=FakeGh({V1: [1]}), out=[].append) == 0
+    repo.write(G + "data/big.bin", b"\0" * 31_000_000)
+    over = repo.commit("31 MB")
+    lines = []
+    assert guard.history(repo.root, over, run=FakeGh({V1: [1]}), out=lines.append) == 1
+    assert any("exceeds 30 MB" in line for line in lines)
+
+
+def test_history_of_a_rev_without_suite_files(repo):
+    repo.git("checkout", "-q", "--orphan", "bare")
+    repo.git("rm", "-rfq", ".")
+    repo.write("README.md", "bare\n")
+    bare = repo.commit("no tests/yldot")
+    lines = []
+    assert guard.history(repo.root, bare, run=FakeGh({V1: [1]}), out=lines.append) == 0
+    text = "\n".join(lines)
+    assert "0.00 MB of blobs" in text and "orphan" in text
+
+
+def test_history_invalid_manifest_makes_orphans_uncertain(repo):
+    invalid_oth(repo)
+    lines = []
+    gh = FakeGh({V1: [1_000_000], V2: [2_000_000]})
+    assert guard.history(repo.root, repo.base, run=gh, out=lines.append) == 1
+    text = "\n".join(lines)
+    assert "error: manifest at {} is invalid: oth:".format(repo.base[:12]) in text
+    assert "yldot-data-v2: 2.00 MB (uncertain" in text and "orphan" not in text
+
+
+def test_history_output_is_escaped(repo):
+    lines = []
+
+    def failing(cmd):
+        return 1, "", "HTTP 401\n::error::injected"
+
+    assert guard.history(repo.root, repo.base, run=failing, out=lines.append) == 2
+    assert lines == ["error: gh release list failed: HTTP 401\\x0a::error::injected"]

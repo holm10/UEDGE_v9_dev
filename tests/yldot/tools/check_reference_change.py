@@ -6,10 +6,13 @@ Usage (from anywhere; PR_BODY holds the PR description):
     python check_reference_change.py history [--rev REV] [--repo PATH] [--gh-repo OWNER/REPO]
                                              [--release-limit-mb 200] [--git-limit-mb 30]
 
-check compares the PR head with its merge base as data: it lists the changed paths with git diff, reads the base and
-head copies with git cat-file, and parses the manifests and TOML files. It never imports, runs or checks out code of
-the head (reference-guard.yml runs the base branch's copy of this script, AIUE-104). Each changed path needs one or
-more declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ticket page):
+check compares the PR head with its merge base as data: it computes the merge base once (git merge-base), lists the
+changed paths from it to the head with git diff, reads every base-side copy (manifests, TOML) at the merge base, never
+at the base tip, and the head copies with git cat-file, and parses the manifests and TOML files. It never imports, runs
+or checks out code of the head (reference-guard.yml runs the base branch's copy of this script, AIUE-104). The PR
+description is read without its HTML comments and fenced code blocks. Every printed line has its control characters
+escaped (\\x0a), so a path or name chosen by the PR cannot start a log line. Each changed path needs one or more
+declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ticket page):
 
     Default results: changed     a manifest change that is not an addition, a prune of an entry not SENSITIVE in any
                                  family, a rename with identical data or a diagnostics-only change; followed, anywhere
@@ -21,7 +24,16 @@ more declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-
                                  any key it cannot show to be tighter); with a justification, besides the changed
                                  line, and approval by a CODEOWNER of tests/yldot/** (branch protection, AIUE-104)
 
+Which paths count (tests/yldot/ unless noted): conftest.py, test_*.py, *_test.py, pytest.ini, tox.ini, setup.cfg and
+pyproject.toml at any depth, harness/ and this guard are test code (loosened); an added file under mutations/ that
+pytest does not load (not *.py, conftest.py, *.ini, *.cfg, *.toml) is not guarded; a conftest.py, pytest.ini or tox.ini
+in the repository root or tests/ is loosened, and so is a pyproject.toml or setup.cfg there when its pytest section
+([tool.pytest] / [tool:pytest]) changes or either side does not parse (other edits of those two are not guarded).
+
 A line matches with leading list markers, '>' and surrounding ** or backticks ignored; the keywords are exact.
+
+A base manifest that is invalid is treated as absent: the PR that changes it needs Default results: changed with the
+item <family>:* (the head manifest must be valid); an invalid manifest the PR does not touch is not charged to it. An external file over 200 MB is refused before the download.
 
 For every external file a head manifest names anew or differently (or under a new release) check downloads the
 release asset with gh into a temporary directory and refuses a size or SHA-256 that differs from the manifest; for
@@ -33,11 +45,14 @@ every blob under it in that history, and the orphan releases (named by no manife
 delete). It exits 1 above the owner's review limits: 200 MB of releases, 30 MB in git (owner, 2026-10-22).
 
 Exit codes: 0 every required declaration present and every check passed (history: within the limits), 1 a
-declaration missing, an integrity or validity check failed (history: over a limit), 2 usage (an unknown revision,
+declaration missing, an integrity or validity check failed (history: over a limit, an invalid manifest), 2 usage (an unknown revision,
 PR_BODY unset, gh failed in history).
 """
 import argparse
+import configparser
+import fnmatch
 import json
+import math
 import os
 import re
 import shutil
@@ -66,6 +81,9 @@ CODEOWNER = "REQUIRED: CODEOWNER approval of tests/yldot/** (enforced by branch 
 MANIFEST_RE = re.compile(r"^references/([^/]+)\.manifest\.json$")
 FAMILY_TOML_RE = re.compile(r"^families/([^/]+)/family\.toml$")
 SIGMA_H5_RE = re.compile(r"^families/[^/]+/sigma\.h5$")
+PYTEST_CONFIG = ("pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
+MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/default/(yldot|sigma|jflag/)")
 
 # tolerances.toml (PRD 7.4, 7.6): a larger value loosens, a smaller one tightens; the rule texts and floor_limit
@@ -115,10 +133,17 @@ def commit(repo, rev):
         raise GuardError("unknown revision {!r}".format(rev)) from None
 
 
+def merge_base(repo, base, head):
+    try:
+        return git(repo, "merge-base", base, head).decode().strip()
+    except GuardError:
+        raise GuardError("{} and {} have no merge base".format(base[:12], head[:12])) from None
+
+
 def name_status(repo, base, head):
-    """[(status letter, path)] from the merge base of base and head to head; renames are a delete and an add."""
+    """[(status letter, path)] from base (the merge base) to head; renames are a delete and an add."""
     raw = git(repo, "diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-status", "-z",
-              "{}...{}".format(base, head)).decode()
+              "{}..{}".format(base, head)).decode()
     parts = raw.split("\0")
     return [(parts[i][0], parts[i + 1]) for i in range(0, len(parts) - 1, 2)]
 
@@ -154,14 +179,30 @@ def load_manifest(data, family):
 # ---------------------------------------------------------------- the rules
 
 
+def loaded_by_pytest(name):
+    """A file name pytest might import or read as configuration (any Python file, any .ini, .cfg, .toml)."""
+    return name.endswith((".py", ".ini", ".cfg", ".toml"))
+
+
+def is_test_code(name):
+    """A file name pytest collects or reads as configuration, at any depth below tests/yldot: test code."""
+    return name == "conftest.py" or name in PYTEST_CONFIG or fnmatch.fnmatch(name, "test_*.py") \
+        or fnmatch.fnmatch(name, "*_test.py")
+
+
 def path_class(path, status):
     """None (not guarded), "manifest", "tolerances", "overrides", "family", or a requirement for the path itself."""
     if path in WORKFLOWS:
         return WORKFLOWS[path]
     if not path.startswith(GUARDED):
+        if path in ("conftest.py", "tests/conftest.py", "pytest.ini", "tests/pytest.ini", "tox.ini", "tests/tox.ini"):
+            return LOOSENED  # pytest config above tests/yldot
+        if path in ("pyproject.toml", "tests/pyproject.toml", "setup.cfg", "tests/setup.cfg"):
+            return "pytestcfg"  # only its pytest sections count
         return None
     rel = path[len(GUARDED):]
-    if rel.startswith("mutations/") and status == "A":
+    name = PurePosixPath(rel).name
+    if rel.startswith("mutations/") and status == "A" and not loaded_by_pytest(name):
         return None
     if MANIFEST_RE.match(rel):
         return "manifest"
@@ -171,8 +212,7 @@ def path_class(path, status):
         return CHANGED if status == "A" else LOOSENED  # a new family's sigma is an addition
     if rel.startswith("harness/") or rel in ("conftest.py", "__init__.py", "tools/check_reference_change.py"):
         return LOOSENED
-    name = PurePosixPath(rel).name
-    if name.startswith("test_") and name.endswith(".py"):
+    if is_test_code(name):
         return LOOSENED
     if rel == "tolerances.toml":
         return "tolerances"
@@ -184,12 +224,14 @@ def path_class(path, status):
 
 
 def monotone(a, b):
-    """A tolerance value from a to b (None: absent): new or smaller CHANGED; removed, larger or not a number LOOSENED."""
-    if a is None:
-        return CHANGED
-    if b is None or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (a, b)):
+    """A tolerance value from a to b (None: absent): new or smaller CHANGED; removed, larger, not a number or not
+    finite (on either side) LOOSENED."""
+    if b is None:
+        return CHANGED if a is None else LOOSENED
+    vals = [v for v in (a, b) if v is not None]
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in vals):
         return LOOSENED
-    return LOOSENED if b > a else CHANGED
+    return CHANGED if a is None or b <= a else LOOSENED
 
 
 def diff_tolerances(t0, t1):
@@ -330,7 +372,7 @@ def diff_manifest(family, m0, m1, base_classes):
         diff = sorted(k for k in v0[vid] if k != "reason" and v0[vid][k] != v1[vid][k])
         if diff:
             add(DEFAULT, "variant {} changed: {}".format(vid, ", ".join(diff)), "{}:{}".format(family, vid))
-    ref = mf.reference_path(family)
+    ref = mf.reference_path(family) if "datasets" in m1 else None  # judged through the datasets, if there are any
     e0, e1 = m0["external"], m1["external"]
     for p in sorted(set(e0) | set(e1)):
         if p == ref or e0.get(p) == e1.get(p):
@@ -347,10 +389,28 @@ def diff_manifest(family, m0, m1, base_classes):
     return found, verify
 
 
+def pytest_sections(path, data):
+    """The pytest sections of a pyproject.toml or setup.cfg (bytes or None), as data; None if it does not parse."""
+    if data is None:
+        return {}
+    try:
+        text = data.decode()
+        if path.endswith(".toml"):
+            tool = tomllib.loads(text).get("tool", {})
+            return {"tool.pytest": tool["pytest"]} if "pytest" in tool else {}
+        parser = configparser.ConfigParser(interpolation=None, strict=False)
+        parser.read_string(text)
+        return {"tool:pytest": dict(parser["tool:pytest"])} if parser.has_section("tool:pytest") else {}
+    except (tomllib.TOMLDecodeError, configparser.Error, UnicodeDecodeError, AttributeError):
+        return None
+
+
 def guarded_paths(repo, base, head):
-    """(findings, manifests to verify {family: (manifest, [paths])}, errors) for the change from base to head."""
+    """(findings, manifests to verify {family: (manifest, [paths])}, errors) for the change from base (the merge base
+    of the PR's base and head) to head; everything on the base side is read at base."""
     found, errors, toml = [], [], {}
     changes = name_status(repo, base, head)
+    changed_manifests = {p for _, p in changes}
     kinds = {}
     for status, path in changes:
         kind = path_class(path, status)
@@ -359,13 +419,27 @@ def guarded_paths(repo, base, head):
         if kind in (DEFAULT, CHANGED, LOOSENED):
             why = "deleted" if status == "D" else "added" if status == "A" else "modified"
             found.append(Finding(kind, path, why))
+        elif kind == "pytestcfg":
+            s0, s1 = (pytest_sections(path, blob(repo, rev, path)) for rev in (base, head))
+            if s0 is None or s1 is None:
+                found.append(Finding(LOOSENED, path, "does not parse: its pytest sections can't be compared"))
+            elif s0 != s1:
+                found.append(Finding(LOOSENED, path, "pytest section changed"))
         else:
             kinds[path] = (kind, status)
     if any(k == "manifest" for k, _ in kinds.values()) or any(k == "overrides" for k, _ in kinds.values()):
         before, after = manifests_at(repo, base), manifests_at(repo, head)
     else:
         before, after = {}, {}
-    errors += [e for _, e in before.values() if e] + [e for _, e in after.values() if e]
+    def touched(family):
+        return "{}{}.manifest.json".format(REFERENCES, family) in changed_manifests
+
+    errors += [e for f, (_, e) in sorted(after.items()) if e and touched(f)]  # an untouched one is not this PR's
+    for family, (_, problem) in sorted(before.items()):
+        if problem and touched(family):
+            found.append(Finding(DEFAULT, "{}{}.manifest.json".format(REFERENCES, family),
+                                 "the base manifest is invalid and counts as absent ({})".format(problem),
+                                 "{}:*".format(family)))
     base_m = {f: m for f, (m, _) in before.items() if m}
     head_m = {f: m for f, (m, _) in after.items() if m}
     base_classes = {}
@@ -395,7 +469,7 @@ def guarded_paths(repo, base, head):
             found.append(Finding(CHANGED, path, "added (new family)"))
             continue
         try:
-            t0, t1 = (tomllib.loads((blob(repo, rev, path) or b"").decode()) for rev in (base, head))
+            t0, t1 = (tomllib.loads((blob(repo, rev, path) or b"").decode()) for rev in (base, head))  # base: merge base
         except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
             errors.append("{}: not valid TOML: {}".format(path, e))
             continue
@@ -452,6 +526,12 @@ def verify_externals(verify, gh_repo, download=fetch_data.download):
             if tag is None:
                 errors.append("{}: external files {} changed but release is null (a local preview can't be merged)"
                               .format(family, paths))
+                continue
+            big = [p for p in paths if m["external"][p]["bytes"] > MAX_EXTERNAL_BYTES]
+            errors += ["{}: external {} is {} bytes, over the {} MB limit per file".format(
+                family, p, m["external"][p]["bytes"], MAX_EXTERNAL_BYTES // 10**6) for p in big]
+            paths = [p for p in paths if p not in big]
+            if not paths:
                 continue
             dest = tmp / family
             dest.mkdir()
@@ -512,8 +592,27 @@ def named(text, item):
     return re.search(r"(?<![\w./:=-])" + re.escape(item) + r"(?![\w/:=-]|\.\w)", text) is not None
 
 
+def strip_noise(body):
+    """The description without what a reader does not see as text: HTML comments (an unclosed one runs to the end) and
+    fenced code blocks (``` or ~~~; an unclosed one runs to the end)."""
+    body = re.sub(r"<!--.*?(?:-->|\Z)", "", body, flags=re.DOTALL)
+    out, fence = [], None
+    for line in body.splitlines():
+        hit = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if fence is None and hit:
+            fence = hit.group(1)
+        elif fence is not None:
+            if hit and hit.group(1)[0] == fence[0] and len(hit.group(1)) >= len(fence) \
+                    and not line.strip().strip(fence[0]):
+                fence = None
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def judge(found, errors, body):
     """The verdict: a dict with required, present, missing, items, missing_items, notes, codeowner_approval, errors."""
+    body = strip_noise(body)
     required = {f.req for f in found if f.req}
     if LOOSENED in required:
         required.add(CHANGED)
@@ -537,6 +636,11 @@ def judge(found, errors, body):
             "missing": missing, "items": items, "missing_items": missing_items, "notes": notes,
             "codeowner_approval": LOOSENED in required, "errors": errors,
             "findings": [f.as_dict() for f in found]}
+
+
+def clean(text):
+    """text with its control characters escaped (\\x0a), so that it stays one log line."""
+    return CONTROL_RE.sub(lambda c: "\\x{:02x}".format(ord(c.group())), text)
 
 
 def report(v, found, out):
@@ -568,19 +672,21 @@ def summary_md(v):
     if v["codeowner_approval"]:
         lines.append("- **" + CODEOWNER + "**")
     lines += ["- error: {}".format(e) for e in v["errors"]]
-    return "\n".join(lines) + "\n"
+    return "\n".join(clean(line) for line in lines) + "\n"
 
 
 def check(repo, base, head, body, gh_repo=fetch_data.REPO, download=fetch_data.download, no_download=False,
           summary=None, json_out=None, out=print):
     """Returns the exit code."""
+    emit, out = out, lambda line: emit(clean(line))
     try:
         base, head = commit(repo, base), commit(repo, head)
-        found, verify, errors = guarded_paths(repo, base, head)
+        mbase = merge_base(repo, base, head)
+        found, verify, errors = guarded_paths(repo, mbase, head)
     except GuardError as e:
         out("error: {}".format(e))
         return 2
-    out("reference guard: merge base of {} .. head {}".format(base[:12], head[:12]))
+    out("reference guard: base {}, merge base {} .. head {}".format(base[:12], mbase[:12], head[:12]))
     if verify and no_download:
         out("note: external files not downloaded (--no-download): {}".format(
             ", ".join("{}: {}".format(f, p) for f, (_, ps) in sorted(verify.items()) for p in ps)))
@@ -592,7 +698,7 @@ def check(repo, base, head, body, gh_repo=fetch_data.REPO, download=fetch_data.d
         with open(summary, "a") as f:
             f.write(summary_md(v))
     if json_out:
-        Path(json_out).write_text(json.dumps(dict(v, base=base, head=head), indent=2, sort_keys=True) + "\n")
+        Path(json_out).write_text(json.dumps(dict(v, base=base, merge_base=mbase, head=head), indent=2, sort_keys=True) + "\n")
     return 1 if v["missing"] or v["missing_items"] or v["errors"] else 0
 
 
@@ -607,6 +713,7 @@ def run(cmd):
 
 def history(repo, rev, gh_repo=fetch_data.REPO, release_limit_mb=200.0, git_limit_mb=30.0, run=run, out=print):
     """Returns the exit code."""
+    emit, out = out, lambda line: emit(clean(line))
     try:
         rev = commit(repo, rev)
         rc, listing, err = run(["gh", "release", "list", "-R", gh_repo, "--limit", "1000", "--json", "tagName"])
@@ -620,7 +727,9 @@ def history(repo, rev, gh_repo=fetch_data.REPO, release_limit_mb=200.0, git_limi
             if rc != 0:
                 raise GuardError("gh release view {} failed: {}".format(tag, err.strip()))
             sizes[tag] = sum(a["size"] for a in json.loads(view)["assets"])
-        named_tags = {m["release"] for m, _ in manifests_at(repo, rev).values() if m and m["release"]}
+        at_rev = manifests_at(repo, rev)
+        named_tags = {m["release"] for m, _ in at_rev.values() if m and m["release"]}
+        invalid = sorted(problem for _, problem in at_rev.values() if problem)
         tree = 0
         for entry in git(repo, "ls-tree", "-r", "-l", "-z", rev, "--", GUARDED).decode().split("\0"):
             fields = entry.split(None, 4)
@@ -628,9 +737,12 @@ def history(repo, rev, gh_repo=fetch_data.REPO, release_limit_mb=200.0, git_limi
                 tree += int(fields[3])
         objects = git(repo, "rev-list", "--objects", rev, "--", GUARDED).decode().splitlines()
         shas = [o.split(" ", 1)[0] for o in objects if " " in o and o.split(" ", 1)[1].startswith(GUARDED)]
-        r = subprocess.run(["git", "-C", str(repo), "cat-file", "--batch-check=%(objecttype) %(objectsize)"],
-                           input="\n".join(shas) + "\n", capture_output=True, text=True)
-        blobs = sum(int(s) for t, s in (line.split() for line in r.stdout.splitlines()) if t == "blob")
+        blobs = 0
+        if shas:  # a rev without a blob under tests/yldot has no history to size
+            r = subprocess.run(["git", "-C", str(repo), "cat-file", "--batch-check=%(objecttype) %(objectsize)"],
+                               input="\n".join(shas) + "\n", capture_output=True, text=True)
+            blobs = sum(int(f[1]) for f in (line.split() for line in r.stdout.splitlines())
+                        if len(f) == 2 and f[0] == "blob")
     except GuardError as e:
         out("error: {}".format(e))
         return 2
@@ -638,9 +750,12 @@ def history(repo, rev, gh_repo=fetch_data.REPO, release_limit_mb=200.0, git_limi
     total = sum(sizes.values())
     out("data releases: {} ({:.2f} MB in total; review limit {:.0f} MB)".format(len(tags), total / mb,
                                                                               release_limit_mb))
+    for problem in invalid:
+        out("error: manifest at {} is invalid: {}".format(rev[:12], problem))
     for tag in tags:
         out("  {}: {:.2f} MB{}".format(tag, sizes[tag] / mb, "" if tag in named_tags else
-                                       " (orphan: no manifest at {} names it)".format(rev[:12])))
+                                       " (uncertain: a manifest at {} is invalid, it may name this)".format(rev[:12])
+                                       if invalid else " (orphan: no manifest at {} names it)".format(rev[:12])))
     out("tests/yldot in git at {}: {:.2f} MB in the tree (cap {:.0f} MB), {:.2f} MB of blobs in its history".format(
         rev[:12], tree / mb, git_limit_mb, blobs / mb))
     over = []
@@ -650,7 +765,7 @@ def history(repo, rev, gh_repo=fetch_data.REPO, release_limit_mb=200.0, git_limi
         over.append("tests/yldot in git exceeds {:.0f} MB".format(git_limit_mb))
     for line in over:
         out("over limit: " + line)
-    return 1 if over else 0
+    return 1 if over or invalid else 0
 
 
 def main(argv, out=print):
