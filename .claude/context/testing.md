@@ -109,6 +109,14 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
   `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
   intended flag change updates its `EXPECTED`, with the reason in the PR.
+- **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
+  the head only as data (`git diff`/`git cat-file`, the PR description from `PR_BODY`) and prints which of `Default
+  results: changed` (with every changed `<family>:<id>` below it), `Test criteria: changed` and `Test criteria:
+  loosened` (plus CODEOWNER approval) the change needs, by path class and by the manifest, `tolerances.toml`,
+  `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page); it downloads the release assets a
+  changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
+  in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
+  2 = usage. The workflow that runs it is AIUE-104's.
 - **Tests** (the whole suite, `-m "not nightly"`: 363 tests, 3 of them the owner families' `test_history` skips, in
   about 320 s, serial build, Darwin arm64, 2026-10-22, AIUE-89; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
@@ -128,6 +136,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
   `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; its
   refusals and the git/docker commands with fakes; the manifests that hold data),
+  `tests/yldot/test_guard_unit.py` the reference guard on scratch git repositories (about 15 s; fakes for the
+  downloads and `gh`),
   `tests/yldot/test_tolerances.py` `tolerances.toml` against `sigma.h5` and a live evaluation per family.
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
