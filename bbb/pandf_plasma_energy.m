@@ -599,9 +599,13 @@ c...  Electron radiation loss -- ionization and recombination
      .                                           eeli(ix,iy) = 13.6*ev + 
      .                               erliz(ix,iy)/(fac2sp*psor(ix,iy,1))
 
+                  if (ishymol .eq. 1) then   # ng(,,2) exists only with molecules (ngsp >= 2)
                    edisse(ix,iy)=-(1-ishymol*ismolcrm)*ediss*ev*(-0.5*psordis(ix,iy,2)) +
      .                               ishymol*ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
      .                               sv_crumpet(te(ix,iy), ne(ix,iy), 20)
+                  else
+                   edisse(ix,iy)=-(1-ishymol*ismolcrm)*ediss*ev*(-0.5*psordis(ix,iy,2))
+                  endif
 
                   pradhyd(ix,iy)= ( (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1)+
      .                                         erlrc(ix,iy) )/vol(ix,iy)
