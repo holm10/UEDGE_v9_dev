@@ -110,7 +110,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
   intended flag change updates its `EXPECTED`, with the reason in the PR.
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
-  the head only as data (`git diff`/`git cat-file`, the PR description from `PR_BODY`) and prints which of `Default
+  the head only as data (`git diff`/`git cat-file`, base side at the merge base, the PR description from `PR_BODY`
+  without its comments and code fences) and prints which of `Default
   results: changed` (with every changed `<family>:<id>` below it), `Test criteria: changed` and `Test criteria:
   loosened` (plus CODEOWNER approval) the change needs, by path class and by the manifest, `tolerances.toml`,
   `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page); it downloads the release assets a
@@ -136,7 +137,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
   `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; its
   refusals and the git/docker commands with fakes; the manifests that hold data),
-  `tests/yldot/test_guard_unit.py` the reference guard on scratch git repositories (about 15 s; fakes for the
+  `tests/yldot/test_guard_unit.py` the reference guard on scratch git repositories (about 20 s; fakes for the
   downloads and `gh`),
   `tests/yldot/test_tolerances.py` `tolerances.toml` against `sigma.h5` and a live evaluation per family.
 
