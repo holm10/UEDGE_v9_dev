@@ -15,7 +15,7 @@ Summary. Decide by **what the change touches**, not by effort. When in doubt, ta
 |---|---|---|---|---|---|
 | **S** | investigation, characterisation, doc/tooling, AI-layer changes, small fixes outside the high-risk areas and the Fortran sources | ≤150 lines, written straight to the ticket page (`ticket-page publish`) | none | one round (round 2 only for an open BLOCKER/MAJOR) | `validate` with the suites the change can affect |
 | **M** | Python layer, CI, refactors outside the high-risk areas, bug fixes with a clear RCA; **any Fortran source outside the L list** (at least M) | ≤300 lines | only if high-risk (below) | as below; on Opus for a Fortran source | `validate`; serial bitwise check for a Fortran source |
-| **L** | the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v` files, the build (`setup.py`, `pyproject.toml`, `Makefile.Forthon`), new physics | ≤300 lines (up to 500 with a one-line reason in the plan) | **required** | as below | full `validate`, OpenMP check, serial bitwise check |
+| **L** | the `pandf` tree, Jacobian/preconditioner (`bbb/oderhs.m`, `svr/svrut3.m`, `svr/svrut4.m`), `ppp/`, `.v` files, the build (`setup.py`, `pyproject.toml`, `Makefile.Forthon`), new physics | ≤300 lines (up to 500 with a one-line reason in the plan) | **required** | as below | full `validate`, OpenMP check, serial bitwise check |
 
 **High-risk** = the L list. A plan review runs only for high-risk changes; low-risk S and M tickets skip it.
 **Other Fortran** = any Fortran source outside the L list: `.m` (`bbb/odesetup.m`, `bbb/griddubl.m`, `svr/nksol.m`,

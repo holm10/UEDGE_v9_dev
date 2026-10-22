@@ -136,8 +136,8 @@ ck --range v9-develop...HEAD; ok $? 1 "F7 a violation still fails with budget wa
 clean
 
 echo "== G. HIGH-RISK line (--range)"
-for f in bbb/pandf_x.m ppp/a.py src/x.v setup.py bbb/Package; do
-  git -C "$R" checkout -q -b "feature/v9-T-9-$(echo $f | tr -c 'a-z\n' _)" v9-develop; mkdir -p "$R/$(dirname $f)"; echo x > "$R/$f"; git -C "$R" add -f "$f"
+for f in bbb/pandf_x.m ppp/a.py src/x.v setup.py bbb/Package bbb/oderhs.m svr/svrut3.m svr/svrut4.m; do
+  git -C "$R" checkout -q -b "feature/v9-T-9-$(echo $f | tr -c 'a-z0-9\n' _)" v9-develop; mkdir -p "$R/$(dirname $f)"; echo x > "$R/$f"; git -C "$R" add -f "$f"
   git -C "$R" -c core.hooksPath=/dev/null commit -qm hr; ck --range v9-develop...HEAD; ok $? 0 "G1 $f: exit 0"
   grep -q "HIGH-RISK: yes ($f)" "$W/out.txt"; ok $? 0 "G1 $f: high-risk"
 done
@@ -154,6 +154,14 @@ for f in com/x.f svr/y.F90 ppp/z.F90 bbb/gen.F; do echo x > "$R/$f"; done
 git -C "$R" add -f com/x.f svr/y.F90 ppp/z.F90 bbb/gen.F; git -C "$R" -c core.hooksPath=/dev/null commit -qm f; ck --range v9-develop...HEAD
 grep -q '^FORTRAN: yes (com/x.f, svr/y.F90)$' "$W/out.txt"; ok $? 0 "G4 hand-written .f and .F90 outside ppp/ are FORTRAN; ppp/ .F90 and a .F are not"
 grep -q '^HIGH-RISK: yes (ppp/z.F90)$' "$W/out.txt"; ok $? 0 "G4 a ppp/ .F90 stays high-risk"
+git -C "$R" checkout -q -b feature/v9-ai-t9-jacdoc v9-develop; mkdir -p "$R/.claude/context"; echo x > "$R/.claude/context/openmp-jacobian.md"
+git -C "$R" add -f .claude/context/openmp-jacobian.md; git -C "$R" -c core.hooksPath=/dev/null commit -qm doc; ck --range v9-develop...HEAD
+grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G5 a context doc named after the Jacobian is not high-risk (AIUE-142)"
+git -C "$R" checkout -q -b feature/v9-T-9-jactool v9-develop; mkdir -p "$R/tests/deterministic_omp/ci" "$R/svr"
+echo x > "$R/tests/deterministic_omp/ci/jac_bound.py"; echo x > "$R/svr/nksol.m"
+git -C "$R" add -f tests/deterministic_omp/ci/jac_bound.py svr/nksol.m; git -C "$R" -c core.hooksPath=/dev/null commit -qm tool; ck --range v9-develop...HEAD
+grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G6 a test tool named jac_* and svr/nksol.m are not high-risk"
+grep -q '^FORTRAN: yes (svr/nksol.m)$' "$W/out.txt"; ok $? 0 "G6 svr/nksol.m is another Fortran source"
 clean
 
 echo "RESULT: $PASS passed, $FAIL failed"
