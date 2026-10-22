@@ -25,6 +25,7 @@ validate raises one ManifestError listing all of them.
 import datetime
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
 
@@ -126,9 +127,14 @@ def _encoded(e):
     return e is None or (isinstance(e, dict) and set(e) == {"dtype", "shape", "data"})
 
 
+def _int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
 def _norms(where, d, errors):
-    if not isinstance(d, dict) or not all(isinstance(k, str) and isinstance(v, float) and v > 0 for k, v in d.items()):
-        errors.append("{}: need {{block label: positive float}}".format(where))
+    if not isinstance(d, dict) or not all(isinstance(k, str) and isinstance(v, float) and math.isfinite(v) and v > 0
+                                              for k, v in d.items()):
+        errors.append("{}: need {{block label: finite positive float}}".format(where))
 
 
 def validate(m):
@@ -159,7 +165,7 @@ def validate(m):
         if not PATH_RE.match(p) or ".." in p.split("/"):
             errors.append("external path {!r}: need families/... or references/..., [A-Za-z0-9_.-] only".format(p))
         if not (isinstance(e, dict) and set(e) == {"sha256", "bytes"} and isinstance(e["sha256"], str)
-                and SHA_RE.match(e["sha256"]) and isinstance(e["bytes"], int) and e["bytes"] >= 0):
+                and SHA_RE.match(e["sha256"]) and _int(e["bytes"]) and e["bytes"] >= 0):
             errors.append("external {!r}: need {{sha256: 64 hex, bytes: int >= 0}}".format(p))
         assets.setdefault(asset_name(p), []).append(p)
     clash = [v for v in assets.values() if len(v) > 1]
@@ -174,7 +180,7 @@ def validate(m):
             errors.append("external has no {}".format(reference_path(m.get("family"))))
         if m.get("store") == "sketch":
             sk = m.get("sketch")
-            if not (isinstance(sk, dict) and set(sk) == {"k", "seed"} and all(isinstance(v, int) for v in sk.values())
+            if not (isinstance(sk, dict) and set(sk) == {"k", "seed"} and all(_int(v) for v in sk.values())
                     and sk["k"] > 0):
                 errors.append("sketch must be {k: int > 0, seed: int}")
         datasets = m.get("datasets", {})

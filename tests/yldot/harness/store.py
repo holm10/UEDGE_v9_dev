@@ -25,13 +25,16 @@ are math.fsum, correctly rounded and independent of the order. The sketch compar
 |<new - ref, r_j>| <= c * sqrt(sum tol_i^2) over the block, c = 6.5 (owner-confirmed, decision 30).
 
 Integrity (PRD section 7.6): open_store checks the file's SHA-256, its set of datasets and its blocks against the
-manifest and the family's regions; every dataset read recomputes the dataset's SHA-256. A mismatch raises
+manifest and the family's regions, and that the manifest's guarded, unguarded and variant SHA-256s and the set of
+stored variants follow from its datasets (a consistent tamper of file, datasets and external is caught there);
+every dataset read recomputes the dataset's SHA-256. A mismatch raises
 StoreIntegrityError, so a changed .h5 with an unchanged manifest fails. Files are written with track_times=False,
 so writing the same data twice gives the same bytes.
 """
 import functools
 import hashlib
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -346,6 +349,11 @@ class Store:
         if stored != self.labels or not np.array_equal(self.read("/index/block"), ids):
             raise StoreError("{}: the blocks rebuilt from the stored index arrays and the family's regions differ "
                              "from the stored blocks (regions or index layout changed: regenerate)".format(self.path))
+        unknown = sorted("{}.{}: {}".format(vid, key, label) for vid, v in manifest.get("variables", {}).items()
+                         for key in ("block_l2", "jflag_block_l2") for label in v[key] if label not in self.labels)
+        if unknown:
+            raise StoreIntegrityError("{}: block labels of the manifest's variables are not blocks of the store: {}".format(
+                self.path, listed(unknown)))
 
     def close(self):
         self.f.close()
@@ -475,9 +483,40 @@ class SketchStore(Store):
                 sketch_compare(ref_j, new_j, tol, self.labels, self.rows, imap, what="flag difference")]
 
 
+STORED_VARIANT = re.compile(r"^/([^/]+)/variants/([^/]+)/")
+
+
+def check_derived(m, path):
+    """The manifest fields derived from m["datasets"] agree with them: guarded and unguarded (the locality keys are
+    AIUE-100's and not derived), each SENSITIVE variant's sha256, and the stored variants against the SENSITIVE
+    variables."""
+    problems = []
+    guarded, unguarded = mf.summarize(m["datasets"])
+    have = {k: v for k, v in m["guarded"].items() if not k.startswith("locality/")}
+    for what, got, want in (("guarded", have, guarded), ("unguarded", m["unguarded"], unguarded)):
+        bad = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k))
+        if bad:
+            problems.append("{} {} differ from the datasets".format(what, bad))
+    stored = set()
+    for name in m["datasets"]:
+        hit = STORED_VARIANT.match(name)
+        if hit:
+            stored.add(hit.groups())
+    sensitive = {(v["config"], vid) for vid, v in m["variables"].items() if v["class"] == "SENSITIVE"}
+    if stored != sensitive:
+        problems.append("stored variants not SENSITIVE variables {}, SENSITIVE variables not stored {}".format(
+            sorted(stored - sensitive), sorted(sensitive - stored)))
+    bad = sorted(vid for vid, v in m["variables"].items()
+                 if v["class"] == "SENSITIVE" and mf.variant_sha(m["datasets"], v["config"], vid) != v["sha256"])
+    if bad:
+        problems.append("sha256 of the variables {} differs from their datasets".format(bad))
+    if problems:
+        raise StoreIntegrityError("{}: the manifest disagrees with its datasets: {}".format(path, "; ".join(problems)))
+
+
 def open_store(family, suite=mf.SUITE, regions=None):
     """The family's reference file, checked against references/<family>.manifest.json: the file's SHA-256, its
-    datasets, root attributes and blocks. regions: the [regions] spec (default: the family's family.toml)."""
+    datasets, root attributes and blocks, and the manifest's derived fields. regions: the [regions] spec (default: the family's family.toml)."""
     import h5py
 
     m = mf.load(family, suite)
@@ -503,6 +542,7 @@ def open_store(family, suite=mf.SUITE, regions=None):
             raise StoreIntegrityError("{}: root attributes {} do not match the manifest".format(p, attrs))
         if m["store"] == "sketch" and {"k": int(f.attrs["k"]), "seed": int(f.attrs["seed"])} != m["sketch"]:
             raise StoreIntegrityError("{}: k/seed differ from the manifest's sketch {}".format(p, m["sketch"]))
+        check_derived(m, p)
         if regions is None:
             regions = load_regions(Path(suite) / "families" / family)
         cls = FullVectorStore if m["store"] == "full" else SketchStore

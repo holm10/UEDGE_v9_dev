@@ -246,6 +246,67 @@ def test_changed_blocks_refused(tmp_path):
         store.open_store("fam", tmp_path, regions=SPEC)
 
 
+def tamper_default(tmp_path):
+    """A consistent tamper: the default yldot changed in the file, datasets and external updated, guarded left."""
+    with h5py.File(tmp_path / mf.reference_path("fam"), "r+") as f:
+        f["steady/default/yldot"][4] += 1e-12
+        sha = store.dataset_sha256(f["steady/default/yldot"][()])
+    m = reseal(tmp_path)
+    m["datasets"]["/steady/default/yldot"] = sha
+    mf.dump(m, mf.path("fam", tmp_path))
+    return m
+
+
+def test_consistent_tamper_of_the_default_refused(tmp_path):
+    build(tmp_path, "full")
+    tamper_default(tmp_path)
+    with pytest.raises(store.StoreIntegrityError, match=r"guarded \['steady/default'\]"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_locality_keys_of_guarded_are_ignored(tmp_path):
+    m = build(tmp_path, "full")
+    m["guarded"]["locality/steady"] = "a" * 64
+    mf.dump(m, mf.path("fam", tmp_path))
+    store.open_store("fam", tmp_path, regions=SPEC).close()
+
+
+def test_variant_removed_but_still_sensitive_refused(tmp_path):
+    build(tmp_path, "full")
+    with h5py.File(tmp_path / mf.reference_path("fam"), "r+") as f:
+        del f["steady/variants/bbb.cfvisx"]
+    m = reseal(tmp_path)
+    m["datasets"] = {n: s for n, s in m["datasets"].items() if "/variants/" not in n}
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="SENSITIVE variables not stored"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_stored_variant_missing_from_variables_refused(tmp_path):
+    m = build(tmp_path, "full")
+    del m["variables"]["bbb.cfvisx"]
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="stored variants not SENSITIVE"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_variable_sha_must_follow_the_datasets(tmp_path):
+    m = build(tmp_path, "full")
+    m["variables"]["bbb.cfvisx"]["sha256"] = "0" * 64
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="sha256 of the variables"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+@pytest.mark.parametrize("key", ["block_l2", "jflag_block_l2"])
+def test_unknown_block_label_refused(tmp_path, key):
+    m = build(tmp_path, "full")
+    m["variables"]["bbb.cfvisx"][key]["ni[9] nowhere"] = 1.0
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="not blocks of the store"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
 def test_other_index_map_refused(tmp_path):
     build(tmp_path, "full")
     other = index_map(make_data(phi_off=((0, 0),)), SPEC)
@@ -305,6 +366,11 @@ def test_external_only_manifest_is_valid():
     (lambda m: m["provenance"].pop("commit"), "provenance"),
     (lambda m: m.pop("sketch"), "sketch"),
     (lambda m: m.pop("guarded"), "also needs"),
+    (lambda m: m["external"]["references/fam.h5"].update(bytes=True), "bytes"),
+    (lambda m: m["sketch"].update(k=True), "sketch"),
+    (lambda m: m["sketch"].update(seed=True), "sketch"),
+    (lambda m: m["variables"]["bbb.cfvisx"]["block_l2"].update({"ni[1] core": float("inf")}), "finite"),
+    (lambda m: m["variables"]["bbb.cfvisx"]["jflag_block_l2"].update({"ni[1] core": float("nan")}), "finite"),
 ])
 def test_manifest_validate_rejects(tmp_path, edit, message):
     m = build(tmp_path, "sketch")
@@ -430,12 +496,18 @@ SHA = "c" * 40
 class FakeGh:
     """run() stand-in for git and gh."""
 
-    def __init__(self, existing=("yldot-data-v2", "v8.1.0"), view=1, ancestor=0, pr_heads=(), create=0):
+    def __init__(self, existing=("yldot-data-v2", "v8.1.0"), view=1, ancestor=0, pr_heads=(), create=0, remote_tag="",
+                 tree_diff=0):
         self.existing, self.view, self.ancestor, self.pr_heads, self.create = existing, view, ancestor, pr_heads, create
+        self.remote_tag, self.tree_diff = remote_tag, tree_diff
         self.calls = []
 
     def __call__(self, cmd):
         self.calls.append(cmd)
+        if cmd[:3] == ["git", "ls-remote", "--tags"]:
+            return 0, self.remote_tag, ""
+        if cmd[:2] == ["git", "-C"] and cmd[3:5] == ["diff", "--quiet"]:
+            return self.tree_diff, "", ""
         if cmd[:3] == ["gh", "release", "view"]:
             return self.view, "", ""
         if cmd[:3] == ["gh", "release", "list"]:
@@ -474,6 +546,8 @@ def test_release_dry_run_prints_and_publishes_nothing(tmp_path):
     (FakeGh(existing=("yldot-data-v1",)), TAG, "next data release is yldot-data-v2"),
     (FakeGh(ancestor=1), TAG, "neither"),
     (FakeGh(), "yldot-data-v4", "no manifest names"),
+    (FakeGh(remote_tag="abc\trefs/tags/yldot-data-v3\n"), TAG, "exists without a release"),
+    (FakeGh(tree_diff=1), TAG, "differs from --target"),
 ])
 def test_release_refusals(tmp_path, gh, tag, message):
     lines = []

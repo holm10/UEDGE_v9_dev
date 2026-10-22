@@ -16,6 +16,8 @@ release tag yldot-data-v<N>. For each manifest (default: all) this tool
      harness and input.py read them by name. A regular file already at that path is accepted only if its SHA-256
      matches; a link is re-pointed.
 
+A killed run can leave `.data/.<tag>-*` temporary directories behind; they are never read and may be removed by hand.
+
 --check verifies only (the cache and the links), never downloads. A manifest without a release (a local preview) is
 skipped. gh uses its own login; CI provides its token in the workflow. Release asset names are the external paths
 with "/" replaced by "--" (manifest.asset_name).

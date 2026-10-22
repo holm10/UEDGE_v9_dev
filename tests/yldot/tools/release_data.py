@@ -1,14 +1,17 @@
 """Publish a yldot data release (epic AIUE-9, PRD section 7.3 "History growth"; decision 29): the documented release
 command. Publishing is outward-facing: the epic owner runs or approves it (until AIUE-98's workflow takes over).
 
-Usage (from a checkout whose manifests name the new tag):
+Usage (from a checkout of --target, whose manifests name the new tag; the files and manifests are read from the
+working tree, so the owner runs this in a checkout of --target):
     python release_data.py --tag yldot-data-v<N> --target <commit> [--repo OWNER/REPO] [--publish]
 
 It collects every external file of the manifests (tests/yldot/references/*.manifest.json) whose release is --tag,
 checks each file in the working tree (symlinks resolved) against its SHA-256 and size, and refuses (exit 1) if
 
-  - the tag already exists (gh release view), or N is not the highest existing yldot-data-v* + 1;
+  - the tag already exists (gh release view, or a git tag on the remote without a release: git ls-remote), or N is
+    not the highest existing yldot-data-v* + 1;
   - --target is neither in origin/v9-develop's history nor the head of an open PR into v9-develop (fetch first);
+  - the working tree's tests/yldot/references differs from --target's (git diff <target> -- tests/yldot/references);
   - a file is missing or differs from its manifest.
 
 It then stages the files under their asset names (manifest.asset_name) in a temporary directory and prints the exact
@@ -71,6 +74,12 @@ def collect(suite, tag):
 
 
 def check_tag(tag, repo, run=run):
+    rc, out, err = run(["git", "ls-remote", "--tags", "https://github.com/{}.git".format(repo), "refs/tags/" + tag])
+    if rc != 0:
+        raise Refused("git ls-remote failed: {}".format(err.strip()))
+    if out.strip():
+        raise Refused("tag {} exists without a release (a deleted release keeps its tag): never reused; take the next "
+                      "N".format(tag))
     rc, _, _ = run(["gh", "release", "view", tag, "-R", repo])
     if rc == 0:
         raise Refused("release {} already exists: never overwritten; take the next N".format(tag))
@@ -101,6 +110,14 @@ def check_target(target, repo, run=run):
                                                                                                BASE))
 
 
+def check_manifests(sha, root, run=run):
+    """The working tree's manifests are those at the target commit."""
+    rc, _, _ = run(["git", "-C", str(root), "diff", "--quiet", sha, "--", "tests/yldot/references"])
+    if rc != 0:
+        raise Refused("tests/yldot/references in the working tree differs from --target {}: run this in a checkout "
+                      "of --target".format(sha[:12]))
+
+
 def release(tag, target, suite=mf.SUITE, repo=fetch_data.REPO, publish=False, run=run,
             download=fetch_data.download, out=print):
     """Returns the exit code."""
@@ -111,6 +128,7 @@ def release(tag, target, suite=mf.SUITE, repo=fetch_data.REPO, publish=False, ru
         files = collect(suite, tag)
         check_tag(tag, repo, run)
         sha = check_target(target, repo, run)
+        check_manifests(sha, Path(suite).resolve().parent.parent, run)
     except (Refused, mf.ManifestError) as e:
         out("refused: {}".format(e))
         return 1
