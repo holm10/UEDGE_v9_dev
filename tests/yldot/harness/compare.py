@@ -36,6 +36,9 @@ DNULL_SOURCE = {"ixlb", "ixrb", "ixpt1", "ixpt2", "iysptrx1", "iysptrx2"}  # one
 DNULL_IX = ("ix_lower_inner_leg", "ix_inner_core", "ix_upper_inner_leg", "ix_upper_outer_leg", "ix_outer_core",
             "ix_lower_outer_leg")
 RULE_OWN, RULE_REGION, RULE_FAMILY = 0, 1, 2  # tol_i from sigma_i, the region floor, the eq/species fallback
+# first_difference's array-scaled threshold for Store.check reports: max|a-b| / max|a| over an array. Between macOS
+# runs and the Linux-built references the largest is 3.5e-10 (d_only, d_c; owner, 2026-10-22, AIUE-89)
+DIAG_SCALED_RTOL = 1e-8
 OWNER = "ask the epic owner (decision 23)"
 MAX_LISTED = 10
 
@@ -476,17 +479,21 @@ class Difference:
     kind: str  # "values", "shape", "missing in reference", "missing in new"
     max_rel: float = float("nan")
     index: tuple = None
+    scaled: bool = False
 
     def __str__(self):
         where = "pandf order" if self.ordered else "unordered (not placed in pandf order)"
         if self.kind != "values":
             return "{} ({}): {}".format(self.name, where, self.kind)
-        return "{} ({}): max relative difference {:.3e} at {}".format(self.name, where, self.max_rel, self.index)
+        what = "max difference / array max" if self.scaled else "max relative difference"
+        return "{} ({}): {} {:.3e} at {}".format(self.name, where, what, self.max_rel, self.index)
 
 
-def first_difference(ref_diag, new_diag, rtol=0.0):
+def first_difference(ref_diag, new_diag, rtol=0.0, scaled=False):
     """The first array, in PANDF_ORDER and then the others sorted, whose max relative difference |a-b|/max(|a|,|b|)
-    exceeds rtol (0 = bitwise), or that is missing on one side or changed shape. None if all agree.
+    exceeds rtol (0 = bitwise), or that is missing on one side or changed shape. None if all agree. scaled: compare
+    max|a-b| over the array with the array's largest |value| instead (index: the largest |a-b|), so that round-off
+    in entries that cancel to near zero does not count (owner, 2026-10-22, AIUE-89).
 
     A heuristic for localization, never a pass/fail decision: an UNORDERED array is reported only when no ordered one
     differs, although pandf may write it earlier (fmix, written through a call argument before fmixy)."""
@@ -499,7 +506,19 @@ def first_difference(ref_diag, new_diag, rtol=0.0):
         a, b = np.asarray(ref_diag[n], dtype=float), np.asarray(new_diag[n], dtype=float)
         if a.shape != b.shape:
             return Difference(n, in_order, "shape")
-        with np.errstate(invalid="ignore", divide="ignore"):
+        with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+            if scaled:
+                diff = np.where(a == b, 0.0, np.abs(a - b))
+                diff[np.isnan(diff) & ~(np.isnan(a) & np.isnan(b))] = np.inf
+                diff[np.isnan(diff)] = 0.0  # NaN in both: same value for this purpose
+                mag = np.maximum(np.abs(a), np.abs(b))
+                top = float(np.max(np.where(np.isfinite(mag), mag, 0.0))) if diff.size else 0.0
+                i = np.unravel_index(int(np.argmax(diff)), diff.shape) if diff.size else None
+                d = float(diff[i]) if diff.size else 0.0
+                rel = 0.0 if d == 0 else (d / top if np.isfinite(top) and top > 0 else np.inf)
+                if rel > rtol:
+                    return Difference(n, in_order, "values", rel, tuple(int(v) for v in i), True)
+                continue
             rel = np.where(a == b, 0.0, np.abs(a - b) / np.maximum(np.abs(a), np.abs(b)))
         rel[np.isnan(rel) & ~(np.isnan(a) & np.isnan(b))] = np.inf
         rel[np.isnan(rel)] = 0.0  # NaN in both: same value for this purpose
@@ -518,7 +537,7 @@ class Comparison:
     worst: list  # dicts: row, label, ref, new, diff, tol, ratio; worst first
     imap: IndexMap
 
-    def report(self, diag_ref=None, diag_new=None, rtol_diag=0.0):
+    def report(self, diag_ref=None, diag_new=None, rtol_diag=0.0, scaled=False):
         if self.ok:
             return "PASS: all {} entries within tolerance".format(self.imap.neq)
         lines = ["FAIL: {} of {} entries out of tolerance".format(self.n_fail, self.imap.neq),
@@ -529,7 +548,7 @@ class Comparison:
             lines.append("  {:40s} ref {: .6e} new {: .6e} diff {: .3e} tol {:.3e} ratio {:.3g}".format(
                 w["label"], w["ref"], w["new"], w["diff"], w["tol"], w["ratio"]))
         if diag_ref is not None and diag_new is not None:
-            d = first_difference(diag_ref, diag_new, rtol_diag)
+            d = first_difference(diag_ref, diag_new, rtol_diag, scaled)
             lines.append("first differing intermediate: {}".format(d if d is not None else "none"))
         return "\n".join(lines)
 

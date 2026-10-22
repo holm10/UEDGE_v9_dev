@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 
 from . import manifest as mf
-from .compare import compare, index_map, listed, load_regions
+from .compare import DIAG_SCALED_RTOL, compare, index_map, listed, load_regions
 from .state import INDEX_ARRAYS, MASK_ARRAYS
 
 K = 8
@@ -422,7 +422,7 @@ class Store:
 
     def _full_check(self, new, ref, tol, imap, what, diag=None):
         c = compare(new, ref, tol, imap)
-        lines = c.report(*diag).splitlines() if diag else c.report().splitlines()
+        lines = (c.report(*diag, rtol_diag=DIAG_SCALED_RTOL, scaled=True) if diag else c.report()).splitlines()
         return Check(c.ok, ["{} {}".format(what, lines[0])] + lines[1:])
 
     def check(self, config, vid, yldot, yldot_J, tol, imap, diagnostics=None):
