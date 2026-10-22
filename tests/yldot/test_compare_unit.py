@@ -212,6 +212,9 @@ def test_dnull_connected_has_no_band():
                        "upper_inner_leg": 6, "upper_outer_leg": 6, "lower_outer_leg": 6})
     check_regions(spec, dnull_grid(spec))
     assert region_cells(spec)["sol_between"] == 0
+    without = {k: v for k, v in spec.items() if k != "iy_between"}
+    with pytest.raises(IndexTruthError, match=r"\['iy_between'\] missing"):
+        check_regions(without)
 
 
 @pytest.mark.parametrize("key,value,word", [

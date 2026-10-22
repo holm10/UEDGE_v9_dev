@@ -213,7 +213,7 @@ def region_of_dnull(ix, iy, spec):
 def region_of(ix, iy, spec):
     """The region of cell (ix, iy) under a [regions] spec."""
     nx, ny = int(spec["nx"]), int(spec["ny"])
-    if "iy_between" in spec:
+    if is_dnull(spec):
         if ix in guard_ix(spec) or iy in (0, ny + 1):
             return "guard"
         return region_of_dnull(ix, iy, spec)
@@ -243,7 +243,11 @@ def check_regions(spec, grid=None):
     interior, matches its recorded cell counts and, given the live grid, matches nx, ny and the source values."""
     errors = []
     nx, ny = int(spec["nx"]), int(spec["ny"])
-    for key, want in derived_ranges(spec).items():
+    derived = derived_ranges(spec)
+    missing = [key for key in derived if key not in spec]
+    if missing:
+        raise IndexTruthError("[regions]: {} missing for source {}; {}".format(missing, sorted(spec["source"]), OWNER))
+    for key, want in derived.items():
         if [int(v) for v in spec[key]] != want:
             errors.append("{} = {}, the owner's rule gives {} from source {}".format(key, spec[key], want,
                                                                                     spec["source"]))
