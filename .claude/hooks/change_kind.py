@@ -78,8 +78,9 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
                "summarise them on the ticket page; if they really belong in the PR, say why in its description")
 
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
-# Jacobian/preconditioner by file (AIUE-142): bbb/oderhs.m (jac_calc, jac_lu_decomp, psetnk, psolnk), svr/svrut3.m
-# (precond5, GMRES helpers), svr/svrut4.m (ilut, lusol0, sparse utilities); bbb/pandf_jacobian.m is in the pandf tree.
+# Jacobian/preconditioner, whole files (AIUE-142): bbb/oderhs.m (jac_calc, jac_lu_decomp, psetnk, psolnk, ...),
+# svr/svrut3.m (precond5, GMRES helpers), svr/svrut4.m (ilut, lusol0, sparse utilities); bbb/pandf_jacobian.m is in
+# the pandf tree.
 HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|bbb/oderhs\.m$|svr/svrut[34]\.m$|.*\.v$|setup\.py$|pyproject\.toml$|"
                        r"Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
