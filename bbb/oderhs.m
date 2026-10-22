@@ -2870,12 +2870,18 @@ c ... Implicit function:
      .                            cmesori*(emolia(ix,iy,1) + emolia(ix,iy,2))
      .                          + cmesore*edisse(ix,iy)
      .                      )
-                pmpot(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+                if (ishymol .eq. 1) then  # ng(,,2) is H2 only when ishymol=1 (AIUE-151)
+                  pmpot(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
      .                          sv_crumpet(te(ix,iy), ne(ix,iy), 22)
-                pmrada(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+                  pmrada(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
      .                          sv_crumpet(te(ix,iy), ne(ix,iy), 23)
-                pmradm(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+                  pmradm(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
      .                          sv_crumpet(te(ix,iy), ne(ix,iy), 24)
+                else
+                  pmpot(ix,iy) = 0.
+                  pmrada(ix,iy) = 0.
+                  pmradm(ix,iy) = 0.
+                endif
             peirad(ix,iy) = cnsor*( erliz(ix,iy) + erlrc(ix,iy) +
      .                              ebind*ev*psor(ix,iy,1) -
      .                              ebind*ev*psorrg(ix,iy,1) +
