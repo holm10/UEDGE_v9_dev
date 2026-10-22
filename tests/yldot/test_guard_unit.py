@@ -251,7 +251,8 @@ def reqs(verdict):
     (".github/workflows/nightly-tests.yml", "A", "changed"),
     (".github/workflows/regenerate-references.yml", "M", "changed"),
     (".github/workflows/build-test-omp.yml", "M", None),
-    ("tests/deterministic_omp/harness/serial_check.py", "M", None),
+    # test_smoke.py's collection-separation check refuses node ids naming the AIUE-8 suite, hence the id
+    pytest.param("tests/deterministic_omp/harness/serial_check.py", "M", None, id="AIUE-8-suite-not-guarded"),
 ])
 def test_path_class(path, status, kind):
     assert guard.path_class(path, status) == kind
