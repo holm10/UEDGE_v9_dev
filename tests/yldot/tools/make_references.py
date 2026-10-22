@@ -37,11 +37,12 @@ Classification (PRD section 7.2; M_CLS = 100, tol_i the default's per-entry tole
 configuration, for yldot and yldot_J alike): SENSITIVE if some entry differs by more than M_cls*tol_i, then
 evaluated a second time in another process, and stored only if both runs agree bit for bit (else INVALID
 "nondeterministic", a finding: file a bugfix ticket); INERT if bitwise equal; MARGINAL if 0 < difference <=
-M_cls*tol_i; INVALID on an error, crash, timeout, neq change or non-finite yldot; EXCLUDED as variants.plan() says,
-and where the application changes nothing in the family (value equals d, no valid index, unallocated; owner,
-2026-10-22, AIUE-94 D1). Results that fit no class (index arrays changed at the same neq, bitwise differences of size
-zero, a harness FamilyError such as variants.Mismatch) and a reference file over its CAPS_MB cap (PRD 7.3) are
-findings for the epic owner (decision 23): generate prints them and writes nothing (exit 3).
+M_cls*tol_i; INVALID on an error, crash, timeout, neq change, an equation layout change at the same neq (index arrays
+or is*onxy masks; owner, 2026-10-22, AIUE-94 D4) or non-finite yldot; EXCLUDED as variants.plan() says, and where the
+application changes nothing in the family (value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94
+D1). Results that fit no class (bitwise differences of size zero, a harness FamilyError such as variants.Mismatch)
+and a reference file over its CAPS_MB cap (PRD 7.3) are findings for the epic owner (decision 23): generate prints
+them and writes nothing (exit 3).
 
 The container and the host venv run this working tree's harness and families against SHA's UEDGE, so generate
 refuses unless tests/yldot (references/ excepted) is exactly SHA's: no difference, no untracked file, no ignored
@@ -147,6 +148,14 @@ def last_line(message):
     return (lines[-1].strip() if lines else "")[:REASON_CHARS]
 
 
+def layout_changes(a, b):
+    """The index arrays and equation masks that differ between two runs of the same neq."""
+    from yldot.harness.state import INDEX_ARRAYS, MASK_ARRAYS
+
+    out = [n for n in INDEX_ARRAYS if not np.array_equal(a[n], b[n])]
+    return out + [n for n in MASK_ARRAYS if not np.array_equal(a["masks"][n], b["masks"][n])]
+
+
 def classify(res, base, tol, m_cls=M_CLS):
     """(class, reason, finding) of one variant evaluation against the default data base of its configuration (PRD
     section 7.2). tol: the default's per-entry tolerance, used for yldot and yldot_J alike (PRD 7.3). A finding (an
@@ -162,8 +171,9 @@ def classify(res, base, tol, m_cls=M_CLS):
         return "EXCLUDED", "not applicable in {}: {}".format(res.family, why), None
     if d["neq"] != base["neq"]:
         return "INVALID", "neq {} -> {}".format(base["neq"], d["neq"]), None
-    if not same_index(d, base):
-        return None, None, "index arrays or equation masks changed at the same neq"
+    changed = layout_changes(d, base)
+    if changed:  # the rows mean other equations: like a neq change (owner, 2026-10-22, AIUE-94 D4)
+        return "INVALID", "equation layout changed ({}) at the same neq".format(", ".join(changed)), None
     y, yj = np.asarray(d["yldot"], np.float64), np.asarray(d["yldot_J"], np.float64)
     bad = np.flatnonzero(~(np.isfinite(y) & np.isfinite(yj)))
     if bad.size:
