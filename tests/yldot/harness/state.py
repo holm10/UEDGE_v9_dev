@@ -43,8 +43,8 @@ STATE_VARS = ["nis", "ups", "tes", "tis", "ngs", "tgs", "phis"]  # the saved arr
 INDEX_ARRAYS = ["idxn", "idxu", "idxte", "idxti", "idxg", "idxtg", "idxphi", "igyl"]
 MASK_ARRAYS = ["isnionxy", "isuponxy", "isteonxy", "istionxy", "isngonxy", "istgonxy", "isphionxy"]
 GRID = {"bbb": ["ixmnbcl", "ixmxbcl", "iymnbcl", "iymxbcl", "mhdgeo"],
-        "com": ["nx", "ny", "nxpt", "iysptrx", "ixpt1", "ixpt2", "ixlb", "ixrb", "nxcore", "nxleg", "nycore", "nysol",
-                "geometry"]}
+        "com": ["nx", "ny", "nxpt", "iysptrx", "ixpt1", "ixpt2", "ixlb", "ixrb", "iysptrx1", "iysptrx2", "nxcore",
+                "nxleg", "nycore", "nysol", "geometry"]}
 DIAGNOSTIC_GROUPS = ("Rhsides", "Comflo")  # res*, sources; fluxes (owner, 2026-10-19)
 LOG_TAIL = 40
 

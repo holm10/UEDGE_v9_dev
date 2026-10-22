@@ -1,6 +1,7 @@
-# yldot suite family (epic AIUE-9, PRD section 4/6/7.1), an owner case. Written by AIUE-91 (make_base_state.py);
-# later tickets add their keys: W, P, child reuse measured: AIUE-86 · [regions], guard cells: AIUE-83 ·
-# release assets and manifest: AIUE-84
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1), an owner case. Written by AIUE-91 (make_base_state.py,
+# round-trip re-save: AIUE-140; [regions]: owner, 2026-10-21); W, P, child reuse, [history]: AIUE-92.
+# Release assets (gridue.hdf5, inputs.h5, both states) are not in git: their SHA-256s are in
+# references/dnull_imp2.manifest.json only (owner, 2026-10-21); tools/fetch_data.py fetches them.
 # D, isimpon=2 (fixed-fraction carbon), double null 82x44 (nxpt=2); large role shared with large_dd2c (owner, 2026-10-19)
 
 [family]
@@ -26,20 +27,15 @@ mist_sha256 = "82a797555f0470483122d4c9a053bd250cbbb588f1958843a493c969a159a7db"
 not_used = ["input.yaml (UETOOLS form of input.py)", "z6.txt (identical to mist.dat)"]
 input_changes = "normal form: bbb.restart=1 (8) and the state restore (275-282) removed; aph.aphdir, api.apidir set to ../../data; com.coronalimpfname = ../../data/mist_c.dat (the case's mist.dat); bbb.afracs=0.02 moved after allocate (owner, 2026-10-19: 0.02 on every cell, the case as run; set before it, 3860 of 3864 cells stayed 0); the first exmain (286-290) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's fwdB.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5"
 
-[assets]  # release assets (owner, 2026-10-19), not in git; until AIUE-84 fetches them the smoke test skips
-          # this family when they are absent and fails when one is present with another SHA-256
-release = "pending: yldot-data-v<N> (AIUE-84)"
-files = { "gridue.hdf5" = "42bdea5489f03eff1038524f63f64a2288a19e1614ec54dad21edc23a26b58c1", "inputs.h5" = "fd3e06a5cc782ed99f4d6c805c5ab2ac872e147da221d9912d78adb9aeab657e", "reference_state.h5" = "ed176927d3ee012235f2e92054729511c7a9de0cd62f74c03b5c22acade0e197", "base_state.h5" = "285e87d01b08a0e58110df0ac972e4b271a54c4e05f68cb6375dc324457d9441" }
-
 [reference_state]
 file = "reference_state.h5"
-origin = "owner case state (fwdB.hdf5), used as supplied, no reconvergence (owner, 2026-10-19)"
+origin = "owner case state (fwdB.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
 fmax = 1.9036e-09
 fnrm_l2 = 3.6619e-09
 converged = true  # information only, gates nothing
-build_commit = "0480272785480247dbd6290ac7f5542e47255d19"
+build_commit = "8631c34dca7e24d9fbb29a5ee38a354ea9d14c0f"
 build = "serial"
 uedge_ver = "8.1.2-beta.0"
 
@@ -47,25 +43,42 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 91002
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 4.598e+09
+min_block_ratio = 3.649e+09
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }
 near_floor_tis = { reference = 0, base = 0 }
 near_floor_tgs = { reference = 0, base = 0 }
 near_floor_ngs = { reference = 0, base = 0 }
-base_state_sha256 = "285e87d01b08a0e58110df0ac972e4b271a54c4e05f68cb6375dc324457d9441"
-reference_state_sha256 = "ed176927d3ee012235f2e92054729511c7a9de0cd62f74c03b5c22acade0e197"
-base_state_data_sha256 = "194730b594afe8e6d7232d2372da4c5ce25b4384dc46a2850bfd522c594c851e"
-reference_state_data_sha256 = "168b139fe709b737c261edc94f1d59d5813453754a49dde256301c3bc0cad8f3"
 source_state_sha256 = "5da9ff9e37e49e6ec540ad859f2ac6eb58568308f1454dcf28da2cfca188c189"
+roundtrip_fixed_point = true  # both states: one exmain changes no saved entry (AIUE-140)
+roundtrip_changes_source = { nis = 0, ups = 228, tes = 432, tis = 501, phis = 0, ngs = 0, tgs = 501 }
 
 [limiter_report]
 flalfe_qr_ge_1_reference = 76
 flalfe_qr_ge_1_base = 633
 
-[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-86 measures them
+[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-92 measures them
 w = 2  # exmain warm-up count, PRD section 6 step 5
 p = 2  # pandf repeats, steps 8 and 8b
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[regions]
+# owner, 2026-10-21 (AIUE-91 ticket page, D2, D3): double null, upper X-point primary; one private-flux
+# region per X-point, the band between the separatrices, four legs; the cut between the mesh halves
+# (ixrb(1)+1 = 37, ixlb(2) = 38) is guard
+guard = "ix in {0, ixrb(1)+1, ixlb(2), nx+1} or iy in {0, ny+1}"
+nx = 82
+ny = 44
+ix_lower_inner_leg = [1, 10]  # half 1: ixlb(1)+1..ixpt1(1)
+ix_inner_core = [11, 26]  # ixpt1(1)+1..ixpt2(1)
+ix_upper_inner_leg = [27, 36]  # ixpt2(1)+1..ixrb(1)
+ix_upper_outer_leg = [39, 50]  # half 2: ixlb(2)+1..ixpt1(2)
+ix_outer_core = [51, 70]  # ixpt1(2)+1..ixpt2(2)
+ix_lower_outer_leg = [71, 82]  # ixpt2(2)+1..ixrb(2)
+iy_closed = [1, 16]  # core, upper private flux, lower private flux: 1..iysptrx2(1)
+iy_between = [17, 30]  # between the separatrices; lower legs: lower private flux
+iy_open = [31, 44]  # SOL and legs: iysptrx1(1)+1..ny
+source = { ixlb = [0, 38], ixrb = [36, 82], ixpt1 = [10, 50], ixpt2 = [26, 70], iysptrx1 = [30, 16], iysptrx2 = [16, 30] }  # mhdgeo = 1, nxpt = 2: com.*, per mesh half
+cells = { guard = 344, core = 576, pf_upper = 352, pf_lower = 660, sol_between = 812, sol = 504, lower_inner_leg = 140, upper_inner_leg = 140, upper_outer_leg = 168, lower_outer_leg = 168 }

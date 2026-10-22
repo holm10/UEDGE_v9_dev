@@ -24,6 +24,7 @@ def test_history(family):
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+@pytest.mark.toml_only
 @pytest.mark.parametrize("family", FAMILY_NAMES)
 def test_evaluation_keys(family):
     with open(FAMILIES / family / "family.toml", "rb") as f:

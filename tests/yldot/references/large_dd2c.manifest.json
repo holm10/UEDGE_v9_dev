@@ -1,0 +1,24 @@
+{
+  "external": {
+    "families/large_dd2c/base_state.h5": {
+      "bytes": 379840,
+      "sha256": "666dd04fe050fae80166c5cbf19fe61f6987f6eb898933ee7a03db4e221a8005"
+    },
+    "families/large_dd2c/gridue.hdf5": {
+      "bytes": 610368,
+      "sha256": "7baa289d73888b47d333126ffd5cbdd6bb0d405eaae38e6adf5ee38789d2a059"
+    },
+    "families/large_dd2c/inputs.h5": {
+      "bytes": 283224,
+      "sha256": "d26b5bde316cf5ae8c2252561245e8432551a1bbb0ee16b833d47615c55e5c11"
+    },
+    "families/large_dd2c/reference_state.h5": {
+      "bytes": 379840,
+      "sha256": "b335cd47622f8ef3b0175a4311a3a22043cc59af31969cc41e9c7430c1424586"
+    }
+  },
+  "family": "large_dd2c",
+  "release": "yldot-data-v1",
+  "schema": 1,
+  "store": "sketch"
+}

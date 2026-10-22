@@ -1,0 +1,24 @@
+{
+  "external": {
+    "families/imp7/base_state.h5": {
+      "bytes": 593152,
+      "sha256": "49f13db475650e870049000b4fbf91a63011c27dd5f78405a79404a16aa8f231"
+    },
+    "families/imp7/gridue.hdf5": {
+      "bytes": 1034816,
+      "sha256": "a4b38ab63e8ff5a951920a44b47f36a310ae04cc581eebfc8e96cc081122ab2f"
+    },
+    "families/imp7/inputs.h5": {
+      "bytes": 478152,
+      "sha256": "fd08a8c47ac7d602947e66b0532003a996219bd01b7c7a04bf7d7ee27feb0802"
+    },
+    "families/imp7/reference_state.h5": {
+      "bytes": 593152,
+      "sha256": "d1e06f0204fa39c31f831b8463b61302ce0e1b11eacf9e0e6c3259fe37e9cdab"
+    }
+  },
+  "family": "imp7",
+  "release": "yldot-data-v1",
+  "schema": 1,
+  "store": "sketch"
+}

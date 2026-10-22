@@ -1,6 +1,7 @@
-# yldot suite family (epic AIUE-9, PRD section 4/6/7.1), an owner case. Written by AIUE-91 (make_base_state.py);
-# later tickets add their keys: W, P, child reuse measured: AIUE-86 · [regions], guard cells: AIUE-83 ·
-# release assets and manifest: AIUE-84
+# yldot suite family (epic AIUE-9, PRD section 4/6/7.1), an owner case. Written by AIUE-91 (make_base_state.py,
+# round-trip re-save: AIUE-140; [regions]: owner, 2026-10-21); W, P, child reuse, [history]: AIUE-92.
+# Release assets (gridue.hdf5, inputs.h5, both states) are not in git: their SHA-256s are in
+# references/large_dd2c.manifest.json only (owner, 2026-10-21); tools/fetch_data.py fetches them.
 # D+D2+C (ishymol=1, isimpon=6), snull 54x31; large role shared with dnull_imp2 (owner, 2026-10-19)
 
 [family]
@@ -23,20 +24,15 @@ state = "Dcrm.hdf5"
 state_sha256 = "adfef09c5ceac8347c6ceb57164b9b1681f36ba2d32e38de50487e2e8ae20840"
 input_changes = "normal form: bbb.restart=1 (8) and the state restore (285-292) removed; aph.aphdir, api.apidir set to ../../data; diffusivities read from inputs.h5 (the owner's Dcrm.hdf5 diffusivities/bbb, verbatim) instead of the state file"
 
-[assets]  # release assets (owner, 2026-10-19), not in git; until AIUE-84 fetches them the smoke test skips
-          # this family when they are absent and fails when one is present with another SHA-256
-release = "pending: yldot-data-v<N> (AIUE-84)"
-files = { "gridue.hdf5" = "7baa289d73888b47d333126ffd5cbdd6bb0d405eaae38e6adf5ee38789d2a059", "inputs.h5" = "d26b5bde316cf5ae8c2252561245e8432551a1bbb0ee16b833d47615c55e5c11", "reference_state.h5" = "b85c0bd57a72c746d83f71e5f2e8596370fcf804651502047788807c50286695", "base_state.h5" = "497b2a398bd34df86daedaa51ab7fc86b559ecc09ebf631c36b31948e88049ce" }
-
 [reference_state]
 file = "reference_state.h5"
-origin = "owner case state (Dcrm.hdf5), used as supplied, no reconvergence (owner, 2026-10-19)"
+origin = "owner case state (Dcrm.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
 fmax = 1.9361e+00
 fnrm_l2 = 1.9497e+01
 converged = false  # information only, gates nothing
-build_commit = "0480272785480247dbd6290ac7f5542e47255d19"
+build_commit = "8631c34dca7e24d9fbb29a5ee38a354ea9d14c0f"
 build = "serial"
 uedge_ver = "8.1.2-beta.0"
 
@@ -52,18 +48,29 @@ near_floor_tis = { reference = 0, base = 0 }
 near_floor_tgs = { reference = 0, base = 0 }
 near_floor_ngs = { reference = 0, base = 0 }
 near_floor_nis_imp = { reference = 0, base = 0 }
-base_state_sha256 = "497b2a398bd34df86daedaa51ab7fc86b559ecc09ebf631c36b31948e88049ce"
-reference_state_sha256 = "b85c0bd57a72c746d83f71e5f2e8596370fcf804651502047788807c50286695"
-base_state_data_sha256 = "a531e1a497e61751875c9bf00c86d32f8e13fe0702d9600aa33f6406ce69f19c"
-reference_state_data_sha256 = "90f85b62e7f309dbc241f8e3c9eb2b90cd0d9d94b98d639a8e5c95c5ecac7d6a"
 source_state_sha256 = "adfef09c5ceac8347c6ceb57164b9b1681f36ba2d32e38de50487e2e8ae20840"
+roundtrip_fixed_point = true  # both states: one exmain changes no saved entry (AIUE-140)
+roundtrip_changes_source = { nis = 0, ups = 0, tes = 0, tis = 0, phis = 0, ngs = 0, tgs = 0 }
 
 [limiter_report]
 flalfe_qr_ge_1_reference = 0
 flalfe_qr_ge_1_base = 115
 
-[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-86 measures them
+[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-92 measures them
 w = 2  # exmain warm-up count, PRD section 6 step 5
 p = 2  # pandf repeats, steps 8 and 8b
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[regions]
+# owner, 2026-10-21 (AIUE-91 ticket page, D1): six disjoint regions, one guard region; inner = the ix = 0 side
+guard = "ix in {0, nx+1} or iy in {0, ny+1}"
+nx = 54
+ny = 31
+ix_inner_leg = [1, 13]
+ix_core = [14, 43]
+ix_outer_leg = [44, 54]
+iy_closed = [1, 15]  # core and private flux
+iy_open = [16, 31]  # SOL and legs
+source = { ixpt1 = 13, ixpt2 = 43, iysptrx = 15 }  # mhdgeo = 1: com.ixpt1, ixpt2, iysptrx
+cells = { guard = 174, core = 450, pf = 360, inner_leg = 208, sol = 480, outer_leg = 176 }
