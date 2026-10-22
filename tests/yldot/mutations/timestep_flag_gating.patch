@@ -1,0 +1,25 @@
+Mutation: timestep_flag_gating
+Kind: flag-gating
+Check: flag difference
+Configs: timestep
+Blocks: d_only: ni[1], ni[2], up[1], up[2], te[1], ti[1]
+Families: d_only
+Source: bbb/pandf.m:739 (at 1087ede)
+Description: drops the yl(neq+1) < 0 condition on add_timestep (PRD 7.8, decision 27), so the Jacobian-flag (+1)
+ evaluation also adds the time step and yldot_J - yldot vanishes where the stored timestep flag difference is
+ non-zero (the six blocks above in d_only). yldot (flag -1) is unchanged; the steady configuration (dtreal = 1e20)
+ never calls add_timestep.
+
+diff --git a/bbb/pandf.m b/bbb/pandf.m
+index b628b3c..05423e9 100644
+--- a/bbb/pandf.m
++++ b/bbb/pandf.m
+@@ -736,7 +736,7 @@ call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
+ c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+ 
+       if(dtreal < 1.e15) then
+-       if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
++       if(svrpkg=='nksol' .or. svrpkg == 'petsc') then
+         call add_timestep(neq, yl, yldot)
+        endif   #if-test on svrpkg and yl(neq+1)
+       endif    #if-test on dtreal
