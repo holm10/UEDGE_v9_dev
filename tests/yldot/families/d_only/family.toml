@@ -1,5 +1,5 @@
 # yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
-# [evaluation] placeholders: AIUE-82 · W, P, child reuse, [history]: AIUE-86 · [regions], guard cells: AIUE-83 · round-trip re-save: AIUE-140
+# [evaluation]: AIUE-82 (placeholders), W, P, child_reuse measured: AIUE-86 · [history]: AIUE-86 · [regions], guard cells: AIUE-83 · round-trip re-save: AIUE-140
 
 [family]
 name = "d_only"

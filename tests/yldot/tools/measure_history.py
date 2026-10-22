@@ -116,12 +116,15 @@ def protocol(state, job):
 
 
 def reuse(state, job):
-    """REUSE_SEQUENCE in this one process; stops at the first exception (report only)."""
+    """REUSE_SEQUENCE in this one process; stops at the first exception after the first step (report only). The
+    first step runs in a fresh process like every protocol child, so an exception there is an evaluation error."""
     out = {"results": [], "error": None}
     for step, config in enumerate(REUSE_SEQUENCE):
         try:
             r = state.evaluate(dict(job, config=config))
         except Exception as e:  # xerrab arrives as RuntimeError (Forthon's kaboom)
+            if step == 0:
+                raise
             out["error"] = {"step": step, "config": config, "message": repr(e),
                             "where": traceback.format_exc().strip().splitlines()[-3:]}
             break
@@ -311,6 +314,9 @@ def fragment(r):
     if ru["error"]:
         reuse_text = "input.py fails when run again in the same process, step {} ({}): {} {}".format(
             ru["error"]["step"], ru["error"]["config"], ru["error"]["message"], " ".join(ru["error"]["remarks"]))
+    elif any(ru["steady_rows_vs_first"]):
+        reuse_text = "steady rows differing from the first steady: {} ({})".format(
+            ru["steady_rows_vs_first"], ", ".join(ru["sequence"]))
     else:
         reuse_text = "bit-identical: {}".format(", ".join(ru["sequence"]))
     rnd = {k: round(v, 4) for k, v in c["child_wall_s"].items()}
