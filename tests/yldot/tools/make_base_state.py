@@ -5,19 +5,31 @@ Usage (from anywhere; paths in --state/--source are absolute or relative to the 
     python make_base_state.py make <family> --source FILE --seed N [--sigmas 0.02,0.03,0.05]
 
 check  evaluates the family at a state (default reference_state.h5) with issfon=1 and prints nksol's
-       convergence norm max|sfscal*yldot| next to the case's ftol and the L2 fnrm. Report only: the
-       reference states are the pytests templates used as they are, converged or not (owner, 2026-10-19).
-make   restores --source and writes it as reference_state.h5, then perturbs it with a seeded draw
-       (log-normal on nis, tes, tis, ngs, tgs; sound-speed-scaled noise on ups; sigma*Te on phis) and
-       writes base_state.h5. It takes the smallest sigma at which every (equation, species) block of
-       the raw yldot has an RMS at least 10x the reference state's, with the floor guards passing.
-       The blocks come only from UEDGE's idx* arrays. Prints a TOML fragment for family.toml.
+       convergence norm max|sfscal*yldot| next to the case's ftol and the L2 fnrm, and whether the state is
+       a round-trip fixed point (below). Report only: the reference states are the pytests templates, not
+       reconverged, converged or not (owner, 2026-10-19).
+make   restores --source and writes it, re-saved after one exmain, as reference_state.h5, then perturbs it
+       with a seeded draw (log-normal on nis, tes, tis, ngs, tgs; sound-speed-scaled noise on ups; sigma*Te
+       on phis) and writes that, re-saved the same way, as base_state.h5. It takes the smallest sigma at
+       which every (equation, species) block of the raw yldot has an RMS at least 10x the reference
+       state's, with the floor guards passing. The blocks come only from UEDGE's idx* arrays. Prints a
+       TOML fragment for family.toml.
+
+Round-trip fixed points (owner, 2026-10-21, AIUE-140): exmain builds the solver unknowns yl from the saved
+state (convert, bbb/convert.m), pandf converts them back (convsr_vo1), and after a converged call gridseq
+re-saves the round-tripped values (bbb/griddubl.m). That round trip is not exact, so a second exmain from a
+state as supplied starts from slightly different saved arrays and its yldot can differ by an ulp. A state
+that has been through it once is a fixed point. make writes only such states: it refuses (exit 6) a
+re-save that changes the source beyond round-off, or a written state that one more exmain still changes.
+The re-save also overwrites saved values that are not unknowns (e.g. ngs of a neutral solved as an ion
+species), so the floor guards run again on the re-saved base state.
 
 Every UEDGE evaluation runs in a fresh child process (Forthon state is global), with HOME in an empty
 temporary directory, UEDGE_BANNER=0 and one thread. A family directory holding .uedgerc.py is refused,
 because import uedge would execute it. Exit codes: 0 ok, 2 usage or evaluation error, 3 a family the
 owner has to look at (svrpkg/ifixpsor), 4 the idx* map is not a bijection onto the rows, 5 no sigma
-passes the rule, 6 a guard failed.
+passes the rule, 6 a guard failed (floors, a re-save beyond round-off, or a state that is not a
+round-trip fixed point). A failed make leaves no base_state.h5 behind.
 """
 import argparse
 import hashlib
@@ -38,6 +50,7 @@ IDX_ARRAYS = ["idxn", "idxu", "idxte", "idxti", "idxg", "idxtg", "idxphi"]
 RATIO_MIN = 10.0  # owner, 2026-10-19
 NEAR_FLOOR = 1.1  # a cell counts as "at the floor" when value <= NEAR_FLOOR * floor
 BACKG_FRACTION = 0.1  # ng, impurity ni floors are this fraction of ngbackg, nzbackg (owner, 2026-10-19)
+ROUNDTRIP_RTOL = 1e-14  # the re-save of a source state changes it by round-off only (AIUE-140: <= 2.1e-16 seen)
 
 
 class Stop(Exception):
@@ -95,10 +108,23 @@ def worker(job):
     bbb.restart = 1
     out = {"ftol_case": ftol_case}
 
-    if job["mode"] == "save":
-        # The restored arrays, written in the hdf5_restore format (fresh list: hdf5_save appends to it)
-        hdf5_save(job["save_to"], varlist=["bbb." + v for v in STATE_VARS])
-        for v in STATE_VARS + [v for v in OPTIONAL_VARS if v in bbb.varlist()]:
+    if job["mode"] == "roundtrip":
+        # One exmain that takes no Newton step: convert builds yl from the saved state, pandf converts it back
+        # (bbb/convert.m), and gridseq re-saves the round-tripped values into nis, ups, tes, ... (bbb/griddubl.m).
+        # The result is a fixed point of that round trip (AIUE-140). Written in the hdf5_restore format.
+        saved = STATE_VARS + [v for v in OPTIONAL_VARS if v in bbb.varlist()]
+        for v in saved:
+            out["before_" + v] = np.array(getattr(bbb, v)).copy()
+        bbb.issfon = 0
+        bbb.ftol = 1e50
+        bbb.dtreal = 1e20
+        bbb.exmain()
+        if int(bbb.iterm) != 1:
+            print("exmain ended with iterm={}, not 1".format(int(bbb.iterm)), file=sys.stderr)
+            return 2
+        if job.get("save_to"):
+            hdf5_save(job["save_to"], varlist=["bbb." + v for v in STATE_VARS])  # fresh list: hdf5_save appends
+        for v in saved:
             out[v] = np.array(getattr(bbb, v)).copy()
         out["temin"] = float(bbb.temin)
         out["tgmin"] = float(bbb.tgmin)
@@ -277,6 +303,40 @@ def read_back(path, expect):
                 raise Stop(2, "{}: bbb/{} differs from the array written".format(path, v))
 
 
+def roundtrip(family_dir, state, log, save_to=None):
+    """One exmain at state in a fresh child (allocate resets nxold, so ueinit copies, never interpolates); with
+    save_to, the re-saved state is written there."""
+    job = {"mode": "roundtrip", "state": str(state)}
+    if save_to is not None:
+        job["save_to"] = str(save_to)
+    return run_child(family_dir, job, log)
+
+
+def changes(res):
+    """Entries of each saved array that the round trip changed."""
+    return {v: int(np.sum(res[v] != res["before_" + v])) for v in saved_vars(res)}
+
+
+def check_roundoff(res, name):
+    """The re-save of a source state may change it by round-off only (no Newton step, nothing else)."""
+    for v in ("nis", "ups", "tes", "tis", "ngs", "tgs", "phis"):
+        before, after = res["before_" + v], res[v]
+        d = before != after
+        if d.any():
+            rel = float(np.max(np.abs(after[d] - before[d]) / np.abs(before[d])))
+            if not rel <= ROUNDTRIP_RTOL:
+                raise Stop(6, "{}: exmain changed {} beyond round-off (max relative {:.3e} > {:g}): ask the owner"
+                              .format(name, v, rel, ROUNDTRIP_RTOL))
+
+
+def require_fixed_point(family_dir, state, log):
+    """A fresh exmain at the written state must change no saved entry."""
+    n = changes(roundtrip(family_dir, state, log))
+    if sum(n.values()):
+        raise Stop(6, "{}: {} is not a round-trip fixed point; one exmain changes {}".format(
+            family_dir.name, Path(state).name, {v: k for v, k in n.items() if k}))
+
+
 def limiter_count(res):
     """Faces where the electron parallel heat-flux limiter dominates (qr >= 1); report only."""
     if int(res["isflxlde"]) != 0:
@@ -295,8 +355,10 @@ def cmd_check(args, log):
     ftol = float(res["ftol_case"])
     if not (np.isfinite(fmax) and np.isfinite(fnrm)):
         raise Stop(2, "{}: non-finite yldot at {}".format(args.family, state.name))
-    print("{:9s} state={} neq={} fmax={:.4e} ftol={:.1e} fnrm={:.4e} converged={}".format(
-        args.family, state.name, int(res["neq"]), fmax, ftol, fnrm, str(fmax <= ftol).lower()))
+    n = sum(changes(roundtrip(family_dir, state, log)).values())
+    print("{:9s} state={} neq={} fmax={:.4e} ftol={:.1e} fnrm={:.4e} converged={} fixed_point={} "
+          "roundtrip_changes={}".format(args.family, state.name, int(res["neq"]), fmax, ftol, fnrm,
+                                        str(fmax <= ftol).lower(), str(n == 0).lower(), n))
     return 0
 
 
@@ -305,8 +367,24 @@ def cmd_make(args, log):
     source = resolve(family_dir, args.source)
     reference = family_dir / "reference_state.h5"
     base = family_dir / "base_state.h5"
-    ref = run_child(family_dir, {"mode": "save", "state": str(source), "save_to": str(reference)}, log)
+    raw = family_dir / "base_state.raw.h5"  # the perturbed state before its re-save; removed below
+    try:
+        return make_states(args, log, family_dir, source, reference, base, raw)
+    except Stop:
+        if base.exists():  # never leave a base state that failed a gate (or belongs to the old reference)
+            base.unlink()
+        raise
+    finally:
+        if raw.exists():
+            raw.unlink()
+
+
+def make_states(args, log, family_dir, source, reference, base, raw):
+    ref = roundtrip(family_dir, source, log, save_to=reference)
+    check_roundoff(ref, source.name)
+    source_changes = changes(ref)
     read_back(reference, ref)
+    require_fixed_point(family_dir, reference, log)
 
     ref_eval = run_child(family_dir, {"mode": "eval", "state": str(reference), "issfon": 0}, log)
     found = blocks(ref_eval)
@@ -315,13 +393,22 @@ def cmd_make(args, log):
     for sigma in sigmas:
         new = perturb(ref, sigma, args.seed)
         try:
-            guard_summary = guards(ref, new)
+            guards(ref, new)
         except Stop as stop:
             print("sigma={}: guard failed: {}".format(sigma, stop))
             chosen = ("guard", sigma, stop)
             break
-        write_state(reference, base, new)
+        write_state(reference, raw, new)
+        read_back(raw, new)
+        new = roundtrip(family_dir, raw, log, save_to=base)
+        try:
+            guard_summary = guards(ref, new)  # again: the re-save overwrites saved values that are not unknowns
+        except Stop as stop:
+            print("sigma={}: guard failed after the re-save: {}".format(sigma, stop))
+            chosen = ("guard", sigma, stop)
+            break
         read_back(base, new)
+        require_fixed_point(family_dir, base, log)
         base_eval = run_child(family_dir, {"mode": "eval", "state": str(base), "issfon": 0}, log)
         if int(base_eval["neq"]) != int(ref_eval["neq"]):
             raise Stop(2, "neq differs between reference and base")
@@ -369,6 +456,9 @@ def cmd_make(args, log):
     print('base_state_data_sha256 = "{}"'.format(data_sha256(base)))
     print('reference_state_data_sha256 = "{}"'.format(data_sha256(reference)))
     print('source_state_sha256 = "{}"'.format(sha256(source)))
+    print("roundtrip_fixed_point = true  # both states: one exmain changes no saved entry (AIUE-140)")
+    print("roundtrip_changes_source = {{ {} }}".format(", ".join("{} = {}".format(v, n)
+                                                                for v, n in source_changes.items())))
     print("\n[limiter_report]")
     lim_ref, lim_base = limiter_count(ref_eval), limiter_count(base_eval)
     if lim_ref is None:
