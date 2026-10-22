@@ -122,7 +122,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: 613 tests, none skipped, in about 357 s, serial build, Darwin
+- **Tests** (the whole suite, `-m "not nightly"`: 616 tests, none skipped, in about 355 s, serial build, Darwin
   arm64, 2026-10-22, AIUE-156; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
