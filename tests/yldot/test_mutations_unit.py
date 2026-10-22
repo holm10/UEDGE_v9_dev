@@ -188,6 +188,23 @@ def test_verdict(tmp_path, over, family, spec, crash, want, problem):
         assert any(problem in p for p in v["problems"]), v
 
 
+def test_intermediate_exception(tmp_path, stores):
+    """An owner-approved per-family exception replaces the expected intermediate for that family only."""
+    m = mut(tmp_path, Intermediate="resee; ortho: none (owner, 2026-10-22, below the localization threshold)")
+    assert (m.intermediate, m.intermediate_by) == ("resee", {"ortho": "none"})
+    assert rm.problems(m, stores) == []
+    quiet = result(BOTH)
+    for config in rm.CONFIGS:
+        quiet[config]["intermediate"] = None
+    assert rm.verdict(m, "ortho", quiet)["flags"] == []
+    assert len(rm.verdict(m, "d_only", quiet)["flags"]) == 2
+    assert len(rm.verdict(m, "ortho", result(BOTH))["flags"]) == 2  # named although none was expected
+    bad = mut(tmp_path, Intermediate="resee; d_c: none (owner, 2026-10-22, x)")
+    assert any("not in Families" in p for p in rm.problems(bad, stores))
+    with pytest.raises(ValueError, match="Intermediate exception"):
+        mut(tmp_path, Intermediate="resee; ortho: none")
+
+
 def test_verdict_flags(tmp_path):
     m = mut(tmp_path, Intermediate="resei")
     v = rm.verdict(m, "d_only", result(BOTH), junit={"steady": True, "timestep": False})

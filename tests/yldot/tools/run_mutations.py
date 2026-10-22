@@ -38,7 +38,8 @@ line for Blocks and Cells), a blank line, then the single-line `git diff` (git a
     Blocks        <family>: primary <eq[sp]>, ...[; coupled <eq[sp]>, ...]: the blocks that must fire (primary) and
                   may fire (coupled); optional for a pending mutation
     Cells         optional, <family>: <eq[sp]> (ix,iy), ...: the primary block fails only in these cells
-    Intermediate  the first differing intermediate expected (a residual array), or none
+    Intermediate  the first differing intermediate expected (a residual array), or none; then optional per-family
+                  exceptions approved by the epic owner, `; <family>: <array or none> (<who, date, why>)`
     Families      the families where the code is active, the inner-loop family first
     Pending       optional, AIUE-<n>[, AIUE-<n>] (<reason>): the ticket whose check will catch it
     Source        <file>:<line> (at <sha>), the mutated line
@@ -117,6 +118,7 @@ class Mutation:
     blocks: dict = field(default_factory=dict)  # {family: {"primary": [...], "coupled": [...]}}
     cells: dict = field(default_factory=dict)  # {family: (block, [(ix, iy), ...])}
     intermediate: str = ""
+    intermediate_by: dict = field(default_factory=dict)  # {family: array or none}, owner-approved exceptions
     families: list = field(default_factory=list)
     pending: str = None
     source: tuple = None  # (file, line, sha)
@@ -124,7 +126,7 @@ class Mutation:
     def summary(self):
         return {"kind": self.kind, "equation": self.equation, "fault": self.fault, "check": self.check,
                 "configs": self.configs, "families": self.families, "pending": self.pending,
-                "intermediate": self.intermediate, "blocks": self.blocks,
+                "intermediate": self.intermediate, "intermediate_by": self.intermediate_by, "blocks": self.blocks,
                 "cells": {f: [b, [list(c) for c in cells]] for f, (b, cells) in self.cells.items()},
                 "source": "{}:{}".format(*self.source[:2]) if self.source else None}
 
@@ -183,6 +185,19 @@ def parse_cells(entries):
     return out
 
 
+def parse_intermediate(value):
+    """(the expected intermediate, {family: exception}) of an Intermediate value."""
+    default, *rest = value.split("; ")
+    out = {}
+    for entry in rest:
+        hit = re.match(r"^(\w+): (\w+) \((.+)\)$", entry)
+        if not hit:
+            raise ValueError("Intermediate exception {!r}: need `<family>: <array or none> (<who, date, why>)`".format(
+                entry))
+        out[hit.group(1)] = hit.group(2)
+    return default, out
+
+
 def load(path):
     """The Mutation of one patch file; ValueError on a malformed file."""
     keys, body = parse_header(Path(path).read_text())
@@ -192,7 +207,8 @@ def load(path):
     if missing or unknown:
         raise ValueError("keys missing {}, unknown {}".format(missing, unknown))
     m.name, m.kind, m.equation, m.fault = keys["Mutation"], keys["Kind"], keys["Equation"], keys["Fault"]
-    m.check, m.intermediate = keys["Check"], keys["Intermediate"]
+    m.check = keys["Check"]
+    m.intermediate, m.intermediate_by = parse_intermediate(keys["Intermediate"])
     m.configs, m.families = split_list(keys["Configs"]), split_list(keys["Families"])
     m.blocks = parse_blocks(keys.get("Blocks", []))
     m.cells = parse_cells(keys.get("Cells", []))
@@ -272,6 +288,9 @@ def problems(m, stores=None):
                 out.append("Blocks {}: {} is not a block of the family's reference".format(f, label))
         if set(b["primary"]) & set(b["coupled"]):
             out.append("Blocks {}: {} both primary and coupled".format(f, sorted(set(b["primary"]) & set(b["coupled"]))))
+    for f in m.intermediate_by:
+        if f not in m.families:
+            out.append("Intermediate: exception for {}, which is not in Families".format(f))
     for f, (block, _) in m.cells.items():
         if f not in m.blocks or block not in m.blocks[f]["primary"]:
             out.append("Cells {}: {} is not a primary block of that family".format(f, block))
@@ -409,11 +428,12 @@ def verdict(m, family, result, junit=None):
                     if outside:
                         probs.append("{} {}: {} failed in cells {} outside {}".format(config, part, block, outside,
                                                                                      cells))
-                if part == "yldot" and m.intermediate != "none":
+                if part == "yldot":
                     first = result[config].get("intermediate")
-                    if first != m.intermediate:
+                    want_first = m.intermediate_by.get(family, m.intermediate)
+                    if (first or "none") != want_first:
                         flags.append("{}: first differing intermediate {}, expected {}".format(
-                            config, first, m.intermediate))
+                            config, first, want_first))
             elif blocks:
                 probs.append("{} {} fired {} (not the expected check or configuration)".format(config, part,
                                                                                            sorted(blocks)))

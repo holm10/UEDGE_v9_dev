@@ -5,20 +5,22 @@ Fault: factor 2
 Check: yldot
 Configs: steady, timestep
 Blocks: slab_phi: primary ni[2]; coupled up[2], ti[1]
-Cells: slab_phi: ni[2] (11,1)
+Cells: slab_phi: ni[2] (18,1)
 Intermediate: resco
 Families: slab_phi
 Source: bbb/pandf_plasma_continuity.m:1062 (at 8a67572)
 Description: factor 2 on the atom's radial flux divergence (zi = 0 branch of calc_plasma_particle_residuals) in one
- quiet cell only, ix = 11, iy = 1: slab_phi's pf region has the highest zero-sigma fraction of the small
- families outside the guard rows (66 of 168 entries; ni[2] 15 of 24 cells, (11,1) among them;
- tolerances.toml floor report, AIUE-87). Owner, 2026-10-22 (AIUE-90 Q2): the quiet-cell mutation is the
- plasma-continuity factor 2 of the 21. No other small family has ix = 11 in its mesh, so the code is
- inactive there. Coupled blocks: rscalf (bbb/oderhs.m:575-660) carries yldot(ni[2]) into up[2] and,
- through cftiexclg, into ti[1]; not te (zi = 0).
+ quiet cell only, ix = 18, iy = 1: slab_phi's pf region has the highest zero-sigma fraction of the small
+ families outside the guard rows (66 of 168 entries; ni[2] 15 of 24 cells; tolerances.toml floor report,
+ AIUE-87), and ni[2] at (18,1) has sigma = 0 in both configurations. Owner, 2026-10-22 (AIUE-90 Q2): the
+ quiet-cell mutation is the plasma-continuity factor 2 of the 21. Owner, 2026-10-22 (AIUE-90, after the
+ first full run): moved from (11,1), which d_c's 16x8 mesh also has (in its core, sigma 1.1e-11), to
+ (18,1): no other small family has an interior cell at ix = 18 (d_c's nx is 16), so the code is inactive
+ there. Coupled blocks: rscalf (bbb/oderhs.m:575-660) carries yldot(ni[2]) into up[2] (at ix 17 and 18)
+ and, through cftiexclg, into ti[1]; not te (zi = 0).
 
 diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
-index 59433cf..7533502 100644
+index 59433cf..e8b9b6e 100644
 --- a/bbb/pandf_plasma_continuity.m
 +++ b/bbb/pandf_plasma_continuity.m
 @@ -1059,7 +1059,7 @@ c           if (ifld .ne. iigsp) then
@@ -26,7 +28,7 @@ index 59433cf..7533502 100644
                   resco(ix,iy,ifld) = resco(ix,iy,ifld)
       .              - cfneutdiv*cfneutdiv_fng*( (fnix(ix,iy,ifld)-fnix(ix1,iy, ifld))
 -     .                               + fluxfacy*(fniy(ix,iy,ifld)-fniy(ix,iy-1,ifld)) )
-+     .                               + merge(2.,1.,ix==11 .and. iy==1)*fluxfacy*(fniy(ix,iy,ifld)-fniy(ix,iy-1,ifld)) )
++     .                               + merge(2.,1.,ix==18 .and. iy==1)*fluxfacy*(fniy(ix,iy,ifld)-fniy(ix,iy-1,ifld)) )
             
  c ... IJ 2016/10/19 add MC neutral flux if flags set
                   if (get_neutral_moments .and. cmneutdiv_fng .ne. 0.0) then 
