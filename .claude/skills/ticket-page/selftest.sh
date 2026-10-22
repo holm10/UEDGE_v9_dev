@@ -141,15 +141,41 @@ grep -q 'it works' "$W/b1.md" && ! grep -q '_Not written yet' "$W/b1.md" && grep
 ! grep -qE '/Users/someone|/scratch/someone|/p/lustre1|file:///Users' "$W/b1.md" && grep -q '^## not a heading inside a fence' "$W/b1.md" && grep -q '^##### Detail' "$W/b1.md"; ok $? 0 "C1 paths masked (file:// too); headings demoted two levels, fenced line untouched"
 fakelog update 950 "$W/b1.md" 2
 V --body "$W/b1.md" --page-id 950 --after-version 1; ok $? 0 "C2 verify the update (v2)"
-$T state --repo "$R" --key T-1 --outbox "$ST" --set version=2 page_id=950 --save-body "$W/b1.md" --save-plan "$R/$P" --plan-title Plan --date 2026-10-16 >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$ST" --set version=2 modified=2026-10-16T10:00:00.000Z page_id=950 --save-body "$W/b1.md" --save-plan "$R/$P" --plan-title Plan --date 2026-10-16 >/dev/null
 $T queue --repo "$R" --key T-1 --outbox "$ST" --mark-sent >/dev/null
 $T queue --repo "$R" --key T-1 --outbox "$ST" --add Reviews loop $'Reviewer: plan round 1 APPROVE (0/0/1).\n# ran: pytest -k D_only\n```\nRESULT: AGREE\n```' >/dev/null
-$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --page-version 3 --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local with another version refused (someone else wrote)"
+# The version check: the parent's getConfluencePageDescendants listing (lastModified, no version), saved as the tool result
+lst(){ f=$1; shift; python3 -c "import json,sys;print(json.dumps([{'type':'text','text':json.dumps({'results':[{'id':i,'lastModified':m} for i,m in zip(sys.argv[2::2],sys.argv[3::2])]})}]))" x "$@" > "$f"; }
+lst "$W/lst-other.json" 950 2026-10-16T10:05:00.000Z
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst-other.json" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local refused: modified after this worktree's update (someone else wrote)"
 $T render --repo "$R" --mirrored --meta "$W/meta.json" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 an existing page without --current/--local refused"
-$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --page-version 2 --outbox "$ST" --out "$W/b2.md" >/dev/null; ok $? 0 "C4 --local with the matching version"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local without --listing refused"
+lst "$W/lst2.json" 949 2026-10-17T00:00:00.000Z 950 2026-10-16T10:00:00.000Z
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst2.json" --outbox "$ST" --out "$W/b2.md" >/dev/null; ok $? 0 "C4 --local: the page's lastModified is this worktree's last update"
 [ "$(grep -c 'Plan published' "$W/b2.md")" = 1 ] && grep -q '^  \\# ran: pytest' "$W/b2.md"; ok $? 0 "C4 earlier entry kept once; an entry's '#' line escaped"
+lst "$W/lst-p1.json" 948 2026-10-16T10:00:00.000Z; lst "$W/lst-p2.json" 949 2026-10-16T10:00:00.000Z
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst-p1.json" --listing "$W/lst-p2.json" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local refused: the page is not in the listing"
+lst "$W/lst-p2.json" 949 2026-10-17T00:00:00.000Z 950 2026-10-16T10:00:00.000Z
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst-p1.json" --listing "$W/lst-p2.json" --outbox "$ST" --out "$W/b2p.md" >/dev/null && cmp -s "$W/b2.md" "$W/b2p.md"; ok $? 0 "C4 --local: the page found on the second page of results"
+echo 'Error: the tool output is too large' > "$W/lst-err.json"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst-err.json" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local refused: a listing that is not a tool result"
+cp -r "$ST" "$W/st-nomod"; python3 -c "import json,sys;p=sys.argv[1];d=json.load(open(p));d.pop('modified');json.dump(d,open(p,'w'))" "$W/st-nomod/T-1.state.json"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst2.json" --outbox "$W/st-nomod" --out "$W/x.md" 2>/dev/null; ok $? 2 "C3 --local refused: a state file from before AIUE-143 (no modified)"
+meta page_id=5308417; $T state --repo "$R" --key T-1 --outbox "$W/st-real" --set page_id=5308417 version=35 modified=2026-10-22T01:56:38.226Z --save-body "$W/b2.md" >/dev/null
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --local --listing "$FX/PRD-AIUE-9-descendants.json" --outbox "$W/st-real" --out "$W/x.md" >/dev/null; ok $? 0 "C4 --local --listing on a real response (fixture: Progress: AIUE-9 v35, lastModified = the update's version.createdAt)"
+meta page_id=950 page_url=https://x/wiki/950
+# The full read: fetch (text + metadata.version) and getConfluencePage (content.nodes[0].body), saved as tool results
+python3 - "$W/b2.md" "$W/fetch.json" "$W/gcp.json" <<'EOF'
+import json,sys
+s=open(sys.argv[1]).read()
+json.dump({"id":"ari:cloud:confluence:x:page/950","title":"Plan: T-1 - Demo","text":s,"metadata":{"spaceId":"1","version":3}},open(sys.argv[2],"w"))
+json.dump([{"type":"text","text":json.dumps({"content":{"totalCount":1,"nodes":[{"id":"950","title":"Plan: T-1 - Demo","body":s}]}})}],open(sys.argv[3],"w"))
+EOF
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/b2.md" --outbox "$ST" --out "$W/cur-md.md" >/dev/null
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/fetch.json" --outbox "$ST" --out "$W/cur-f.md" >/dev/null && cmp -s "$W/cur-md.md" "$W/cur-f.md"; ok $? 0 "C4 --current reads a saved fetch result (text) like the markdown"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/gcp.json" --outbox "$ST" --out "$W/cur-g.md" >/dev/null && cmp -s "$W/cur-md.md" "$W/cur-g.md"; ok $? 0 "C4 --current reads a saved getConfluencePage result (content.nodes)"
 fakelog update 950 "$W/b2.md" 3
-$T state --repo "$R" --key T-1 --outbox "$ST" --set version=3 --save-body "$W/b2.md" >/dev/null; $T queue --repo "$R" --key T-1 --outbox "$ST" --mark-sent >/dev/null
+$T state --repo "$R" --key T-1 --outbox "$ST" --set version=3 modified=2026-10-16T11:00:00.000Z --save-body "$W/b2.md" >/dev/null; lst "$W/lst3.json" 950 2026-10-16T11:00:00.000Z; $T queue --repo "$R" --key T-1 --outbox "$ST" --mark-sent >/dev/null
 # Confluence round trip: continuation indents dropped, '\#' -> '#', '_x_' -> '*x*', bullets '-' -> '*'; saved as the tool result
 python3 - "$W/b2.md" "$W/rt.md" "$W/rt.json" <<'EOF'
 import json,re,sys
@@ -192,11 +218,11 @@ V --body "$W/b5.md" --page-id 950 --after-version 4; ok $? 0 "C13 one retry veri
 
 echo "== D. plan provenance"
 printf '\n## Added later\nnot yet published\n' >> "$R/$P"
-$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --page-version 3 --outbox "$ST" --out "$W/m1.md" >/dev/null && ! grep -q 'Added later' "$W/m1.md" && grep -q "sha256 \`$PH\`" "$W/m1.md"; ok $? 0 "D1 a flush repeats the published copy: an unpublished edit is not sent"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst3.json" --outbox "$ST" --out "$W/m1.md" >/dev/null && ! grep -q 'Added later' "$W/m1.md" && grep -q "sha256 \`$PH\`" "$W/m1.md"; ok $? 0 "D1 a flush repeats the published copy: an unpublished edit is not sent"
 PH2=$(hash "$R/$P")
-$T render --repo "$R" --plan $P --meta "$W/meta.json" --local --page-version 3 --outbox "$ST" --out "$W/m2.md" >/dev/null && grep -q 'Added later' "$W/m2.md" && grep -q "sha256 \`$PH2\`" "$W/m2.md" && [ "$PH" != "$PH2" ]; ok $? 0 "D2 publish carries the edit and its new sha256"
+$T render --repo "$R" --plan $P --meta "$W/meta.json" --local --listing "$W/lst3.json" --outbox "$ST" --out "$W/m2.md" >/dev/null && grep -q 'Added later' "$W/m2.md" && grep -q "sha256 \`$PH2\`" "$W/m2.md" && [ "$PH" != "$PH2" ]; ok $? 0 "D2 publish carries the edit and its new sha256"
 cp -r "$ST" "$W/st-tamper"; echo tampered >> "$W/st-tamper/T-1.plan.md"
-$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --page-version 3 --outbox "$W/st-tamper" --out "$W/x.md" 2>/dev/null; ok $? 2 "D3 a store copy that doesn't match the published sha256 refused"
+$T render --repo "$R" --mirrored --meta "$W/meta.json" --local --listing "$W/lst3.json" --outbox "$W/st-tamper" --out "$W/x.md" 2>/dev/null; ok $? 2 "D3 a store copy that doesn't match the published sha256 refused"
 $T render --repo "$R" --mirrored --meta "$W/meta.json" --current "$W/b5.md" --outbox "$W/st-empty" --out "$W/x.md" 2>/dev/null; ok $? 2 "D4 --mirrored with no published copy (fresh worktree) refused"
 $T render --repo "$R" --plan .claude/work/T-1/nope.md --meta "$W/meta.json" --current "$W/b5.md" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "D5 --plan naming a missing working copy refused"
 $T extract-plan --current "$W/b1.md" --out "$W/rebuilt.md" >/dev/null; ok $? 0 "D6 extract-plan rebuilds the working copy from the page"
