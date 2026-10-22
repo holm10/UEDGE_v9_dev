@@ -35,17 +35,32 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
   through `Runner.evaluate(..., variant=, replay=)`); `tests/yldot/overrides.toml` holds the additions, exclusions,
   explicit values, bounds, phase and configuration, each with a reason.
+- **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
+  (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
+  `SketchStore` (full default, per (equation, species, region) block k = 8 projections onto Rademacher signs from
+  `PCG64.random_raw`, summed with `math.fsum`; `sketch_compare` with c = 6.5), both with the sparse Jacobian-flag
+  difference; files written with `track_times=False` so the bytes are reproducible. `tests/yldot/harness/manifest.py`
+  is the schema of `references/<f>.manifest.json`, the only record of the external files' SHA-256s (owner,
+  2026-10-21). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
+  `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
+  the dataset's SHA-256 (`StoreIntegrityError`).
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
   re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
   scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
   W and P from exmain/pandf repeats in fresh processes, the -1 → +1 → -1 flag sequence, steady +1 vs -1 with the
   `ishosor = 0` counterfactual, a reuse sequence in one process, child costs and the sweep estimate, as a TOML
-  fragment; `check`: family.toml's W, P against W+1, P+1 and the flag rules; exit 4 = defect, 3 = owner).
+  fragment; `check`: family.toml's W, P against W+1, P+1 and the flag rules; exit 4 = defect, 3 = owner);
+  `fetch_data.py` (`gh release download` of a manifest's `yldot-data-v<N>` assets into the gitignored `.data/<tag>/`,
+  refusing any SHA-256 mismatch, then a relative symlink at each manifest path; `--check` verifies only);
+  `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
+  target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves).
 - **Tests**: `tests/yldot/test_smoke.py` the smoke test (about 15 s), `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
-  `measure_history.py check` per family (about 3 s each) and the measured families' `[evaluation]` keys.
+  `measure_history.py check` per family (about 3 s each) and the measured families' `[evaluation]` keys,
+  `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch known-answer
+  vector; fakes for `gh` and `git`).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
