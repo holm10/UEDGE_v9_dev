@@ -105,8 +105,9 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
     venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
 - **Probing initialisation without a solve** (grid-change interpolation, `ueinit` checks): after the restore and the
   input changes, `bbb.ifexmain = 1; bbb.allocate(); bbb.ifexmain = 0; bbb.ueinit()`. With `ifexmain = 0`, `allocate`
-  sets `nxold`/`nyold` to the new size and reallocates `Interp` (`bbb/odesetup.m:523-527`), and `ueinit` stops with
-  `ERROR: ni <= 0` (probed on d3dHsm 8x4 → 16x8 in base-a8446eb-serial).
+  sets `nxold`/`nyold` to the new size, reallocates `Interp` and sets `isimesh = 1` (`bbb/odesetup.m:523-528`,
+  AIUE-141), and `ueinit` stops with `variable nis=0, no saved solution for interp` (probed on nonog 8x4 → 16x8,
+  AIUE-141; before AIUE-141 it stopped with `ERROR: ni <= 0`, d3dHsm 8x4 → 16x8 in base-a8446eb-serial).
   Going through `exmain` instead runs the Newton solve (`itermx = 0` means nksol's default of 200 iterations,
   `svr/nksol.m:973`), and after a converged solve `gridseq` overwrites the `Interp` meshes.
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
