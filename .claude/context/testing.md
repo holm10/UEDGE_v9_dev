@@ -23,8 +23,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
   The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5` and states are release
-  assets, listed with SHA-256 in `family.toml` `[assets]` and gitignored, and the smoke test skips such a family
-  while its assets are absent.
+  assets of `yldot-data-v1`, gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner,
+  2026-10-21). While all of a family's assets are absent, `conftest.py` skips every test parametrised over it except
+  those marked `toml_only`; partly present or different files fail (`test_smoke.py::test_external_files`).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect).
@@ -32,7 +33,12 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `yldot_J`, and the `intake` configuration (`issfon=1` at `reference_state.h5`, no variant) returning `yldot` and
   `sfscal`; every configuration also returns `idx*`, `igyl`, the `is<eq>onxy` masks and the grid indices.
 - **Comparator** `tests/yldot/harness/compare.py`: maps every row to (equation, species, ix, iy, region) from those
-  arrays only, checked as a bijection (`IndexTruthError`); the PRD §7.4 per-entry tolerance (σ = 0 floors,
+  arrays only, checked as a bijection (`IndexTruthError`). Regions follow one of three rules, chosen by the
+  `[regions]` source keys and checked against the live grid: single null (ixpt1, ixpt2, iysptrx), slab half mesh
+  (nxcore, nxleg, nycore), or double null (`nxpt = 2`, upper X-point primary: ixlb, ixrb, ixpt1, ixpt2, iysptrx1,
+  iysptrx2 per mesh half; guard also at the cut, ix = ixrb(1)+1 and ixlb(2); regions pf_upper, pf_lower,
+  sol_between and four legs; owner, 2026-10-21, AIUE-91). The species in a label is Fortran's 1-based `ifld`/`igsp`.
+  Then the PRD §7.4 per-entry tolerance (σ = 0 floors,
   `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order.
 - **Variants** (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
@@ -68,7 +74,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
   `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
   intended flag change updates its `EXPECTED`, with the reason in the PR.
-- **Tests**: `tests/yldot/test_smoke.py` the smoke test (about 15 s), `tests/yldot/test_compare_unit.py` the
+- **Tests** (the whole suite: 258 tests in about 300 s, serial build, Darwin arm64, 2026-10-22; about 250 s of that
+  are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
+  `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
