@@ -256,6 +256,30 @@ def reqs(verdict):
     (G + "families/fam/test_fam.py", "M", "loosened"),
     (G + "families/fam/fam_test.py", "A", "loosened"),
     (G + "pytest.ini", "M", "loosened"),
+    (G + ".pytest.ini", "M", "loosened"),
+    (G + "families/fam/.pytest.ini", "A", "loosened"),
+    (G + "mutations/.pytest.ini", "A", "loosened"),
+    (".pytest.ini", "M", "loosened"),
+    ("tests/.pytest.ini", "A", "loosened"),
+    ("tests/.pytest.ini", "D", "loosened"),
+    ("src/.pytest.ini", "M", None),
+    ("tests/other/.pytest.ini", "M", None),
+    (G + "pytest.toml", "M", "loosened"),
+    (G + "families/fam/pytest.toml", "A", "loosened"),
+    (G + "mutations/pytest.toml", "A", "loosened"),
+    ("pytest.toml", "M", "loosened"),
+    ("tests/pytest.toml", "A", "loosened"),
+    ("tests/pytest.toml", "D", "loosened"),
+    ("src/pytest.toml", "M", None),
+    ("tests/other/pytest.toml", "M", None),
+    (G + ".pytest.toml", "M", "loosened"),
+    (G + "families/fam/.pytest.toml", "A", "loosened"),
+    (G + "mutations/.pytest.toml", "A", "loosened"),
+    (".pytest.toml", "M", "loosened"),
+    ("tests/.pytest.toml", "A", "loosened"),
+    ("tests/.pytest.toml", "D", "loosened"),
+    ("src/.pytest.toml", "M", None),
+    ("tests/other/.pytest.toml", "M", None),
     (G + "families/fam/tox.ini", "M", "loosened"),
     (G + "setup.cfg", "M", "loosened"),
     (G + "families/fam/pyproject.toml", "M", "loosened"),
@@ -264,6 +288,7 @@ def reqs(verdict):
     ("pytest.ini", "M", "loosened"),
     ("tests/tox.ini", "M", "loosened"),
     ("tox.ini", "A", "loosened"),
+    (".pytest.ini", "M", "loosened"),
     ("tests/pytest.ini", "D", "loosened"),
     ("pyproject.toml", "M", "pytestcfg"),
     ("setup.cfg", "M", "pytestcfg"),
@@ -783,6 +808,64 @@ def test_pytest_config_above_the_suite(repo, path, base, head, loosened):
     code, v, text = repo.check("Test criteria: changed: pytest config\nTest criteria: loosened: owner review")
     assert (reqs(v) == {"changed", "loosened"}) is loosened, text
     assert code == 0 and v["codeowner_approval"] is loosened
+
+
+@pytest.mark.parametrize("name", ["pytest.toml", ".pytest.toml", ".pytest.ini"])
+def test_root_pytest_config_file_is_a_loosening(repo, name):
+    repo.write(name, "[pytest]\naddopts = -q\n")
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"changed", "loosened"} and v["codeowner_approval"], text
+    assert repo.check("Test criteria: changed: config\nTest criteria: loosened: owner review")[0] == 0
+
+
+@pytest.mark.parametrize("base, head", [
+    ("[project\n", "[project\n[x\n"),  # unparsable on both sides: still not comparable
+    ("[project\n", '[project]\nname = "a"\n'),  # unparsable side against no pytest section
+    ('[project]\nname = "a"\n', "[project\n"),
+    ("[project\n", "[project\n"),  # identical and unparsable
+])
+@pytest.mark.parametrize("path", ["pyproject.toml", "tests/pyproject.toml"])
+def test_unparsable_pytest_config_is_a_loosening(repo, path, base, head):
+    repo.write(path, base)
+    repo.base = repo.commit("config")
+    repo.write(path, head if head != base else base + "# touched\n")
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed", "loosened"} and "does not parse" in text, text
+
+
+@pytest.mark.parametrize("base, head", [("[metadata]\nname = a\n", "name = a\nx\n"),
+                                        ("name = a\n", "name = a\nx\n"),
+                                        ("name = a\n", "[metadata]\nname = a\n"),
+                                        ("[metadata]\nname = a\n", "name = a\n")])
+def test_unparsable_setup_cfg_is_a_loosening(repo, base, head):
+    repo.write("setup.cfg", base)
+    repo.base = repo.commit("config")
+    repo.write("setup.cfg", head)
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed", "loosened"} and "does not parse" in text, text
+
+
+def test_only_the_d_of_a_variant_changes(repo):
+    d = {"dtype": "float64", "shape": [], "data": 0.5}
+    repo.put_ref("fam", BASE_VARIABLES["fam"], release=V1,
+                 edit=lambda m: m["variables"]["bbb.sens"].update(d=d))
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:bbb.sens"], text
+    assert "variant bbb.sens changed: d" in text
+    assert repo.check("Default results: changed\n- fam:bbb.sens")[0] == 0
+
+
+def test_only_the_datasets_of_a_manifest_change_reverifies_the_externals(repo):
+    """Same release, same external entries: a changed dataset set alone still downloads and verifies the reference."""
+    m0 = repo.manifest("fam")
+    m, _ = repo.put_ref("fam", BASE_VARIABLES["fam"], release=V1, default=Y * (1 + 1e-6),
+                 edit=lambda mm: mm["external"].update(m0["external"]))  # the old external entries, new datasets
+    assert m["release"] == m0["release"] and m["datasets"] != m0["datasets"]
+    code, v, text = repo.check()
+    ref = mf.asset_name(mf.reference_path("fam"))
+    assert any(ref in e for e in v["errors"]), text  # the served reference is not the one the old entry describes
+    assert repo.download.calls and repo.download.calls[0][0] == V1
+    assert mf.asset_name(mf.reference_path("fam")) in repo.download.calls[0][1]
 
 
 def test_stale_base_is_read_at_the_merge_base(repo):

@@ -24,10 +24,10 @@ declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ti
                                  any key it cannot show to be tighter); with a justification, besides the changed
                                  line, and approval by a CODEOWNER of tests/yldot/** (branch protection, AIUE-104)
 
-Which paths count (tests/yldot/ unless noted): conftest.py, test_*.py, *_test.py, pytest.ini, tox.ini, setup.cfg and
-pyproject.toml at any depth, harness/ and this guard are test code (loosened); an added file under mutations/ that
-pytest does not load (not *.py, conftest.py, *.ini, *.cfg, *.toml) is not guarded; a conftest.py, pytest.ini or tox.ini
-in the repository root or tests/ is loosened, and so is a pyproject.toml or setup.cfg there when its pytest section
+Which paths count (tests/yldot/ unless noted): conftest.py, test_*.py, *_test.py, pytest.ini, .pytest.ini, pytest.toml,
+.pytest.toml, tox.ini, setup.cfg and pyproject.toml at any depth, harness/ and this guard are test code (loosened); an added file under mutations/ that
+pytest does not load (not *.py, conftest.py, *.ini, *.cfg, *.toml) is not guarded; a conftest.py, pytest.ini, .pytest.ini, pytest.toml,
+.pytest.toml or tox.ini in the repository root or tests/ is loosened, and so is a pyproject.toml or setup.cfg there when its pytest section
 ([tool.pytest] / [tool:pytest]) changes or either side does not parse (other edits of those two are not guarded).
 
 A line matches with leading list markers, '>' and surrounding ** or backticks ignored; the keywords are exact.
@@ -81,7 +81,8 @@ CODEOWNER = "REQUIRED: CODEOWNER approval of tests/yldot/** (enforced by branch 
 MANIFEST_RE = re.compile(r"^references/([^/]+)\.manifest\.json$")
 FAMILY_TOML_RE = re.compile(r"^families/([^/]+)/family\.toml$")
 SIGMA_H5_RE = re.compile(r"^families/[^/]+/sigma\.h5$")
-PYTEST_CONFIG = ("pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
+PYTEST_INI = ("pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini")  # whole file is configuration
+PYTEST_CONFIG = PYTEST_INI + ("setup.cfg", "pyproject.toml")
 MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/default/(yldot|sigma|jflag/)")
@@ -195,7 +196,8 @@ def path_class(path, status):
     if path in WORKFLOWS:
         return WORKFLOWS[path]
     if not path.startswith(GUARDED):
-        if path in ("conftest.py", "tests/conftest.py", "pytest.ini", "tests/pytest.ini", "tox.ini", "tests/tox.ini"):
+        above = path[len("tests/"):] if path.startswith("tests/") else path  # the repository root or tests/
+        if above == "conftest.py" or above in PYTEST_INI:  # a name only: tests/other/pytest.ini is not matched
             return LOOSENED  # pytest config above tests/yldot
         if path in ("pyproject.toml", "tests/pyproject.toml", "setup.cfg", "tests/setup.cfg"):
             return "pytestcfg"  # only its pytest sections count
