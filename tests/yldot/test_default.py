@@ -6,7 +6,7 @@ open_store checks the reference file against its manifest at test time (the file
 manifest's derived fields) and every dataset read recomputes its SHA-256. An absent reference file fails with the
 fetch command (owner, 2026-10-22; the policy for absent external data is AIUE-156). A failure starts with one line in
 the story 1 format: family::default[config], the part (yldot or flag difference), the worst entry, its relative
-difference and tolerance, and the first differing intermediate.
+difference and tolerance, and the first differing intermediate (array-scaled, as in Store.check's report).
 """
 import tomllib
 from pathlib import Path
@@ -16,7 +16,7 @@ import pytest
 
 from yldot.harness import CONFIGS, FAMILIES, compare, open_store
 from yldot.harness import manifest as mf
-from yldot.harness.compare import first_difference, listed
+from yldot.harness.compare import DIAG_SCALED_RTOL, first_difference, listed
 from yldot.harness.store import differs
 
 SUITE = Path(__file__).resolve().parent
@@ -54,7 +54,7 @@ def headline(family, config, part, new, ref, t, imap, diag=None):
         diff = "rel diff {:.2e} > tol {:.2e}".format(abs(w["diff"]) / abs(w["ref"]), w["tol"] / abs(w["ref"]))
     else:
         diff = "abs diff {:.2e} > tol {:.2e} (ref 0)".format(abs(w["diff"]), w["tol"])
-    first = first_difference(*diag) if diag is not None else "n/a"
+    first = first_difference(*diag, rtol=DIAG_SCALED_RTOL, scaled=True) if diag is not None else "n/a"
     return "{}::default[{}]: {} {} {}; first differing intermediate: {}".format(
         family, config, part, w["label"], diff, first if first is not None else "none")
 
