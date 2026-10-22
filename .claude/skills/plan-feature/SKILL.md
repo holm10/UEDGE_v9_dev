@@ -97,7 +97,9 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates, is marked
    *assumed*, and the task that relies on it checks it first. For a build change, plan a link check on every
    platform the change claims (the link line, plus `nm -u` or an import), and give every runtime gate a way to fail
-   (a count, not a file's existence).
+   (a count, not a file's existence). The same holds for a repo tool used as a VALIDATE step: probe what that mode
+   actually verifies (run it once on the current tree, or cite the contract in its docstring), else mark it
+   *assumed* (AIUE-91: `fetch_data.py --check` verifies only cached files, not the files at their manifest paths).
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -112,6 +114,10 @@ literature belongs in the physics spec, not here.
   slab geometry, time-dependent vs steady-state (`dtreal`), MC-neutral paths (`ismcnon`).
 - Solver impact: differentiability, Jacobian sparsity, preconditioner.
 - Backward compatibility of inputs and save files.
+- **Inputs a later ticket regenerates from.** If a later ticket will rebuild this ticket's output from its raw data
+  (measurement collections, build records; AIUE-87's `tolerances.toml`, which AIUE-92 rewrites), the plan names where
+  that data is kept after the worktree goes (`branching.md` → Working documents) and ends with a task that puts it
+  there.
 - **Owner questions cover the whole class.** When a rule needs exceptions that are the owner's to decide (the meaning
   of an index, term, flag or layout; an epic rule such as AIUE-9's decision 23), list every member of the class, not
   only the examples the ticket or PRD names, and ask once, during planning. Build the list with the same tool or query

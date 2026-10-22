@@ -19,12 +19,13 @@ never committed).
   aren't, `cd` into that worktree. If it doesn't exist, create it as in `plan-feature` Phase 0b. Never execute on a protected
   or AI-layer branch (`.claude/context/branching.md`)
 - **No plan file?** In a fresh worktree or on another machine the working copy isn't there (it is never committed).
-  For a Jira ticket, rebuild it from the ticket page: read the page (`getConfluencePage`, `contentFormat:
-  "markdown"`, saved), then `uv run .claude/skills/ticket-page/ticket_page.py extract-plan --current <saved page> --out
-  .claude/work/<KEY>/plan.md`, and record it as the published copy (`ticket_page.py state --repo <worktree> --key
-  <KEY> --save-plan .claude/work/<KEY>/plan.md --plan-title Plan --set page_id=<id> plan_source="page version
-  <N>"`). Say in the report that the plan was rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for
-  the plan (or run `plan-feature`)
+  For a Jira ticket, rebuild it from the ticket page: read the page with `fetch` (`ticket-page` step 3.1, saved; it
+  returns the body and its `metadata.version` together), then `uv run .claude/skills/ticket-page/ticket_page.py
+  extract-plan --current <saved page> --out .claude/work/<KEY>/plan.md`, and record it as the published copy
+  (`ticket_page.py state --repo <worktree> --key <KEY> --save-plan .claude/work/<KEY>/plan.md --plan-title Plan --set
+  page_id=<id> plan_source="page version <N>"`, `N` = that `metadata.version`). Say in the report that the plan was
+  rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for the plan (or run
+  `plan-feature`)
 - Read the ENTIRE plan carefully
 - Read `CLAUDE.md` and every `.claude/context/` module the plan references
 - Note the plan's **type** (physics / refactor / numerics / bug fix / Python-build) and whether default results
@@ -67,6 +68,9 @@ For EACH task in "Step by Step Tasks":
 - At the start: `ticket-page <KEY> status Executing`. Per task, nothing is sent; keep notes for the summary.
 - A deviation from the plan or an unexpected finding: `ticket-page <KEY> log "Findings and decisions" "Agent: …"`
   (queued). An owner decision: the same with `Owner: … (source)` and `--flush`.
+- Every flush checks for other writers as `ticket-page` step 3.1 says: the parent listing's `lastModified`
+  (`render --local --listing`), and `fetch` + `--current` when that refuses. Never a page version from
+  `getConfluencePage` or CQL, nor a method remembered from before a rebase: the skill text is current.
 - If the plan has to change (an amendment), revise the working copy first (never commit it), then `log Progress
   "Plan amended: <why>"` and `ticket-page <KEY> publish` (the page records the new date and sha256).
 - At the end (after step 4): `ticket-page <KEY> progress "execute done: tasks <list>, commits <first>..<last>"` (one

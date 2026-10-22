@@ -2,7 +2,7 @@
 name: implement-fix
 description: Implements a UEDGE bug fix for a GitHub issue from its RCA document, verifies it on the reproducing case, and runs the validate gate. Use after an RCA document exists and you are ready to fix the issue.
 argument-hint: [github-issue-id] [--no-tracker] [--tracker-dry-run]
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*), Bash(uv:*), mcp__atlassian__getAccessibleAtlassianResources, mcp__atlassian__getJiraIssue, mcp__atlassian__searchConfluenceUsingCql, mcp__atlassian__getConfluencePage
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*), Bash(uv:*), mcp__atlassian__getAccessibleAtlassianResources, mcp__atlassian__getJiraIssue, mcp__atlassian__searchConfluenceUsingCql, mcp__atlassian__getConfluencePage, mcp__atlassian__getConfluencePageDescendants, mcp__atlassian__fetch
 ---
 
 # Implement Fix: GitHub Issue #$ARGUMENTS
@@ -11,10 +11,11 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 
 - RCA at `.claude/work/issue-$ARGUMENTS/rca.md` in the issue's worktree (a local working copy, never committed;
   create it with the `rca` skill first). If the worktree has no copy (a fresh worktree, another machine), rebuild it
-  from its published copy: with a Jira key, `ticket_page.py extract-plan --current <the ticket page as read> --out
-  <that path>` (the page's RCA section), then `ticket_page.py state --repo <worktree> --key <KEY> --save-plan <that
-  path> --plan-title RCA --set plan_source="page version <N>"`; otherwise from the RCA comment on the GitHub issue (`gh issue view
-  $ARGUMENTS --comments`). Neither exists → run `rca` again.
+  from its published copy: with a Jira key, read the ticket page with `fetch` (`ticket-page` step 3.1, saved), then
+  `ticket_page.py extract-plan --current <saved page> --out <that path>` (the page's RCA section), then
+  `ticket_page.py state --repo <worktree> --key <KEY> --save-plan <that path> --plan-title RCA --set
+  plan_source="page version <N>"` (`N` = the fetch's `metadata.version`); otherwise from the RCA comment on the
+  GitHub issue (`gh issue view $ARGUMENTS --comments`). Neither exists → run `rca` again.
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
 - Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key); a GitHub issue with no

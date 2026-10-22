@@ -136,7 +136,9 @@
  "com/com.v:709": "iprint integer /1/ # Flag controlling whether to be verbose or not",
  "ppp/omp_parallel.F90:1008": "psorcxg = 0",
  "ppp/omp_parallel.F90:1010": "psordis = 0",
+ "ppp/omp_parallel.F90:299": "if (Nthreads.gt.OMP_GET_MAX_THREADS()) then",
  "ppp/omp_parallel.F90:3": "SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &",
+ "ppp/omp_parallel.F90:302": "Nthreads=OMP_GET_NUM_THREADS()",
  "ppp/omp_parallel.F90:317": "NchunksJac=min(OMPJacNchunksFixed, max(1, neq/OMPJacMinChunkLen))",
  "ppp/omp_parallel.F90:501": "SUBROUTINE jac_calc_omp (neq, t, yl, yldot00, ml, mu, wk,nnzmx, jac, ja, ia)",
  "ppp/omp_parallel.F90:665": "SUBROUTINE OMPJacBuilder(neq, t, yl,yldot00, ml,mu,wk,iJacCol,rJacElem,iJacRow,nnz)",
@@ -201,5 +203,8 @@
  "src/uedge/rundt.py:17": "class UeRun():",
  "svr/nksol.m:973": "if (itermx .eq. 0) itermx = 200",
  "tests/yldot/families/d_mols/input.py:134": "com.ngsp = 2",
- "tests/yldot/families/d_mols/input.py:30": "com.ngsp=1"
+ "tests/yldot/families/d_mols/input.py:30": "com.ngsp=1",
+ "tests/yldot/harness/__init__.py:10": "os.environ[\"OMP_NUM_THREADS\"] = \"1\"",
+ "tests/yldot/tools/measure_roundoff.py:66": "if __name__ == \"__main__\" and sys.argv[1:2] == [\"_worker\"]:",
+ "tests/yldot/tools/measure_roundoff.py:70": "import uedge # noqa: F401"
 }

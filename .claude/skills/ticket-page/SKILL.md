@@ -153,7 +153,8 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
    ```
 
    `--plan` on `publish`; `--mirrored` on any other flush (the copy last published, from the store). `--mirrored`
-   refuses when the store has no published copy (a fresh worktree): read the page, `ticket_page.py extract-plan
+   refuses when the store has no published copy (a fresh worktree): read the page with `fetch` (step 3.1; `N` is
+   its `metadata.version`), `ticket_page.py extract-plan
    --current <page> --out <file>` (exit 3: no plan on the page yet, publish first), then `state --save-plan <file>
    --plan-title <Plan|RCA> --set plan_source="page version <N>"`; the header then says the copy was rebuilt. A rebuilt
    copy has local paths as placeholders (`{worktree}`, `{home}`, `{local}/<name>`) and plan headings deeper than h4
