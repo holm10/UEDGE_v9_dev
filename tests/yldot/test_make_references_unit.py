@@ -139,7 +139,9 @@ def test_child_files_open_and_hold_the_defaults(tmp_path, children):
 
 def test_generate_linux_commands_and_write(tmp_path, children):
     suite = tmp_suite(tmp_path)
-    run, stream = FakeRun(status="?? tests/yldot/references/d_only.h5\n"), FakeStream(children[0])
+    run = FakeRun(status="?? tests/yldot/references/d_only.h5\n!! tests/yldot/.data/yldot-data-v1/x.h5\n"
+                         "!! tests/yldot/families/imp7/gridue.hdf5\n!! tests/yldot/families/d_only/__pycache__/a.pyc\n")
+    stream = FakeStream(children[0])
     out = tmp_path / "gen"
     mr.generate(args(out=str(out), write=True), suite, run, stream)
     archive = [c for c in run.calls if c[3:4] == ["archive"]]
@@ -201,6 +203,8 @@ def test_host_removes_its_worktree_after_a_failed_build(tmp_path, children):
     ({"release": "v2"}, FakeRun(), 2, "need yldot-data-v<N>"),
     ({}, FakeRun(diff=1), 1, "differs from"),
     ({}, FakeRun(status="?? tests/yldot/families/d_only/new.py\n"), 1, "holds files"),
+    ({}, FakeRun(status="!! tests/yldot/families/d_only/stray.h5\n"), 1, "holds files"),
+    ({}, FakeRun(status="!! tests/yldot/data/stray.dat\n"), 1, "holds files"),
     ({}, FakeRun(image=1), 1, "docker build --platform linux/amd64 -t yldot-linux:24.04 tests/yldot/linux"),
     ({"family": ["imp7"]}, FakeRun(), 1, "no sigma.h5"),
     ({"family": ["nosuch"]}, FakeRun(), 1, "no such family"),
@@ -229,6 +233,16 @@ def test_refuses_a_family_with_other_release_assets(tmp_path):
     mf.dump(m, mf.path("d_only", suite))
     with pytest.raises(mr.Stop, match="AIUE-92"):
         mr.select([], suite)
+
+
+def test_a_preview_never_writes_over_a_release(tmp_path, children):
+    suite = tmp_suite(tmp_path)
+    mr.generate(args(out=str(tmp_path / "gen"), write=True), suite, FakeRun(), FakeStream(children[0]))
+    stream = FakeStream(children[0])
+    with pytest.raises(mr.Stop, match="never replaces released references"):
+        mr.generate(args(platform="host", release=None, out=str(tmp_path / "gen2"), write=True), suite, FakeRun(),
+                    stream)
+    assert not stream.calls and mf.load("d_only", suite)["release"] == TAG
 
 
 def test_refuses_a_used_out_directory(tmp_path):
@@ -264,7 +278,8 @@ def test_main_exit_codes(capsys):
 
 def test_manifests_with_data():
     """Every manifest in references/ that holds reference data: its store is family.toml's, it stores no variants
-    yet, a release names its files and was built in the pinned image (owner, AIUE-88 D1)."""
+    yet, a release names its files (previews are never committed) and they were built in the pinned image (owner,
+    AIUE-88 D1)."""
     for p in sorted((SUITE / "references").glob("*.manifest.json")):
         m = mf.load(p)
         if "datasets" not in m:
@@ -272,5 +287,5 @@ def test_manifests_with_data():
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
         assert m["variables"] == {} and m["provenance"]["flags"] == "--serial", p.name
-        if m["release"] is not None:
-            assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name
+        assert m["release"] is not None, p.name
+        assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name

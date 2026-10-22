@@ -21,10 +21,15 @@ _child    runs inside the built environment and writes DIR/<family>.h5 and DIR/<
           release and external), from the build record FILE (JSON: commit, compiler, runner_image).
 
 The container and the host venv run this working tree's harness and families against SHA's UEDGE, so generate
-refuses unless tests/yldot (references/ excepted) is exactly SHA's: no difference, no untracked file. It refuses a
+refuses unless tests/yldot (references/ excepted) is exactly SHA's: no difference, no untracked file, no ignored
+file in the families' directories or data/. A preview (no --release) never --writes over a released manifest. It
+refuses a
 family without sigma.h5, whose sigma.h5 differs from tolerances.toml's SHA-256, or whose manifest names release
 assets other than its reference file (the owner families' grids and states: AIUE-92). Every evaluation runs in a
 fresh child process (harness/process.py). Writing the same results twice gives the same bytes (track_times=False).
+Two Linux runs from one commit gave the same SHA-256s on one host (Docker Desktop, x86 emulation on Apple silicon,
+AIUE-88); whether a native amd64 host reproduces them bit for bit (glibc picks libm variants by CPU) is AIUE-98's
+check.
 
 Exit codes: 0 done; 1 refused; 2 usage, a failed build or a failed evaluation.
 """
@@ -138,8 +143,9 @@ def resolve(commit, root, run=run):
     return out.strip()
 
 
-def check_tree(sha, root, run=run):
-    """tests/yldot in the working tree is sha's, references/ excepted."""
+def check_tree(sha, root, families, run=run):
+    """tests/yldot in the working tree is sha's, references/ excepted, and no ignored file sits where an evaluation of
+    the families reads (their directories, data/; __pycache__ excepted)."""
     rc, _, err = run(["git", "-C", str(root), "diff", "--quiet", sha, "--", "tests/yldot",
                       ":(exclude)tests/yldot/references"])
     if rc == 1:
@@ -147,11 +153,18 @@ def check_tree(sha, root, run=run):
                       "the working tree holds".format(sha[:12]))
     if rc != 0:
         raise Stop(2, "git diff failed: {}".format(err.strip()))
-    rc, out, err = run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all", "--",
+    rc, out, err = run(["git", "-C", str(root), "status", "--porcelain", "--ignored", "--untracked-files=all", "--",
                         "tests/yldot"])
     if rc != 0:
         raise Stop(2, "git status failed: {}".format(err.strip()))
-    extra = [line[3:] for line in out.splitlines() if not line[3:].startswith("tests/yldot/references/")]
+    read = tuple("tests/yldot/families/{}/".format(f) for f in families) + ("tests/yldot/data/",)
+    extra = []
+    for line in out.splitlines():
+        path = line[3:]
+        if path.startswith("tests/yldot/references/") or "__pycache__/" in path:
+            continue
+        if not line.startswith("!!") or path.startswith(read):  # ignored files elsewhere (.data/, owner assets)
+            extra.append(path)
     if extra:
         raise Stop(1, "tests/yldot holds files {} does not: {}".format(sha[:12], ", ".join(extra[:10])))
 
@@ -281,8 +294,13 @@ def generate(args, suite=SUITE, run=run, stream=stream):
     if args.platform == "host" and args.release is not None:
         raise Stop(1, "--platform host makes previews only (release null; owner, AIUE-88 D2): drop --release")
     sha = resolve(args.from_commit, root, run)
-    check_tree(sha, root, run)
     families = select(args.family, suite)
+    check_tree(sha, root, families, run)
+    if args.write and args.release is None:
+        released = [f for f in families if mf.path(f, suite).is_file() and mf.load(f, suite)["release"] is not None]
+        if released:
+            raise Stop(1, "a preview never replaces released references ({}): drop --write".format(
+                ", ".join(released)))
     out = Path(args.out or tempfile.mkdtemp(prefix="yldot-references-")).resolve()
     if out.exists() and any(out.iterdir()):
         raise Stop(1, "--out {} is not empty".format(out))
