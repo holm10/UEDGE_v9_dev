@@ -33,7 +33,7 @@ Boundary conditions for all equations: `bouncon` `bbb/pandf_boundary.m:4`, which
 
 | Model | Switches (`bbb/bbb.v`) | Default | Main code | Spec |
 |---|---|---|---|---|
-| Inertial (parallel-momentum) neutrals | `isupgon` `bbb/bbb.v:221` (most code tests only `isupgon(1)`); the atoms become ion species `iigsp` (`bbb/odesetup.m:918-919`), evolved under `isnion(iigsp)` and `isupon(iigsp)`, with `ng(,,1)` a copy of `ni(,,iigsp)` (`bbb/convert.m:282-284`); atom temperature `tg(,,1)` evolved if `istgon(1) = 1` (`bbb/bbb.v:225`), else set from `ti` (owner, 2026-10-22; CLAUDE.md Gotchas) | off | `bbb/pandf_gas_continuity.m`, `bbb/pandf_plasma_momentum.m` | pre-spec |
+| Inertial (parallel-momentum) neutrals | `isupgon` `bbb/bbb.v:221` (most code tests only `isupgon(1)`); the atoms become ion species `iigsp` (`bbb/odesetup.m:918-919`), evolved under `isnion(iigsp)` and `isupon(iigsp)`, with `ng(,,1)` a copy of `ni(,,iigsp)` (`bbb/convert.m:282-284`); atom temperature `tg(,,1)` evolved if `istgon(1) = 1` (`bbb/bbb.v:225`), else set from `ti` (owner, 2026-10-22; `uedge-gotchas.md` → Model layout) | off | `bbb/pandf_gas_continuity.m`, `bbb/pandf_plasma_momentum.m` | pre-spec |
 | Molecular hydrogen | `ishymol` `bbb/bbb.v:152` (needs `nhgsp=2`); CRUMPET rates `ismolcrm` `bbb/bbb.v:257` | off; CRUMPET on | `bbb/pandf_gas_*.m`, `bbb/pandf_plasma_energy.m`, `bbb/oderhs.m` | pre-spec |
 | Impurities (fixed fraction / multi-charge-state) | `isimpon` `bbb/bbb.v:3877` | off | `api/` (rates, sputtering, `fmombal`), `bbb/pandf_plasma_momentum.m`, `bbb/pandf_plasma_energy.m` | pre-spec |
 | Volume recombination | `isrecmon` `bbb/bbb.v:62`, `cfrecom` `bbb/bbb.v:65` | off | `bbb/pandf_plasma_continuity.m`, `bbb/pandf_plasma_energy.m` | pre-spec |

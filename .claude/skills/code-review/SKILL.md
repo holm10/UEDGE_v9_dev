@@ -12,7 +12,8 @@ Review recently changed files for **real bugs and rule violations**, not style p
 - `CLAUDE.md` (naming, core patterns, hard rules, gotchas).
 - The `.claude/context/` modules that match what changed:
   `.m` → `mppl-fortran.md`; `.v` → `variables-forthon.md`; `bbb/pandf*`, `convert.m`, `ppp/` →
-  `openmp-jacobian.md`; `src/uedge/` → `python-layer.md`; physics → `physics-workflow.md`.
+  `openmp-jacobian.md`; `src/uedge/` → `python-layer.md`; physics → `physics-workflow.md`; code that runs cases or
+  reads states (`tests/`, `src/uedge/`, tools) → `uedge-gotchas.md`.
 
 ## Gather the change
 
