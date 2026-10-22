@@ -129,6 +129,46 @@ def test_same_bytes_when_written_twice(tmp_path):
         assert a["external"] == b["external"] and a["datasets"] == b["datasets"]
 
 
+def test_file_format_is_hdf5_1_10(tmp_path):
+    """Superblock version 3 is the 1.10 format (the default libver writes version 0); a reopened file's libver
+    reports the open's bounds, not the format."""
+    assert store.LIBVER == ("v110", "latest")  # owner, 2026-10-22 (AIUE-94 D3)
+    build(tmp_path, "full")
+    with h5py.File(tmp_path / "references" / "fam.h5", "r") as f:
+        assert f.id.get_create_plist().get_version()[0] == 3
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_copy_variant_is_verbatim(tmp_path, kind):
+    """A file whose variants are all copied from a store has the bytes of a fresh write (make_references --only)."""
+    variants = (("bbb.cfvisx", YV, YJV), ("bbb.same", Y, YJ))
+    m = build(tmp_path / "src", kind, variants=variants)
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        p = tmp_path / "copy.h5"
+        w = store.create(p, kind, "fam", DATA, IMAP)
+        for config in mf.CONFIG_NAMES:
+            w.write_default(config, Y, YJ, SIGMA, DIAG)
+        for vid, _, _ in variants:
+            w.copy_variant("steady", vid, s)
+        with pytest.raises(store.StoreError, match="already written"):
+            w.copy_variant("steady", "bbb.cfvisx", s)
+        with pytest.raises(store.StoreError, match="no stored variant"):
+            w.copy_variant("steady", "bbb.other", s)
+        out = w.finish()
+    assert out["datasets"] == m["datasets"]
+    assert out["sha256"] == m["external"][mf.reference_path("fam")]["sha256"]
+
+
+def test_copy_variant_refuses_another_store_kind(tmp_path):
+    build(tmp_path / "src", "full")
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        w = store.create(tmp_path / "copy.h5", "sketch", "fam", DATA, IMAP)
+        w.write_default("steady", Y, YJ, SIGMA, DIAG)
+        with pytest.raises(store.StoreError, match="full store into a sketch"):
+            w.copy_variant("steady", "bbb.cfvisx", s)
+        w.f.close()
+
+
 def test_sketch_round_trip_and_thresholds(tmp_path):
     build(tmp_path, "sketch")
     with store.open_store("fam", tmp_path, regions=SPEC) as s:

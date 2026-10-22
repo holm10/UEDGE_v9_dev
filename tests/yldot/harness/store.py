@@ -29,7 +29,9 @@ manifest and the family's regions, and that the manifest's guarded, unguarded an
 stored variants follow from its datasets (a consistent tamper of file, datasets and external is caught there);
 every dataset read recomputes the dataset's SHA-256. A mismatch raises
 StoreIntegrityError, so a changed .h5 with an unchanged manifest fails. Files are written with track_times=False,
-so writing the same data twice gives the same bytes.
+so writing the same data twice gives the same bytes, and in the HDF5 1.10 file format (LIBVER), whose smaller group
+headers keep the many small variant groups within the per-family caps (owner, 2026-10-22, AIUE-94 D3); the dataset
+SHA-256s do not depend on the format.
 """
 import functools
 import hashlib
@@ -48,6 +50,7 @@ K = 8
 SEED = 20261019
 C = 6.5  # owner-confirmed, decision 30
 SCHEMA = 1
+LIBVER = ("v110", "latest")  # owner, 2026-10-22 (AIUE-94 D3)
 FETCH = "python tests/yldot/tools/fetch_data.py"
 
 
@@ -247,7 +250,7 @@ class Writer:
         self.path, self.kind, self.imap, self.k, self.seed = Path(path), kind, imap, k, seed
         self.labels, self.rows, ids = blocks(imap)
         self.defaults = {}
-        self.f = h5py.File(self.path, "w")
+        self.f = h5py.File(self.path, "w", libver=LIBVER)
         self.f.attrs["schema"], self.f.attrs["family"], self.f.attrs["store"] = SCHEMA, family, kind
         if kind == "sketch":
             self.f.attrs["k"], self.f.attrs["seed"] = k, seed
@@ -305,6 +308,27 @@ class Writer:
                 gs = g.create_group(name)
                 for key, a in sketch(x, self.labels, self.rows, self.seed, self.k).items():
                     _ds(gs, key, a)
+
+    def copy_variant(self, config, vid, src):
+        """Copy a stored variant of the Store src verbatim (each dataset read through src.read, so SHA-checked):
+        make_references.py --only keeps the variants it does not regenerate bit for bit, which write_variant cannot
+        (the flag difference yldot_J - yldot does not round-trip through yldot_J)."""
+        _config(config)
+        if config not in self.defaults:
+            raise StoreError("{}: write the default before its variants".format(config))
+        if src.kind != self.kind:
+            raise StoreError("copy from a {} store into a {} store".format(src.kind, self.kind))
+        if vid not in src.variants(config):
+            raise StoreError("{}: no stored variant {} in {}".format(src.path, vid, config))
+        prefix = "{}/variants/{}".format(config, vid)
+        if prefix in self.f:
+            raise StoreError("{}: variant {} already written".format(config, vid))
+        g = self.f.create_group(prefix)
+        keys = ("index", "value") if self.kind == "full" else ("proj", "l2", "maxabs", "argmax")
+        for name in ("yldot", "jflag"):  # write_variant's order, so the bytes match a fresh write
+            gs = g.create_group(name)
+            for key in keys:
+                _ds(gs, key, src.read("/{}/{}/{}".format(prefix, name, key)))
 
     def finish(self):
         """Close the file; return {datasets: {path: sha}, sha256, bytes} for the manifest."""
