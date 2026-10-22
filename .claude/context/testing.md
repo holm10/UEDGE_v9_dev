@@ -63,7 +63,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   the dataset's SHA-256 (`StoreIntegrityError`).
 - **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: a `Key: value` header (`Mutation`,
   `Kind`, `Check`, `Configs`, `Blocks` per family, `Families` with the inner-loop family first, `Source`,
-  `Description`), a blank line, then a single-line `git diff`; `git apply` skips the header. Applied only in a scratch
+  `Description`; a line starting with a space continues the previous key's value, e.g. one `Blocks` line per family
+  as `<family>: primary <blocks>; coupled <blocks>`), a blank line, then a single-line `git diff`; `git apply` skips
+  the header. Applied only in a scratch
   worktree, never to a source on a branch. So far `continuity_ion_divergence_sign` and `timestep_flag_gating`
   (AIUE-89, applied by hand); AIUE-90 adds the runner and the other patches.
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
