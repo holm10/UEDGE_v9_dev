@@ -20,8 +20,8 @@ exists before proposing something new.
 |---|---|---|---|---|
 | Ion continuity | `isnion` `bbb/bbb.v:217` | on | `calc_plasma_transport` `bbb/pandf_plasma_continuity.m:1082`, `calc_volumetric_sources` `bbb/pandf_plasma_continuity.m:143` | `calc_plasma_particle_residuals` `bbb/pandf_plasma_continuity.m:1009` |
 | Parallel ion momentum | `isupon` `bbb/bbb.v:218` | on | `calc_plasma_momentum` `bbb/pandf_plasma_momentum.m:153`, `calc_friction` `bbb/pandf_plasma_momentum.m:564`, `calc_plasma_viscosities` `bbb/pandf_plasma_momentum.m:1422` | `calc_plasma_momentum_residuals` `bbb/pandf_plasma_momentum.m:366` |
-| Electron energy | `isteon` `bbb/bbb.v:222` | on | `calc_plasma_energy` `bbb/pandf_plasma_energy.m:7`, `calc_plasma_heatconductivities` `bbb/pandf_plasma_energy.m:1239` | `calc_plasma_energy_residuals` `bbb/pandf_plasma_energy.m:964` |
-| Ion energy | `istion` `bbb/bbb.v:223` | on | as electron energy, plus `calc_plasma_equipartition` `bbb/pandf_plasma_energy.m:1539` | `calc_plasma_energy_residuals` |
+| Electron energy | `isteon` `bbb/bbb.v:222` | on | `calc_plasma_energy` `bbb/pandf_plasma_energy.m:7`, `calc_plasma_heatconductivities` `bbb/pandf_plasma_energy.m:1243` | `calc_plasma_energy_residuals` `bbb/pandf_plasma_energy.m:968` |
+| Ion energy | `istion` `bbb/bbb.v:223` | on | as electron energy, plus `calc_plasma_equipartition` `bbb/pandf_plasma_energy.m:1543` | `calc_plasma_energy_residuals` |
 | Neutral gas density | `isngon` `bbb/bbb.v:224` | on | `neudif` `bbb/pandf_gas_continuity.m:19`, `neudifpg` `bbb/pandf_gas_continuity.m:493` | `calc_gas_continuity_residuals` `bbb/pandf_gas_continuity.m:1012` |
 | Neutral gas energy | `istgon` `bbb/bbb.v:225` | off | `calc_gas_energy` `bbb/pandf_gas_energy.m:556`, `engbalg` `bbb/pandf_gas_energy.m:11` | `calc_gas_energy_residuals` `bbb/pandf_gas_energy.m:315` |
 | Potential | `isphion` `bbb/bbb.v:226` | off | `calc_currents` `bbb/pandf_potencur.m:39`, `calc_fqp` `bbb/pandf_potencur.m:313` | `calc_potential_residuals` `bbb/pandf_potencur.m:650` |
