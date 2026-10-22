@@ -1,7 +1,7 @@
 """Smoke test of the yldot harness (AIUE-82): every family in both configurations and both flags, in forkserver and
 spawn mode; .uedgerc.py isolation; classified failures; collection separation (decision 15). An owner family's
-release assets, when present, are the files its manifest names (references/<family>.manifest.json); while they are
-all absent, conftest.py skips the family's tests (tools/fetch_data.py fetches them).
+release assets are the files its manifest names (references/<family>.manifest.json); conftest.py fetches them at the
+start of the session (tools/fetch_data.py's fetch) and fails a test that needs one still absent (AIUE-156).
 
 Hooks for the failure tests are module-level functions here, passed as 'yldot.test_smoke:<name>' and imported by
 the child. Planted .uedgerc.py files live only under tmp_path, never in ~, the repo or the real family directories.
@@ -89,12 +89,12 @@ def copy_family(tmp_path, family="d_only"):
 @pytest.mark.parametrize("family", [f for f in FAMILY_NAMES if mf.path(f).is_file()])
 def test_external_files(family):
     """A family's files under families/<family>/ in its manifest's external table are present with the manifest's
-    size and SHA-256: all absent is skipped by conftest.py (fetch them with tools/fetch_data.py); partly present or
-    different fails (owner, 2026-10-19)."""
+    size and SHA-256. conftest.py fetches absent ones at the start of the session and fails this test at setup if any
+    is still absent (AIUE-156); different fails here (owner, 2026-10-19)."""
     prefix = "families/{}/".format(family)
     files = {p: e for p, e in mf.load(family)["external"].items() if p.startswith(prefix)}
     missing = [p for p in files if not (SUITE / p).is_file()]
-    assert not missing, "{}: release assets partly present, missing {}".format(family, missing)
+    assert not missing, "{}: release assets missing: {}".format(family, missing)
     differ = ["{} ({} bytes)".format(p, (SUITE / p).stat().st_size) for p, e in files.items()
               if (SUITE / p).stat().st_size != e["bytes"] or file_sha256(SUITE / p) != e["sha256"]]
     assert not differ, "{}: size or SHA-256 differs from {} for {}".format(family, mf.path(family).name, differ)

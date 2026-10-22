@@ -24,8 +24,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5` and states are release
   assets of `yldot-data-v1`, gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner,
-  2026-10-21). While all of a family's assets are absent, `conftest.py` skips every test parametrised over it except
-  those marked `toml_only`; partly present or different files fail (`test_smoke.py::test_external_files`).
+  2026-10-21). `conftest.py` fetches every manifest's release assets at the start of the session
+  (`fetch_data.fetch`: download if absent, SHA-256 check, link; decision 23, owner 2026-10-22, AIUE-156); nothing
+  under `tests/yldot/` skips. If the fetch is impossible or `--yldot-no-fetch` is given, a test parametrised over a
+  family with absent `families/<f>/` assets fails at setup naming the cause, except those marked `toml_only`;
+  different files fail (`test_smoke.py::test_external_files`).
   The five small families also hold `sigma.h5`, the measured round-off spread σ_i per configuration (see
   Tolerances). Their reference files `references/<f>.h5` (the defaults, see Store) are release assets of
   `yldot-data-v2`, gitignored, named by `references/<f>.manifest.json` (AIUE-88); `fetch_data.py` fetches them.
@@ -74,7 +77,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   W and P from exmain/pandf repeats in fresh processes, the -1 → +1 → -1 flag sequence, steady +1 vs -1 with the
   `ishosor = 0` counterfactual, a reuse sequence in one process, child costs and the sweep estimate, as a TOML
   fragment; `check`: family.toml's W, P against W+1, P+1 and the flag rules; exit 4 = defect, 3 = owner);
-  `fetch_data.py` (`gh release download` of a manifest's `yldot-data-v<N>` assets into the gitignored `.data/<tag>/`,
+  `fetch_data.py` (plain HTTPS download of a manifest's `yldot-data-v<N>` assets, the release being public, with
+  `gh release download` as the fallback, into the gitignored `.data/<tag>/`,
   refusing any SHA-256 mismatch, then a relative symlink at each manifest path; `--check` verifies only);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves);
@@ -118,21 +122,23 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: 607 tests, 3 of them the owner families' `test_history` skips, in
-  about 350 s, serial build, Darwin arm64, 2026-10-22, AIUE-97; about 250 s of that
+- **Tests** (the whole suite, `-m "not nightly"`: 616 tests, none skipped, in about 355 s, serial build, Darwin
+  arm64, 2026-10-22, AIUE-156; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
   headline, and `test_timestep_exercised` (about 2 s); `tests/yldot/test_thresholds.py` the synthetic threshold test
   (PRD §7.11 b) of the full-vector, flag-difference and sketch comparators on the stored defaults, pure Python
-  (about 9 s). An absent reference file fails both through `open_store` (owner, 2026-10-22; policy AIUE-156);
+  (about 9 s). The session fetches absent reference files first; one still absent fails both through `open_store`
+  (decision 23, AIUE-156);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
-  `measure_history.py check` per family (about 3 s each) and the measured families' `[evaluation]` keys,
-  `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch known-answer
-  vector; fakes for `gh` and `git`),
+  `measure_history.py check` per family (about 3 s each) and the `[evaluation]` keys (measured, or the W = P = 2
+  placeholders), `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch
+  known-answer vector; fakes for `gh` and `git`), `tests/yldot/test_fetch_unit.py` `fetch_data.py`'s HTTPS download
+  and `gh` fallback (fakes, no network),
   `tests/yldot/test_build_flags.py` the build options' flags (about 2 s, no build),
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
   `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; its
