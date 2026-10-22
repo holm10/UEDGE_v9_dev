@@ -27,7 +27,7 @@ c-----------------------------------------------------------------------
       Use(Lsode)    # neq,jacflg,jpre,ipar,ismmaxuc,mmaxu
       Use(Solver_work_arrays)   # liw,lrw,iwork
       Use(Grid)     # inewton
-      Use(Interp)   # nxold,nyold
+      Use(Interp)   # nxold,nyold,isimesh
       Use(Decomp)   # ubw,lbw
       Use(Jacobian)     # neqp1,nnzmx
       Use(Jacreorder)   # ireorder
@@ -524,6 +524,7 @@ cc      endif
             nxold = nx
             nyold = ny
             call gchange("Interp",0)
+            if (ifexmain .eq. 0) isimesh = 1  # Python allocate(): the state to come is for this mesh (AIUE-141)
          endif
 
 c	  Allocate PNC_data group
