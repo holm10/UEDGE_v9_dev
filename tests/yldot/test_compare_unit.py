@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 
 from yldot.harness import FAMILIES
-from yldot.harness.compare import (PANDF_ORDER, RULE_FAMILY, RULE_OWN, RULE_REGION, UNORDERED, IndexTruthError,
-                                   ToleranceEscalation, check_regions, compare, first_difference, index_map,
-                                   region_cells, region_of, tolerances)
+from yldot.harness.compare import (PANDF_ORDER, REGIONS, RULE_FAMILY, RULE_OWN, RULE_REGION, UNORDERED,
+                                   IndexTruthError, ToleranceEscalation, check_regions, compare, first_difference,
+                                   index_map, region_cells, region_of, tolerances)
 
 NX, NY, NISP, NUSP, NGSP = 3, 2, 2, 1, 1
 SPEC = {"nx": NX, "ny": NY, "ix_inner_leg": [1, 1], "ix_core": [2, 2], "ix_outer_leg": [3, 3], "iy_closed": [1, 1],
@@ -158,18 +158,85 @@ def test_loop_range_from_bcl():
 # ---------------------------------------------------------------- regions
 
 
-@pytest.mark.parametrize("family", ["d_only", "d_mols", "ortho", "d_c", "slab_phi"])
+@pytest.mark.toml_only
+@pytest.mark.parametrize("family", ["d_only", "d_mols", "ortho", "d_c", "slab_phi", "large_dd2c", "dnull_imp2",
+                                    "imp7"])
 def test_family_regions_counts(family):
     spec = family_regions(family)
     check_regions(spec)
-    assert region_cells(spec) == {r: int(spec["cells"].get(r, 0)) for r in spec["cells"]}
+    assert region_cells(spec) == {r: int(spec["cells"].get(r, 0)) for r in REGIONS}
 
 
 def test_region_of_synthetic():
     assert [region_of(ix, 1, SPEC) for ix in range(5)] == ["guard", "pf", "core", "pf", "guard"]
     assert [region_of(ix, 2, SPEC) for ix in range(5)] == ["guard", "inner_leg", "sol", "outer_leg", "guard"]
     assert region_of(2, 0, SPEC) == region_of(2, 3, SPEC) == "guard"
-    assert region_cells(SPEC) == SPEC["cells"]
+    assert region_cells(SPEC) == {r: SPEC["cells"].get(r, 0) for r in REGIONS}
+
+
+# An upper-primary double null, nx = 14, ny = 6: half 1 is ix 0..7 (guard 7 = ixrb(1)+1), half 2 ix 8..15 (guard
+# 8 = ixlb(2)); upper separatrix iy = 2, lower iy = 4 (owner, 2026-10-21)
+DNULL = {"nx": 14, "ny": 6, "ix_lower_inner_leg": [1, 2], "ix_inner_core": [3, 4], "ix_upper_inner_leg": [5, 6],
+         "ix_upper_outer_leg": [9, 10], "ix_outer_core": [11, 12], "ix_lower_outer_leg": [13, 14],
+         "iy_closed": [1, 2], "iy_between": [3, 4], "iy_open": [5, 6],
+         "source": {"ixlb": [0, 8], "ixrb": [6, 14], "ixpt1": [2, 10], "ixpt2": [4, 12], "iysptrx1": [4, 2],
+                    "iysptrx2": [2, 4]},
+         "cells": {"guard": 56, "core": 8, "pf_upper": 8, "pf_lower": 16, "sol_between": 16, "sol": 8,
+                   "lower_inner_leg": 4, "upper_inner_leg": 4, "upper_outer_leg": 4, "lower_outer_leg": 4}}
+
+
+def dnull_grid(spec=DNULL):
+    g = {"nx": np.array(spec["nx"]), "ny": np.array(spec["ny"]), "mhdgeo": np.array(1), "nxpt": np.array(2)}
+    g.update({k: np.array(v) for k, v in spec["source"].items()})
+    return g
+
+
+def test_dnull_region_of_synthetic():
+    g, pl, pu, c, sb = "guard", "pf_lower", "pf_upper", "core", "sol_between"
+    closed = [g, pl, pl, c, c, pu, pu, g, g, pu, pu, c, c, pl, pl, g]
+    between = [g, pl, pl, sb, sb, sb, sb, g, g, sb, sb, sb, sb, pl, pl, g]
+    li, ui, uo, lo = "lower_inner_leg", "upper_inner_leg", "upper_outer_leg", "lower_outer_leg"
+    open_ = [g, li, li, "sol", "sol", ui, ui, g, g, uo, uo, "sol", "sol", lo, lo, g]
+    for iy, want in ((1, closed), (2, closed), (3, between), (4, between), (5, open_), (6, open_)):
+        assert [region_of(ix, iy, DNULL) for ix in range(16)] == want, iy
+    assert {region_of(ix, iy, DNULL) for ix in range(16) for iy in (0, 7)} == {"guard"}
+    assert region_cells(DNULL) == {r: DNULL["cells"].get(r, 0) for r in REGIONS}
+    check_regions(DNULL)
+    check_regions(DNULL, dnull_grid())
+
+
+def test_dnull_connected_has_no_band():
+    src = dict(DNULL["source"], iysptrx1=[3, 3], iysptrx2=[3, 3])
+    spec = dict(DNULL, source=src, iy_closed=[1, 3], iy_between=[], iy_open=[4, 6],
+                cells={"guard": 56, "core": 12, "pf_upper": 12, "pf_lower": 12, "sol": 12, "lower_inner_leg": 6,
+                       "upper_inner_leg": 6, "upper_outer_leg": 6, "lower_outer_leg": 6})
+    check_regions(spec, dnull_grid(spec))
+    assert region_cells(spec)["sol_between"] == 0
+    without = {k: v for k, v in spec.items() if k != "iy_between"}
+    with pytest.raises(IndexTruthError, match=r"\['iy_between'\] missing"):
+        check_regions(without)
+
+
+@pytest.mark.parametrize("key,value,word", [
+    ("ix_outer_core", [11, 13], "the owner's rule gives"),
+    ("iy_between", [3, 5], "the owner's rule gives"),
+    ("cells", dict(DNULL["cells"], guard=55), "differ from the recorded cells"),
+    ("source", dict(DNULL["source"], iysptrx1=[2, 4], iysptrx2=[4, 2]), "upper X-point primary"),
+    ("source", dict(DNULL["source"], iysptrx1=[4, 3]), "upper X-point primary"),
+    ("source", dict(DNULL["source"], ixlb=[1, 8]), "upper X-point primary")])
+def test_bad_dnull_regions_rejected(key, value, word):
+    with pytest.raises(IndexTruthError, match=word):
+        check_regions(dict(DNULL, **{key: value}))
+
+
+def test_dnull_regions_against_live_grid():
+    with pytest.raises(IndexTruthError, match="differ from the live grid"):
+        check_regions(DNULL, dict(dnull_grid(), ixlb=np.array([0, 9])))
+    with pytest.raises(IndexTruthError, match="mhdgeo = 1, nxpt = 1 but"):
+        check_regions(DNULL, dict(dnull_grid(), nxpt=np.array(1), iysptrx=np.array(2)))
+    with pytest.raises(IndexTruthError, match="mhdgeo = 1, nxpt = 2 but"):
+        check_regions(SPEC, dict(make_data()["grid"], nxpt=np.array(2), iysptrx1=np.array([1, 1]),
+                                 iysptrx2=np.array([1, 1])))
 
 
 @pytest.mark.parametrize("key,value,word", [("ix_core", [2, 3], "the owner's rule gives"),

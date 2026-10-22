@@ -12,8 +12,10 @@ is assumed anywhere. Limitation: igyl holds the cell only, so two equations' row
 valid bijection; the check sees every permutation that moves a row to another cell.
 
 Regions: the [regions] table of family.toml, confirmed by the epic owner per family (2026-10-20, AIUE-83 ticket
-page): guard, core, pf, inner_leg, sol, outer_leg. Guard rows are compared under the same rule as interior rows
-(decision 20).
+page): guard, core, pf, inner_leg, sol, outer_leg. A double null (nxpt = 2, owner, 2026-10-21, AIUE-91 ticket page)
+has one private-flux region per X-point, the band between the two separatrices and four legs instead: guard, core,
+pf_upper, pf_lower, sol_between, sol, lower_inner_leg, upper_inner_leg, upper_outer_leg, lower_outer_leg. Guard rows
+are compared under the same rule as interior rows (decision 20).
 
 Every failure that needs the epic owner raises IndexTruthError or ToleranceEscalation; nothing is masked.
 """
@@ -28,7 +30,11 @@ from .process import family_dir
 EQUATIONS = (("ni", "idxn", "isnionxy"), ("up", "idxu", "isuponxy"), ("te", "idxte", "isteonxy"),
              ("ti", "idxti", "istionxy"), ("ng", "idxg", "isngonxy"), ("tg", "idxtg", "istgonxy"),
              ("phi", "idxphi", "isphionxy"))
-REGIONS = ("guard", "core", "pf", "inner_leg", "sol", "outer_leg")
+REGIONS = ("guard", "core", "pf", "inner_leg", "sol", "outer_leg", "pf_upper", "pf_lower", "sol_between",
+           "lower_inner_leg", "upper_inner_leg", "upper_outer_leg", "lower_outer_leg")
+DNULL_SOURCE = {"ixlb", "ixrb", "ixpt1", "ixpt2", "iysptrx1", "iysptrx2"}  # one value per mesh half
+DNULL_IX = ("ix_lower_inner_leg", "ix_inner_core", "ix_upper_inner_leg", "ix_upper_outer_leg", "ix_outer_core",
+            "ix_lower_outer_leg")
 RULE_OWN, RULE_REGION, RULE_FAMILY = 0, 1, 2  # tol_i from sigma_i, the region floor, the eq/species fallback
 OWNER = "ask the epic owner (decision 23)"
 MAX_LISTED = 10
@@ -123,20 +129,48 @@ def span(r):
     return range(first, last + 1)
 
 
-def source_value(grid, key):
-    """The live grid value behind a [regions] source key."""
+def source_value(grid, key, dnull=False):
+    """The live grid value behind a [regions] source key; for a double null, the values of both mesh halves."""
+    if dnull:
+        return [int(v) for v in np.asarray(grid[key]).flat[:2]]
     getters = {"ixpt1": lambda g: g["ixpt1"].flat[0], "ixpt2": lambda g: g["ixpt2"].flat[0],
                "iysptrx": lambda g: g["iysptrx"], "nxcore": lambda g: g["nxcore"][0, 1],
                "nxleg": lambda g: g["nxleg"][0, 1], "nycore": lambda g: g["nycore"][0]}
     return int(getters[key](grid))
 
 
+def recorded_source(spec):
+    """The [regions] source values as ints (double null: a list of two per key)."""
+    return {k: [int(x) for x in v] if isinstance(v, list) else int(v) for k, v in spec["source"].items()}
+
+
+def is_dnull(spec):
+    return set(spec["source"]) == DNULL_SOURCE
+
+
 def derived_ranges(spec):
     """The ranges the owner's rule gives from the recorded source values (owner, 2026-10-20):
     mhdgeo = 1: inner leg 1..ixpt1, core ixpt1+1..ixpt2, outer leg ixpt2+1..nx; closed rows 1..iysptrx;
     slab half mesh (symmetry boundary at ix = 0, one leg): core 1..nxcore, outer leg nxcore+1..nxcore+nxleg;
-    closed rows 1..nycore."""
+    closed rows 1..nycore.
+    Double null (owner, 2026-10-21), upper X-point primary: half 1 (ixlb(1) = 0..ixrb(1)) runs from the lower inner
+    plate over ixpt1(1) (lower X-point) and ixpt2(1) (upper) to the upper inner plate, half 2 (ixlb(2)..ixrb(2)) from
+    the upper outer plate over ixpt1(2) (upper) and ixpt2(2) (lower) to the lower outer plate. Each leg and core side
+    is the interior between those cuts. Rows 1..su are closed (su = iysptrx2(1), the upper separatrix), su+1..sl lie
+    between the separatrices (sl = iysptrx1(1)), sl+1..ny are open."""
     src, nx, ny = spec["source"], int(spec["nx"]), int(spec["ny"])
+    if set(src) == DNULL_SOURCE:
+        s = recorded_source(spec)
+        lb, rb, p1, p2, y1, y2 = (s[k] for k in ("ixlb", "ixrb", "ixpt1", "ixpt2", "iysptrx1", "iysptrx2"))
+        su, sl = y2[0], y1[0]
+        if lb[0] != 0 or y1[1] != su or y2[1] != sl or su > sl:
+            raise IndexTruthError("[regions] double-null source {}: the rule needs ixlb(1) = 0, iysptrx1(2) = "
+                                  "iysptrx2(1) <= iysptrx1(1) = iysptrx2(2) (upper X-point primary); {}"
+                                  .format(s, OWNER))
+        return {"ix_lower_inner_leg": [lb[0] + 1, p1[0]], "ix_inner_core": [p1[0] + 1, p2[0]],
+                "ix_upper_inner_leg": [p2[0] + 1, rb[0]], "ix_upper_outer_leg": [lb[1] + 1, p1[1]],
+                "ix_outer_core": [p1[1] + 1, p2[1]], "ix_lower_outer_leg": [p2[1] + 1, rb[1]],
+                "iy_closed": [1, su], "iy_between": [su + 1, sl] if sl > su else [], "iy_open": [sl + 1, ny]}
     if set(src) == {"ixpt1", "ixpt2", "iysptrx"}:
         a, b, c = int(src["ixpt1"]), int(src["ixpt2"]), int(src["iysptrx"])
         return {"ix_inner_leg": [1, a], "ix_core": [a + 1, b], "ix_outer_leg": [b + 1, nx], "iy_closed": [1, c],
@@ -145,13 +179,44 @@ def derived_ranges(spec):
         a, b, c = int(src["nxcore"]), int(src["nxleg"]), int(src["nycore"])
         return {"ix_inner_leg": [], "ix_core": [1, a], "ix_outer_leg": [a + 1, a + b], "iy_closed": [1, c],
                 "iy_open": [c + 1, ny]}
-    raise IndexTruthError("[regions] source {} is neither (ixpt1, ixpt2, iysptrx) nor (nxcore, nxleg, nycore): {}"
-                          .format(sorted(src), OWNER))
+    raise IndexTruthError("[regions] source {} is neither (ixpt1, ixpt2, iysptrx), (nxcore, nxleg, nycore) nor {}: {}"
+                          .format(sorted(src), sorted(DNULL_SOURCE), OWNER))
+
+
+def guard_ix(spec):
+    """The guard columns: 0 and nx+1, and for a double null also the cut between the halves, ixrb(1)+1 and ixlb(2)
+    (owner, 2026-10-21)."""
+    nx = int(spec["nx"])
+    if is_dnull(spec):
+        s = spec["source"]
+        return {0, int(s["ixrb"][0]) + 1, int(s["ixlb"][1]), nx + 1}
+    return {0, nx + 1}
+
+
+def region_of_dnull(ix, iy, spec):
+    if iy in span(spec["iy_closed"]):
+        if ix in span(spec["ix_inner_core"]) or ix in span(spec["ix_outer_core"]):
+            return "core"
+        if ix in span(spec["ix_upper_inner_leg"]) or ix in span(spec["ix_upper_outer_leg"]):
+            return "pf_upper"
+        return "pf_lower"
+    if iy in span(spec["iy_between"]):
+        if ix in span(spec["ix_lower_inner_leg"]) or ix in span(spec["ix_lower_outer_leg"]):
+            return "pf_lower"
+        return "sol_between"
+    for leg in ("lower_inner_leg", "upper_inner_leg", "upper_outer_leg", "lower_outer_leg"):
+        if ix in span(spec["ix_" + leg]):
+            return leg
+    return "sol"
 
 
 def region_of(ix, iy, spec):
     """The region of cell (ix, iy) under a [regions] spec."""
     nx, ny = int(spec["nx"]), int(spec["ny"])
+    if is_dnull(spec):
+        if ix in guard_ix(spec) or iy in (0, ny + 1):
+            return "guard"
+        return region_of_dnull(ix, iy, spec)
     if ix in (0, nx + 1) or iy in (0, ny + 1):
         return "guard"
     if iy in span(spec["iy_closed"]):
@@ -178,15 +243,22 @@ def check_regions(spec, grid=None):
     interior, matches its recorded cell counts and, given the live grid, matches nx, ny and the source values."""
     errors = []
     nx, ny = int(spec["nx"]), int(spec["ny"])
-    for key, want in derived_ranges(spec).items():
+    derived = derived_ranges(spec)
+    missing = [key for key in derived if key not in spec]
+    if missing:
+        raise IndexTruthError("[regions]: {} missing for source {}; {}".format(missing, sorted(spec["source"]), OWNER))
+    for key, want in derived.items():
         if [int(v) for v in spec[key]] != want:
             errors.append("{} = {}, the owner's rule gives {} from source {}".format(key, spec[key], want,
                                                                                     spec["source"]))
-    ix_all = sorted(list(span(spec["ix_inner_leg"])) + list(span(spec["ix_core"])) + list(span(spec["ix_outer_leg"])))
-    if ix_all != list(range(1, nx + 1)):
-        errors.append("the ix ranges do not partition 1..{}".format(nx))
-    iy_all = sorted(list(span(spec["iy_closed"])) + list(span(spec["iy_open"])))
-    if iy_all != list(range(1, ny + 1)):
+    dnull = is_dnull(spec)
+    ix_keys = DNULL_IX if dnull else ("ix_inner_leg", "ix_core", "ix_outer_leg")
+    iy_keys = ("iy_closed", "iy_between", "iy_open") if dnull else ("iy_closed", "iy_open")
+    ix_interior = sorted(set(range(1, nx + 1)) - guard_ix(spec))
+    if sorted(i for k in ix_keys for i in span(spec[k])) != ix_interior:
+        errors.append("the ix ranges do not partition 1..{}{}".format(
+            nx, " without the guard columns {}".format(sorted(guard_ix(spec) - {0, nx + 1})) if dnull else ""))
+    if sorted(i for k in iy_keys for i in span(spec[k])) != list(range(1, ny + 1)):
         errors.append("the iy ranges do not partition 1..{}".format(ny))
     if not errors:
         counts = region_cells(spec)
@@ -194,15 +266,22 @@ def check_regions(spec, grid=None):
         if counts != recorded:
             errors.append("cell counts {} differ from the recorded cells {}".format(counts, recorded))
     if grid is not None:
+        live_dnull = int(grid["mhdgeo"]) == 1 and int(grid["nxpt"]) == 2
         live = {"nx": int(grid["nx"]), "ny": int(grid["ny"])}
-        live.update({k: source_value(grid, k) for k in spec["source"]})
+        if not dnull or live_dnull:
+            live.update({k: source_value(grid, k, dnull) for k in spec["source"]})
         rec = {"nx": nx, "ny": ny}
-        rec.update({k: int(v) for k, v in spec["source"].items()})
+        rec.update(recorded_source(spec))
         if live != rec:
             errors.append("recorded {} differ from the live grid {}".format(rec, live))
-        scheme = {"ixpt1", "ixpt2", "iysptrx"} if int(grid["mhdgeo"]) == 1 else {"nxcore", "nxleg", "nycore"}
+        if live_dnull:
+            scheme = DNULL_SOURCE
+        else:
+            scheme = {"ixpt1", "ixpt2", "iysptrx"} if int(grid["mhdgeo"]) == 1 else {"nxcore", "nxleg", "nycore"}
         if set(spec["source"]) != scheme:
-            errors.append("mhdgeo = {} but [regions] source is {}".format(int(grid["mhdgeo"]), sorted(spec["source"])))
+            errors.append("mhdgeo = {}{} but [regions] source is {}".format(
+                int(grid["mhdgeo"]), ", nxpt = {}".format(int(grid["nxpt"])) if int(grid["mhdgeo"]) == 1 else "",
+                sorted(spec["source"])))
         if scheme == {"nxcore", "nxleg", "nycore"} and (grid["nxcore"][0, 0] != 0 or grid["nxleg"][0, 0] != 0):
             errors.append("the half-mesh rule needs nxcore[0,0] = nxleg[0,0] = 0, the grid has {}, {}".format(
                 int(grid["nxcore"][0, 0]), int(grid["nxleg"][0, 0])))

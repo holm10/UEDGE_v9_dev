@@ -24,6 +24,14 @@ re-save that changes the source beyond round-off, or a written state that one mo
 The re-save also overwrites saved values that are not unknowns (e.g. ngs of a neutral solved as an ion
 species), so the floor guards run again on the re-saved base state.
 
+Inertial atoms (isupgon(1) = 1, every family; indices Fortran, 1-based). The hydrogenic atoms are ion
+species iigsp (ifld = 2 here, bbb/odesetup.m:918-919); ng(,,1) is a copy of ni(,,iigsp) (bbb/convert.m:282-284),
+and with istgon(1) = 0 tg(,,1) is set from ti. The perturbation is not specific to them, and works through
+the re-save (owner, 2026-10-22, AIUE-91: kept as is): (1) only the draw on nis(,,iigsp) counts, the re-save
+replaces the draw on ngs(,,1) by it; (2) nis(,,iigsp) is neither an impurity nor a gas density, so its only
+floor is the second guard, through the copy ngs(,,1) >= 0.1*ngbackg(1); (3) ups(,,iigsp) gets the same noise
+as the ions, sigma*sqrt((Te+Ti)/mi); (4) with istgon(1) = 0 the draw on tgs(,,1) is replaced by tis.
+
 Every UEDGE evaluation runs in a fresh child process (Forthon state is global), with HOME in an empty
 temporary directory, UEDGE_BANNER=0 and one thread. A family directory holding .uedgerc.py is refused,
 because import uedge would execute it. Exit codes: 0 ok, 2 usage or evaluation error, 3 a family the

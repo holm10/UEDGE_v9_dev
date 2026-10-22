@@ -1,0 +1,24 @@
+{
+  "external": {
+    "families/dnull_imp2/base_state.h5": {
+      "bytes": 288448,
+      "sha256": "825b8dd147f8096612a4799276c0505cf9b0d857b9d9207709d06d92bd53de6b"
+    },
+    "families/dnull_imp2/gridue.hdf5": {
+      "bytes": 1256904,
+      "sha256": "42bdea5489f03eff1038524f63f64a2288a19e1614ec54dad21edc23a26b58c1"
+    },
+    "families/dnull_imp2/inputs.h5": {
+      "bytes": 203304,
+      "sha256": "fd3e06a5cc782ed99f4d6c805c5ab2ac872e147da221d9912d78adb9aeab657e"
+    },
+    "families/dnull_imp2/reference_state.h5": {
+      "bytes": 288448,
+      "sha256": "b4b06592026a54dba04b57de1d16f5106db793d136e39e351dd8901c24daf7c4"
+    }
+  },
+  "family": "dnull_imp2",
+  "release": "yldot-data-v1",
+  "schema": 1,
+  "store": "sketch"
+}
