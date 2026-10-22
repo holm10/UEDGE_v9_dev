@@ -32,6 +32,11 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   (`rca`). **Work with no ticket record** (no Jira key, `--no-tracker`, or physics without a ticket) has no page: the
   review summary it would have had (each round's verdict, counts, one line per finding, the response) goes into the
   **PR description**, as does whatever else must outlive the worktree. The full working files are disposable.
+- **Raw data a later ticket must re-read** (measurement collections, build records) is not a working document.
+  Before the worktree is removed, copy it to `../uedge-wt/data/<KEY>/` (local, outside every worktree) or publish it
+  as a release asset, and record where it is on the ticket page and in a comment on the dependent ticket. AIUE-87's
+  collections, which AIUE-92's `measure_roundoff.py analyze --write` needs again, are kept in
+  `../uedge-wt/data/AIUE-87/` (AIUE-148).
 - **Epic documents** live on Confluence, under the PRD page: the PRD itself (the page is the source; `create-prd`
   keeps a local working copy), `PRD reviews: <EPIC>` (each review round summarised), `Spec: <epic> - Ticket
   Breakdown` (the breakdown, with each ticket's key and page id), `Progress: <EPIC>` (the progress log: dated,
@@ -131,6 +136,7 @@ pip install . -C "--build-option=--serial"
 - Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`. **Flush first**: the working
   folder `.claude/work/<KEY>/` and the `ticket-page` outbox go with the worktree, so run `ticket-page <KEY> flush`
   and check that nothing is queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list` prints nothing).
+  Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above).
 
 ## Improving the AI layer while doing ticket work
 
