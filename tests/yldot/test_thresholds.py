@@ -4,7 +4,8 @@ defaults, the comparators fail at 10 times their threshold and pass at 0.1 times
 off-by-one block, NaN compared as equal, a vector compared with itself, a tolerance mis-scaled by orders.
 
 Three comparators: the full-vector compare (yldot), the Jacobian-flag difference through Store.check (decision 27)
-and the sketch comparator, its sketches built from the stored default. Pure Python: no evaluation, no uedge import;
+and the sketch comparator, its sketches built from the stored default. Pure Python: no evaluation, and only the
+yldot harness's comparator and store modules, which never import uedge at module level;
 it reads the reference files (fetch them with tools/fetch_data.py; an absent one fails, AIUE-156). The large family's
 single-entry sketch check is AIUE-92's; the locality comparator is AIUE-100's.
 
