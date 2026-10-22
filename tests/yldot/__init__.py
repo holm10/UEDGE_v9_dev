@@ -2,7 +2,8 @@
 
 Run it as `pytest tests/yldot`, never `pytest tests/`: tests/deterministic_omp is a separate suite with its own
 top-level `harness` package (decision 15). This file makes the suite the package `yldot`, so its harness is
-`yldot.harness` and the two never clash. Needs Python >= 3.11 (tomllib; CI runs 3.11) and h5py.
+`yldot.harness` and the two never clash. Needs Python >= 3.11 (tomllib; CI runs 3.11), h5py and setuptools
+(test_build_flags.py; a venv of Python >= 3.12 has no setuptools until it is installed).
 
 The environment is pinned here, before anything imports numpy or uedge: no PyPI version check on import
 (src/uedge/_banner.py:42) and one thread for OpenMP and BLAS.
