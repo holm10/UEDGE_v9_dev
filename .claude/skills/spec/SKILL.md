@@ -39,7 +39,8 @@ Below, **the epic key** means the key from `$1` (case 3) or `$2`, whichever was 
 
 Flags (anywhere in the arguments):
 - `--pages-only`: the epic is already sliced and filed. Skip Steps 2-5 and the issue creation in Step 6; read the
-  breakdown page (`Spec: <epic name> - Ticket Breakdown` under the PRD, `getConfluencePage` in markdown, saved) and
+  breakdown page (`Spec: <epic name> - Ticket Breakdown` under the PRD, with `fetch` as in `ticket-page` step 3.1,
+  saved: its `metadata.version` is the version Step 6b cites) and
   run Step 6b (ticket pages) for every child of the epic. Use it to give an existing epic's tickets their pages, or
   after a run whose page step failed partway. Here an epic with no PRD page is not a stop (Step 1): Step 6b uses the
   Jira fallback. Without a breakdown page, each ticket's scope comes from its Jira description. It never republishes
@@ -163,7 +164,7 @@ is found as in Step 1, publish the breakdown as a **child page of the PRD**:
    - `parentId` = the PRD page id (so it nests under the PRD)
    - `title` = `Spec: <epic name> - Ticket Breakdown`
    - `body` = the same markdown you wrote in Step 4
-   If one already exists, call `mcp__atlassian__updateConfluencePage` instead, incrementing its version.
+   If one already exists, call `mcp__atlassian__updateConfluencePage` instead (Confluence bumps the version).
 4. Report the resulting page id and URL back to the user.
 5. **The epic's progress page.** If the PRD has no child `Progress: <EPIC>` yet (CQL `type = page AND parent = <PRD
    id> AND title = "Progress: <EPIC>"`), create it: `ticket_page.py progress --new --meta <scratch>/meta.json --repo
@@ -252,7 +253,8 @@ existing child is a **backfill**: it is marked as one and claims nothing about t
    - Ticket section from the breakdown: `ticket_page.py ticket --repo <checkout> --key <KEY> --breakdown
      <.claude/work/<EPIC>/breakdown.md, or with --pages-only the saved breakdown page> --source "the epic breakdown
      page \`<title>\` (Confluence page <id>, <as published by this spec run | version <N> as read>)" [--backfill]
-     --out <scratch>/<KEY>.md` (the working copy carries the keys Step 6.6 publishes, so name no version for it).
+     --out <scratch>/<KEY>.md` (the working copy carries the keys Step 6.6 publishes, so name no version for it; for
+     the page, `N` is the saved fetch's `metadata.version`).
      Exit 3 (no entry for the key, or no breakdown page) → the Jira
      description (`--text`, `--source "the Jira description of <KEY>"`); exit 2 (several entries match) → the Jira
      description too, and report it.

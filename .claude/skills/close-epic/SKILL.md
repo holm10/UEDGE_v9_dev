@@ -60,9 +60,9 @@ the owner a draft of an epic still in progress. In a dry run:
 
 - **No external writes.** The only Atlassian calls allowed are reads: `getAccessibleAtlassianResources`,
   `getJiraIssue`, `searchJiraIssuesUsingJql`, `getTransitionsForJiraIssue`, `getConfluencePage`,
-  `getConfluencePageDescendants`, `getConfluencePageFooterComments`, `getConfluencePageInlineComments`,
-  `getConfluenceCommentChildren`, `searchConfluenceUsingCql`, `getConfluenceSpaces`. Any other Atlassian tool is
-  forbidden, in particular `createConfluencePage`, `updateConfluencePage`, `addCommentToJiraIssue`,
+  `getConfluencePageDescendants`, `fetch` (a Confluence page read), `getConfluencePageFooterComments`,
+  `getConfluencePageInlineComments`, `getConfluenceCommentChildren`, `searchConfluenceUsingCql`,
+  `getConfluenceSpaces`. Any other Atlassian tool is forbidden, in particular `createConfluencePage`, `updateConfluencePage`, `addCommentToJiraIssue`,
   `transitionJiraIssue`, `editJiraIssue`, `createJiraIssue` and every comment-creating tool.
 - **No repo writes.** No file in any worktree is created or changed (not even in `.claude/work/`), nothing is staged
   or committed. `git fetch` is
@@ -90,7 +90,7 @@ fields you use (no paraphrase; avatar and `self` URLs may be dropped):
 | `jira-children.json` | every child: key, summary, type, status and status category, resolution, created, updated |
 | `jira-comments.md` | every child comment used: issue key, comment id, created, body verbatim (markdown avoids JSON-escaping long bodies) |
 | `jira-transitions.json` | the epic's transitions (id, name, target status category) |
-| `confluence-pages.json` | PRD, `PRD reviews: <EPIC>`, breakdown, `Progress: <EPIC>`, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number, version message, createdAt / lastModified |
+| `confluence-pages.json` | PRD, `PRD reviews: <EPIC>`, breakdown, `Progress: <EPIC>`, the `Ticket plans: <EPIC>` container and its ticket pages (and any existing close-out page): id, title, spaceId, parentId, version number (`fetch`'s `metadata.version`), version message where a read returns one, createdAt / lastModified (from the parent's listing; the saved listings go next to this file) |
 | `confluence-ticket-pages.md` | per ticket page: page id, version, and the header, the Ticket section (scope as filed by `spec`, absent on pages made before `spec` created them) and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). The Plan section is left out unless a criterion depends on it (then quote the part used): record the publish date and sha256 the header cites (older pages cite a plan commit instead) |
 | `confluence-prd.md`, `confluence-prd-reviews.md`, `confluence-breakdown.md`, `confluence-progress.md` | the page bodies as read (each page is the only copy: there is no repo copy to compare with) |
 | `confluence-comments.json` | footer and inline comments (open and resolved, with replies) on those pages, or `[]` |
@@ -126,23 +126,29 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
 
 **Confluence.**
 
+**Versions and times.** Read every page body with `fetch` (`id`: `ari:cloud:confluence:<cloudId>:page/<page id>`,
+saved): its `text` is the page as markdown and its `metadata.version` the version. Take each child page's
+`lastModified` from a `getConfluencePageDescendants` listing of its parent (`depth: 1`, `limit: 100`, following
+`_links.next`; saved). Never take a version from `getConfluencePage` or `searchConfluenceUsingCql`: both switch
+between a response shape with a version and one without (`ticket-page` step 3.1, AIUE-143).
+
 1. Find the PRD: `mcp__atlassian__searchConfluenceUsingCql` with `type = page AND title ~ "PRD: <EPIC-KEY>"`. Keep
    only titles that are exactly `PRD: <EPIC-KEY>` or start with `PRD: <EPIC-KEY> - `, so `AIUE-8` does not match
    `AIUE-80`. If none, fall back to the epic comment `PRD: ... (Confluence page id ...)` that `create-prd` posts.
    No PRD at all → continue, but Step 3 can only use the breakdown and the tickets' own acceptance criteria; say so.
-2. `getConfluencePage` on the PRD (`contentFormat: "markdown"`). The page is the PRD (as in `spec`; a legacy
+2. `fetch` on the PRD. The page is the PRD (as in `spec`; a legacy
    planning branch's copy, if any, is history only). Extract: the success criteria (section 11),
    the binding decisions and assumptions (appendix), the default-results statement (section 9), the out-of-scope
    list, the review history, and the MINORs the PRD carried to the tickets.
 3. `getConfluencePageDescendants` on the PRD → the breakdown page (`Spec: ... - Ticket Breakdown`), `PRD reviews:
    <EPIC-KEY>`, `Progress: <EPIC-KEY>`, the `Ticket plans: <EPIC-KEY>` container (exact titles) and any existing
-   `Close-out: <EPIC-KEY>` page (same exact-prefix rule). `getConfluencePage` on the breakdown, the reviews page and
+   `Close-out: <EPIC-KEY>` page (same exact-prefix rule). `fetch` on the breakdown, the reviews page and
    the progress page. The progress page is usually the best narrative source; read all of it, including every
    "owner decisions" list and every owner follow-up section.
-4. **Ticket pages** (written by the `ticket-page` skill): `searchConfluenceUsingCql` with `type = page AND parent =
-   <container id>`, following `next` until every child is listed → one `Plan: <KEY> - …` page per ticket, created by
+4. **Ticket pages** (written by the `ticket-page` skill): `getConfluencePageDescendants` on the container, following
+   `_links.next` until every child is listed → one `Plan: <KEY> - …` page per ticket, created by
    `spec` when the ticket was filed (or by `plan-feature` for a ticket filed otherwise), mirroring its plan, or its RCA
-   for an `implement-fix` ticket. `getConfluencePage` (`contentFormat: "markdown"`) on each. A Plan section that is
+   for an `implement-fix` ticket. `fetch` on each. A Plan section that is
    still the placeholder means only "plan not mirrored": never infer "never planned" from it. On a page with a
    `**Backfilled:**` header field (made after the ticket was filed), or for a ticket whose Jira status is beyond To
    Do, look for a plan in the ticket's Jira comments and, for legacy tickets, committed on its branch, and write
@@ -433,7 +439,10 @@ recorded owner answers pass a self-check: every open item in section 8 has an an
 or keep open); for "Closed by the owner", accepted + deferred = n and no item is kept open; every decision credited to
 the owner was confirmed in Step 6. If the check fails, fix the record or go back to Step 6. And the
 sources haven't moved: compare the ticket tips (and a legacy planning tip), the prototype worktrees, each Jira issue's
-`updated` and each page's version with the snapshot. This is the only freshness check on Jira and Confluence: the
+`updated` and each page with the snapshot: the child pages' `lastModified` in fresh `getConfluencePageDescendants`
+listings of the PRD and the `Ticket plans` container (and of the container of any moved-in ticket page), against the
+saved listings, and the
+PRD's `metadata.version` in a fresh `fetch`. This is the only freshness check on Jira and Confluence: the
 reviewer can't query them. If anything changed, re-gather what moved, update the record and the snapshot, and go
 back through Step 5.
 
