@@ -16,7 +16,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
 
 - **Families** `tests/yldot/families/<f>/`: `input.py` in normal form (it never loads a state), the grid,
   `reference_state.h5`, a seeded perturbed `base_state.h5` and `family.toml` (provenance, convergence norms, σ, seed,
-  floors, `[evaluation]` W/P/timeout/Δt placeholders, owner-confirmed `[regions]`); the rate files once in `data/`.
+  floors, `[evaluation]` W/P/timeout/Δt, owner-confirmed `[regions]`); the rate files once in `data/`. A measured
+  family (AIUE-86) has W = P = 1, `child_reuse = false` (owner: one fresh child per evaluation; d_mols' `input.py`
+  cannot run twice in one process) and a `[history]` table; an unmeasured one keeps the 2/2 placeholders.
   Both states are round-trip fixed points: re-saved after one `exmain`, so a further `exmain` changes no saved entry
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
@@ -35,11 +37,15 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   explicit values, bounds, phase and configuration, each with a reason.
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
   re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
-  scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag).
+  scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
+  W and P from exmain/pandf repeats in fresh processes, the -1 → +1 → -1 flag sequence, steady +1 vs -1 with the
+  `ishosor = 0` counterfactual, a reuse sequence in one process, child costs and the sweep estimate, as a TOML
+  fragment; `check`: family.toml's W, P against W+1, P+1 and the flag rules; exit 4 = defect, 3 = owner).
 - **Tests**: `tests/yldot/test_smoke.py` the smoke test (about 15 s), `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
-  `tests/yldot/test_states.py` both states of every family are round-trip fixed points.
+  `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
+  `measure_history.py check` per family (about 3 s each) and the measured families' `[evaluation]` keys.
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
