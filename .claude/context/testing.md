@@ -54,13 +54,24 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   refusing any SHA-256 mismatch, then a relative symlink at each manifest path; `--check` verifies only);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves).
+- **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
+  without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and
+  `build.run` stubbed; `argv` as pip passes `-C "--build-option=--<opt>"`) and records the `--fargs`/`--cargs` strings,
+  `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, and the uedgeC link and compile
+  arguments and macros; it needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
+  reaches Forthon's real `FCompiler` and its own flags, `-g`/`-t`/`-F`, `--noclean`, `--parallel`, PETSc.
+  `tests/yldot/test_build_flags.py` pins that table (27 cases: the default, `--serial`, `--debug`, `--checkbounds`,
+  `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
+  `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
+  intended flag change updates its `EXPECTED`, with the reason in the PR.
 - **Tests**: `tests/yldot/test_smoke.py` the smoke test (about 15 s), `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
   `measure_history.py check` per family (about 3 s each) and the measured families' `[evaluation]` keys,
   `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch known-answer
-  vector; fakes for `gh` and `git`).
+  vector; fakes for `gh` and `git`),
+  `tests/yldot/test_build_flags.py` the build options' flags (about 2 s, no build).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
