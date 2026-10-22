@@ -193,7 +193,8 @@ def validate(m):
             if not (isinstance(d, dict) and all(isinstance(s, str) and SHA_RE.match(s) for s in d.values())):
                 errors.append("{} must map names to 64-hex SHA-256s".format(key))
         prov = m.get("provenance", {})
-        if not (isinstance(prov, dict) and set(prov) == set(PROVENANCE) and all(isinstance(v, str) for v in prov.values())):
+        if not (isinstance(prov, dict) and set(prov) == set(PROVENANCE)
+                and all(isinstance(v, str) for v in prov.values())):
             errors.append("provenance must hold exactly {} as strings".format(list(PROVENANCE)))
         variables = m.get("variables", {})
         if not isinstance(variables, dict):

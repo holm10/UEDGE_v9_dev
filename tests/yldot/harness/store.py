@@ -352,8 +352,8 @@ class Store:
         unknown = sorted("{}.{}: {}".format(vid, key, label) for vid, v in manifest.get("variables", {}).items()
                          for key in ("block_l2", "jflag_block_l2") for label in v[key] if label not in self.labels)
         if unknown:
-            raise StoreIntegrityError("{}: block labels of the manifest's variables are not blocks of the store: {}".format(
-                self.path, listed(unknown)))
+            raise StoreIntegrityError("{}: block labels of the manifest's variables are not blocks of the store: "
+                                      "{}".format(self.path, listed(unknown)))
 
     def close(self):
         self.f.close()
@@ -516,7 +516,8 @@ def check_derived(m, path):
 
 def open_store(family, suite=mf.SUITE, regions=None):
     """The family's reference file, checked against references/<family>.manifest.json: the file's SHA-256, its
-    datasets, root attributes and blocks, and the manifest's derived fields. regions: the [regions] spec (default: the family's family.toml)."""
+    datasets, root attributes and blocks, and the manifest's derived fields. regions: the [regions] spec (default:
+    the family's family.toml)."""
     import h5py
 
     m = mf.load(family, suite)
