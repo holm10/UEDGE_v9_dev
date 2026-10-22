@@ -34,7 +34,8 @@ from .variants import CONFIGS
 FAMILIES = Path(__file__).resolve().parent.parent / "families"
 INTAKE = "intake"  # the intake residual check (PRD section 7.1), not a reference configuration
 START_METHODS = ("forkserver", "spawn")
-# family.toml [evaluation] fallbacks: placeholders (owner, 2026-10-19) until AIUE-86 measures W, P and timeouts
+# family.toml [evaluation] fallbacks for a family not measured yet (placeholders, owner, 2026-10-19): AIUE-86
+# measured W and P of the five small families (tools/measure_history.py), AIUE-92 measures the owner families
 EVALUATION_DEFAULTS = {"w": 2, "p": 2, "timeout_s": 120.0, "dt_timestep_s": 1e-6}
 START_ENV = {"UEDGE_BANNER": "0", "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
              "GFORTRAN_UNBUFFERED_PRECONNECTED": "y"}  # the last one: Fortran output reaches the log before a crash

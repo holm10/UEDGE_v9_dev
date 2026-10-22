@@ -1,5 +1,5 @@
 # yldot suite family (epic AIUE-9, PRD section 4/6/7.1). Written by AIUE-81; later tickets add their keys:
-# [evaluation] placeholders: AIUE-82 · W, P, child reuse measured: AIUE-86 · [regions], guard cells: AIUE-83 · round-trip re-save: AIUE-140
+# [evaluation] placeholders: AIUE-82 · W, P, child reuse, [history]: AIUE-86 · [regions], guard cells: AIUE-83 · round-trip re-save: AIUE-140
 
 [family]
 name = "slab_phi"
@@ -52,11 +52,30 @@ roundtrip_changes_source = { nis = 0, ups = 41, tes = 86, tis = 78, phis = 0, ng
 flalfe_qr_ge_1_reference = 81
 flalfe_qr_ge_1_base = 83
 
-[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-86 measures them
-w = 2  # exmain warm-up count, PRD section 6 step 5
-p = 2  # pandf repeats, steps 8 and 8b
+[evaluation]  # measured (AIUE-86, [history]); owner, 2026-10-21: W = P = 1, no child reuse
+w = 1  # exmain warm-up count, PRD section 6 step 5
+p = 1  # pandf repeats, steps 8 and 8b
+child_reuse = false  # one fresh child per evaluation (owner, 2026-10-21, AIUE-86)
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[history]  # tools/measure_history.py run (AIUE-86): rows that differ bit for bit, yldot plus yldot_J
+measured = "2026-10-21"
+build = "base-7c02d8d-serial"  # origin/v9-develop 7c02d8d, --serial, one thread, Darwin arm64
+uedge_ver = "8.1.2-beta.0"
+w_sweep = { steady = [0, 0], timestep = [0, 0] }  # exmain x 1 vs 2, 2 vs 3, each in a fresh process (p = 1)
+p_sweep = { steady = [0, 0], timestep = [0, 0] }  # pandf x 1 vs 2, 2 vs 3 (w = 1)
+control_two_processes = { steady = 0, timestep = 0 }  # w = p = 1 in two processes
+flag_sequence = { steady = 0, timestep = 0 }  # one more pandf at -1 and at +1 after step 8b, same process
+steady_plus_minus_rows = 0  # steady yldot_J vs yldot
+gated_rows = 0  # of those, removed by ishosor = 0 (the only flag-gated branch active in steady)
+flags = { ishosor = 0, ismcnon = 0 }
+reuse = "bit-identical: steady, steady, timestep, steady, intake, steady"  # one process; report only
+child_wall_s = { steady = 0.0903, timestep = 0.0995 }  # one Runner child (forkserver), median of 5
+eval_in_child_s = { steady = 0.0699, timestep = 0.075 }  # the protocol inside the child, input.py included
+pandf_s = 7.75e-04  # one pandf, median of 5
+n_variants = { steady = 983, timestep = 9 }  # variants.plan(), not excluded
+sweep_cpu_s = 90  # n_variants x child_wall_s
 
 [regions]  # owner, 2026-10-20 (AIUE-83 ticket page): mhdgeo = -1, so geometry does not apply; the mesh comes from
            # nxcore/nxleg: a half mesh with a reflective (symmetry) boundary at ix = 0 and one divertor leg, core/SOL
