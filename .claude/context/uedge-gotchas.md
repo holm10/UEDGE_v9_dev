@@ -2,7 +2,8 @@
 
 Behaviour that is intended (or at least not a defect to ticket) but has cost a ticket time because a model or a person
 assumed otherwise. The Confluence page `UEDGE gotchas` (SD space, page 9437185) is the copy for people. Add a new
-by-design trap to both, on a `feature/v9-ai-*` branch (owner, 2026-10-21). Traps that can bite in any session (the MPPL
+by-design trap of UEDGE itself to both, on a `feature/v9-ai-*` branch (owner, 2026-10-21); a trap of the repo's test
+tooling (Test tooling, below) is recorded here only (owner, 2026-10-22). Traps that can bite in any session (the MPPL
 converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
 
 ## Running UEDGE from Python
