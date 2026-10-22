@@ -391,6 +391,29 @@ def test_manifest_round_trip(tmp_path):
     assert mf.asset_name("families/large_dd2c/base_state.h5") == "families--large_dd2c--base_state.h5"
 
 
+def test_manifest_puts_encoded_data_on_one_line(tmp_path):
+    """Owner, 2026-10-22 (AIUE-94 D9): each encoded value's data list on one line, the rest indented and sorted;
+    json.loads gives the manifest back."""
+    m = build(tmp_path, "full")
+    e = m["variables"]["bbb.cfvisx"]
+    e["applied"] = {"dtype": "float64", "shape": [3, 100], "data": [0.1 * i for i in range(300)]}
+    e["d"] = {"dtype": "int64", "shape": [], "data": [7]}
+    text = mf.dumps(m)
+    assert json.loads(text) == m
+    plain = json.dumps(m, indent=2, sort_keys=True) + "\n"
+    assert plain.count("\n") - text.count("\n") == (300 + 1) + (1 + 1)  # the line breaks inside both data lists
+    lines = text.splitlines()
+    data = [s for s in lines if s.lstrip().startswith('"data": ')]
+    assert data == ['        "data": {},'.format(json.dumps(e["applied"]["data"])), '        "data": [7],']
+    assert '          3,' in lines and '          100' in lines  # shape stays one element per line
+    assert len(text) < 0.8 * len(plain)
+    mf.dump(m, mf.path("fam", tmp_path))
+    assert mf.load("fam", tmp_path) == m
+    # without encoded values it is json.dumps(indent=2, sort_keys=True), empty containers and odd strings included
+    other = {"b": [], "a": {}, "c": [{"z": None, "y": [1.5, True, "\x00é\"x"]}], "d": {"data": [1, 2]}}
+    assert mf.dumps(other) == json.dumps(other, indent=2, sort_keys=True) + "\n"
+
+
 def test_external_only_manifest_is_valid():
     mf.validate({"schema": 1, "family": "imp7", "store": "sketch", "release": TAG,
                  "external": {"families/imp7/gridue.hdf5": {"sha256": "a" * 64, "bytes": 10}}})

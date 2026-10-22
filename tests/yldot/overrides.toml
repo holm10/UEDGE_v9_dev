@@ -212,3 +212,7 @@ reason = "suspected memory error (AIUE-159): non-finite yldot in d_c, d_mols, d_
 ["bbb.ishymol"]
 exclude = true
 reason = "suspected uninitialized read (AIUE-160): ishymol = 0 with nhgsp = 2 (d_mols) gives build-dependent yldot, 5e16 x tol between builds; owner 2026-10-22"
+
+["bbb.ziin"]
+exclude = true
+reason = "suspected memory error (AIUE-161): d_only yldot differs O(1) between same-commit builds (Linux max|yldot| 4.27e26, both macOS builds 3.00e26, 4e30 x tol), stable within a build; error in d_c, ortho, slab_phi; owner 2026-10-22"
