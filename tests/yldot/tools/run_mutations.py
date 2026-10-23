@@ -807,7 +807,8 @@ def run(args, run=mr.run, stream=mr.stream):
     stores = store_facts(families)
     ms = load_set(args.mutation or None, stores)
     sha = mr.resolve(args.from_commit, root, run)
-    mr.check_tree(sha, root, families, run)
+    owner = mr.owner_assets(families, SUITE)  # the owner families' release assets, checked: let through (AIUE-92)
+    mr.check_tree(sha, root, families, run, {"tests/yldot/" + p for a in owner.values() for p in a})
     rc = stream([sys.executable, str(Path(__file__).resolve().parent / "fetch_data.py"), "--check"] + families)
     if rc != 0:
         raise Stop(1, "the reference files are not all present: run tests/yldot/tools/fetch_data.py {}".format(
