@@ -31,7 +31,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   different files fail (`test_smoke.py::test_external_files`).
   The five small families also hold `sigma.h5`, the measured round-off spread σ_i per configuration (see
   Tolerances). Their reference files `references/<f>.h5` (the defaults and the SENSITIVE variants, see Store) are
-  release assets of `yldot-data-v3`, gitignored, named by `references/<f>.manifest.json`, which also classifies
+  release assets of the release their manifest names (`yldot-data-v5` since AIUE-159), gitignored, named by
+  `references/<f>.manifest.json`, which also classifies
   every variant (AIUE-88, AIUE-94); `fetch_data.py` fetches them.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
@@ -138,8 +139,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
   own python and checks it under that rule (exit 3 = owner); on the yldot-data-v3 references mac-noopt passes every
   family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
-  `com.isnonog`, EXCLUDED as family-level since AIUE-159, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
-  design); `collect` and `check` do the same on the seeded sample against the serial pairs.
+  `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
+  design); on yldot-data-v5, where `com.isnonog` is EXCLUDED as family-level (AIUE-159), mac-serial fails the other
+  two (d_c `bbb.mvolcur` 1.74 ×, slab_phi `bbb.icnucx` 3.07 ×); `collect` and `check` do the same on the seeded sample against the serial pairs.
   `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
   baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
   miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
