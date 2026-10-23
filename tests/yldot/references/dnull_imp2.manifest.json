@@ -106,9 +106,9 @@
     "timestep/sketch_threshold": "df689a643df92ab12859e006bd1a635894a9a138b3fbf4a25544973091b1d1f9"
   },
   "provenance": {
-    "commit": "9081a4f7099ae706123ee1323b67c4e1b84a1cfa",
+    "commit": "17455309389412afe8279edd588551f54644cf5f",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T19:46:37+00:00",
+    "date": "2026-10-23T22:02:28+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
