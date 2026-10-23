@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from harness import cli  # noqa: E402
 from harness.compare import (compare_records, describe_iv, matrix_mismatch, summarize_matrix,  # noqa: E402
                              vector_mismatch)
-from harness.config import PRESETS, RunSpec, apply_preset  # noqa: E402
+from harness.config import NEWTON_FTOL, NEWTON_STPTOL, PRESETS, RunSpec, apply_preset, force_newton  # noqa: E402
 from harness.runner import HarnessError, parse_iterations, prepare_rundir  # noqa: E402
 
 
@@ -197,6 +197,17 @@ def test_apply_preset_tebox():
     assert bbb.isteon == 1 and bbb.istion == 0 and bbb.isphiofft == 1
     assert bbb.isteoffxy.sum() == 10 * 30 - 25 and bbb.isteoffxy[3:8, 18:23].sum() == 0
     assert set(PRESETS) >= {"full", "tebox", "te", "ti", "ni", "up", "ng", "te_phi"}
+
+
+def test_force_newton_sets_itermx_and_both_tolerances():
+    class Bbb:
+        itermx, ftol, stptol = 30, 1e-8, 3.67e-11  # the deck's values after an exmain
+
+    bbb = Bbb()
+    force_newton(bbb, 3)
+    assert bbb.itermx == 3 and bbb.ftol == NEWTON_FTOL and bbb.stptol == NEWTON_STPTOL
+    # positive (0 selects nksol's defaults) and far below the fnrm and step noise floor
+    assert 0 < NEWTON_FTOL < 1e-15 and 0 < NEWTON_STPTOL < 1e-15
 
 
 def test_missing_case_file_is_harness_error(tmp_path, monkeypatch):

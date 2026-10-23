@@ -157,8 +157,12 @@ def test_too_few_newton_iterations_in_the_serial_reference_is_exit_2(tmp_path, c
     rd.mkdir(parents=True)
     (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": 0}, {"iter": 1}]}))
     assert report.main([a]) == 2
-    assert "made 1 Newton iteration(s), fewer than --itermx 3" in capsys.readouterr().out
-    (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": k} for k in range(4)]}))
+    assert "made 1 Newton iteration(s), fewer than --itermx 3\n" in capsys.readouterr().out
+    # a record that says why nksol stopped (AIUE-169) gets it in the message
+    (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": 0}], "iterm": 3}))
+    assert report.main([a]) == 2
+    assert "made 0 Newton iteration(s), fewer than --itermx 3 (nksol iterm=3)" in capsys.readouterr().out
+    (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": k} for k in range(4)], "iterm": 4}))
     assert report.main([a]) == 0
 
 

@@ -15,8 +15,9 @@ Differences from the test, none of which changes a number:
     write_data, when the reference solution.h5 is made, so the stored solution is used as it is.
 
 With spec "itermx": N (an iterating case, not part of the test), the final exmain instead runs
-N Newton iterations at the ftol input.py left (bbb.ftol before the test's ftol=1e20), so that
-psetnk, the preconditioner, the Krylov solve and the line search run too.
+exactly N Newton iterations, with ftol and stptol forced far below the noise floor
+(config.force_newton, AIUE-169), so that psetnk, the preconditioner, the Krylov solve and the line
+search run too, however converged the stored solution is.
 
 Writes record.npz / record.json in the format of worker.py, so that compare.compare_records
 works on them (spec carries preset "pytests:<case>", arm "serial", threads 1). With the AIUE-47 hook in the build, every raw Jacobian of the final exmain
@@ -34,7 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))  # tests/deterministic_omp, for "harness"
 sys.path.insert(0, os.getcwd())  # the run directory, as conftest.py's chdir gives the test
 
-from harness.config import ARMS, DIAGNOSTIC_SWITCHES  # noqa: E402
+from harness.config import ARMS, DIAGNOSTIC_SWITCHES, force_newton  # noqa: E402
 from harness.worker import (build_identity, collect_capture, equation_map, git_state, has_capture_hook,  # noqa: E402
                             start_capture)
 
@@ -70,7 +71,6 @@ def run(spec):
     for name, value in ARMS["serial"].items():
         setattr(ppp, name, value)
     ppp.Nthreads = 1
-    ftol_deck = float(bbb.ftol)
     bbb.issfon = 1
     bbb.ftol = 1e20
     bbb.exmain()  # the test's first exmain ("fnrm still changes after 1 exmain, but not after 2")
@@ -84,8 +84,7 @@ def run(spec):
             _setdata(var, group[var][()])
     itermx = spec.get("itermx")
     if itermx:
-        bbb.ftol = ftol_deck
-        bbb.itermx = int(itermx)
+        force_newton(bbb, int(itermx))
     slots = int(spec.get("capture", 16))
     hook = has_capture_hook(bbb) and slots > 0
     if hook:
@@ -118,6 +117,8 @@ def run(spec):
         "ijactot": int(bbb.ijactot),
         "capture": capture,
         "ftol": float(bbb.ftol),
+        "stptol": float(bbb.stptol),
+        "iterm": int(bbb.iterm),  # as worker.run: why nksol stopped; informational
         "post_exmain_from": last,
         "post_exmain_permuted": last == "psetnk" and int(bbb.ireorder) == 1,
     }

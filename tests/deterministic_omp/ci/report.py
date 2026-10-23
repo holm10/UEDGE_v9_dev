@@ -286,13 +286,16 @@ def iteration_problems(path, flow):
         seen.add(rundir)
         try:
             with open(os.path.join(path, rundir, "record.json")) as f:
-                its = json.load(f).get("iterations", [])
+                record = json.load(f)
         except (OSError, ValueError):
             continue  # a failed serial reference is already an ERROR of the flow
+        its = record.get("iterations", [])
         done = max([int(i.get("iter", 0)) for i in its] or [0])
         if done < int(itermx):
-            out.append("serial reference {} made {} Newton iteration(s), fewer than --itermx {}".format(
-                rundir, done, itermx))
+            # the harness forces the iterations (AIUE-169), so this is an early nksol stop; say why
+            why = " (nksol iterm={})".format(record["iterm"]) if "iterm" in record else ""
+            out.append("serial reference {} made {} Newton iteration(s), fewer than --itermx {}{}".format(
+                rundir, done, itermx, why))
     return out
 
 

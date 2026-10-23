@@ -108,7 +108,17 @@ $PY $H compare /tmp/r1 /tmp/chk/run0 --json /tmp/cmp.json                       
   while the Te bug exists a phi isolation can't get a verdict of its own.
 - **Arms:** `serial` (both OpenMP switches 0, 1 thread), `jac` (`OMPParallelJac=1`), `jacrhs`
   (`OMPParallelPandf1=1`, which forces `OMPParallelJac=1`). `--ppp '{"OMPJacNchunks": -1}'` sets extra `ppp`
-  variables; `--itermx N` runs N Newton iterations instead of one evaluation (`ftol=1e20`).
+  variables; `--itermx N` runs exactly N Newton iterations instead of one evaluation (`ftol=1e20`).
+- **Forced iterations** (`config.force_newton`, AIUE-169): an `--itermx N` run sets `ftol=1e-19` and `stptol=1e-30`,
+  so nksol stops only at `itermx`, however converged the state is. At the deck's tolerances the `ni` and `ng`
+  isolations start converged (iteration-0 fnrm ~1e-11 on Linux) and made no Newton step, which kept the nightly red,
+  and how converged a state is depends on platform round-off. Both tolerances are needed (0 selects nksol's
+  defaults): with only a tiny `ftol`, nksol stops on the step test (`iterm=2`, default `stptol` ≈ 3.7e-11), and a
+  short step with a stale preconditioner skips the `itermx` test, so the run overshoots N (`svr/nksol.m` `nkstop`).
+  `stptol` also sets the line search's minimum step (`lnsrch`, `inexct`), so a failing line search backtracks
+  further before it gives up. Every record holds `iterm` (why nksol stopped: 1 ftol, 2 stptol, 3 line search,
+  4 `itermx`), `ftol` and `stptol`. Near convergence the forced iterations run at the noise floor: tiny steps, still
+  compared bitwise.
 - **`check`** runs a serial reference of the same build and K ≥ 1 OpenMP runs, and reports agreement with serial and
   determinism (run 0 vs run k) separately. The ticket's measurement is `--itermx 3` (several Jacobians and the
   fnrm sequence); the default (one evaluation) is the fast check. Each record says how many Jacobians were made
@@ -240,14 +250,14 @@ python $H --list                                    # the case set
   - `com.iprint` stays 1 so that the `fnrm` lines are printed. It changes no number.
   - Families: the `default` case of D_only, D+C and D_mols, the 16x8 D+C fulltest, the D_mols drift case, slab, and
     20 `pytests-unit-*` variants, each turning on one boundary-condition, transport or drift switch.
-- **Solver cases** (`-itN`): N Newton iterations at the deck's `ftol`, so `psetnk` (row normalisation, `jac_reorder`),
+- **Solver cases** (`-itN`): exactly N Newton iterations (forced, as `--itermx` above), so `psetnk` (row normalisation, `jac_reorder`),
   the ILU preconditioner, the Krylov solve and the line search run too. The whole `fnrm` sequence is compared,
   together with the final state (`yldot`, `fnrm` at the final `yl`) and every Jacobian. A solver case whose record
   shows fewer than 2 printed iterations, or a post-`exmain` Jacobian not from `psetnk`, is an ERROR: it would
   silently cover only the evaluation path.
   - Reproducer: `repro-tebox-it5`, `repro-te-it3`, `repro-full-it3`.
-  - pytests: `pytests-{D_only,D+C,D_mols,full-d_c-16x8,slab}-it5`. These run the final `exmain` with `itermx=5` at
-    the `ftol` that `input.py` left.
+  - pytests: `pytests-{D_only,D+C,D_mols,full-d_c-16x8,slab}-it5`. These run the final `exmain` with `itermx=5`
+    and the forced tolerances.
 - **Case sets:** `all` (the default, and the gate) is everything above. `quick` = `repro-tebox`, `repro-tebox-it5`,
   `pytests-{D_only,D+C,D_mols,full-d_c-16x8}`, `pytests-{D_only,D+C}-it5`.
   - Ad hoc names: `repro:<preset>[@itN]` and `pytests:<path below pytests/>[@itN]`.
@@ -424,7 +434,8 @@ The workflow has `permissions: contents: read`.
 - **Newton iterations are checked.** For an `--itermx N` flow, `report.py` reads each serial reference's
   `record.json` and fails the job with exit 2 if it made fewer than N Newton iterations (the largest
   `iterations[].iter`), so a set never claims iterations it did not run. OpenMP runs that iterate differently
-  already fail the comparison (`fnrm_printed`).
+  already fail the comparison (`fnrm_printed`). Since the iterations are forced (AIUE-169), this catches only an
+  early nksol stop (a line-search or Krylov failure); the message gives the record's `iterm`.
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `bound.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`,
   `record.json`, `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded;

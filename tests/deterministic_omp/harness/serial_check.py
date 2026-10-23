@@ -63,8 +63,8 @@ CAPTURE_SLOTS = 16  # raw Jacobians kept per run with the AIUE-47 hook (more is 
 BASE_REF = "origin/v9-develop"
 
 # name -> case. kind "repro": a reproducer preset on the serial arm. kind "pytests": a case directory
-# of the upstream pytests checkout; add_files are repository files copied next to it. itermx: N Newton
-# iterations at the deck's ftol instead of one evaluation at ftol=1e20.
+# of the upstream pytests checkout; add_files are repository files copied next to it. itermx: exactly N
+# Newton iterations (config.force_newton) instead of one evaluation at ftol=1e20.
 CASES = {}
 for _p in PRESETS:
     CASES["repro-" + _p] = {"kind": "repro", "preset": _p}
