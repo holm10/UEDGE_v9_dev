@@ -24,17 +24,17 @@ state = "b0p1.hdf5"
 state_sha256 = "e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5"
 mist = "mist.dat"
 mist_sha256 = "3547f7d703dd90111094eda0cd9567146198de7d22e5b0a41b08bd4649f6b7cb"
-input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.dat (the case's mist.dat); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5"
+input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.dat (the case's mist.dat); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5; com.redopltvtag = 1 added (AIUE-164, AIUE-170, owner 2026-10-23)"
 
 [reference_state]
 file = "reference_state.h5"
-origin = "owner case state (b0p1.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140)"
+origin = "owner case state (b0p1.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140); evaluated with com.redopltvtag = 1 (AIUE-170): the saved data are unchanged (data sha256 identical to the states made without it), not re-converged (owner, 2026-10-23)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
-fmax = 1.5370e-10
-fnrm_l2 = 3.6776e-10
-converged = true  # information only, gates nothing
-build_commit = "8631c34dca7e24d9fbb29a5ee38a354ea9d14c0f"
+fmax = 1.5375e-02  # with com.redopltvtag = 1 (AIUE-170); 1.5370e-10 before
+fnrm_l2 = 5.8358e-02
+converged = false  # information only, gates nothing
+build_commit = "c6de66bee6860c007a1e9e8d275b89b04857a0ae"  # the build measured (AIUE-170's base); the deck already had AIUE-170's redopltvtag line
 build = "serial"
 uedge_ver = "8.1.2-beta.0"
 
@@ -42,7 +42,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 91003
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 1.249e+10
+min_block_ratio = 37.75  # with com.redopltvtag = 1 (AIUE-170); 1.249e10 before
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }

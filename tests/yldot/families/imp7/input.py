@@ -19,6 +19,7 @@ bbb.gengrid=0
 com.isgriduehdf5=1
 com.geometry="uppersn"
 com.isnonog=1
+com.redopltvtag=1  # extrapolate the plate mesh angles: the ix=0 guard's law-of-cosines vtag carries ~1e-9 rad round-off (AIUE-164, AIUE-170)
 
 # ==== SOLVER ====
 bbb.premeth="ilut"
