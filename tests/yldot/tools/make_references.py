@@ -575,7 +575,11 @@ def owner_assets(families, suite):
                 problems.append("{} differs from its manifest's SHA-256 or size".format(p))
             carried[p] = dict(e)
         s = suite / sigma_path(name)
-        carried[sigma_path(name)] = {"sha256": file_sha256(s), "bytes": s.stat().st_size}
+        if not s.is_file():
+            problems.append("{} is missing or a dangling link: run tools/fetch_data.py {}".format(sigma_path(name),
+                                                                                              name))
+        else:
+            carried[sigma_path(name)] = {"sha256": file_sha256(s), "bytes": s.stat().st_size}
         out[name] = carried
     if problems:
         raise Stop(1, "; ".join(problems))

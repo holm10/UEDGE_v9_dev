@@ -65,7 +65,7 @@ dt_timestep_s = 1e-6  # timestep configuration, step 6c
 
 [history]  # tools/measure_history.py run (AIUE-92): rows that differ bit for bit, yldot plus yldot_J
 measured = "2026-10-23"  # re-measured on an idle machine (AIUE-92 B8)
-build = "AIUE-92-serial"  # 6ccd347 Fortran (unchanged since), --serial, one thread, Darwin arm64; tests/ at 4f83c77
+build = "AIUE-92-serial"  # 6ccd347 Fortran (unchanged since), --serial, one thread, Darwin arm64; tests/ on the AIUE-92 branch
 uedge_ver = "8.1.2-beta.0"
 w_sweep = { steady = [0, 0], timestep = [0, 0] }  # exmain x 1 vs 2, 2 vs 3, each in a fresh process (p = 1)
 p_sweep = { steady = [0, 0], timestep = [0, 0] }  # pandf x 1 vs 2, 2 vs 3 (w = 1)

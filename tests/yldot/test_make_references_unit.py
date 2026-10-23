@@ -319,6 +319,16 @@ def test_owner_family_carries_its_assets_and_sigma(tmp_path, children):
     assert mf.family_assets(m) == ["families/d_only/gridue", "families/d_only/sigma.h5"]
 
 
+def test_owner_assets_refuses_an_absent_sigma(tmp_path):
+    """run_mutations.py calls owner_assets without select: an absent sigma.h5 is a refusal, not a traceback."""
+    suite = tmp_suite(tmp_path)
+    make_owner(suite)
+    (suite / "families" / "d_only" / "sigma.h5").unlink()
+    with pytest.raises(mr.Stop, match="sigma.h5 is missing") as e:
+        mr.owner_assets(["d_only"], suite)
+    assert e.value.code == 1
+
+
 @pytest.mark.parametrize("content, status, message", [
     (b"another grid", OWNER_IGNORED, "differs from its manifest"),
     (GRID, OWNER_IGNORED + "!! tests/yldot/families/d_only/stray.h5\n", "holds files"),
