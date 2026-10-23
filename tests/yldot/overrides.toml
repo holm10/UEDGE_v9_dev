@@ -99,6 +99,38 @@ reason = "layout-changing: needs a new family (owner 2026-10-20)"
 exclude = true
 reason = "layout-changing: needs a new family (owner 2026-10-20)"
 
+# ---------------------------------------------------------------- family-level (owner 2026-10-23, AIUE-159)
+# Switches that pick the geometry, the topology or the species model define the family: a variant of one would test
+# a case the family is not. Each is covered by families of its own, or by an intake story.
+
+["com.isudsym"]
+exclude = true
+reason = "family-level: up/down-symmetric dnbot geometry; no family yet (AIUE-171); owner 2026-10-23"
+
+["com.islimon"]
+exclude = true
+reason = "family-level: limiter topology; no family yet (AIUE-172); owner 2026-10-23"
+
+["bbb.isfixlb"]
+exclude = true
+reason = "family-level: fixed left-boundary setup; no family yet (AIUE-173); owner 2026-10-23"
+
+["com.isnonog"]
+exclude = true
+reason = "family-level: covered by ortho (0) against the non-orthogonal families (1); owner 2026-10-23"
+
+["bbb.mhdgeo"]
+exclude = true
+reason = "family-level: covered by slab_phi (-1) against the MHD families (1); owner 2026-10-23"
+
+["bbb.gengrid"]
+exclude = true
+reason = "family-level: grid generation, not physics: not tested here (leaves UEDGE); owner 2026-10-23"
+
+["bbb.ishymol"]
+exclude = true
+reason = "family-level: molecular model; covered by d_mols and large_dd2c (1) against the other families (0); owner 2026-10-23"
+
 # ---------------------------------------------------------------- index-like (owner 2026-10-20: bounded next index)
 
 ["bbb.jxsori"]
@@ -204,14 +236,6 @@ config = "timestep"
 reason = "acts only when dtreal is finite (bbb/pandf_potencur.m:217-222,286)"
 
 # ---------------------------------------------------------------- suspected memory errors (owner 2026-10-22, AIUE-94)
-
-["com.isudsym"]
-exclude = true
-reason = "suspected memory error (AIUE-159): non-finite yldot in d_c, d_mols, d_only, 1e28-1e30 x tol in ortho and slab_phi, intermittent SIGBUS on the -O0 build; owner 2026-10-22"
-
-["bbb.ishymol"]
-exclude = true
-reason = "suspected uninitialized read (AIUE-160): ishymol = 0 with nhgsp = 2 (d_mols) gives build-dependent yldot, 5e16 x tol between builds; owner 2026-10-22"
 
 ["bbb.ziin"]
 exclude = true

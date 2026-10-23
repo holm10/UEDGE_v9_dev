@@ -827,10 +827,6 @@
     "/steady/variants/bbb.isfeixpl0/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isfeixpl0/yldot/index": "fc0305f1916a08b14dccbd6286620ebd054d9489b49fb8ef617e07b4ff7a2173",
     "/steady/variants/bbb.isfeixpl0/yldot/value": "0e3df0e974939443d45c95f71eebd7238869aadd5592718059126f78922a51ca",
-    "/steady/variants/bbb.isfixlb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/bbb.isfixlb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/bbb.isfixlb/yldot/index": "50aef5bfe03bae22b5ffe2a2f21368160aad5864a2b4127a024aa4fbd4660c39",
-    "/steady/variants/bbb.isfixlb/yldot/value": "1f70a9182e8ac6726cb34cfad6628843f3c712b6aaf7cb046fb237bc1d34e8eb",
     "/steady/variants/bbb.isfixrb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.isfixrb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isfixrb/yldot/index": "5020176f774e5580f9a70dca5cd39e0070bfd9e8f35997a1975656bbfeb6627b",
@@ -1319,14 +1315,6 @@
     "/steady/variants/bbb.znuclin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.znuclin/yldot/index": "985043f3209bd3ab1293af7f357e98caf2e3edc8e6ab1e57491241df9591a089",
     "/steady/variants/bbb.znuclin/yldot/value": "9dfe62940a72c313ee97d991bb77515605f381bf1c9496cfe179a1ac217e9082",
-    "/steady/variants/com.islimon/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/com.islimon/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/com.islimon/yldot/index": "7f57c3944200d1a19bf97a1f02c19625945e7284c77d12ae821fc3bc24c82eec",
-    "/steady/variants/com.islimon/yldot/value": "539709eeabc1fbf9dfeefe24cad3a3360058747bbd6da67fe8ecd6ac4689b939",
-    "/steady/variants/com.isnonog/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/com.isnonog/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/com.isnonog/yldot/index": "d0bb397576f42c14145f1441d8ce1c181bcb1ce62f081da2585129e90a9c4aac",
-    "/steady/variants/com.isnonog/yldot/value": "ce76d3a968f90c0f255ff8e25001598e7be075e60f6e9125a0cdde06ef92896c",
     "/timestep/default/diagnostics/edisse": "20ba39a4484ceb27c1869568c6107fc64092310794b1ea2ab12e4cd5f862a9bf",
     "/timestep/default/diagnostics/eiamoldiss": "0fcae2cc3c001a7f231610ada2820c837758251c6e73ca6b5b7b13aa64084d6e",
     "/timestep/default/diagnostics/emolia": "0fcae2cc3c001a7f231610ada2820c837758251c6e73ca6b5b7b13aa64084d6e",
@@ -1487,8 +1475,8 @@
   },
   "external": {
     "references/slab_phi.h5": {
-      "bytes": 6117991,
-      "sha256": "ad3f61b16e5ae5cd67eb1b47e92d845595ddb91361cf28603dd7d5c5285f443c"
+      "bytes": 6078857,
+      "sha256": "ac4b92503336771e80591544aae09c236e958b1170ba19143a3ab1be6a9f3593"
     }
   },
   "family": "slab_phi",
@@ -1500,15 +1488,15 @@
     "timestep/sigma": "9c53b56377c1377a06adcae30b06b74e6246e7ec560e890baa9b145b8f27b6a9"
   },
   "provenance": {
-    "commit": "430a5be7ea76bf59071b54b38f199d5641b600fc",
+    "commit": "b3c18ec4d91d28a37ca8f11ea4c9e3a73b9eee8f",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T03:35:59+00:00",
+    "date": "2026-10-23T18:39:59+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v4",
+  "release": "yldot-data-v5",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -11382,12 +11370,12 @@
     "bbb.gengrid": {
       "applied": null,
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EXCLUDED",
       "config": "steady",
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: **** requested grid data file not found",
+      "reason": "family-level: grid generation, not physics: not tested here (leaves UEDGE); owner 2026-10-23",
       "sha256": null
     },
     "bbb.gradvconst": {
@@ -13279,35 +13267,15 @@
       "sha256": "de29514df36fe451f6866046923b08c571f1f220ed28413aa6e177ecfd94e10f"
     },
     "bbb.isfixlb": {
-      "applied": {
-        "data": [1, 1],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
-      "block_l2": {
-        "ni[1] guard": 1969228327.0241296,
-        "ni[2] guard": 740069091.5907658,
-        "phi[1] guard": 46489258.29613188,
-        "te[1] guard": 664218182.6047432,
-        "ti[1] guard": 656448474.123694,
-        "up[1] guard": 120521005.244309,
-        "up[2] guard": 60346261.976677924
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0, 0],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 1.42e+12",
-      "sha256": "97395da4fba3d022817ab82cbfe691cac0d142c35b68b216a14b929e196679bb"
+      "reason": "family-level: fixed left-boundary setup; no family yet (AIUE-173); owner 2026-10-23",
+      "sha256": null
     },
     "bbb.isfixrb": {
       "applied": {
@@ -13715,7 +13683,7 @@
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "suspected uninitialized read (AIUE-160): ishymol = 0 with nhgsp = 2 (d_mols) gives build-dependent yldot, 5e16 x tol between builds; owner 2026-10-22",
+      "reason": "family-level: molecular model; covered by d_mols and large_dd2c (1) against the other families (0); owner 2026-10-23",
       "sha256": null
     },
     "bbb.isi_sputpf": {
@@ -19113,12 +19081,12 @@
     "bbb.mhdgeo": {
       "applied": null,
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EXCLUDED",
       "config": "steady",
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: ueinit -- error in sign vol",
+      "reason": "family-level: covered by slab_phi (-1) against the MHD families (1); owner 2026-10-23",
       "sha256": null
     },
     "bbb.minu": {
@@ -25133,96 +25101,26 @@
       "sha256": null
     },
     "com.islimon": {
-      "applied": {
-        "data": [1],
-        "dtype": "int64",
-        "shape": []
-      },
-      "block_l2": {
-        "ni[1] core": 12317223.18961641,
-        "ni[1] guard": 26262414641620.973,
-        "ni[1] sol": 18753161.77200173,
-        "ni[2] core": 238590848.40032974,
-        "ni[2] guard": 8930907899434.914,
-        "ni[2] sol": 41225416.31858528,
-        "phi[1] guard": 2561687532.6856036,
-        "phi[1] sol": 109128440192.2393,
-        "te[1] core": 15240083.152790025,
-        "te[1] guard": 2026419186270.4546,
-        "te[1] sol": 9495048.484060818,
-        "ti[1] core": 4435817.986079514,
-        "ti[1] guard": 1493562387433.8337,
-        "ti[1] sol": 3454469.366355122,
-        "up[1] core": 6039.166007138265,
-        "up[1] guard": 662538649911.5131,
-        "up[1] sol": 43721.12163149478,
-        "up[2] core": 1811957.3173139158,
-        "up[2] guard": 332194327660.0678,
-        "up[2] sol": 7860114.874898745
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0],
-        "dtype": "int64",
-        "shape": []
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 1.44e+15",
-      "sha256": "7c4e10fd212107498e3a0e9e085e2ccaaf9925483ae5cf1b0ec650b9915e7902"
+      "reason": "family-level: limiter topology; no family yet (AIUE-172); owner 2026-10-23",
+      "sha256": null
     },
     "com.isnonog": {
-      "applied": {
-        "data": [1],
-        "dtype": "int64",
-        "shape": []
-      },
-      "block_l2": {
-        "ni[1] core": 9.040487865088048e-09,
-        "ni[1] guard": 4.374828351740283e-06,
-        "ni[1] outer_leg": 4.0008743288561895e-06,
-        "ni[1] pf": 3.396344440804888e-06,
-        "ni[1] sol": 4.390110330393293e-08,
-        "ni[2] core": 4.227867297571679e-06,
-        "ni[2] guard": 1.964618036125225e-05,
-        "ni[2] outer_leg": 3.2795602750771964e-06,
-        "ni[2] pf": 7.192264833026873e-07,
-        "ni[2] sol": 5.451049670864858e-06,
-        "phi[1] outer_leg": 0.0001410816608691157,
-        "phi[1] pf": 0.00013828277587890625,
-        "phi[1] sol": 1.1944189326376765e-07,
-        "te[1] core": 7.991079443501903e-10,
-        "te[1] guard": 2.4224048167755467e-06,
-        "te[1] outer_leg": 4.01163675280509e-07,
-        "te[1] pf": 3.353344469266029e-07,
-        "te[1] sol": 1.788353842508188e-09,
-        "ti[1] core": 1.1785270641779838e-08,
-        "ti[1] guard": 1.6170439921318043e-06,
-        "ti[1] outer_leg": 2.742855997106689e-07,
-        "ti[1] pf": 4.6274008955727836e-07,
-        "ti[1] sol": 2.6316268384563526e-07,
-        "up[1] core": 756.0176169331371,
-        "up[1] guard": 4.077383383424029e-07,
-        "up[1] outer_leg": 23324.69247891426,
-        "up[1] pf": 15586.368791986319,
-        "up[1] sol": 14746.417475473201,
-        "up[2] core": 44852.36874540223,
-        "up[2] outer_leg": 314734.79985415644,
-        "up[2] pf": 161133.94372077845,
-        "up[2] sol": 1030301.0199582074
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0],
-        "dtype": "int64",
-        "shape": []
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 1.69e+08",
-      "sha256": "dfcfb4841797f79ffd378db9ccfe4721bda3b14d0322c62f6ccf84d24fd5a8cd"
+      "reason": "family-level: covered by ortho (0) against the non-orthogonal families (1); owner 2026-10-23",
+      "sha256": null
     },
     "com.ispradextrap": {
       "applied": {
@@ -25281,7 +25179,7 @@
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "suspected memory error (AIUE-159): non-finite yldot in d_c, d_mols, d_only, 1e28-1e30 x tol in ortho and slab_phi, intermittent SIGBUS on the -O0 build; owner 2026-10-22",
+      "reason": "family-level: up/down-symmetric dnbot geometry; no family yet (AIUE-171); owner 2026-10-23",
       "sha256": null
     },
     "com.mcfilename": {
