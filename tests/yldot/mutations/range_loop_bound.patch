@@ -4,13 +4,18 @@ Equation: all
 Fault: loop bound
 Check: locality
 Configs: steady
+Blocks: d_only: primary ni[1], ni[2], up[1], up[2], te[1], ti[1], phi[1]
+ ortho: primary ni[1], ni[2], up[1], up[2], te[1], ti[1], phi[1]
+ d_mols: primary ni[1], ni[2], up[1], up[2], te[1], ti[1], ng[2], phi[1]
+ d_c: primary ni[1], ni[2], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8], up[1], up[2], te[1], ti[1], ng[2]
+ slab_phi: primary ni[1], ni[2], up[1], up[2], te[1], ti[1], phi[1]
 Intermediate: none
-Families: d_only
-Pending: AIUE-100 (locality check)
+Families: d_only, ortho, d_mols, d_c, slab_phi
 Source: bbb/pandf.m:73 (at 8a67572)
 Description: a wrong loop bound in initialize_ranges: the local (Jacobian) evaluation window around (xc,yc) loses
  its last poloidal column. The full RHS (xc < 0) is unchanged, so yldot and the flag difference must not
- fire; the locality check (PRD 7.5, AIUE-100) catches it. Run now as a negative control.
+ fire; the locality check (PRD 7.5, AIUE-100) catches it. Every evolved equation's residual loops run over
+ i2..i5, so every block of each family is primary (phi where isphion = 1: every family but d_c).
 
 diff --git a/bbb/pandf.m b/bbb/pandf.m
 index b628b3c..401f338 100644

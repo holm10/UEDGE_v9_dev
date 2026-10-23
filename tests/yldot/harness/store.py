@@ -17,6 +17,8 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
     full:   /<config>/variants/<id>/yldot/{index, value}                rows differing (bitwise) from the default
             /<config>/variants/<id>/jflag/{index, value}                the variant's own flag difference
     sketch: /<config>/variants/<id>/{yldot, jflag}/{proj, l2, maxabs, argmax}
+    /steady/locality/{delta, column, row, mismatch, dfull}             the locality entries with score > 1 at delta
+                                                                       (locality.py, PRD 7.5; AIUE-100), both stores
 
 Blocks are (equation, species, region) from compare.IndexMap.groups() (index truth, decision 19). A sketch projects a
 block onto k Rademacher (+-1) vectors whose signs are the raw bits of numpy's PCG64 bit generator, which numpy keeps
@@ -288,6 +290,32 @@ class Writer:
                 _ds(gd, name, np.asarray(diagnostics[name], dtype=np.float64))
         self.defaults[config] = yldot
 
+    def write_locality(self, config, delta, entries):
+        """The locality entries the reference keeps (locality.pattern: score > 1) of a run at delta."""
+        from .locality import FIELDS, Entries
+
+        if config != "steady":
+            raise ValueError("locality is stored for the steady configuration only, not {!r}".format(config))
+        if config not in self.defaults:
+            raise StoreError("{}: write the default before its locality pattern".format(config))
+        if "{}/locality".format(config) in self.f:
+            raise StoreError("{}: locality already written".format(config))
+        delta = float(delta)
+        if not (math.isfinite(delta) and delta > 0):
+            raise ValueError("delta = {}, need a finite delta > 0".format(delta))
+        e = entries if isinstance(entries, Entries) else Entries.of(entries)
+        n = self.imap.neq
+        bad = (e.column < 0) | (e.column >= n) | (e.row < 0) | (e.row >= n)
+        if bad.any():
+            raise ValueError("locality entries outside 0..{}: {}".format(n - 1, listed(np.flatnonzero(bad) + 1)))
+        if not (np.isfinite(e.mismatch).all() and np.isfinite(e.dfull).all()):
+            raise ValueError("locality entries must be finite")
+        order = np.lexsort((e.row, e.column))
+        g = self.f.create_group("{}/locality".format(config))
+        _ds(g, "delta", np.float64(delta))
+        for name in FIELDS:
+            _ds(g, name, getattr(e, name)[order])
+
     def write_variant(self, config, vid, yldot, yldot_J):
         _config(config)
         if config not in self.defaults:
@@ -430,6 +458,15 @@ class Store:
         """The default's dense Jacobian-flag difference yldot_J - yldot."""
         return dense(*self._sparse("/{}/default/jflag".format(config)), self.imap.neq)
 
+    def locality(self, config):
+        """(delta, locality.Entries) of the stored locality pattern, or None if the reference stores none."""
+        from .locality import FIELDS, Entries
+
+        g = "/{}/locality".format(config)
+        if g[1:] not in self.f:
+            return None
+        return float(self.read(g + "/delta")), Entries.of({k: self.read("{}/{}".format(g, k)) for k in FIELDS})
+
     def diagnostics(self, config):
         g = "{}/default/diagnostics".format(config)
         return {name: self.read("/{}/{}".format(g, name)) for name in self.f[g]}
@@ -511,13 +548,11 @@ STORED_VARIANT = re.compile(r"^/([^/]+)/variants/([^/]+)/")
 
 
 def check_derived(m, path):
-    """The manifest fields derived from m["datasets"] agree with them: guarded and unguarded (the locality keys are
-    AIUE-100's and not derived), each SENSITIVE variant's sha256, and the stored variants against the SENSITIVE
-    variables."""
+    """The manifest fields derived from m["datasets"] agree with them: guarded (with the locality pattern) and
+    unguarded, each SENSITIVE variant's sha256, and the stored variants against the SENSITIVE variables."""
     problems = []
     guarded, unguarded = mf.summarize(m["datasets"])
-    have = {k: v for k, v in m["guarded"].items() if not k.startswith("locality/")}
-    for what, got, want in (("guarded", have, guarded), ("unguarded", m["unguarded"], unguarded)):
+    for what, got, want in (("guarded", m["guarded"], guarded), ("unguarded", m["unguarded"], unguarded)):
         bad = sorted(k for k in set(got) | set(want) if got.get(k) != want.get(k))
         if bad:
             problems.append("{} {} differ from the datasets".format(what, bad))

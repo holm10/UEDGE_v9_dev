@@ -67,7 +67,19 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   2026-10-21); `dumps` writes it indented and sorted, each encoded value's `data` list on one line (owner,
   2026-10-22, AIUE-94). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
-  the dataset's SHA-256 (`StoreIntegrityError`).
+  the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
+  `/steady/locality/{delta, column, row, mismatch, dfull}` (the entries with score > 1), guarded as `locality/steady`
+  and derived from the datasets like the defaults (AIUE-100).
+- **Locality** (PRD §7.5; AIUE-100) `tests/yldot/harness/locality.py`: `jac_calc`'s protocol (`bbb/oderhs.m:1095-1226`)
+  in the child after step 8b (`Runner.evaluate(family, locality=delta)`, steady, no variant): flag +1, `f00` (must
+  equal `yldot_J` bitwise), then per column reset to `f00`, perturb by `delta·(|y|+dylconst/suscal)`, local `pandf`,
+  full evaluation, restore, local again, full again (must equal `f00`: no stale column). Score per entry
+  `|Δ_full−Δ_local| / (tol_r + rtol_eq·|Δ_full|)`; the pattern P is the stored entries above `M_loc`, (1, M_loc] is the
+  unasserted band (owner, 2026-10-22, D3). `family.toml` `[locality]`: `delta_loc = 1e-6`, `m_loc = 100` (the only
+  grid δ with no stored entry within 3× of M_loc), the calibration record and the causes. The isnonog = 1 families
+  (d_only, d_mols, d_c) have a by-design default pattern, all in the band at 1e-6: the neutral-conductivity
+  4-point average in `feixy` (`bbb/pandf_plasma_energy.m:458-459,476-477`) reaches ix−1, one cell beyond `xrinc`
+  (owner, D2); ortho and slab_phi are bit-identical on every column. Every column of the five takes about 12 s.
 - **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: 27 patches (AIUE-89, AIUE-90), a sign
   flip, a factor 2 and a dropped term per equation, the X-point off-by-one, a wrong `cf*` multiplier, two range and
   two flag-gating mutations. A `Key: value` header (`Mutation`, `Kind`, `Equation`, `Fault`, `Check`, `Configs`,
@@ -75,8 +87,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `Pending`, `Source`, `Description`; a line starting with a space continues the previous key's value, e.g. one
   `Blocks` line per family as `<family>: primary <blocks>; coupled <blocks>`; the keys are documented in
   `run_mutations.py`), a blank line, then a single-line `git diff`; `git apply` skips the header. Applied only in a
-  scratch worktree, never to a source on a branch. Six are `Pending` (gas energy: AIUE-92, no small family evolves
-  `tg`; range: AIUE-100; `ishosor`: AIUE-94/96) and run as negative controls (owner, 2026-10-22, AIUE-90).
+  scratch worktree, never to a source on a branch. Four are `Pending` (gas energy: AIUE-92, no small family evolves
+  `tg`; `ishosor`: AIUE-94/96) and run as negative controls (owner, 2026-10-22, AIUE-90). The two range mutations
+  (AIUE-100) are `initialize_ranges`' `i5` bound (`bbb/pandf.m:73`) and the point-wise `vsoree` copy
+  (`bbb/pandf_plasma_energy.m:646`, a weak `te` self-coupling; owner, D1, after the `j5p` site proved window padding).
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
   re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
   scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
@@ -94,7 +108,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `o0_vs_o3`, `mac_vs_linux` (serial, they feed σ and rtol), `debug_vs_o3` and the OpenMP rows (report only), the
   floor report, the AIUE-81 re-check; `--write` writes the files below; exit 4 = a nonzero same-build spread, 3 = owner);
   `make_references.py` (`generate --from-commit SHA`: builds SHA `--serial` and writes each family's steady and
-  `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance; `--platform
+  `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance, and for a family
+  with `[locality]` the steady locality pattern (AIUE-100); `--platform
   linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
   null` (owner, 2026-10-22, AIUE-88); default families: those
@@ -126,7 +141,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
   baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
   miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
-  writes the coverage matrix `matrix.json`/`matrix.md` (a working document, not committed) and its four gates (PRD
+  a range mutation (Check `locality`) also gets the steady part `locality` (`_child --locality`) and
+  `test_locality.py` as its cross-check, the others never (owner, 2026-10-22, AIUE-100 D4); writes the coverage matrix `matrix.json`/`matrix.md` (a working document, not committed) and its four gates (PRD
   §7.11 c; a run of named mutations evaluates G1 and G2 only); `gates DIR`; exit 3 = owner; run at the end of every
   phase, about 3 min per mutation).
 - **Tolerances** (PRD §7.4, §7.7; AIUE-87): `tests/yldot/tolerances.toml`, generated by `measure_roundoff.py analyze
@@ -153,7 +169,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   without its comments and code fences) and prints which of `Default
   results: changed` (with every changed `<family>:<id>` below it), `Test criteria: changed` and `Test criteria:
   loosened` (plus CODEOWNER approval) the change needs, by path class and by the manifest, `tolerances.toml`,
-  `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page); it downloads the release assets a
+  `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page; `[locality]`, AIUE-100: a new
+  section is a change, `m_loc` monotone, `delta_loc` non-monotone, the record keys a change, and a changed or
+  removed `locality/steady` key `Default results: changed`); it downloads the release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
@@ -166,7 +184,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   headline, and `test_timestep_exercised` (about 2 s); `tests/yldot/test_thresholds.py` the synthetic threshold test
   (PRD §7.11 b) of the full-vector, flag-difference and sketch comparators on the stored defaults, pure Python
   (about 9 s). The session fetches absent reference files first; one still absent fails both through `open_store`
-  (decision 23, AIUE-156);
+  (decision 23, AIUE-156); `tests/yldot/test_locality.py` the locality check of every family with `[locality]` (one
+  steady child each, every column: the `f00` cross-check, no stale column, the stored delta, the pattern with its
+  band; story 6 headline), `test_locality_configured` (every small family) and `compare_pattern`'s band rules on
+  synthetic entries (AIUE-100);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,

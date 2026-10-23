@@ -85,7 +85,7 @@ PYTEST_INI = ("pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.i
 PYTEST_CONFIG = PYTEST_INI + ("setup.cfg", "pyproject.toml")
 MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/default/(yldot|sigma|jflag/)")
+GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/)|locality/)")
 
 # tolerances.toml (PRD 7.4, 7.6): a larger value loosens, a smaller one tightens; the rule texts and floor_limit
 # only loosen; the record sections are measurements and owner bookkeeping
@@ -95,6 +95,11 @@ TOLERANCE_RECORDS = ("builds", "pairs", "raw", "rtol_source", "openmp", "floor",
 # family.toml: [evaluation] (W, P, child reuse, timeout, dt) and [regions] are non-monotone parameters
 FAMILY_LOOSE = ("evaluation", "regions")
 FAMILY_RECORDS = ("source", "reference_state", "perturbation", "limiter_report", "history")
+# family.toml [locality] (PRD 7.5, 7.6; AIUE-100): a new section is a new criterion; m_loc is a margin (larger
+# loosens), delta_loc a non-monotone parameter; the calibration record and the causes are bookkeeping
+LOCALITY_MONOTONE = ("m_loc",)
+LOCALITY_LOOSE = ("delta_loc",)
+LOCALITY_RECORDS = ("calibration", "causes")
 
 
 class GuardError(Exception):
@@ -300,8 +305,33 @@ def diff_family_toml(f0, f1):
                 out.append((CHANGED, "[family] (record)"))
         elif sec in FAMILY_RECORDS:
             out.append((CHANGED, "[{}] (record)".format(sec)))
+        elif sec == "locality" and isinstance(a or {}, dict) and isinstance(b or {}, dict):
+            out.extend(diff_locality(a, b))
         else:
             out.append((LOOSENED, "[{}] (unknown section)".format(sec)))
+    return out
+
+
+def diff_locality(a, b):
+    """[(requirement, what)] for two family.toml [locality] tables (None: absent)."""
+    if a is None:
+        return [(CHANGED, "[locality] new (the locality check of this family)")]
+    if b is None:
+        return [(LOOSENED, "[locality] removed")]
+    out = []
+    for key in sorted(set(a) | set(b)):
+        va, vb = a.get(key), b.get(key)
+        if va == vb:
+            continue
+        what = "[locality].{}: {!r} -> {!r}".format(key, va, vb)
+        if key in LOCALITY_MONOTONE:
+            out.append((monotone(va, vb), what))
+        elif key in LOCALITY_LOOSE:
+            out.append((LOOSENED, what + " (non-monotone parameter)"))
+        elif key in LOCALITY_RECORDS:
+            out.append((CHANGED, "[locality].{} (record)".format(key)))
+        else:
+            out.append((LOOSENED, what + " (unknown key)"))
     return out
 
 

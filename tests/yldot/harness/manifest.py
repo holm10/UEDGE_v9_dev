@@ -13,7 +13,8 @@ The manifest is the reviewable text next to each family's one binary reference f
     datasets    {HDF5 dataset path: SHA-256 of its data (store.dataset_sha256)}: every dataset of the reference file,
                 recomputed at each read;
     guarded     the steady and timestep defaults (yldot and the Jacobian-flag difference), their sigma, and the
-                locality patterns (AIUE-100); unguarded: the diagnostics (summarize);
+                locality pattern (locality/steady over the /steady/locality datasets, AIUE-100); unguarded: the
+                diagnostics (summarize);
     provenance  {commit, compiler, flags, runner_image, numpy, h5py, date};
     variables   {variant id: {class, reason, applied, d (variants.encode form), phase, config, sha256 (of the
                 variant's stored datasets, or null), block_l2, jflag_block_l2}}. block_l2 is the L2 norm of
@@ -116,6 +117,9 @@ def summarize(datasets):
         sig = {n: s for n, s in datasets.items() if n == base + "sigma"}
         if sig:
             guarded["{}/sigma".format(config)] = combined_sha(sig)
+        loc = {n: s for n, s in datasets.items() if n.startswith("/{}/locality/".format(config))}
+        if loc:
+            guarded["locality/{}".format(config)] = combined_sha(loc)
     diag = {n: s for n, s in datasets.items() if "/diagnostics/" in n}
     if diag:
         unguarded["diagnostics"] = combined_sha(diag)

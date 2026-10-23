@@ -18,7 +18,7 @@ import h5py
 import numpy as np
 import pytest
 
-from yldot.harness import FAMILIES, Result, open_store
+from yldot.harness import FAMILIES, Result, compare, locality, open_store
 from yldot.harness import manifest as mf
 from yldot.harness.store import file_sha256
 
@@ -155,7 +155,8 @@ def test_child_files_open_and_hold_the_defaults(tmp_path, children):
     mr.install(mr.assemble(SHA, ["d_only"], out, TAG)[0], out, suite)
     m = mf.load("d_only", suite)
     assert m["release"] == TAG and m["store"] == "full"
-    assert set(m["guarded"]) == {"steady/default", "steady/sigma", "timestep/default", "timestep/sigma"}
+    assert set(m["guarded"]) == {"steady/default", "steady/sigma", "timestep/default", "timestep/sigma",
+                                 "locality/steady"}  # d_only has [locality] (AIUE-100)
     with h5py.File(FAMILIES / "d_only" / "sigma.h5", "r") as f:
         sig = {c: f[c]["sigma"][()] for c in mf.CONFIG_NAMES}
     with open_store("d_only", suite) as s:
@@ -164,6 +165,11 @@ def test_child_files_open_and_hold_the_defaults(tmp_path, children):
             assert s.diagnostics(c)
         assert (s.default("timestep") != s.default("steady")).any()  # the time-step term is exercised
         assert not s.jflag("steady").any()  # no flag-gated branch active in steady (family.toml [history])
+        delta, e = s.locality("steady")
+        assert delta == locality.load_config(FAMILIES / "d_only")["delta_loc"] and s.locality("timestep") is None
+        tol = tomllib.loads((SUITE / "tolerances.toml").read_text())
+        t = compare.tolerances(s.default("steady"), s.sigma("steady"), tol["rtol"], tol["rule"]["k"], s.imap).tol
+        assert len(e) and (locality.scores(e, t, locality.rtol_rows(tol["rtol"], s.imap)) > 1).all()  # band entries
 
 
 def test_generate_linux_commands_and_write(tmp_path, children):

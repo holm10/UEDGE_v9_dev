@@ -326,10 +326,12 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     .summary, .cost.json and samples/<family>.npz (the tolerance-inheritance sample, variant_tolerances.py)."""
     import statistics
 
-    from yldot.harness import FamilyError, Runner, compare, load_evaluation, open_store, store, variants
+    from yldot.harness import FamilyError, Runner, compare, load_evaluation, locality, open_store, store, variants
     from yldot.harness.state import INDEX_ARRAYS
 
     rec = json.loads(Path(build).read_text())
+    with open(suite / "tolerances.toml", "rb") as f:
+        rtol = tomllib.load(f)["rtol"]
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     runner = Runner()
@@ -343,11 +345,13 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         fdir = family_dir(name)
         with open(fdir / "family.toml", "rb") as f:
             kind = tomllib.load(f)["family"]["store"]
+        loc = locality.load_config(fdir)
         timeout = TIMEOUT_FACTOR * float(load_evaluation(fdir)["timeout_s"])
         walls = []
         data = {}
         for config in mf.CONFIG_NAMES:
-            r = runner.evaluate(name, config=config, diagnostics=True, timeout=timeout)
+            delta = loc["delta_loc"] if loc is not None and config == "steady" else None
+            r = runner.evaluate(name, config=config, diagnostics=True, timeout=timeout, locality=delta)
             if not r.ok:
                 raise Stop(2, "{} {}: {} {}\n{}".format(name, config, r.status, r.message, r.log_tail))
             walls.append(r.wall_s)
@@ -371,6 +375,14 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         w = store.create(out / "{}.h5".format(name), kind, name, data["steady"], imap)
         for config, d in data.items():
             w.write_default(config, d["yldot"], d["yldot_J"], sig[config], d["diagnostics"])
+        if loc is not None:  # the locality pattern (PRD 7.5; AIUE-100): the entries with score > 1
+            run = data["steady"]["locality"]
+            if run["stale"].size:
+                raise Stop(2, "{}: {} stale locality columns (first rows {}): ask the epic owner (decision 23)".format(
+                    name, run["stale"].size, run["stale"][:10] + 1))
+            t = tolerance(fdir, data["steady"]["yldot"], "steady", imap, suite)
+            entries = locality.Entries.of(run["entries"])
+            w.write_locality("steady", run["delta"], locality.pattern(entries, t, locality.rtol_rows(rtol, imap)))
         variables, findings, kept = {}, [], {}
         if sweep != "none":
             tol = {config: tolerance(fdir, d["yldot"], config, imap) for config, d in data.items()}

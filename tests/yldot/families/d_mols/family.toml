@@ -88,3 +88,12 @@ iy_closed = [1, 1]  # core and private flux
 iy_open = [2, 4]  # SOL and legs
 source = { ixpt1 = 2, ixpt2 = 6, iysptrx = 1 }  # mhdgeo = 1: com.ixpt1, ixpt2, iysptrx
 cells = { guard = 28, core = 4, pf = 4, inner_leg = 6, sol = 12, outer_leg = 6 }
+
+[locality]  # PRD 7.5 (AIUE-100); owner, 2026-10-22: delta_loc and m_loc by rule D3, causes D2
+delta_loc = 1e-6
+m_loc = 100.0
+calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 2.01e+05, range_window_coupling 116; largest default entry 2.78."
+
+[locality.causes]  # the by-design causes of the default pattern
+nonog = "isnonog = 1: the neutral heat-conductivity 4-point average in feixy (cftiexclg*cfneut*cfneutsor_ei*0.25*(hcyn(ix,iy)+hcyn(ix,iy1)+hcyn(ix2,iy)+hcyn(ix4,iy1)), bbb/pandf_plasma_energy.m:476-477, noted at :458-459) reaches cell ix-1, so ti at ix+2 (and iy-1) responds to ni[1], ni[2] and ti at ix, one cell beyond xrinc = 1; vanishes with cfneutsor_ei = 0 or cftiexclg = 0. By design (owner, 2026-10-22, AIUE-100 D2)."
+band_only = "at delta_loc = 1e-6 these entries are in the band (largest 2.78), so the asserted pattern P is empty: they must grow about 36x before the test sees them (owner, 2026-10-22, AIUE-100 D3)."
