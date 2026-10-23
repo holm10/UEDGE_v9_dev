@@ -3,7 +3,8 @@ and its application inside the child.
 
     plan()           every variant of the inventory (tagged inputs and the overrides.toml additions), in a stable
                      order: id, rule, phase, configuration, EXCLUDED and reason
-    rule_value()     the value rules (owner, 2026-10-20: elementwise on arrays; bounded next index)
+    rule_value()     the value rules (owner, 2026-10-20: elementwise on arrays; bounded next index; owner, 2026-10-23,
+                     AIUE-161: charge, d+1 on the positive slots below a live count)
     apply()          in the child: read d live, compute (or replay) the value, assign it, read it back, record both
     encode/decode    exact JSON form of d and the applied value; a replay uses the recorded value, never the rules
 
@@ -22,7 +23,7 @@ from . import inputs
 OVERRIDES = Path(__file__).resolve().parent.parent / "overrides.toml"
 CONFIGS = ("steady", "timestep")
 PHASES = ("PRE", "POST")
-FIELDS = {"reason", "add", "exclude", "values", "others", "bound", "phase", "config"}
+FIELDS = {"reason", "add", "exclude", "values", "others", "bound", "charge", "phase", "config"}
 # the allowed values of the differencing methods (bbb/bbb.v:33-41); api.methimp is never read, so it has none
 METH_VALUES = {
     "bbb.methn": (22, 33),
@@ -42,9 +43,9 @@ class Mismatch(Exception):
 class Variant:
     id: str  # the key; key=value for an explicit value; key=other for the EXCLUDED rest of an explicit list
     key: str
-    rule: str  # default, value, bounded
+    rule: str  # default, value, bounded, charge
     value: object = None  # rule value
-    bound: str = None  # rule bounded: the key of the bound
+    bound: str = None  # rule bounded: the key of the bound; rule charge: the key of the slot count
     phase: str = "PRE"
     config: str = "steady"
     excluded: bool = False
@@ -102,6 +103,14 @@ def load_overrides(path=OVERRIDES, repo=inputs.REPO):
                 raise bad("bound {!r} is not an integer scalar".format(o["bound"]))
             if var.type != "integer":
                 raise bad("bound on a {} variable".format(var.type))
+        if "charge" in o:
+            if {"values", "bound", "exclude"} & set(o):
+                raise bad("charge together with values, bound or exclude")
+            n = allvars.get(o["charge"])
+            if n is None or n.type != "integer" or n.dims or n.dynamic:
+                raise bad("charge {!r} is not an integer scalar".format(o["charge"]))
+            if var.type != "real" or not var.dims or "," in var.dims:
+                raise bad("charge on a variable that is not a real 1-D array")
         if "values" in o:
             if not isinstance(o["values"], list) or not o["values"]:
                 raise bad("values must be a non-empty list")
@@ -139,6 +148,8 @@ def plan(repo=inputs.REPO, overrides=None):
                                    reason="values other than {}: {}".format(list(values), o["others"]), **common))
         elif "bound" in o:
             out.append(Variant(id=key, rule="bounded", bound=o["bound"], reason=o["reason"], **common))
+        elif "charge" in o:
+            out.append(Variant(id=key, rule="charge", bound=o["charge"], reason=o["reason"], **common))
         else:
             out.append(Variant(id=key, rule="default", reason=o.get("reason", ""), **common))
     ids = [v.id for v in out]
@@ -162,6 +173,15 @@ def rule_value(d, rule, value=None, bound=None):
         if kind != "i":
             raise TypeError("bounded rule on dtype {}".format(d.dtype))
         return np.where(d + 1 <= bound, d + 1, np.where(d - 1 >= 1, d - 1, d)).astype(d.dtype)
+    if rule == "charge":
+        # an integer ion charge (bbb.ziin): d+1 on the positive slots among the first `bound` (the hydrogenic ions,
+        # com.nhsp); the atoms (0) and the slots above `bound` (impurity charge states) keep d
+        if kind != "f" or d.ndim != 1:
+            raise TypeError("charge rule on dtype {} with {} dimensions".format(d.dtype, d.ndim))
+        v = d.copy()
+        h = v[:bound]
+        v[:bound] = np.where(h > 0, h + 1, h)
+        return v
     if rule != "default":
         raise ValueError("rule {!r}".format(rule))
     if kind == "i":
@@ -228,7 +248,7 @@ def apply(spec, phase, previous=None):
     elif previous is not None:
         applied = decode(previous["applied"])
     else:
-        if v.rule == "bounded":
+        if v.rule in ("bounded", "charge"):
             bpkg, _, bname = v.bound.partition(".")
             bound = int(getattr(getattr(uedge, bpkg), bname))
         applied = rule_value(d, v.rule, v.value, bound)

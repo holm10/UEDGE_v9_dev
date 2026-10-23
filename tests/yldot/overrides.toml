@@ -7,6 +7,8 @@
 #   values  = [...]                  explicit variant values, one variant each (instead of the default rule)
 #   others  = "..."                  with values: every other value is EXCLUDED with this reason
 #   bound   = "pkg.var"              bounded-index rule: d+1 if <= the bound's live value, else d-1 if >= 1, else d
+#   charge  = "pkg.var"              ion-charge rule (real 1-D): d+1 on the slots > 0 among the first n, n the live
+#                                    value of the integer scalar pkg.var; every other slot keeps d
 #   phase   = "PRE" | "POST"         force the phase (default: POST for dynamic arrays, PRE otherwise)
 #   config  = "steady" | "timestep"  the configuration the variant runs in (default: steady)
 # The meth* values are in the rules table of harness/variants.py, not here. Character variables are EXCLUDED by the
@@ -235,8 +237,8 @@ reason = "acts only when dtreal is finite (add_timestep, bbb/pandf.m:737-741)"
 config = "timestep"
 reason = "acts only when dtreal is finite (bbb/pandf_potencur.m:217-222,286)"
 
-# ---------------------------------------------------------------- suspected memory errors (owner 2026-10-22, AIUE-94)
+# ---------------------------------------------------------------- ion charge (owner 2026-10-23, AIUE-161)
 
 ["bbb.ziin"]
-exclude = true
-reason = "suspected memory error (AIUE-161): d_only yldot differs O(1) between same-commit builds (Linux max|yldot| 4.27e26, both macOS builds 3.00e26, 4e30 x tol), stable within a build; error in d_c, ortho, slab_phi; owner 2026-10-22"
+charge = "com.nhsp"
+reason = "ion charge, integers only (non-integer refused in allocate and ueinit): d+1 on the hydrogenic ion slots (ziin > 0, ifld <= nhsp); atoms (ziin = 0) and impurity charge states unchanged, family-level (rate tables: mcrates needs za <= zn); a hydrogenic slot set to 1 with isupgon(1) = 1 is AIUE-179; owner 2026-10-23, AIUE-161"
