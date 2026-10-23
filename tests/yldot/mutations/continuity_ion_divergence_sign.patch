@@ -9,8 +9,11 @@ Blocks: d_only: primary ni[1]; coupled up[1], te[1], ti[1]
  ortho: primary ni[1]; coupled up[1], te[1], ti[1]
  slab_phi: primary ni[1]; coupled up[1], te[1], ti[1]
  d_c: primary ni[1], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], te[1], ti[1]
+ dnull_imp2: primary ni[1]; coupled up[1], te[1], ti[1]
+ large_dd2c: primary ni[1], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], te[1], ti[1]
+ imp7: primary ni[1], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], te[1], ti[1]
 Intermediate: resco
-Families: d_only, d_mols, ortho, slab_phi, d_c
+Families: d_only, d_mols, ortho, slab_phi, d_c, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_continuity.m:1057 (at 1087ede)
 Description: sign flip of the ion particle-flux divergence in the plasma continuity residual resco (the zi != 0
  branch of calc_plasma_particle_residuals); owner, 2026-10-22 (AIUE-89). Primary blocks: the charged species' ni

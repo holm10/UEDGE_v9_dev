@@ -6,6 +6,7 @@ Linux path, the host path's preview (release null), the caps, and the manifests 
 The child tests need the built uedge (in the Runner's children); git, docker, pip and the container are fakes here,
 the real Linux run is the ticket's validation.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -252,6 +253,7 @@ def test_host_removes_its_worktree_after_a_failed_build(tmp_path, children):
 ])
 def test_refusals(tmp_path, children, kw, run, code, message):
     suite = tmp_suite(tmp_path, ("d_only", "imp7"))
+    (suite / "families" / "imp7" / "sigma.h5").unlink(missing_ok=True)  # imp7 here: a family without sigma.h5
     stream = FakeStream(children[0])
     with pytest.raises(mr.Stop) as e:
         mr.generate(args(out=str(tmp_path / "gen"), **kw), suite, run, stream)
@@ -267,13 +269,78 @@ def test_refuses_a_changed_sigma(tmp_path):
         mr.select([], suite)
 
 
-def test_refuses_a_family_with_other_release_assets(tmp_path):
+def test_refuses_a_family_with_another_familys_release_assets(tmp_path):
     suite = tmp_suite(tmp_path)
     m = {"schema": 1, "family": "d_only", "store": "full", "release": "yldot-data-v1",
-         "external": {"families/d_only/gridue": {"sha256": "0" * 64, "bytes": 1}}}
+         "external": {"families/other/gridue": {"sha256": "0" * 64, "bytes": 1}}}
     mf.dump(m, mf.path("d_only", suite))
-    with pytest.raises(mr.Stop, match="AIUE-92"):
-        mr.select([], suite)
+    with pytest.raises(mr.Stop, match="release assets of other families"):
+        mr.select(["d_only"], suite)
+
+
+GRID = b"an owner family's grid"
+
+
+def make_owner(suite, content=GRID):
+    """d_only as an owner family (AIUE-92): its manifest names a grid under families/d_only/ as a release asset, and
+    the working tree holds that grid with the given content."""
+    (suite / "families" / "d_only" / "gridue").write_bytes(content)
+    m = {"schema": 1, "family": "d_only", "store": "full", "release": "yldot-data-v1",
+         "external": {"families/d_only/gridue": {"sha256": hashlib.sha256(GRID).hexdigest(), "bytes": len(GRID)}}}
+    mf.dump(m, mf.path("d_only", suite))
+
+
+OWNER_IGNORED = "!! tests/yldot/families/d_only/gridue\n!! tests/yldot/families/d_only/sigma.h5\n"
+
+
+def test_owner_families_are_not_default_and_need_defaults_only(tmp_path, children):
+    suite = tmp_suite(tmp_path)
+    make_owner(suite)
+    assert mr.select([], suite) == []
+    stream = FakeStream(children[0])
+    with pytest.raises(mr.Stop, match="--defaults-only") as e:
+        mr.generate(args(family=["d_only"], out=str(tmp_path / "gen")), suite, FakeRun(status=OWNER_IGNORED), stream)
+    assert e.value.code == 1 and not stream.calls
+
+
+def test_owner_family_carries_its_assets_and_sigma(tmp_path, children):
+    """D6: the new manifest names the reference file, the owner family's assets as recorded and its sigma.h5, all
+    under the new release; check_tree lets those ignored files through."""
+    suite = tmp_suite(tmp_path)
+    make_owner(suite)
+    mr.generate(args(family=["d_only"], defaults_only=True, write=True, out=str(tmp_path / "gen")), suite,
+                FakeRun(status=OWNER_IGNORED), FakeStream(children[0]))
+    m = mf.load("d_only", suite)
+    sig = suite / "families" / "d_only" / "sigma.h5"
+    assert m["release"] == TAG
+    assert set(m["external"]) == {"references/d_only.h5", "families/d_only/gridue", "families/d_only/sigma.h5"}
+    assert m["external"]["families/d_only/gridue"] == {"sha256": hashlib.sha256(GRID).hexdigest(), "bytes": len(GRID)}
+    assert m["external"]["families/d_only/sigma.h5"] == {"sha256": file_sha256(sig), "bytes": sig.stat().st_size}
+    assert mf.family_assets(m) == ["families/d_only/gridue", "families/d_only/sigma.h5"]
+
+
+def test_owner_assets_refuses_an_absent_sigma(tmp_path):
+    """run_mutations.py calls owner_assets without select: an absent sigma.h5 is a refusal, not a traceback."""
+    suite = tmp_suite(tmp_path)
+    make_owner(suite)
+    (suite / "families" / "d_only" / "sigma.h5").unlink()
+    with pytest.raises(mr.Stop, match="sigma.h5 is missing") as e:
+        mr.owner_assets(["d_only"], suite)
+    assert e.value.code == 1
+
+
+@pytest.mark.parametrize("content, status, message", [
+    (b"another grid", OWNER_IGNORED, "differs from its manifest"),
+    (GRID, OWNER_IGNORED + "!! tests/yldot/families/d_only/stray.h5\n", "holds files"),
+])
+def test_owner_family_refusals(tmp_path, children, content, status, message):
+    suite = tmp_suite(tmp_path)
+    make_owner(suite, content)
+    stream = FakeStream(children[0])
+    with pytest.raises(mr.Stop, match=message) as e:
+        mr.generate(args(family=["d_only"], defaults_only=True, out=str(tmp_path / "gen")), suite, FakeRun(status=status),
+                    stream)
+    assert e.value.code == 1 and not stream.calls
 
 
 def test_a_preview_never_writes_over_a_release(tmp_path, children):
@@ -294,8 +361,10 @@ def test_refuses_a_used_out_directory(tmp_path):
         mr.generate(args(out=str(tmp_path / "gen")), suite, FakeRun(), FakeStream(tmp_path))
 
 
-def test_default_families_are_those_with_sigma():
-    assert mr.select([], SUITE) == sorted(p.parent.name for p in FAMILIES.glob("*/sigma.h5"))
+def test_default_families_are_the_small_ones():
+    """Every family with sigma.h5 that is not an owner family (whose sigma.h5 is a release asset, AIUE-92 D6)."""
+    assert mr.select([], SUITE) == sorted(p.parent.name for p in FAMILIES.glob("*/sigma.h5")
+                                          if not mf.owner_family(p.parent.name))
 
 
 def test_child_names_a_failed_evaluation(monkeypatch, tmp_path):
@@ -318,8 +387,9 @@ def test_main_exit_codes(capsys):
 
 
 def test_manifests_with_data():
-    """Every manifest in references/ that holds reference data: its store is family.toml's, a small family (one with
-    sigma.h5) classifies exactly the inventory's variants and an owner family none yet (AIUE-99), a release names its
+    """Every manifest in references/ that holds reference data: its store is family.toml's, a small family (one without
+    release assets under families/) classifies exactly the inventory's variants and an owner family none yet
+    (AIUE-99), a release names its
     files (previews are never committed) and they were built in the pinned image (owner, AIUE-88 D1)."""
     from yldot.harness import variants
 
@@ -330,7 +400,7 @@ def test_manifests_with_data():
             continue
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
-        small = (FAMILIES / m["family"] / "sigma.h5").is_file()
+        small = not mf.family_assets(m)
         assert set(m["variables"]) == (ids if small else set()), p.name
         assert m["provenance"]["flags"] == "--serial", p.name
         assert m["release"] is not None, p.name

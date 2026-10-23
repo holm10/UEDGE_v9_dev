@@ -6,11 +6,15 @@ Check: yldot
 Configs: steady, timestep
 Blocks: d_mols: primary ng[2]
  d_c: primary ng[2]
+ large_dd2c: primary ng[2], ng[3]; coupled tg[2]
+ imp7: primary ng[2]
 Intermediate: resng
-Families: d_mols, d_c
+Families: d_mols, d_c, large_dd2c, imp7
 Source: bbb/pandf_gas_continuity.m:1051 (at 8a67572)
 Description: drops the gas ionization sink psorg from resng (multiplied by 0: the term shares its line with the
- parenthesis that psorcxg and psorrg close). psorg(,,2) is non-zero in d_mols and d_c (planning probe).
+ parenthesis that psorcxg and psorrg close). psorg(,,2) is non-zero in d_mols and d_c (planning probe), and in
+ large_dd2c (also igsp 3, with tg[2] coupled through rscalf) and imp7 (AIUE-92 probe); dnull_imp2 has no gas
+ equation (ngsp = 1).
 
 diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
 index 21cf483..2abf0f5 100644

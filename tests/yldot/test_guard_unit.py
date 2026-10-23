@@ -93,13 +93,16 @@ def variant(seed):
 
 
 def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None,
-             locality=None):
-    """(manifest, .h5 bytes) of a full-store reference; variables {id: (class, seed)}, the SENSITIVE ones stored;
-    locality: (delta, entries) of a stored locality pattern."""
+             locality=None, kind="full", thresholds=None):
+    """(manifest, .h5 bytes) of a reference (a full store unless kind); variables {id: (class, seed)}, the SENSITIVE
+    ones stored; locality: (delta, entries) of a stored locality pattern; thresholds: the tol of a sketch store's
+    stored sketch thresholds."""
     p = Path(where) / "{}-{}.h5".format(family, next(COUNTER))
-    w = store.create(p, "full", family, DATA, IMAP)
+    w = store.create(p, kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, default, YJ + (default - Y), sigma, diag)
+        if thresholds is not None:
+            w.write_sketch_thresholds(config, thresholds)
     if locality is not None:
         w.write_locality("steady", *locality)
     for vid, (cls, seed) in sorted(variables.items()):
@@ -114,11 +117,13 @@ def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=
                         "config": "steady", "sha256": mf.variant_sha(out["datasets"], "steady", vid) if sens else None,
                         "block_l2": store.block_l2(variant(seed) - Y, LABELS, ROWS) if sens else {},
                         "jflag_block_l2": {}}
-    m = {"schema": mf.SCHEMA, "family": family, "store": "full", "release": release,
+    m = {"schema": mf.SCHEMA, "family": family, "store": kind, "release": release,
          "external": dict({mf.reference_path(family): {"sha256": out["sha256"], "bytes": out["bytes"]}},
                           **(external or {})),
          "datasets": out["datasets"], "guarded": guarded, "unguarded": unguarded,
          "provenance": {k: "x" for k in mf.PROVENANCE}, "variables": entries}
+    if kind == "sketch":
+        m["sketch"] = {"k": store.K, "seed": store.SEED}
     mf.validate(m)
     return m, p.read_bytes()
 
@@ -582,6 +587,30 @@ def test_removed_locality_pattern_is_a_default_change(repo):
     repo.put_ref("fam", BASE_VARIABLES["fam"])
     code, v, text = repo.check()
     assert code == 1 and v["items"] == ["fam:locality/steady"] and "guarded locality/steady removed" in text
+
+
+THR = np.linspace(1e-9, 1e-7, N)
+
+
+def test_new_sketch_thresholds_are_an_addition(repo):
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False)
+    repo.base = repo.commit("a sketch store")
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=THR)
+    code, v, text = repo.check()
+    assert code == 0, text
+    assert v["required"] == [] and "addition: guarded ['steady/sketch_threshold', 'timestep/sketch_threshold']" in text
+
+
+def test_changed_sketch_thresholds_are_a_loosening(repo):
+    """AIUE-92: the manifest cannot show changed sketch thresholds to be smaller, so any change is a loosening (like a
+    changed sigma), judged through guarded <config>/sketch_threshold, not per dataset."""
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=THR, release=V1, serve=False)
+    repo.base = repo.commit("sketch thresholds")
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=0.5 * THR)
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"changed", "loosened"}, text  # a loosening also needs the changed line
+    assert "stored sketch thresholds steady/sketch_threshold changed" in text
+    assert not any("sketch_threshold/" in item for item in v["items"])
 
 
 def test_diagnostics_only(repo):

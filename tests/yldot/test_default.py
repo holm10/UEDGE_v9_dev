@@ -76,7 +76,7 @@ def test_default(tol, runner, family, config):
         if not chk.ok:
             ref = s.default(config)
             lines = [headline(family, config, "yldot", yldot, ref, t, imap,
-                              (s.diagnostics(config), r.data["diagnostics"])),
+                              s.diagnostic_pair(config, r.data["diagnostics"])),
                      headline(family, config, "flag difference", np.asarray(yldot_j) - np.asarray(yldot),
                               s.jflag(config), t, imap)]
             pytest.fail("\n".join(lines + [chk.report]), pytrace=False)
@@ -84,18 +84,27 @@ def test_default(tol, runner, family, config):
 
 @pytest.mark.parametrize("family", REFERENCED)
 def test_timestep_exercised(tol, family):
-    """The stored timestep default differs from the steady one beyond tolerance exactly where the time-step term acts:
-    the rows where the stored timestep Jacobian-flag difference is non-zero (add_timestep acts under the -1 flag only,
-    bbb/pandf.m:735-742)."""
+    """The stored timestep default is the steady one plus the time-step term, exactly: add_timestep acts under the -1
+    flag only (bbb/pandf.m:735-742) and is the only difference between the configurations, so the timestep run's +1
+    evaluation equals the steady default and timestep - steady is minus the stored timestep flag difference bit for
+    bit (IEEE subtraction is antisymmetric, fl(a - b) = -fl(b - a)). The defaults then differ beyond tolerance exactly
+    where that term exceeds tol_i. A time-step term below tol_i is possible where the base state's perturbation draw
+    is near zero (owner, 2026-10-23, AIUE-92: dnull_imp2 ni[2] at (65,23), 1.9e-7 relative, 0.04 x tol_i)."""
     with open_store(family) as s:
         steady, timestep = s.default("steady"), s.default("timestep")
-        c = compare.compare(timestep, steady, tolerance(s, "steady", tol, s.imap), s.imap)
+        t = tolerance(s, "steady", tol, s.imap)
+        jflag = s.jflag("timestep")
+        c = compare.compare(timestep, steady, t, s.imap)
         assert not c.ok, "{}: the timestep default is within tolerance of the steady one".format(family)
+        off = np.flatnonzero((timestep - steady) != -jflag)
+        assert not off.size, ("{}: timestep - steady is not minus the timestep flag difference at {} rows (first {}): "
+                              "something besides add_timestep differs between the configurations".format(
+                                  family, off.size, listed(off[:20] + 1)))
         where = np.flatnonzero(c.fail_mask)
-        jflag = np.flatnonzero(s.jflag("timestep"))
+        over = np.flatnonzero(np.abs(jflag) > t)
         per_block = ", ".join("{}[{}] {}".format(e, sp, n) for (e, sp), n in c.per_block.items() if n)
-        assert np.array_equal(where, jflag), (
-            "{}: timestep differs from steady at {} rows ({}), the timestep flag difference is non-zero at {}; rows "
-            "only in the first {}, only in the second {}".format(
-                family, where.size, per_block, jflag.size, listed(np.setdiff1d(where, jflag) + 1),
-                listed(np.setdiff1d(jflag, where) + 1)))
+        assert np.array_equal(where, over), (
+            "{}: timestep differs from steady at {} rows ({}), the time-step term exceeds tol_i at {}; rows only in "
+            "the first {}, only in the second {}".format(
+                family, where.size, per_block, over.size, listed(np.setdiff1d(where, over) + 1),
+                listed(np.setdiff1d(over, where) + 1)))

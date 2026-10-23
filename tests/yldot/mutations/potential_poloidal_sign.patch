@@ -8,8 +8,11 @@ Blocks: d_only: primary phi[1]
  ortho: primary phi[1]
  d_mols: primary phi[1]
  slab_phi: primary phi[1]
+ dnull_imp2: primary phi[1]
+ large_dd2c: primary phi[1]
+ imp7: primary phi[1]
 Intermediate: resphi
-Families: d_only, ortho, d_mols, slab_phi
+Families: d_only, ortho, d_mols, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_potencur.m:700 (at 8a67572)
 Description: sign flip of the poloidal current divergence in the potential residual resphi
  (calc_potential_residuals). d_c does not evolve phi (no phi block).

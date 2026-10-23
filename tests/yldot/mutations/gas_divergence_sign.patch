@@ -6,12 +6,16 @@ Check: yldot
 Configs: steady, timestep
 Blocks: d_mols: primary ng[2]
  d_c: primary ng[2]
+ large_dd2c: primary ng[2], ng[3]; coupled tg[2]
+ imp7: primary ng[2]
 Intermediate: resng
-Families: d_mols, d_c
+Families: d_mols, d_c, large_dd2c, imp7
 Source: bbb/pandf_gas_continuity.m:1057 (at 8a67572)
 Description: sign flip of the gas flux divergence in resng (calc_gas_continuity_residuals). Only gas species 2 is
  evolved in the small families: d_mols' molecules, d_c's carbon gas (isngon(1) = 0: the hydrogenic atoms
- are ion species 2). rscalf couples ng only for igsp = 1 with isupgon(1) = 0: no coupled block.
+ are ion species 2). rscalf couples ng into ti only for igsp = 1 with isupgon(1) = 0, so the small families have no
+ coupled block; large_dd2c (ng[2] molecules, ng[3] carbon gas) has tg[2] coupled through rscalf (isflxvar = 0,
+ bbb/oderhs.m:674-682); imp7 evolves ng[2] (carbon gas); dnull_imp2 (ngsp = 1, isupgon(1) = 1) never enters the loop.
 
 diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
 index 21cf483..d53af67 100644

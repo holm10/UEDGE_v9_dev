@@ -15,7 +15,8 @@ run       applies the mutations (default: all) one at a time to a scratch worktr
           extension's SHA-256 must be new in the run (a stale build fails it), the evaluations, test_default.py with
           the built python as a cross-check (and test_locality.py for a range mutation), git apply -R, the scratch
           tree clean again. The locality check runs only for a mutation whose Check is locality (owner, 2026-10-22,
-          AIUE-100 D4); for the others the part is absent ("not run"). Inner-loop rule: the
+          AIUE-100 D4), and only in families with [locality] (owner, 2026-10-23, AIUE-92: the owner families have
+          none); elsewhere the part is absent ("not run"). Inner-loop rule: the
           mutation's first family (the smallest referenced family where its code is active) runs first; a verdict
           other than expected there stops the mutation (its other families: not run). Otherwise every other
           referenced family runs, active or not (owner, 2026-10-22, AIUE-90 Q8: a block firing where the code is
@@ -550,14 +551,22 @@ def part_summary(c, imap):
             "cells": cells}
 
 
+def has_locality(family):
+    """Whether the family runs the locality check: a [locality] table in its family.toml (AIUE-100)."""
+    from yldot.harness import locality as L
+
+    return L.load_config(FAMILIES / family) is not None
+
+
 def locality_part(runner, family, regions, tol):
-    """The locality part of one family (test_locality.py's decision): (status record or None, part summary)."""
+    """The locality part of one family (test_locality.py's decision): (status record or None, part summary); (None,
+    None) for a family without [locality], where the part is not run (owner, 2026-10-23, AIUE-92)."""
     from yldot.harness import FAMILIES, compare, open_store
     from yldot.harness import locality as L
 
     cfg = L.load_config(FAMILIES / family)
     if cfg is None:
-        raise Stop(2, "{}: no [locality] in family.toml, so a range mutation can't be checked there".format(family))
+        return None, None
     r = runner.evaluate(family, locality=cfg["delta_loc"])
     if not r.ok:
         return {"status": r.status, "message": r.message, "log_tail": r.log_tail}, None
@@ -607,7 +616,7 @@ def child(families, out, locality=False):
                 if chk.ok != all(p["ok"] for p in parts.values()):
                     raise Stop(2, "{} {}: Store.check says {} but the comparisons {}".format(
                         family, config, chk.ok, {k: p["ok"] for k, p in parts.items()}))
-                d = first_difference(s.diagnostics(config), r.data["diagnostics"], rtol=DIAG_SCALED_RTOL,
+                d = first_difference(*s.diagnostic_pair(config, r.data["diagnostics"]), rtol=DIAG_SCALED_RTOL,
                                      scaled=True)
             res[family][config] = {"status": "ok", "parts": parts, "intermediate": d.name if d else None,
                                    "first_difference": str(d) if d else None}
@@ -615,7 +624,7 @@ def child(families, out, locality=False):
             failed, part = locality_part(runner, family, regions, tol)
             if failed is not None:
                 res[family]["steady"] = failed
-            else:
+            elif part is not None:
                 res[family]["steady"]["parts"]["locality"] = part
     Path(out).write_text(json.dumps(res, indent=1) + "\n")
 
@@ -772,7 +781,8 @@ def run_one(m, scratch, out, families):
         def evaluate(fams, name):
             res = scratch.evaluate(fams, mdir / "{}.json".format(name), locality=loc)
             junit = scratch.test_default(fams, mdir / "{}.junit.xml".format(name))
-            jloc = scratch.test_locality(fams, mdir / "{}.locality.junit.xml".format(name)) if loc else {}
+            with_loc = [f for f in fams if has_locality(f)] if loc else []
+            jloc = scratch.test_locality(with_loc, mdir / "{}.locality.junit.xml".format(name)) if with_loc else {}
             for f in fams:
                 results[f] = entry(m, f, res[f], junit[f], jloc.get(f))
 
@@ -797,7 +807,8 @@ def run(args, run=mr.run, stream=mr.stream):
     stores = store_facts(families)
     ms = load_set(args.mutation or None, stores)
     sha = mr.resolve(args.from_commit, root, run)
-    mr.check_tree(sha, root, families, run)
+    owner = mr.owner_assets(families, SUITE)  # the owner families' release assets, checked: let through (AIUE-92)
+    mr.check_tree(sha, root, families, run, {"tests/yldot/" + p for a in owner.values() for p in a})
     rc = stream([sys.executable, str(Path(__file__).resolve().parent / "fetch_data.py"), "--check"] + families)
     if rc != 0:
         raise Stop(1, "the reference files are not all present: run tests/yldot/tools/fetch_data.py {}".format(

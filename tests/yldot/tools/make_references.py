@@ -8,11 +8,12 @@ Usage (from a checkout whose tests/yldot is the commit's, references/ aside):
     <built python> make_references.py _child family ... [--sweep all|none] [--only VAR ...] [--full]
                                        --out DIR --build FILE
 
-generate  builds SHA --serial and, per family (default: every family with sigma.h5, the five small ones), evaluates
-          the steady and timestep defaults with both Jacobian flags (harness/state.py, PRD section 6) and the
-          diagnostics, then every variant of harness/variants.plan() in a fresh child each, and writes
-          DIR/references/<family>.h5 (harness/store.py, with the family's sigma_i of families/<f>/sigma.h5, AIUE-87)
-          and the manifest with provenance and one entry per variant (harness/manifest.py). It prints each file's
+generate  builds SHA --serial and, per family (default: every family with sigma.h5 that is not an owner family, the
+          five small ones), evaluates the steady and timestep defaults with both Jacobian flags (harness/state.py, PRD
+          section 6) and the diagnostics, then every variant of harness/variants.plan() in a fresh child each, and
+          writes DIR/references/<family>.h5 (harness/store.py, with the family's sigma_i of families/<f>/sigma.h5,
+          AIUE-87; a sketch store also the default's sketch thresholds, PRD 7.11 d, AIUE-92) and the manifest with
+          provenance and one entry per variant (harness/manifest.py). It prints each file's
           SHA-256 and size, the family's summary line (PRD section 5, story 3, with MARGINAL) and its cost. Only with
           --write does it copy the files to tests/yldot/references/ and write references/<family>.manifest.json,
           then open each through open_store as a check.
@@ -51,9 +52,13 @@ them and writes nothing (exit 3).
 
 The container and the host venv run this working tree's harness and families against SHA's UEDGE, so generate
 refuses unless tests/yldot (references/ excepted) is exactly SHA's: no difference, no untracked file, no ignored
-file in the families' directories or data/. A preview (no --release) never --writes over a released manifest. It
-refuses a family without sigma.h5, whose sigma.h5 differs from tolerances.toml's SHA-256, or whose manifest names
-release assets other than its reference file (the owner families' grids and states: AIUE-92). Every evaluation runs
+file in the families' directories or data/, except an owner family's release assets (its manifest's
+families/<f>/ externals, and its sigma.h5) at their recorded SHA-256s. A preview (no --release) never --writes over a
+released manifest. It refuses a family without sigma.h5, whose sigma.h5 differs from tolerances.toml's SHA-256, or
+whose manifest names release assets of another family. An owner family (manifest.owner_family: its grid, inputs and
+states are release assets) is generated only when named and only with --defaults-only (its variant sweep is AIUE-99);
+its new manifest carries those assets and adds families/<f>/sigma.h5 (owner, 2026-10-22, AIUE-92 D6), all under
+the new release. Every evaluation runs
 in a fresh child process (harness/process.py). Writing the same results twice gives the same bytes
 (track_times=False, variants in plan order). Two Linux runs from one commit gave the same SHA-256s on one host
 (Docker Desktop, x86 emulation on Apple silicon, AIUE-88); whether a native amd64 host reproduces them bit for bit
@@ -89,7 +94,8 @@ PINS = ("setuptools==84.2.1", "forthon==0.10.10", "numpy==2.5.4", "h5py==3.16.0"
 FLAGS = "--serial"
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
-CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9}  # reference file caps, PRD 7.3; 10^6 bytes
+CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
+           "large_dd2c": 9, "dnull_imp2": 9, "imp7": 9}  # the last two: owner, 2026-10-23 (AIUE-92 B4)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
 SAMPLE_N = 20  # the tolerance-inheritance sample per family, plus every SENSITIVE timestep variant (PRD 7.4; D2)
@@ -375,6 +381,8 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         w = store.create(out / "{}.h5".format(name), kind, name, data["steady"], imap)
         for config, d in data.items():
             w.write_default(config, d["yldot"], d["yldot_J"], sig[config], d["diagnostics"])
+            if kind == "sketch":  # PRD 7.11 (d), AIUE-92: what one entry or cell must move for the sketch to see it
+                w.write_sketch_thresholds(config, tolerance(fdir, d["yldot"], config, imap, suite))
         if loc is not None:  # the locality pattern (PRD 7.5; AIUE-100): the entries with score > 1
             run = data["steady"]["locality"]
             if run["stale"].size:
@@ -482,9 +490,9 @@ def resolve(commit, root, run=run):
     return out.strip()
 
 
-def check_tree(sha, root, families, run=run):
+def check_tree(sha, root, families, run=run, allowed=()):
     """tests/yldot in the working tree is sha's, references/ excepted, and no ignored file sits where an evaluation of
-    the families reads (their directories, data/; __pycache__ excepted)."""
+    the families reads (their directories, data/; __pycache__ excepted) but the paths allowed (owner_assets)."""
     rc, _, err = run(["git", "-C", str(root), "diff", "--quiet", sha, "--", "tests/yldot",
                       ":(exclude)tests/yldot/references"])
     if rc == 1:
@@ -502,6 +510,8 @@ def check_tree(sha, root, families, run=run):
         path = line[3:]
         if path.startswith("tests/yldot/references/") or "__pycache__/" in path:
             continue
+        if line.startswith("!!") and path in allowed:
+            continue
         if not line.startswith("!!") or path.startswith(read):  # ignored files elsewhere (.data/, owner assets)
             extra.append(path)
     if extra:
@@ -509,11 +519,12 @@ def check_tree(sha, root, families, run=run):
 
 
 def select(families, suite):
-    """The families to generate, checked: sigma.h5 as tolerances.toml records it, no release assets but the
-    reference file."""
+    """The families to generate (default: the small ones, every family with sigma.h5 that is not an owner family),
+    checked: sigma.h5 as tolerances.toml records it, no release assets but the reference file and its own."""
     fams = suite / "families"
     if not families:
-        families = sorted(p.name for p in fams.iterdir() if (p / "sigma.h5").is_file())
+        families = sorted(p.name for p in fams.iterdir()
+                          if (p / "sigma.h5").is_file() and not mf.owner_family(p.name, suite))
     with open(suite / "tolerances.toml", "rb") as f:
         recorded = tomllib.load(f).get("sigma", {})
     problems = []
@@ -523,20 +534,56 @@ def select(families, suite):
             problems.append("{}: no such family".format(name))
             continue
         if not (fdir / "sigma.h5").is_file():
-            problems.append("{}: no sigma.h5 (its round-off is not measured yet: AIUE-92 for the owner families)"
-                            .format(name))
+            problems.append("{}: no sigma.h5 (its round-off is not measured, or the file is not fetched: "
+                            "tools/fetch_data.py)".format(name))
             continue
         want = recorded.get(name, {}).get("sha256")
         if file_sha256(fdir / "sigma.h5") != want:
             problems.append("{}: sigma.h5 differs from tolerances.toml's SHA-256 {}".format(name, want))
         if mf.path(name, suite).is_file():
-            other = sorted(set(mf.load(name, suite)["external"]) - {mf.reference_path(name)})
+            m = mf.load(name, suite)
+            other = sorted(set(m["external"]) - {mf.reference_path(name)} - set(mf.family_assets(m)))
             if other:
-                problems.append("{}: its manifest names release assets {}; moving them is AIUE-92's".format(
-                    name, other))
+                problems.append("{}: its manifest names release assets of other families {}".format(name, other))
     if problems:
         raise Stop(1, "; ".join(problems))
     return list(families)
+
+
+def sigma_path(name):
+    return "families/{}/sigma.h5".format(name)
+
+
+def owner_assets(families, suite):
+    """{family: {path: {sha256, bytes}}} of the owner families among families: their manifest's families/<f>/
+    externals, each checked in the working tree (links resolved) against its recorded SHA-256 and size, and
+    families/<f>/sigma.h5 (already checked against tolerances.toml by select). The new manifest's externals besides
+    the reference file (owner, 2026-10-22, AIUE-92 D6); check_tree allows these ignored files."""
+    out, problems = {}, []
+    for name in families:
+        if not mf.owner_family(name, suite):
+            continue
+        m = mf.load(name, suite)
+        carried = {}
+        for p in mf.family_assets(m):
+            if p == sigma_path(name):
+                continue  # re-recorded below from the file select checked
+            f, e = suite / p, m["external"][p]
+            if not f.is_file():
+                problems.append("{} is missing or a dangling link: run tools/fetch_data.py {}".format(p, name))
+            elif (file_sha256(f), f.stat().st_size) != (e["sha256"], e["bytes"]):
+                problems.append("{} differs from its manifest's SHA-256 or size".format(p))
+            carried[p] = dict(e)
+        s = suite / sigma_path(name)
+        if not s.is_file():
+            problems.append("{} is missing or a dangling link: run tools/fetch_data.py {}".format(sigma_path(name),
+                                                                                              name))
+        else:
+            carried[sigma_path(name)] = {"sha256": file_sha256(s), "bytes": s.stat().st_size}
+        out[name] = carried
+    if problems:
+        raise Stop(1, "; ".join(problems))
+    return out
 
 
 # ---------------------------------------------------------------- host side: builds
@@ -608,10 +655,12 @@ def build_host(sha, families, out, root, run=run, stream=stream, opts=()):
 # ---------------------------------------------------------------- host side: manifests
 
 
-def assemble(sha, families, out, release):
+def assemble(sha, families, out, release, assets=None):
     """({family: manifest}, findings) from the child's files in out/references; prints each family's summary and
-    cost. findings: the child's (variants for the epic owner) and every reference file over its PRD 7.3 cap."""
+    cost. findings: the child's (variants for the epic owner) and every reference file over its PRD 7.3 cap. assets:
+    owner_assets, the externals an owner family's manifest carries besides the reference file."""
     manifests, findings = {}, []
+    assets = assets or {}
     for name in families:
         h5, js = out / "references" / "{}.h5".format(name), out / "references" / "{}.json".format(name)
         if not (h5.is_file() and js.is_file()):
@@ -620,7 +669,8 @@ def assemble(sha, families, out, release):
         if m["provenance"]["commit"] != sha:
             raise Stop(2, "{}: provenance commit {} is not {}".format(name, m["provenance"]["commit"], sha))
         m["release"] = release
-        m["external"] = {mf.reference_path(name): {"sha256": file_sha256(h5), "bytes": h5.stat().st_size}}
+        m["external"] = dict({mf.reference_path(name): {"sha256": file_sha256(h5), "bytes": h5.stat().st_size}},
+                             **assets.get(name, {}))
         mf.validate(m)
         manifests[name] = m
         ref = out / "references"
@@ -667,7 +717,12 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         raise Stop(2, "--only and --defaults-only together")
     sha = resolve(args.from_commit, root, run)
     families = select(args.family, suite)
-    check_tree(sha, root, families, run)
+    owner = [f for f in families if mf.owner_family(f, suite)]
+    if owner and not args.defaults_only:
+        raise Stop(1, "{}: an owner family's references are its defaults only (its variant sweep is AIUE-99): "
+                      "--defaults-only".format(", ".join(owner)))
+    assets = owner_assets(families, suite)
+    check_tree(sha, root, families, run, {"tests/yldot/" + p for a in assets.values() for p in a})
     if args.defaults_only and args.write:
         swept = [f for f in families if mf.path(f, suite).is_file() and mf.load(f, suite).get("variables")]
         if swept:
@@ -695,7 +750,7 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         build_linux(sha, families, out, suite, root, run, stream, child_options(args))
     else:
         build_host(sha, families, out, root, run, stream, child_options(args))
-    manifests, findings = assemble(sha, families, out, args.release)
+    manifests, findings = assemble(sha, families, out, args.release, assets)
     for name, m in manifests.items():
         e = m["external"][mf.reference_path(name)]
         print("{}  {}  {} bytes".format(e["sha256"], mf.reference_path(name), e["bytes"]))

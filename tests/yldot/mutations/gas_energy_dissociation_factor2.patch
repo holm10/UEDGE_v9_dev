@@ -7,10 +7,9 @@ Configs: steady, timestep
 Blocks: large_dd2c: primary tg[2]
 Intermediate: reseg
 Families: large_dd2c
-Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
 Source: bbb/pandf_gas_energy.m:390 (at 8a67572)
 Description: factor 2 on the molecules' internal energy sink from dissociation (inside ishymol = 1 and igsp = 2;
- large_dd2c sets ishymol = 1, input.py:104). Pending AIUE-92 as gas_energy_divergence_sign.
+ large_dd2c sets ishymol = 1, input.py:104). Active in large_dd2c only (dnull_imp2 and imp7: ishymol = 0).
 
 diff --git a/bbb/pandf_gas_energy.m b/bbb/pandf_gas_energy.m
 index 7ad1ab8..bef7fbe 100644

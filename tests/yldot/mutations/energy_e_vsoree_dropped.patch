@@ -9,8 +9,11 @@ Blocks: d_only: primary te[1]
  d_mols: primary te[1]
  d_c: primary te[1]
  slab_phi: primary te[1]
+ dnull_imp2: primary te[1]
+ large_dd2c: primary te[1]
+ imp7: primary te[1]
 Intermediate: resee
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_energy.m:1052 (at 8a67572)
 Description: drops the electron energy source vsoree from resee (non-zero in every small family, planning probe);
  the equipartition w0 stays.

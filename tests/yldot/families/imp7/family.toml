@@ -58,11 +58,30 @@ roundtrip_changes_source = { nis = 0, ups = 160, tes = 8, tis = 1, phis = 0, ngs
 flalfe_qr_ge_1_reference = 159
 flalfe_qr_ge_1_base = 902
 
-[evaluation]  # placeholders (owner, 2026-10-19) until AIUE-92 measures them
-w = 2  # exmain warm-up count, PRD section 6 step 5
-p = 2  # pandf repeats, steps 8 and 8b
+[evaluation]  # measured (AIUE-92, [history]): W = P = 1, no child reuse (owner rule, 2026-10-21, AIUE-86)
+w = 1  # exmain warm-up count, PRD section 6 step 5
+p = 1  # pandf repeats, steps 8 and 8b
+child_reuse = false  # one fresh child per evaluation (owner, 2026-10-21, AIUE-86)
 timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[history]  # tools/measure_history.py run (AIUE-92): rows that differ bit for bit, yldot plus yldot_J
+measured = "2026-10-23"  # re-measured on an idle machine (AIUE-92 B8)
+build = "AIUE-92-serial"  # 6ccd347 Fortran (unchanged since), --serial, one thread, Darwin arm64; tests/ on the AIUE-92 branch
+uedge_ver = "8.1.2-beta.0"
+w_sweep = { steady = [0, 0], timestep = [0, 0] }  # exmain x 1 vs 2, 2 vs 3, each in a fresh process (p = 1)
+p_sweep = { steady = [0, 0], timestep = [0, 0] }  # pandf x 1 vs 2, 2 vs 3 (w = 1)
+control_two_processes = { steady = 0, timestep = 0 }  # w = p = 1 in two processes
+flag_sequence = { steady = 0, timestep = 0 }  # one more pandf at -1 and at +1 after step 8b, same process
+steady_plus_minus_rows = 0  # steady yldot_J vs yldot
+gated_rows = 0  # of those, removed by ishosor = 0 (the only flag-gated branch active in steady)
+flags = { ishosor = 0, ismcnon = 0 }
+reuse = "bit-identical: steady, steady, timestep, steady, intake, steady"  # one process; report only
+child_wall_s = { steady = 0.8569, timestep = 1.1655 }  # one Runner child (forkserver), median of 5
+eval_in_child_s = { steady = 0.8415, timestep = 1.083 }  # the protocol inside the child, input.py included
+pandf_s = 1.96e-02  # one pandf, median of 5
+n_variants = { steady = 975, timestep = 9 }  # variants.plan(), not excluded
+sweep_cpu_s = 846  # n_variants x child_wall_s
 
 [regions]
 # owner, 2026-10-21 (AIUE-91 ticket page, D1): six disjoint regions, one guard region; inner = the ix = 0 side (upper single null too)

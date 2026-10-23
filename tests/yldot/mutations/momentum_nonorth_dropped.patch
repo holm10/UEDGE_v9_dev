@@ -7,8 +7,11 @@ Configs: steady, timestep
 Blocks: d_only: primary up[1]
  d_mols: primary up[1]
  d_c: primary up[1]
+ dnull_imp2: primary up[1]
+ large_dd2c: primary up[1]
+ imp7: primary up[1]
 Intermediate: resmo
-Families: d_only, d_mols, d_c
+Families: d_only, d_mols, d_c, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_momentum.m:480 (at 8a67572)
 Description: drops the non-orthogonal cross flux fmixy from the ion momentum residual (zi > 0 branch, inside isnonog
  = 1). Active only where isnonog = 1: d_only, d_mols, d_c (input.py); ortho and slab_phi leave fmixy = 0

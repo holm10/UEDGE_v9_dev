@@ -100,14 +100,22 @@ SIGMA_RULE = "max over the serial pairs of max(|d yldot_i|, |d yldot_J_i|), per 
 # that sends new items adds the new answers here (AIUE-87 ticket page, Findings and decisions)
 OWNER_ANSWERS = (
     "2026-10-22, AIUE-87: every floor group over 10 % (sigma = 0 in rows bitwise identical across the serial builds) is "
-    "accepted with the PRD 7.4 floor unchanged; open finding for the owner: d_mols phi[1] guard ix=7 iy=0 (ref -37.6) "
-    "gets k*sigma_min,r = 1.5e-3*|ref| from the ix=9 guard cells",
+    "accepted with the PRD 7.4 floor unchanged; d_mols phi[1] guard ix=7 iy=0 (ref -37.6) gets k*sigma_min,r = "
+    "1.5e-3*|ref| from the ix=9 guard cells, and keeps the floor: AIUE-150 (no code change) found two base-state noise "
+    "draws that nearly match in a dphi/dy = 0 boundary row",
     "2026-10-22, AIUE-87: the --debug bounds-check stop at bbb/pandf_plasma_energy.m:603 (ng(ix,iy,2) with ngsp = 1) "
     "is bug AIUE-145",
     "2026-10-22, AIUE-87: the OpenMP crashes with OMPParallelJac/OMPParallelPandf1 = 1 are bug AIUE-146; the measured "
     "OpenMP rows stay report only",
+    "2026-10-22, AIUE-92: the owner families' floor groups over 10 % (53 per configuration; the same groups after "
+    "AIUE-170, 2026-10-23) are accepted with the PRD 7.4 floor unchanged; the quiet-cell mutation stays at slab_phi "
+    "(18,1)",
+    "2026-10-23, AIUE-92: imp7's spread at its inner-target corner (1,42) and guard (0,42), which would have raised "
+    "ni, up, ti and phi (AIUE-164), is removed by com.redopltvtag = 1 in imp7's deck (AIUE-170); imp7 sets no rtol",
+    "2026-10-23, AIUE-92: up rises from 1.505e-8 to 1.589e-8, set by dnull_imp2 up[2] on its wall ring iy = ny "
+    "(-O3 arm64 against -O0 and Linux, 2.3e-8 of the entry): accepted",
 )
-OWNER_ITEMS_ANSWERED = 184  # the owner items of the run those answers cover (the 92 floor groups per configuration)
+OWNER_ITEMS_ANSWERED = 290  # the owner items of the run those answers cover (the 145 floor groups per configuration)
 
 
 class Stop(Exception):

@@ -350,3 +350,9 @@ def test_gate_flag_fails_g2():
     m = matrix(GOOD)
     m["mutations"]["a"]["results"]["d_only"]["flags"] = ["first differing intermediate x"]
     assert failing(m) == ["G2"]
+
+
+def test_locality_part_not_run_without_locality():
+    """AIUE-92: a family without [locality] (an owner family) has no locality part; it never stops the run."""
+    assert rm.has_locality("d_only") and not rm.has_locality("large_dd2c")
+    assert rm.locality_part(None, "large_dd2c", None, None) == (None, None)

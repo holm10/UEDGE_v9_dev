@@ -23,7 +23,8 @@ from yldot.harness.compare import listed
 SUITE = Path(__file__).resolve().parent
 FAMILY_NAMES = sorted(p.name for p in FAMILIES.iterdir() if (p / "input.py").is_file())
 CONFIGURED = [f for f in FAMILY_NAMES if L.load_config(FAMILIES / f) is not None]
-SMALL = sorted(p.parent.name for p in FAMILIES.glob("*/sigma.h5"))  # the five small families (AIUE-88)
+# the five small families (AIUE-88): with sigma.h5 and not owner families, whose sigma.h5 is a release asset (AIUE-92)
+SMALL = sorted(p.parent.name for p in FAMILIES.glob("*/sigma.h5") if not mf.owner_family(p.parent.name))
 
 
 @pytest.fixture(scope="module")

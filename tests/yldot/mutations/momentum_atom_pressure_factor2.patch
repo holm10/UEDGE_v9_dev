@@ -9,9 +9,12 @@ Blocks: d_only: primary up[2]
  d_mols: primary up[2]
  d_c: primary up[2]
  slab_phi: primary up[2]
+ dnull_imp2: primary up[2]
+ large_dd2c: primary up[2]
+ imp7: primary up[2]
 Intermediate: resmo; d_mols: none (owner, 2026-10-22, AIUE-90: resmo changes by 1.7e-2 against its maximum 2.39e6,
  7.1e-9 of it, below DIAG_SCALED_RTOL = 1e-8, and still the largest scaled difference)
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_momentum.m:449 (at 8a67572)
 Description: factor 2 on the inertial atoms' parallel pressure gradient in resmo(,,iigsp) (isupgon(1) = 1 in every
  small family); only the atom's up[2] row changes. On d_mols the change in resmo is below the array-

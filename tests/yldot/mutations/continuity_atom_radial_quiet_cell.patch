@@ -5,9 +5,15 @@ Fault: factor 2
 Check: yldot
 Configs: steady, timestep
 Blocks: slab_phi: primary ni[2]; coupled up[2], ti[1]
+ dnull_imp2: primary ni[2]; coupled up[2], ti[1]
+ large_dd2c: primary ni[2]; coupled up[2], ti[1]
+ imp7: primary ni[2]; coupled up[2], ti[1]
 Cells: slab_phi: ni[2] (18,1)
+ dnull_imp2: ni[2] (18,1)
+ large_dd2c: ni[2] (18,1)
+ imp7: ni[2] (18,1)
 Intermediate: resco
-Families: slab_phi
+Families: slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_continuity.m:1062 (at 8a67572)
 Description: factor 2 on the atom's radial flux divergence (zi = 0 branch of calc_plasma_particle_residuals) in one
  quiet cell only, ix = 18, iy = 1: slab_phi's pf region has the highest zero-sigma fraction of the small
@@ -17,7 +23,9 @@ Description: factor 2 on the atom's radial flux divergence (zi = 0 branch of cal
  first full run): moved from (11,1), which d_c's 16x8 mesh also has (in its core, sigma 1.1e-11), to
  (18,1): no other small family has an interior cell at ix = 18 (d_c's nx is 16), so the code is inactive
  there. Coupled blocks: rscalf (bbb/oderhs.m:575-660) carries yldot(ni[2]) into up[2] (at ix 17 and 18)
- and, through cftiexclg, into ti[1]; not te (zi = 0).
+ and, through cftiexclg, into ti[1]; not te (zi = 0). In the owner families (18,1) is an interior core cell
+ with sigma > 0 (6e-13 to 1e-12), so the site is active there as an ordinary single-cell fault (owner,
+ 2026-10-23, AIUE-92: listed with Cells (18,1); the quiet-cell site stays slab_phi's).
 
 diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
 index 59433cf..e8b9b6e 100644

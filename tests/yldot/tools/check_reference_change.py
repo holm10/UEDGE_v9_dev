@@ -19,7 +19,8 @@ declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ti
                                  below, by every changed item as <family>:<id> (the guard prints the list)
     Test criteria: changed       any change to the guarded set (tests/yldot/** and the four workflows) other than
                                  manifests and new files under mutations/; with a justification
-    Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma, changed or removed overrides,
+    Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma or stored sketch thresholds,
+                                 changed or removed overrides,
                                  harness and test code, this guard, the non-monotone parameters, deleted files, and
                                  any key it cannot show to be tighter); with a justification, besides the changed
                                  line, and approval by a CODEOWNER of tests/yldot/** (branch protection, AIUE-104)
@@ -85,7 +86,7 @@ PYTEST_INI = ("pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.i
 PYTEST_CONFIG = PYTEST_INI + ("setup.cfg", "pyproject.toml")
 MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/)|locality/)")
+GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/|sketch_threshold/)|locality/)")
 
 # tolerances.toml (PRD 7.4, 7.6): a larger value loosens, a smaller one tightens; the rule texts and floor_limit
 # only loosen; the record sections are measurements and owner bookkeeping
@@ -372,6 +373,8 @@ def diff_manifest(family, m0, m1, base_classes):
         if g1.get(key) != g0[key]:
             if key.endswith("/sigma"):
                 add(LOOSENED, "stored sigma {} {}".format(key, "removed" if key not in g1 else "changed"))
+            elif key.endswith("/sketch_threshold"):  # the manifest cannot show the thresholds smaller (AIUE-92)
+                add(LOOSENED, "stored sketch thresholds {} {}".format(key, "removed" if key not in g1 else "changed"))
             else:
                 add(DEFAULT, "guarded {} {}".format(key, "removed" if key not in g1 else "changed"),
                     "{}:{}".format(family, key))

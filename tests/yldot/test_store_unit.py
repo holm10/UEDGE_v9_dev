@@ -199,6 +199,101 @@ def test_sketch_round_trip_and_thresholds(tmp_path):
         assert not s.check("steady", "bbb.cfvisx", nan, YJV, TOL, IMAP).ok
 
 
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_failing_default_names_the_stored_intermediate(tmp_path, kind):
+    """AIUE-92: a sketch store keeps res* only, so the new run's other diagnostics (fnix here) are not compared; the
+    first difference is the changed resco, never "fnix missing in reference". A full store compares every array."""
+    from yldot.harness.compare import DIAG_SCALED_RTOL, first_difference
+
+    build(tmp_path, kind)
+    new = {"resco": DIAG["resco"] + 1.0, "fnix": DIAG["fnix"] + 1.0, "extra": np.zeros(2)}
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        ref, cut = s.diagnostic_pair("steady", new)
+        d = first_difference(ref, cut, rtol=DIAG_SCALED_RTOL, scaled=True)
+        bad = Y.copy()
+        bad[0] += 1.0
+        report = s.check("steady", None, bad, YJ + (bad - Y), TOL, IMAP, new).report
+    if kind == "sketch":
+        assert set(cut) == {"resco"} and d.name == "resco" and d.kind == "values"
+        assert "resco" in report and "missing" not in report
+    else:
+        assert cut is new and d.name == "fnix"  # fnix comes first in PANDF_ORDER; every array is compared
+
+
+THR_TOL = np.linspace(1e-9, 1e-7, N)
+
+
+def build_thresholds(suite):
+    """A sketch reference whose defaults carry sketch thresholds of THR_TOL; returns the manifest."""
+    ref = Path(suite) / "references"
+    ref.mkdir(parents=True, exist_ok=True)
+    w = store.create(ref / "fam.h5", "sketch", "fam", DATA, IMAP)
+    for config in mf.CONFIG_NAMES:
+        w.write_default(config, Y, YJ, SIGMA, DIAG)
+        w.write_sketch_thresholds(config, THR_TOL)
+    out = w.finish()
+    guarded, unguarded = mf.summarize(out["datasets"])
+    m = {"schema": 1, "family": "fam", "store": "sketch", "release": None,
+         "external": {mf.reference_path("fam"): {"sha256": out["sha256"], "bytes": out["bytes"]}},
+         "datasets": out["datasets"], "guarded": guarded, "unguarded": unguarded,
+         "provenance": mf.provenance("0" * 40, "gfortran 15", "-O3", "local"), "variables": {},
+         "sketch": {"k": store.K, "seed": store.SEED}}
+    mf.dump(m, mf.path("fam", suite))
+    return m
+
+
+def test_sketch_thresholds_round_trip(tmp_path):
+    """AIUE-92 (PRD 7.11 d): the stored thresholds are store.sketch_thresholds of the tol given, guarded per
+    configuration; a store without them reads None."""
+    m = build_thresholds(tmp_path)
+    assert {"steady/sketch_threshold", "timestep/sketch_threshold"} <= set(m["guarded"])
+    delta, cell = store.sketch_thresholds(THR_TOL, LABELS, ROWS, IMAP)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        for config in mf.CONFIG_NAMES:
+            got_delta, got_cell = s.sketch_thresholds(config)
+            assert got_delta.tobytes() == delta.tobytes() and got_cell == cell
+    build(tmp_path / "plain", "sketch")
+    with store.open_store("fam", tmp_path / "plain", regions=SPEC) as s:
+        assert s.sketch_thresholds("steady") is None
+
+
+def test_write_sketch_thresholds_refuses(tmp_path):
+    w = store.create(tmp_path / "full.h5", "full", "fam", DATA, IMAP)
+    try:
+        w.write_default("steady", Y, YJ, SIGMA, DIAG)
+        with pytest.raises(store.StoreError, match="sketch store, not a full"):
+            w.write_sketch_thresholds("steady", THR_TOL)
+    finally:
+        w.f.close()
+    w = store.create(tmp_path / "sketch.h5", "sketch", "fam", DATA, IMAP)
+    try:
+        with pytest.raises(store.StoreError, match="write the default before"):
+            w.write_sketch_thresholds("steady", THR_TOL)
+        w.write_default("steady", Y, YJ, SIGMA, DIAG)
+        with pytest.raises(ValueError, match="finite and > 0"):
+            w.write_sketch_thresholds("steady", np.zeros(N))
+        w.write_sketch_thresholds("steady", THR_TOL)
+        with pytest.raises(store.StoreError, match="already written"):
+            w.write_sketch_thresholds("steady", THR_TOL)
+    finally:
+        w.f.close()
+
+
+def test_consistent_tamper_of_the_sketch_thresholds_refused(tmp_path):
+    """A raised threshold written into the file with its dataset SHA and the file SHA updated, guarded left: refused
+    at open (check_derived), so a loosened threshold cannot hide behind an unchanged guarded key."""
+    m = build_thresholds(tmp_path)
+    name = "/steady/default/sketch_threshold/block"
+    p = tmp_path / mf.reference_path("fam")
+    with h5py.File(p, "a") as f:
+        f[name][0] = 10 * f[name][0]
+        m["datasets"][name] = store.dataset_sha256(f[name][()])
+    mf.dump(m, mf.path("fam", tmp_path))
+    reseal(tmp_path)
+    with pytest.raises(store.StoreIntegrityError, match="guarded"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
 def test_sketch_bound_is_root_sum_square():
     x = np.zeros(N)
     ref = store.sketch(x, LABELS, ROWS)
