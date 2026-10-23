@@ -642,6 +642,17 @@ def test_changed_sketch_weights_are_a_default_change(repo):
     assert not any(item.endswith("/default/sketch_weight") for item in v["items"])  # judged through guarded only
 
 
+def test_removed_sketch_weights_are_a_default_change(repo):
+    """Review I1-m1: removing the weights (a manifest without them) is judged like a removed default."""
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False)
+    repo.base = repo.commit("a sketch store")
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", edit=without("/sketch_weight"))
+    code, v, text = repo.check(no_download=True)
+    assert code == 1 and "default" in reqs(v), text
+    assert "guarded steady/sketch_weight removed" in text and "guarded timestep/sketch_weight removed" in text
+    assert {"oth:steady/sketch_weight", "oth:timestep/sketch_weight"} <= set(v["items"])
+
+
 def test_changed_sketch_thresholds_are_a_loosening(repo):
     """AIUE-92: the manifest cannot show changed sketch thresholds to be smaller, so any change is a loosening (like a
     changed sigma), judged through guarded <config>/sketch_threshold, not per dataset."""

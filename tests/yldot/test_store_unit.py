@@ -46,15 +46,16 @@ LOC = {"column": np.array([3, 0, 3]), "row": np.array([5, 2, 1]), "mismatch": np
        "dfull": np.array([1e-3, 4e-4, 2e-2])}
 
 
-def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None):
-    """A reference file and its manifest in a scratch suite; returns the manifest. locality: (delta, entries)."""
+def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None, tol=TOL):
+    """A reference file and its manifest in a scratch suite; returns the manifest. locality: (delta, entries); tol:
+    the tolerance a sketch store's weights are 1 / of."""
     ref = Path(suite) / "references"
     ref.mkdir(parents=True, exist_ok=True)
     w = store.create(ref / "{}.h5".format(family), kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, Y, YJ, SIGMA, DIAG)
-        if kind == "sketch":  # weights 1/TOL, required (AIUE-174)
-            w.write_sketch_thresholds(config, TOL)
+        if kind == "sketch":  # weights 1/tol, required (AIUE-174)
+            w.write_sketch_thresholds(config, tol)
     if locality is not None:
         w.write_locality("steady", *locality)
     for vid, yv, yjv in variants:
@@ -463,6 +464,26 @@ def test_weights_see_a_small_tolerance_entry_at_c_sqrt_n():
     delta, _ = store.sketch_thresholds(tol, LABELS, ROWS, IMAP, w=w)
     ratio = delta[0] / (tol[r] * w[r])
     assert np.allclose(ratio, store.C * np.sqrt(len(r)), rtol=1e-12)
+
+
+def test_store_check_uses_the_stored_weights(tmp_path):
+    """Review I1-m2: a variant check through SketchStore.check on a store with non-uniform weights 1/SPREAD sees a
+    small-tol entry at c*sqrt(N) of its own tolerance (1.01 x fails that block alone, 0.99 x passes), which the
+    unweighted bound would dilute far beyond."""
+    build(tmp_path, "sketch", tol=SPREAD)
+    r = ROWS[0]
+    i = int(r[int(np.argmin(SPREAD[r]))])
+    at = store.C * np.sqrt(len(r)) * SPREAD[i]
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.weights("steady").tobytes() == (1.0 / SPREAD).tobytes()
+        assert s.check("steady", "bbb.cfvisx", YV, YJV, SPREAD, IMAP).ok
+        for m, ok in ((0.99, True), (1.01, False)):
+            bad = YV.copy()
+            bad[i] += m * at
+            c = s.check("steady", "bbb.cfvisx", bad, YJV + (bad - YV), SPREAD, IMAP)
+            assert c.ok is ok, c.report
+            if not ok:
+                assert c.report.count(LABELS[0] + " ") == 1 and "flag difference PASS" in c.report
 
 
 def test_weighted_roundoff_half_the_bound_passes_twice_fails():
