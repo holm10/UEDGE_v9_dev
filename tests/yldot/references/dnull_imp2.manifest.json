@@ -1,4 +1,75 @@
 {
+  "datasets": {
+    "/index/block": "a03c2620ec475276889cd9ec709b1108409ab3dc5cb2fe25c84c19ce145e5aef",
+    "/index/block_labels": "a5c3dfb7ac103fed5bf521e513689be70cc7e5cb3a4e54e3d7436b99575e9799",
+    "/index/grid/geometry": "38949cb2f1eda5de8b2eb0b377982467e31a83e5cb1653bf7f5ee644ee4fe34b",
+    "/index/grid/ixlb": "24740956e28c707287de98a709fb1911ca8863fa48d5924b21d62806b052f587",
+    "/index/grid/ixmnbcl": "8e91b2f12370b7822bfbb9f9f006ab34d945d3af406055edda0922a347c0cb4e",
+    "/index/grid/ixmxbcl": "8e91b2f12370b7822bfbb9f9f006ab34d945d3af406055edda0922a347c0cb4e",
+    "/index/grid/ixpt1": "a3b51d6287bd7d8134beccf670476c636def20f92601755a201e8552aab8645e",
+    "/index/grid/ixpt2": "4623d7c9a866d23f1ac847c0396d117622e77df0aa1184c1295e486f3ec0f0f4",
+    "/index/grid/ixrb": "f76d9c892f36d0cc701423dafdee014639ff39b3ddf107c719e277054b51b41d",
+    "/index/grid/iymnbcl": "8e91b2f12370b7822bfbb9f9f006ab34d945d3af406055edda0922a347c0cb4e",
+    "/index/grid/iymxbcl": "8e91b2f12370b7822bfbb9f9f006ab34d945d3af406055edda0922a347c0cb4e",
+    "/index/grid/iysptrx": "9ad08d3ee0010d058c9a6a9b1d055f13272a8e88a1b911deb6a6f48c6bacfee2",
+    "/index/grid/iysptrx1": "66be6789f23d8ae1bda73694f0346f51373123a2d3e071889098332b22a14d85",
+    "/index/grid/iysptrx2": "d9ade262bf04644d7736797e05c0ae173d27bccac813197e8099629ac9fd5281",
+    "/index/grid/mhdgeo": "8e91b2f12370b7822bfbb9f9f006ab34d945d3af406055edda0922a347c0cb4e",
+    "/index/grid/nx": "4a92216f2ca5a4f8a3217a561d8d534699fe99720442135912850ba591348fea",
+    "/index/grid/nxcore": "46bdbc94ace5cc33950bc6de66ba614d6d3970e5cea296f70ab30e371c172fe4",
+    "/index/grid/nxleg": "f11754bfa9a061d390eb52aaa250c7b3fbca329162973c862e8c926f16748a67",
+    "/index/grid/nxpt": "c8e4d35c03f56dd85b979fe268227372250f0fd330a50a3f82d6cac11d04cf38",
+    "/index/grid/ny": "1b1e3ac982a43de672bd98d5b4ca71b494d624c414366156567af0847c878144",
+    "/index/grid/nycore": "c1ecb9cba851fe0d3aa913fc6b8ea6a3f33bc1562232fdab65344ffab4cbe416",
+    "/index/grid/nysol": "a1dc7090e68bd169cbd475f1c9472f7c7ed299982f11bba1b307de276098b355",
+    "/index/idxg": "43017b050cebfa34e280d744db02087ab8aa8b9259da46a46acfb78b7c4ed1cf",
+    "/index/idxn": "e04c90b6d4bf22c8a0499576f5ad190c0475ac19bd5a615c515d19cf0f0f2733",
+    "/index/idxphi": "05f30f2c56fc63058d02d8e4393ca3c34fbd42df26e4a1c9db2f7b7f97987968",
+    "/index/idxte": "0c69a13347d9cc3da0f3201d48891d82b2a656954499beea353f8f81fd9292bf",
+    "/index/idxtg": "43017b050cebfa34e280d744db02087ab8aa8b9259da46a46acfb78b7c4ed1cf",
+    "/index/idxti": "e37838f5585c77457520a02fda280676a0eb70c76402ad8ac521642f8bf363e6",
+    "/index/idxu": "b50ce12b0ae9296b32c59d9f1cd679638c8cb749648df9138c5f4f79f7f1d506",
+    "/index/igyl": "ff25e0a47c0a12ba1de42a2ed8c88ceaea61683d95808c544a122059f04aff70",
+    "/index/masks/isngonxy": "43017b050cebfa34e280d744db02087ab8aa8b9259da46a46acfb78b7c4ed1cf",
+    "/index/masks/isnionxy": "4130f3ae21e32e895d5979c8c997ce3eba0205ba944b4cd0bb6a6aacbc3a207d",
+    "/index/masks/isphionxy": "0032c27dbb6d3a55e0b3eb8f20fe4ba86debc50047bda40eb387d1854c5739fe",
+    "/index/masks/isteonxy": "0032c27dbb6d3a55e0b3eb8f20fe4ba86debc50047bda40eb387d1854c5739fe",
+    "/index/masks/istgonxy": "43017b050cebfa34e280d744db02087ab8aa8b9259da46a46acfb78b7c4ed1cf",
+    "/index/masks/istionxy": "0032c27dbb6d3a55e0b3eb8f20fe4ba86debc50047bda40eb387d1854c5739fe",
+    "/index/masks/isuponxy": "4130f3ae21e32e895d5979c8c997ce3eba0205ba944b4cd0bb6a6aacbc3a207d",
+    "/steady/default/diagnostics/resco": "a87fabb62573e5599e2e0416f4321c65fbfede128fef9e06d77c9307ad7bd152",
+    "/steady/default/diagnostics/resee": "7073d20ee4ac2aac138ce7c8572d1fe181d2f89c70718e82ac5a8394c0e15a10",
+    "/steady/default/diagnostics/reseg": "5cbb81b7863d1770a21dd011c78ec0234b446f35fa40e48797af7efec6ecac27",
+    "/steady/default/diagnostics/resei": "ea7e19edbffc4ce5bc1ac1469a12392b62799315cae5fad0321f070ff6321d33",
+    "/steady/default/diagnostics/resmo": "6753379adde764a096a1d95cfd01d090a0316f82a17feaa5acf40d3e9c9ea7c9",
+    "/steady/default/diagnostics/resng": "9c9351f552d1f9b9cb9b872c7b9c8afa1c0918b4f6aad12c547cd0ee21def723",
+    "/steady/default/diagnostics/resphi": "56d0f4031f43e0624ea18c3c0c60698bfd9f6475d8b9779fa6a381ced3554b6a",
+    "/steady/default/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/default/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/default/sigma": "938874fc9371ea625388e98f59407a283e714fc4dfbee76ea692edaa1626775a",
+    "/steady/default/sketch_threshold/block": "31bf88953da9ef1cbd771bc0e4194a03481027998bfba50ceb5105ecf331d232",
+    "/steady/default/sketch_threshold/cell_block": "8d4fc3988901e82995be4452ecf423e4244211287a3e4fbb71a13420a5874880",
+    "/steady/default/sketch_threshold/cell_ix": "692eb43a48a747741c296e35cd1c7238f08a4bd48f0abcac99096482c16e57d5",
+    "/steady/default/sketch_threshold/cell_iy": "e14c3b9ce71c920898157d67c4cf6cd5f3390b27facf26dc6d658539bc9f18d9",
+    "/steady/default/sketch_threshold/cell_m": "3688c6e4cafef227353e88f66b40fc466ba8d0189f3a50670d8577cb90b6fd88",
+    "/steady/default/yldot": "e45b4bb5aa8023b6174344ac04bd90fee83482c98b83d082f3b15939fc4b4017",
+    "/timestep/default/diagnostics/resco": "a87fabb62573e5599e2e0416f4321c65fbfede128fef9e06d77c9307ad7bd152",
+    "/timestep/default/diagnostics/resee": "7073d20ee4ac2aac138ce7c8572d1fe181d2f89c70718e82ac5a8394c0e15a10",
+    "/timestep/default/diagnostics/reseg": "5cbb81b7863d1770a21dd011c78ec0234b446f35fa40e48797af7efec6ecac27",
+    "/timestep/default/diagnostics/resei": "ea7e19edbffc4ce5bc1ac1469a12392b62799315cae5fad0321f070ff6321d33",
+    "/timestep/default/diagnostics/resmo": "6753379adde764a096a1d95cfd01d090a0316f82a17feaa5acf40d3e9c9ea7c9",
+    "/timestep/default/diagnostics/resng": "9c9351f552d1f9b9cb9b872c7b9c8afa1c0918b4f6aad12c547cd0ee21def723",
+    "/timestep/default/diagnostics/resphi": "56d0f4031f43e0624ea18c3c0c60698bfd9f6475d8b9779fa6a381ced3554b6a",
+    "/timestep/default/jflag/index": "d67cec7107bb1a63fe526976ea073e61c626b5e134587ef534ad48cc2d3a0abb",
+    "/timestep/default/jflag/value": "17c114ce3f25f6c171e70d23068b5defc87ff8804213f06a0d1df21333c5f556",
+    "/timestep/default/sigma": "9742db959f4c3cb1fad868eef47a39c16522233597c61872df55f299edd44662",
+    "/timestep/default/sketch_threshold/block": "6c91f30ed9d8938cf48e1dd4ae522ebd02789274bf99aee915fba24aca480f6e",
+    "/timestep/default/sketch_threshold/cell_block": "e3fbae3c19f4f5b61dfff3a8f4ad38bfe9779471f0c71c2beb22f440e9c2a90b",
+    "/timestep/default/sketch_threshold/cell_ix": "692eb43a48a747741c296e35cd1c7238f08a4bd48f0abcac99096482c16e57d5",
+    "/timestep/default/sketch_threshold/cell_iy": "e14c3b9ce71c920898157d67c4cf6cd5f3390b27facf26dc6d658539bc9f18d9",
+    "/timestep/default/sketch_threshold/cell_m": "6abd232a4eaa516a2b3f7d51d0d5478fc286efd6dc68c9ab3b1b56c6379c5b34",
+    "/timestep/default/yldot": "aae7d78a59bdbbfa6869a10c8b0c25deb7d034522f35fb5dadb2107edf40ec34"
+  },
   "external": {
     "families/dnull_imp2/base_state.h5": {
       "bytes": 288448,
@@ -15,10 +86,43 @@
     "families/dnull_imp2/reference_state.h5": {
       "bytes": 288448,
       "sha256": "b4b06592026a54dba04b57de1d16f5106db793d136e39e351dd8901c24daf7c4"
+    },
+    "families/dnull_imp2/sigma.h5": {
+      "bytes": 497104,
+      "sha256": "0720df9ab2fb36c56cb9a553647921efc4052eb4317181e7a014645ebfdfebd5"
+    },
+    "references/dnull_imp2.h5": {
+      "bytes": 2965976,
+      "sha256": "227e0ca3f5ce835b827f4e5185c103ef1ae241bb33ce10cb99341dae93e0c717"
     }
   },
   "family": "dnull_imp2",
-  "release": "yldot-data-v1",
+  "guarded": {
+    "steady/default": "c436cbc5cc425ea346f0284d6ae8f52d22c51ceeb47daaacac3bcb5eaae9a34d",
+    "steady/sigma": "8679a50489965d2ea0dc03db956940c98c9b2c8c19e13ecb5f1612f9dffb6df6",
+    "steady/sketch_threshold": "115dc19c9cdcfce9c2c295c52aa3e6511213d38224aa9e0e19f97b77ca8792b2",
+    "timestep/default": "371d8adf6ac3f9c3e1aac66e24e7b72676d72c0eb1e17ebe48291c44f39cc48c",
+    "timestep/sigma": "f7706b1a1b6679b5c34a3fcd9d366976a3e3ce9e35adb82a68fc3102c1a900b3",
+    "timestep/sketch_threshold": "df689a643df92ab12859e006bd1a635894a9a138b3fbf4a25544973091b1d1f9"
+  },
+  "provenance": {
+    "commit": "9081a4f7099ae706123ee1323b67c4e1b84a1cfa",
+    "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "date": "2026-10-23T19:46:37+00:00",
+    "flags": "--serial",
+    "h5py": "3.16.0",
+    "numpy": "2.5.4",
+    "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
+  },
+  "release": "yldot-data-v6",
   "schema": 1,
-  "store": "sketch"
+  "sketch": {
+    "k": 8,
+    "seed": 20261019
+  },
+  "store": "sketch",
+  "unguarded": {
+    "diagnostics": "72ef4ef436ebbb00061d3b93e57c8564e4ab741c98913b1257a29f58af26a8bb"
+  },
+  "variables": {}
 }

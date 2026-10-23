@@ -7,7 +7,6 @@ Configs: steady, timestep
 Blocks: large_dd2c: primary tg[2]
 Intermediate: reseg
 Families: large_dd2c
-Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
 Source: bbb/pandf_gas_energy.m:350 (at 8a67572)
 Description: sign flip of the gas energy flux divergence in reseg. Only large_dd2c evolves a gas temperature
  (istgon(2) = 1, its molecules); no small family has a tg block, so they and dnull_imp2, imp7 (istgon = 0, where

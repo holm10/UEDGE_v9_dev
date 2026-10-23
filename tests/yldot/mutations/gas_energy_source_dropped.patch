@@ -7,7 +7,6 @@ Configs: steady, timestep
 Blocks: large_dd2c: primary tg[2]
 Intermediate: reseg
 Families: large_dd2c
-Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
 Source: bbb/pandf_gas_energy.m:352 (at 8a67572)
 Description: drops the gas energy source segc from reseg. Active in large_dd2c only, as gas_energy_divergence_sign.
 
