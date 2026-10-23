@@ -535,6 +535,16 @@ Reading uedge.hdf5-style save-file 'base_state.h5'.
 >>> Save read successfully"""
 BARE = ("Traceback (most recent call last):\n  File \"state.py\", line 215, in evaluate\n    bbb.exmain()\n"
         "RuntimeError\n")
+# slab_phi bbb.ispfbcvsix (AIUE-94 round 1): the informational banner, then the solver's own error report
+ILUT = """ UEDGE 8.1.2-beta.0
+ **** mhdgeo=-1: cartesian grid generated *****
+ iter=   0 fnrm=                   Infinity nfe=      1
+  Updating Jacobian, npe =                      1
+  Error return from ilut:  ierr =                    -5
+
+    ierr >  0   --> Zero pivot encountered at step number ierr.
+    ierr = -1   --> Error. input matrix may be wrong.
+    ierr = -5   --> Zero row encountered."""
 
 
 def test_invalid_reasons_carry_the_error_text():
@@ -551,6 +561,8 @@ def test_invalid_reasons_carry_the_error_text():
     assert reason(BARE, MCRATES) == ("error: RuntimeError (log: *** mcrates could not find za= 0 zn= 6 / *** check "
                                      "mcfilenames array)")
     assert reason(BARE, "no marked line") == "error: RuntimeError"
+    # an error line after the last '***' run wins over an informational banner; the first one, not the help text
+    assert reason(BARE, ILUT) == "error: RuntimeError (log: Error return from ilut: ierr = -5)"
     # an exception with text keeps its text, whatever the log holds
     assert reason(BARE.replace("RuntimeError\n", "RuntimeError: *** isphion.ne.0 ***\n"), MIST) == (
         "error: RuntimeError: *** isphion.ne.0 ***")
