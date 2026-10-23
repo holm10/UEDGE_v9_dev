@@ -35,8 +35,9 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
 - **Raw data a later ticket must re-read** (measurement collections, build records) is not a working document.
   Before the worktree is removed, copy it to `../uedge-wt/data/<KEY>/` (local, outside every worktree) or publish it
   as a release asset, and record where it is on the ticket page and in a comment on the dependent ticket. AIUE-87's
-  collections, which AIUE-92's `measure_roundoff.py analyze --write` needs again, are kept in
-  `../uedge-wt/data/AIUE-87/` (AIUE-148).
+  collections are kept in `../uedge-wt/data/AIUE-87/` (AIUE-148); AIUE-92 re-collected all eight families and used
+  them as a bitwise cross-check, and its own collections, which a later `measure_roundoff.py analyze --write`
+  needs, are in `../uedge-wt/data/AIUE-92/`.
 - **Epic documents** live on Confluence, under the PRD page: the PRD itself (the page is the source; `create-prd`
   keeps a local working copy), `PRD reviews: <EPIC>` (each review round summarised), `Spec: <epic> - Ticket
   Breakdown` (the breakdown, with each ticket's key and page id), `Progress: <EPIC>` (the progress log: dated,
