@@ -1,0 +1,29 @@
+Mutation: potential_poloidal_sign
+Kind: physics
+Equation: phi
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary phi[1]
+ ortho: primary phi[1]
+ d_mols: primary phi[1]
+ slab_phi: primary phi[1]
+Intermediate: resphi
+Families: d_only, ortho, d_mols, slab_phi
+Source: bbb/pandf_potencur.m:700 (at 8a67572)
+Description: sign flip of the poloidal current divergence in the potential residual resphi
+ (calc_potential_residuals). d_c does not evolve phi (no phi block).
+
+diff --git a/bbb/pandf_potencur.m b/bbb/pandf_potencur.m
+index 46bb096..5c48a3a 100755
+--- a/bbb/pandf_potencur.m
++++ b/bbb/pandf_potencur.m
+@@ -697,7 +697,7 @@ ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
+                resphi(ix,iy) = 0.
+             else
+                resphi(ix,iy) =  ( nurlxp*dx0**2/sigbar0 ) *
+-     .                            ( fqx(ix1,iy  ) - fqx(ix,iy)
++     .                            ( fqx(ix,iy  ) - fqx(ix1,iy)
+      .                            + fqy(ix ,iy-1) - fqy(ix,iy)
+      .                            + voljcsor(ix,iy) )
+             endif

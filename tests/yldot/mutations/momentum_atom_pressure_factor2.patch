@@ -1,0 +1,33 @@
+Mutation: momentum_atom_pressure_factor2
+Kind: physics
+Equation: up
+Fault: factor 2
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary up[2]
+ ortho: primary up[2]
+ d_mols: primary up[2]
+ d_c: primary up[2]
+ slab_phi: primary up[2]
+Intermediate: resmo; d_mols: none (owner, 2026-10-22, AIUE-90: resmo changes by 1.7e-2 against its maximum 2.39e6,
+ 7.1e-9 of it, below DIAG_SCALED_RTOL = 1e-8, and still the largest scaled difference)
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_momentum.m:449 (at 8a67572)
+Description: factor 2 on the inertial atoms' parallel pressure gradient in resmo(,,iigsp) (isupgon(1) = 1 in every
+ small family); only the atom's up[2] row changes. On d_mols the change in resmo is below the array-
+ scaled localization threshold, so no first differing intermediate is named there; the catch in up[2]
+ (all 28 interior rows) is correct (owner, 2026-10-22, AIUE-90).
+
+diff --git a/bbb/pandf_plasma_momentum.m b/bbb/pandf_plasma_momentum.m
+index 2d0b684..2c65e66 100644
+--- a/bbb/pandf_plasma_momentum.m
++++ b/bbb/pandf_plasma_momentum.m
+@@ -446,7 +446,7 @@ c     The convective component is already already added through uu(ix,iy).
+ c     The neutral species, momentum coupling AND other source terms:
+                       resmo(ix,iy,iigsp) =   # TR resmo(ix,iy,ifld) #IJ 2016
+      .                    - cmneut * cmneutsor_mi * uesor_up(ix,iy,1) 
+-     .                    -sx(ix,iy) * rrv(ix,iy) * 
++     .                    -2*sx(ix,iy) * rrv(ix,iy) * 
+      .                       cpgx*( cftiexclg*(ni(ix2,iy,iigsp)*ti(ix2,iy)-
+      .                                ni(ix,iy,iigsp)*ti(ix,iy))+
+      .                              (1.0-cftiexclg)*

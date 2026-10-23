@@ -1,0 +1,26 @@
+Mutation: gas_radial_factor2
+Kind: physics
+Equation: ng
+Fault: factor 2
+Check: yldot
+Configs: steady, timestep
+Blocks: d_mols: primary ng[2]
+ d_c: primary ng[2]
+Intermediate: resng
+Families: d_mols, d_c
+Source: bbb/pandf_gas_continuity.m:1059 (at 8a67572)
+Description: factor 2 on the radial part of the gas flux divergence in resng.
+
+diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
+index 21cf483..426eb08 100644
+--- a/bbb/pandf_gas_continuity.m
++++ b/bbb/pandf_gas_continuity.m
+@@ -1056,7 +1056,7 @@ call fd2tra (nx,ny,floxg,floyg,conxg,conyg,
+      .          resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
+             resng(ix,iy,igsp) = resng(ix,iy,igsp) - cfneutdiv*
+      .          cfneutdiv_fng*((fngx(ix,iy,igsp) - fngx(ix1,iy, igsp)) +
+-     .          fluxfacy*(fngy(ix,iy,igsp) - fngy(ix,iy-1,igsp)) )
++     .          2*fluxfacy*(fngy(ix,iy,igsp) - fngy(ix,iy-1,igsp)) )
+ 
+ c ... IJ 2016/10/19 add MC neut flux if flags set
+              if (get_neutral_moments .and. cmneutdiv_fng .ne. 0.0) then  

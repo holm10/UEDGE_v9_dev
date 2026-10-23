@@ -1,0 +1,29 @@
+Mutation: energy_e_divergence_sign
+Kind: physics
+Equation: te
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
+Intermediate: resee
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1031 (at 8a67572)
+Description: sign flip of the electron energy flux divergence in resee.
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..0a3339d 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1028,7 +1028,7 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+          do ix = i2omp, i5omp
+             ix1 = ixm1(ix,iy)
+             resee(ix,iy) = resee(ix,iy)
+-     .                  - ( feex(ix,iy) - feex(ix1,iy)
++     .                  + ( feex(ix,iy) - feex(ix1,iy)
+      .          + fluxfacy*(feey(ix,iy) - feey(ix,iy-1)) )
+ c ... ## IJ 2017 cfneutsor_ei flags above control neutral contrib.
+             resei(ix,iy) = resei(ix,iy)					

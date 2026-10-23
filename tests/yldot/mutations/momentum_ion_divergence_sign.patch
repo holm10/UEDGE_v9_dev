@@ -1,0 +1,30 @@
+Mutation: momentum_ion_divergence_sign
+Kind: physics
+Equation: up
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary up[1]
+ ortho: primary up[1]
+ d_mols: primary up[1]
+ d_c: primary up[1]
+ slab_phi: primary up[1]
+Intermediate: resmo
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_momentum.m:498 (at 8a67572)
+Description: sign flip of the ion's parallel momentum flux divergence in resmo (the zi > 0 branch); up[1] is the
+ only charged species with a momentum equation in the small families (up[2] is the atom).
+
+diff --git a/bbb/pandf_plasma_momentum.m b/bbb/pandf_plasma_momentum.m
+index 2d0b684..d60e66e 100644
+--- a/bbb/pandf_plasma_momentum.m
++++ b/bbb/pandf_plasma_momentum.m
+@@ -495,7 +495,7 @@ c               if (ifld .ne. iigsp) then
+ c ... IJ 2016 resmo contrib changes if ion or neut
+ 	       if(zi(ifld) > 1.e-20) then
+                  resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+-     .                                 - (fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
++     .                                 + (fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
+      .                        + fluxfacy*(fmiy(ix ,iy,ifld) - fmiy(ix,iy-1,ifld)) )
+                else
+                  resmo(ix,iy,ifld) = resmo(ix,iy,ifld)

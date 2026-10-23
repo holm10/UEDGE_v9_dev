@@ -1,0 +1,30 @@
+Mutation: energy_i_source_factor2
+Kind: physics
+Equation: ti
+Fault: factor 2
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ti[1]
+ ortho: primary ti[1]
+ d_mols: primary ti[1]
+ d_c: primary ti[1]
+ slab_phi: primary ti[1]
+Intermediate: resei
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1019 (at 8a67572)
+Description: factor 2 on the constant part of the ion energy source, seic, in resei (non-zero in every small family,
+ planning probe).
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..db202f8 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1016,7 +1016,7 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+      .           + cmneut * cmneutsor_ee * uesor_te(ix,iy)
+      .           - nuvl(ix,iy,1)*vol(ix,iy)*bcee*ne(ix,iy)*te(ix,iy) 
+             resei(ix,iy) = 
+-     .             seic(ix,iy) + seiv(ix,iy) * ti(ix,iy)
++     .             2*seic(ix,iy) + seiv(ix,iy) * ti(ix,iy)
+      .           + pwrsori(ix,iy)
+      .           + cmneut * cmneutsor_ei * uesor_ti(ix,iy)
+      .           - nuvl(ix,iy,1)*vol(ix,iy)*bcei*ne(ix,iy)*ti(ix,iy) 

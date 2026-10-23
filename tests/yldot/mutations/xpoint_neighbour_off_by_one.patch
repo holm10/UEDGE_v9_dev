@@ -1,0 +1,38 @@
+Mutation: xpoint_neighbour_off_by_one
+Kind: physics
+Equation: te
+Fault: off-by-one
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
+Cells: d_only: te[1] (3,1), (7,1)
+ ortho: te[1] (3,1), (7,1)
+ d_mols: te[1] (3,1), (7,1)
+ d_c: te[1] (5,1), (13,1), (5,2), (13,2), (5,3), (13,3), (5,4), (13,4)
+ slab_phi: te[1] (13,1), (21,1)
+Intermediate: resee
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1031 (at 8a67572)
+Description: off-by-one neighbour at the X-point cuts: the electron energy flux divergence reads feex(ix-1,iy) in
+ place of feex(ixm1(ix,iy),iy) (only in this expression, so ti's feix keeps ix1). ixm1 differs from ix-1
+ only at ix = ixpt1+1 and ixpt2+1 for iy <= iysptrx (probed per family, AIUE-90 task 1), so only those
+ te rows fire. Owner, 2026-10-22 (AIUE-90 Q3): a generic site, detected on the small families now;
+ AIUE-92 adds the large family.
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..d403ddf 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1028,7 +1028,7 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+          do ix = i2omp, i5omp
+             ix1 = ixm1(ix,iy)
+             resee(ix,iy) = resee(ix,iy)
+-     .                  - ( feex(ix,iy) - feex(ix1,iy)
++     .                  - ( feex(ix,iy) - feex(ix-1,iy)
+      .          + fluxfacy*(feey(ix,iy) - feey(ix,iy-1)) )
+ c ... ## IJ 2017 cfneutsor_ei flags above control neutral contrib.
+             resei(ix,iy) = resei(ix,iy)					

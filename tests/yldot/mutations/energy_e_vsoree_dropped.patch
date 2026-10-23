@@ -1,0 +1,30 @@
+Mutation: energy_e_vsoree_dropped
+Kind: physics
+Equation: te
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
+Intermediate: resee
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1052 (at 8a67572)
+Description: drops the electron energy source vsoree from resee (non-zero in every small family, planning probe);
+ the equipartition w0 stays.
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..d9f2569 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1049,7 +1049,7 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+          do ix = i2omp, i5omp
+             ix1 = ixm1(ix,iy)
+             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
+-            resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
++            resee(ix,iy) = resee(ix,iy) - w0(ix,iy)
+             if (isupgon(1).eq.1) then
+ c             Set up helper arrays for velocities
+               up1cc = 0.5*(up(ix,iy,1)+up(ix1,iy,1))

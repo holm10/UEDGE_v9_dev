@@ -1,0 +1,25 @@
+Mutation: gas_energy_source_dropped
+Kind: physics
+Equation: tg
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: large_dd2c: primary tg[2]
+Intermediate: reseg
+Families: large_dd2c
+Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
+Source: bbb/pandf_gas_energy.m:352 (at 8a67572)
+Description: drops the gas energy source segc from reseg. Pending AIUE-92 as gas_energy_divergence_sign.
+
+diff --git a/bbb/pandf_gas_energy.m b/bbb/pandf_gas_energy.m
+index 7ad1ab8..d4220a4 100644
+--- a/bbb/pandf_gas_energy.m
++++ b/bbb/pandf_gas_energy.m
+@@ -349,7 +349,6 @@ call fd2tra (nx,ny,floxge(0:nx+1,0:ny+1,igsp),
+ *           ------------------------------------------------------------
+             reseg(ix,iy,igsp)= -( fegx(ix,iy,igsp)-fegx(ix1,iy,  igsp)+
+      .                            fegy(ix,iy,igsp)-fegy(ix, iy1,igsp) )
+-     .                                                + segc(ix,iy,igsp)
+ 
+ *           ------------------------------------------------------------
+ *                                GAS-GAS TERMS

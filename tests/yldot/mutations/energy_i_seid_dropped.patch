@@ -1,0 +1,29 @@
+Mutation: energy_i_seid_dropped
+Kind: physics
+Equation: ti
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ti[1]
+ ortho: primary ti[1]
+ d_mols: primary ti[1]
+ d_c: primary ti[1]
+ slab_phi: primary ti[1]
+Intermediate: resei
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:1066 (at 8a67572)
+Description: drops seid from the ion energy residual in the inertial-neutral branch (isupgon(1) = 1 in every small
+ family; seid non-zero in all five, planning probe).
+
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..d1f76e5 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -1063,7 +1063,6 @@ SUBROUTINE calc_plasma_energy_residuals(xc, yc)
+               resei(ix,iy) = resei(ix,iy) + w0(ix,iy)
+      .              + seik(ix,iy) 
+      .              + (1.0-cftiexclg) * seit(ix,iy)
+-     .              + seid(ix,iy)
+      .              + seidh(ix,iy)
+ 
+                 if (ishymol .eq. 0) then

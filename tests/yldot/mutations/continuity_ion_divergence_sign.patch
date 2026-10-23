@@ -1,5 +1,7 @@
 Mutation: continuity_ion_divergence_sign
 Kind: physics
+Equation: ni
+Fault: sign
 Check: yldot
 Configs: steady, timestep
 Blocks: d_only: primary ni[1]; coupled up[1], te[1], ti[1]

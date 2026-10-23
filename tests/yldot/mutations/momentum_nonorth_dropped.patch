@@ -1,0 +1,29 @@
+Mutation: momentum_nonorth_dropped
+Kind: physics
+Equation: up
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary up[1]
+ d_mols: primary up[1]
+ d_c: primary up[1]
+Intermediate: resmo
+Families: d_only, d_mols, d_c
+Source: bbb/pandf_plasma_momentum.m:480 (at 8a67572)
+Description: drops the non-orthogonal cross flux fmixy from the ion momentum residual (zi > 0 branch, inside isnonog
+ = 1). Active only where isnonog = 1: d_only, d_mols, d_c (input.py); ortho and slab_phi leave fmixy = 0
+ and must not fire (planning probe: fmixy 0 there). A small term (about 2.5e-2 against resmo up to 6e3
+ in d_only): a test of the per-entry tolerance's sensitivity.
+
+diff --git a/bbb/pandf_plasma_momentum.m b/bbb/pandf_plasma_momentum.m
+index 2d0b684..4d9f7ab 100644
+--- a/bbb/pandf_plasma_momentum.m
++++ b/bbb/pandf_plasma_momentum.m
+@@ -477,7 +477,6 @@ c     The convective component is already already added through uu(ix,iy).
+ c                 if (ifld .ne. iigsp) then
+ 	          if(zi(ifld) > 1.e-20) then # IJ 2016; depends if ion or neut
+                     resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+-     .                 + (fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
+                   else
+                     resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+      .                 + cfneutdiv*cfneutdiv_fmg*(fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
