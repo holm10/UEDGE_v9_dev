@@ -162,6 +162,10 @@ def test_too_few_newton_iterations_in_the_serial_reference_is_exit_2(tmp_path, c
     (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": 0}], "iterm": 3}))
     assert report.main([a]) == 2
     assert "made 0 Newton iteration(s), fewer than --itermx 3 (nksol iterm=3)" in capsys.readouterr().out
+    # an overshoot past itermx (nkstop's stale-preconditioner path) is not exactly N either
+    (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": k} for k in range(5)], "iterm": 2}))
+    assert report.main([a]) == 2
+    assert "made 4 Newton iteration(s), more than --itermx 3 (nksol iterm=2)" in capsys.readouterr().out
     (rd / "record.json").write_text(json.dumps({"iterations": [{"iter": k} for k in range(4)], "iterm": 4}))
     assert report.main([a]) == 0
 

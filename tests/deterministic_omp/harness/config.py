@@ -65,7 +65,7 @@ def apply_preset(bbb, name):
 # - ftol: maxnorm(sf*f) <= ftol stops with iterm=1;
 # - stptol: a scaled step <= stptol stops with iterm=2 (default epsmch**(2/3) ~ 3.7e-11), or, with a
 #   stale preconditioner, forces a new one and skips the itermx test, so the run overshoots N
-#   (nkstop, svr/nksol.m:1252-1258). stptol also sets the line search's minimum lambda
+#   (nkstop, svr/nksol.m:1255-1262). stptol also sets the line search's minimum lambda
 #   (rlmin = stptol/rlngth, svr/nksol.m:3281) and inexct's minimum constrained step (:3924), so a
 #   failing line search backtracks further before it gives up.
 NEWTON_FTOL = 1e-19

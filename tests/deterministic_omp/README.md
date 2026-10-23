@@ -432,10 +432,11 @@ The workflow has `permissions: contents: read`.
   [yldot]`. Once the Newton path has moved, `sfscal`/`yldot` differ in every cell, so that entry is just the lowest
   index, not the defect; it is never used for the `FIRST MISMATCH` line. On the full problem it can be an `ni` row.
 - **Newton iterations are checked.** For an `--itermx N` flow, `report.py` reads each serial reference's
-  `record.json` and fails the job with exit 2 if it made fewer than N Newton iterations (the largest
+  `record.json` and fails the job with exit 2 unless it made exactly N Newton iterations (the largest
   `iterations[].iter`), so a set never claims iterations it did not run. OpenMP runs that iterate differently
   already fail the comparison (`fnrm_printed`). Since the iterations are forced (AIUE-169), this catches only an
-  early nksol stop (a line-search or Krylov failure); the message gives the record's `iterm`.
+  early nksol stop (a line-search or Krylov failure) or an overshoot past `itermx`; the message gives the
+  record's `iterm`.
 - **Artifacts** (`actions/upload-artifact@v4`, also on failure, 30 days): the combined and per-flow `summary.md`,
   `flow.json`, `bound.json`, `ci.log`, `timing.txt` (job and build wall time), and every run's `run.log`,
   `record.json`, `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded;
