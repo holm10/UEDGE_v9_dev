@@ -15,8 +15,8 @@ The physics is written in **MPPL Fortran** (`*/*.m`). `setup.py` converts it to 
 
 ## Core code patterns
 
-- **MPPL source layout** (`bbb/pandf_plasma_continuity.m:1-21`): `c!include` headers come first, then `IMPLICIT NONE`, local declarations, and `Use(...)` lines. `setup.py`'s `MoveDecs` rule reorders declarations ahead of the uses (`setup.py:230`).
-- **Comments:** `c` in column 1 marks a full-line comment. `#` starts an inline comment and is rewritten to `!` (`setup.py:648`). Continuation lines use `.` in column 6 (`bbb/pandf.m:573-575`).
+- **MPPL source layout** (`bbb/pandf_plasma_continuity.m:1-21`): `c!include` headers come first, then `IMPLICIT NONE`, local declarations, and `Use(...)` lines. `setup.py`'s `MoveDecs` rule reorders declarations ahead of the uses (`setup.py:231`).
+- **Comments:** `c` in column 1 marks a full-line comment. `#` starts an inline comment and is rewritten to `!` (`setup.py:649`). Continuation lines use `.` in column 6 (`bbb/pandf.m:573-575`).
 - **Fatal errors** use `call xerrab('*** message ***')` (`bbb/pandf_plasma_continuity.m:29`). Informational output uses `call remark(...)` (`bbb/convert.m:345`). There is no other error mechanism in Fortran.
 - **Dynamic arrays** are declared in `.v` with a leading `_` (`_real`, `_integer`) and allocated with `call gchange("Group",0)` (`bbb/odesetup.m:87`).
 - **The RHS and Jacobian go through `pandf(xc, yc, neq, time, yl, yldot)`** (`bbb/pandf.m:513`). `xc,yc = -1` evaluates the full RHS. Otherwise it evaluates locally around the perturbed cell for the finite-difference Jacobian. Loop ranges come from `initialize_ranges` (`bbb/pandf.m:31`). New terms must use those ranges and must not loop over the whole grid.
@@ -29,7 +29,7 @@ The physics is written in **MPPL Fortran** (`*/*.m`). `setup.py` converts it to 
 # Build and install (OpenMP by default; needs gfortran with -fopenmp; on macOS set CC to a libomp-capable clang)
 pip install -v .
 pip install . -C "--build-option=--serial"        # what CI builds (build-test-wheel.yml)
-pip install . -C "--build-option=--debug"         # -fcheck=all, FPE traps, -Og (setup.py:90-97)
+pip install . -C "--build-option=--debug"         # -fcheck=all, FPE traps, -Og (setup.py:91-98)
 pip install . -C "--build-option=--checkbounds"
 pip install . -C "--build-option=--noopt"         # -O0, no FPE traps (round-off measurement); not with --debug
 pip install . -C "--build-option=--coverage"      # serial, -O0 --coverage (gcov); writes .gcno/.gcda under build/; not with --debug or --noclean; Linux links with gcc
@@ -46,7 +46,7 @@ cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s
 #   suites: fulltests, unittests/{D+C, D_mols, D_only, slab_D_only}
 ```
 
-There is no linter, formatter, or type checker. CI installs flake8 but never runs it. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:79-86`).
+There is no linter, formatter, or type checker. CI installs flake8 but never runs it. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:80-87`).
 
 ## On-demand context
 
@@ -95,7 +95,7 @@ There is no linter, formatter, or type checker. CI installs flake8 but never run
 
 <!-- Running list — add entries as you discover things the agent repeatedly misunderstands. Traps that bite only when running or reading cases go in .claude/context/uedge-gotchas.md -->
 - **UEDGE's by-design traps** are in `.claude/context/uedge-gotchas.md` (load on demand, table above): Forthon's runtime (unallocated arrays, `allocate()`, `sys.argv`), several cases in one Python process (`newgeo`, carried-over settings, `isgindx`, decks that allocate early), inertial neutrals in the ion arrays (`iigsp`, `ng(,,1)` a copy of `ni`), and the yldot harness pinning OpenMP to one thread.
-- The MPPL converter does **plain substring replacement** (`setup.py:647-673`). It turns `float` into `real`, `#` into `!` (including inside strings), `break` into `exit`, and `while (` into `do while (`. Avoid identifiers and strings that contain these tokens.
+- The MPPL converter does **plain substring replacement** (`setup.py:648-674`). It turns `float` into `real`, `#` into `!` (including inside strings), `break` into `exit`, and `while (` into `do while (`. Avoid identifiers and strings that contain these tokens.
 - Adding a new `.m` file needs edits in three places: both the dependency list and the `-f` list in `Makefile.Forthon:27-28`, and the package's `Package` `SM =` list for BASIS (`bbb/Package`).
 - `*.f` and `*.c` are gitignored (`.gitignore`), but `com/*.f`, `ncl/*.f` and `uedgeC_Forthon.c` are tracked sources. A new `.f` or `.c` file needs `git add -f`.
 - The bundled `real` is double precision (Forthon `--realsize` defaults to 8, gfortran gets `-fdefault-real-8`). Do not add `real*8` or `dfloat`; `dfloat` is rewritten to `real`.

@@ -44,14 +44,15 @@
 
 ## Build pipeline
 
-1. `pip install .` → `setup.py` `uedgeBuild.run` (`setup.py:710`).
-2. `mppl2f90` converts every `*.m` → `*.F` in place via the `M2F` rule list (`setup.py:644-686`), in the build's
+1. `pip install .` → `setup.py` `uedgeBuild.run` (`setup.py:754`).
+2. `mppl2f90` converts every `*.m` → `*.F` in place via the `M2F` rule list (`setup.py:645-687`), in the build's
    working directory. Before AIUE-163 it returned to `$PWD` instead, so a build whose `PWD` differed from its working
    directory (launched from Python with another `cwd`, or `pip install /path/to/tree` from elsewhere) converted, made
    and packaged the `PWD` tree; builds of such commits still need `PWD` set to the tree.
-3. `make -f Makefile.Forthon` runs `Forthon3` per package with `--interfacefile <pkg>/<pkg>.v`, producing the `uedge/<pkg>py.so` extensions (not `uedgeC`). In the OpenMP build on Linux, `setup.py` runs that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link (`setup.py:787-819`). macOS relies on `uedgeC` loading libomp. A `--coverage` build adds GCC's coverage runtime to `LDFLAGS` for the same make, because Forthon links without `--fargs`: `--coverage` on Linux (gcc then adds `-lgcov` after the objects), the `libgcov.a` path on macOS (`setup.py:802-817`).
-4. `build.run` then builds the C extension `uedgeC` (`setup.py:821,832,848`), linked with `-fopenmp` in the OpenMP build. A `--serial` build removes its OpenMP flags at module level, before `setup()` copies `FLAGS['CARGS']` into the `uedgeC` link arguments (`setup.py:104-109`, AIUE-109).
-5. `src/uedge/__init__.py` imports each `<pkg>py` with `RTLD_GLOBAL` so cross-package symbols resolve; order matters.
+3. `make -f Makefile.Forthon` runs `Forthon3` per package with `--interfacefile <pkg>/<pkg>.v`, producing the `uedge/<pkg>py.so` extensions (not `uedgeC`). In the OpenMP build on Linux, `setup.py` runs that make with `-fopenmp` appended to `LDFLAGS`, because Forthon passes no OpenMP flag to the extension link (`setup.py:831-863`). macOS relies on `uedgeC` loading libomp. A `--coverage` build adds GCC's coverage runtime to `LDFLAGS` for the same make, because Forthon links without `--fargs`: `--coverage` on Linux (gcc then adds `-lgcov` after the objects), the `libgcov.a` path on macOS (`setup.py:846-861`).
+4. `build.run` then builds the C extension `uedgeC` (`setup.py:865,880,896`), linked with `-fopenmp` in the OpenMP build. A `--serial` build removes its OpenMP flags at module level, before `setup()` copies `FLAGS['CARGS']` into the `uedgeC` link arguments (`setup.py:105-110`, AIUE-109).
+5. After `build.run`, `uedgeBuild.run` writes the build record `<build_lib>/uedge/_build_info.json`, so the wheel installs it (`setup.py:866-869`, `build_info` at `setup.py:711-741`, AIUE-181): the options, the `--fargs`/`--cargs` strings and `OMPFLAGS` passed to make, make's `LDFLAGS`, `forthon_fopt`, the Fortran compiler and its `--version`, platform, machine, and `git_sha`/`git_branch`/`git_commit_date_iso`/`git_dirty` (only when the source tree has its own `.git`), the keys `src/uedge/_provenance.py` reads. `forthon_fopt` is what `Forthon3` itself puts before `--fargs` on every Fortran source compile (not the `*_p.F90` wrappers): `-O3 -ftree-vectorize -ftree-vectorizer-verbose=0`, plus `-fopenmp` in an OpenMP build, in every build kind, since make never passes Forthon `-g`; a later `-O0`/`-Og` from `--fargs` sets the level, but the explicit `-f` flags stay. Editable installs never run `uedgeBuild.run` (no record).
+6. `src/uedge/__init__.py` imports each `<pkg>py` with `RTLD_GLOBAL` so cross-package symbols resolve; order matters.
 
 BASIS build (legacy, no CI since AIUE-178) uses `*/Package`, `*/PackageMake`, `uedge.pack`.
 
