@@ -239,8 +239,11 @@ def build_host(sha, families, out, root, run=run, stream=stream):
         pip = [str(venv / "bin" / "python"), "-m", "pip"]
         if stream(pip + ["install", "-q"] + list(PINS), env=env) != 0:
             raise Stop(2, "pip install {} failed".format(" ".join(PINS)))
+        # PWD for the build only: setup.py before AIUE-163 converts and makes in getenv("PWD"), not the cwd, and
+        # --from-commit may name such a commit
         if stream(pip + ["install", "-v", "--no-build-isolation", "--no-deps", ".", "-C",
-                         "--build-option={}".format(FLAGS)], cwd=src, env=env, log=out / "build.log") != 0:
+                         "--build-option={}".format(FLAGS)], cwd=src, env=dict(env, PWD=str(src)),
+                  log=out / "build.log") != 0:
             raise Stop(2, "the build failed (log: {})".format(out / "build.log"))
         rc, gf, _ = run(["gfortran", "--version"])
         rec = {"commit": sha, "compiler": gf.splitlines()[0] if rc == 0 and gf else "unknown",
