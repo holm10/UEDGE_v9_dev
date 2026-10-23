@@ -3,7 +3,7 @@
 **The regression suite is not in this repository.** It lives on a `pytests` branch. **v9 work uses `origin/pytests`**
 (the holm10 fork): it holds v9's own references, regenerated for the v9 physics and listed with their reason in
 `V9_REFERENCE_CHANGES.md` on that branch, for a later merge into LLNL's `upstream/pytests`. CI still checks out
-LLNL's branch after building (`.github/workflows/build-test-wheel.yml:55-95`, quirks below).
+LLNL's branch after building (`.github/workflows/build-test-wheel.yml:56-96`, quirks below).
 There are no unit tests of individual Fortran routines and no coverage measurement.
 
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
@@ -383,4 +383,8 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 - Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
 - `build-basis.yml` runs BASIS level-1/level-2 tests in Docker (`fusionbillm/basisuedge`); skip with `#@nobasis`.
+  Both workflows read tags only from message lines that start with `#` (`#@notest @nobasis`), so a squash title's
+  `(#N)` and its `Co-Authored-By` addresses are not tags (AIUE-175). `build-basis.yml` also runs on `workflow_dispatch`.
+  Tags apply to push runs only: a `pull_request` run checks out GitHub's merge commit (depth 1, so `--no-merges` keeps
+  it) and reads its "Merge … into …" message.
 - `claude-review.yml` runs `/code-review` on PR open or `@claude-review` comment.
