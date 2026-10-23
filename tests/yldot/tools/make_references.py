@@ -165,12 +165,20 @@ def last_line(message):
 BARE_EXCEPTION = re.compile(r"^[A-Za-z_][\w.]*$")  # a traceback's last line without text, e.g. "RuntimeError"
 
 
+ERROR_LINE = re.compile(r"\berror\b", re.IGNORECASE)
+
+
 def logged_error(tail):
-    """The last run of '***' lines in a child's log tail (blank lines inside it kept out), whitespace collapsed and
-    joined by ' / ': the message UEDGE printed (call remark) before an xerrab, which Forthon raises as a bare
-    RuntimeError; '' if there is none."""
+    """The message UEDGE printed before an xerrab, which Forthon raises as a bare RuntimeError: the last run of '***'
+    lines in a child's log tail (blank lines inside it kept out), whitespace collapsed and joined by ' / '. If a line
+    naming an error follows that run (a solver's own report, e.g. "Error return from ilut: ierr = -5" after the
+    "**** mhdgeo=-1: cartesian grid generated *****" banner), the first such line instead. '' if there is neither."""
     lines = str(tail).splitlines()
     marked = [i for i, s in enumerate(lines) if s.lstrip().startswith("***")]
+    after = marked[-1] + 1 if marked else 0
+    later = [s for s in lines[after:] if ERROR_LINE.search(s)]
+    if later:
+        return " ".join(later[0].split())
     if not marked:
         return ""
     run = []
