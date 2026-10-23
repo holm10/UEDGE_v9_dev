@@ -27,10 +27,10 @@ name   type  [units]  /default/  +attrs  # doc string (shown in Python help)
 | Coefficient | `cfneut real /1./ +input #Coef for fluid neutrals contrib's to resid's` | `bbb/bbb.v:279` |
 | Dynamic array (note `_`) | `ni(0:nx+1,0:ny+1,1:nisp) _real [m^-3] +threadprivate #ion density...` | `bbb/bbb.v:1629` |
 | Dynamic, computed | `isnionxy(0:nx+1,0:ny+1,nisp) _integer #calc:=1 for ni eqn on` | `bbb/bbb.v:236` |
-| Subroutine | `convsr_vo(i,j,yl:real) subroutine` (+ `# in i` arg doc lines) | `bbb/bbb.v:3364` |
-| Function | `ebindz(za:integer, zn:integer) real function` | `bbb/bbb.v:3570` |
+| Subroutine | `convsr_vo(i,j,yl:real) subroutine` (+ `# in i` arg doc lines) | `bbb/bbb.v:3366` |
+| Function | `ebindz(za:integer, zn:integer) real function` | `bbb/bbb.v:3572` |
 
-Routines live in `***** Subs:` (`bbb/bbb.v:3355`). Untyped args default to integer; annotate reals `x:real`.
+Routines live in `***** Subs:` (`bbb/bbb.v:3357`). Untyped args default to integer; annotate reals `x:real`.
 
 ## Attributes in use (lines of `bbb.v` that carry them)
 
@@ -43,7 +43,7 @@ continuation line, which Forthon attaches to the variable above (`bbb/bbb.v:1430
 carry `+input` or `+maybeinput` (Forthon's parser and `getvarattr` agree; AIUE-93), where a line grep for either tag
 (`git ls-files '*.v' | xargs grep -hE '\+(input|maybeinput)\b' | wc -l`) finds 973.
 Extra words in a group header become an attribute on every variable in that group (Forthon `interfaceparser.py`; only `hidden` is special-cased).
-Seven `bbb` groups carry `restart`: `Model_choice`, `Coefeq`, `Bcond`, `Err_msg_out`, `Comtra`, `Variable_perturbation`, `Jacobian_clipping` (`bbb/bbb.v:268,272,419,1126,1325,3302,3309`).
+Seven `bbb` groups carry `restart`: `Model_choice`, `Coefeq`, `Bcond`, `Err_msg_out`, `Comtra`, `Variable_perturbation`, `Jacobian_clipping` (`bbb/bbb.v:268,272,419,1126,1325,3304,3311`).
 Nothing in UEDGE's Python or in Forthon reads this attribute (Forthon's `pydump` selects on `dump`), so it is inert in the Python build. Put new input variables in these groups as usual; the tag has no effect.
 
 ## Adding a variable — checklist
