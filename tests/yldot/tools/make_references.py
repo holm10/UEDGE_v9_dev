@@ -38,8 +38,8 @@ configuration, for yldot and yldot_J alike): SENSITIVE if some entry differs by 
 evaluated a second time in another process, and stored only if both runs agree bit for bit (else INVALID
 "nondeterministic", a finding: file a bugfix ticket). Both runs are children of the one forkserver that preloaded
 uedge (harness/process.py), with the same heap and address layout, so the second run shows run-to-run
-nondeterminism only: a result that depends on the build or on the memory layout (an uninitialised read, like
-com.isudsym, bbb.ishymol and bbb.ziin: AIUE-159..161) is stable here and is found by replaying every stored variant
+nondeterminism only: a result that depends on the build or on the memory layout (an uninitialised read; bbb.ziin,
+AIUE-161, was a suspect) is stable here and is found by replaying every stored variant
 on other builds (tools/variant_tolerances.py replay) and by AIUE-95's audit. INERT if bitwise equal; MARGINAL if
 0 < difference <= M_cls*tol_i; INVALID on an error (the reason holds the exception's text, for an xerrab the '***'
 message of the child's log), crash, timeout, neq change, an equation layout change at the same neq (index arrays or
