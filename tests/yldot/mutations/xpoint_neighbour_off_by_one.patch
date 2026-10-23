@@ -29,7 +29,9 @@ Description: off-by-one neighbour at the X-point cuts: the electron energy flux 
  te rows fire. Owner, 2026-10-22 (AIUE-90 Q3): a generic site, detected on the small families and, since
  AIUE-92, on the owner families. dnull_imp2 (nxpt = 2) has it per mesh half: ixpt1(1)+1 and ixpt2(2)+1 for
  iy <= iysptrx1(1) = 30, ixpt2(1)+1 and ixpt1(2)+1 for iy <= iysptrx2(1) = 16; at the cut guard ixlb(2) the
- boundary condition overwrites the te row.
+ boundary condition overwrites the te row. Known (owner, 2026-10-23, AIUE-92 B6): in dnull_imp2 the timestep
+ flag difference also exceeds tol at te (27,1), by 1.86 x, the rounding left by subtracting two yldot values the
+ mutation moved by ~1e16 x tol; the matrix reports it as unexpected, accepted, no header change.
 
 diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
 index 7e0e260..d403ddf 100644

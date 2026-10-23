@@ -64,8 +64,8 @@ timeout_s = 120  # per child
 dt_timestep_s = 1e-6  # timestep configuration, step 6c
 
 [history]  # tools/measure_history.py run (AIUE-92): rows that differ bit for bit, yldot plus yldot_J
-measured = "2026-10-22"
-build = "AIUE-92-serial"  # origin/v9-develop 6ccd347, --serial, one thread, Darwin arm64
+measured = "2026-10-23"  # re-measured on an idle machine (AIUE-92 B8)
+build = "AIUE-92-serial"  # 6ccd347 Fortran (unchanged since), --serial, one thread, Darwin arm64; tests/ at 4f83c77
 uedge_ver = "8.1.2-beta.0"
 w_sweep = { steady = [0, 0], timestep = [0, 0] }  # exmain x 1 vs 2, 2 vs 3, each in a fresh process (p = 1)
 p_sweep = { steady = [0, 0], timestep = [0, 0] }  # pandf x 1 vs 2, 2 vs 3 (w = 1)
@@ -75,11 +75,11 @@ steady_plus_minus_rows = 0  # steady yldot_J vs yldot
 gated_rows = 0  # of those, removed by ishosor = 0 (the only flag-gated branch active in steady)
 flags = { ishosor = 0, ismcnon = 0 }
 reuse = "bit-identical: steady, steady, timestep, steady, intake, steady"  # one process; report only
-child_wall_s = { steady = 0.4021, timestep = 0.4978 }  # one Runner child (forkserver), median of 5
-eval_in_child_s = { steady = 0.2801, timestep = 0.3609 }  # the protocol inside the child, input.py included
-pandf_s = 1.27e-02  # one pandf, median of 5
-n_variants = { steady = 983, timestep = 9 }  # variants.plan(), not excluded
-sweep_cpu_s = 400  # n_variants x child_wall_s
+child_wall_s = { steady = 0.2725, timestep = 0.3601 }  # one Runner child (forkserver), median of 5
+eval_in_child_s = { steady = 0.3007, timestep = 0.3572 }  # the protocol inside the child, input.py included
+pandf_s = 1.16e-02  # one pandf, median of 5
+n_variants = { steady = 975, timestep = 9 }  # variants.plan(), not excluded
+sweep_cpu_s = 269  # n_variants x child_wall_s
 
 [regions]
 # owner, 2026-10-21 (AIUE-91 ticket page, D1): six disjoint regions, one guard region; inner = the ix = 0 side
