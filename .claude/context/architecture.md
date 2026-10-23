@@ -53,7 +53,7 @@
 4. `build.run` then builds the C extension `uedgeC` (`setup.py:821,832,848`), linked with `-fopenmp` in the OpenMP build. A `--serial` build removes its OpenMP flags at module level, before `setup()` copies `FLAGS['CARGS']` into the `uedgeC` link arguments (`setup.py:104-109`, AIUE-109).
 5. `src/uedge/__init__.py` imports each `<pkg>py` with `RTLD_GLOBAL` so cross-package symbols resolve; order matters.
 
-BASIS build (legacy, CI via Docker `build-basis.yml`) uses `*/Package`, `*/PackageMake`, `uedge.pack`.
+BASIS build (legacy, no CI since AIUE-178) uses `*/Package`, `*/PackageMake`, `uedge.pack`.
 
 ## Python layer (`src/uedge/`)
 
