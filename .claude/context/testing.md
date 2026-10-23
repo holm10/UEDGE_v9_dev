@@ -385,4 +385,6 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 - `build-basis.yml` runs BASIS level-1/level-2 tests in Docker (`fusionbillm/basisuedge`); skip with `#@nobasis`.
   Both workflows read tags only from message lines that start with `#` (`#@notest @nobasis`), so a squash title's
   `(#N)` and its `Co-Authored-By` addresses are not tags (AIUE-175). `build-basis.yml` also runs on `workflow_dispatch`.
+  Tags apply to push runs only: a `pull_request` run checks out GitHub's merge commit (depth 1, so `--no-merges` keeps
+  it) and reads its "Merge … into …" message.
 - `claude-review.yml` runs `/code-review` on PR open or `@claude-review` comment.
