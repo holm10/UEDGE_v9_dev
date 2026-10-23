@@ -18,6 +18,8 @@ The steps, numbered as in the PRD (the timestep configuration adds 6a-6c):
     7   yl[neq] = -1 (nksol-RHS flag), yl[neq+1] = 0 (nufak)
     8   pandf(-1, -1, ...) x P: yldot
     8b  yl[neq] = +1 (Jacobian flag), pandf x P: yldot_J; yl[neq] = -1 again
+    8c  steady only, with job['locality'] = delta: the locality protocol of PRD section 7.5 (locality.run); its f00
+        must equal yldot_J bit for bit
     9   results back through the pipe
 
 The intake configuration (PRD section 7.1, decision 20) replaces steps 3-8b: allocate, restore reference_state.h5,
@@ -37,7 +39,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import variants
+from . import locality, variants
 
 STATE_VARS = ["nis", "ups", "tes", "tis", "ngs", "tgs", "phis"]  # the saved arrays of step 6c
 INDEX_ARRAYS = ["idxn", "idxu", "idxte", "idxti", "idxg", "idxtg", "idxphi", "igyl"]
@@ -241,6 +243,14 @@ def evaluate(job):
     yldot_j = bbb.yldot[:neq].copy()
     bbb.yl[neq] = -1.0
 
+    # 8c
+    loc = None
+    if job.get("locality") is not None:
+        loc = locality.run(bbb, neq, job["locality"])
+        if not np.array_equal(loc["f00"], yldot_j):
+            raise Stop("owner", "{}: the locality f00 differs from yldot_J at rows {}; irregular: ask the epic owner "
+                       "(decision 23)".format(family.name, np.flatnonzero(loc["f00"] != yldot_j)[:20] + 1))
+
     # 9
     out = {"neq": neq, "yldot": yldot, "yldot_J": yldot_j, "dtreal": float(bbb.dtreal),
            "uedge_ver": text(bbb.uedge_ver)}
@@ -251,6 +261,8 @@ def evaluate(job):
                                  "saved": {v: np.array(getattr(bbb, v)).copy() for v in STATE_VARS}}
     if variant:
         out["variant"] = {"PRE": rec_pre, "POST": rec_post}
+    if loc is not None:
+        out["locality"] = loc
     if job["diagnostics"]:
         out["diagnostics"] = diagnostics(bbb)
     return out

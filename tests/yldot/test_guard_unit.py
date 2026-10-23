@@ -92,12 +92,16 @@ def variant(seed):
     return y
 
 
-def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None):
-    """(manifest, .h5 bytes) of a full-store reference; variables {id: (class, seed)}, the SENSITIVE ones stored."""
+def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None,
+             locality=None):
+    """(manifest, .h5 bytes) of a full-store reference; variables {id: (class, seed)}, the SENSITIVE ones stored;
+    locality: (delta, entries) of a stored locality pattern."""
     p = Path(where) / "{}-{}.h5".format(family, next(COUNTER))
     w = store.create(p, "full", family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, default, YJ + (default - Y), sigma, diag)
+    if locality is not None:
+        w.write_locality("steady", *locality)
     for vid, (cls, seed) in sorted(variables.items()):
         if cls == "SENSITIVE":
             w.write_variant("steady", vid, variant(seed), variant(seed) + (YJ - Y))
@@ -467,6 +471,31 @@ def test_family_toml_rules():
     assert {r for r, _ in guard.diff_family_toml(base, unknown)} == {"loosened"}
 
 
+LOCALITY = {"delta_loc": 1e-5, "m_loc": 100.0, "calibration": "record", "causes": {"none": "bit-identical"}}
+
+
+@pytest.mark.parametrize("a, b, want", [
+    (None, LOCALITY, {"changed"}),  # a new criterion
+    (LOCALITY, None, {"loosened"}),
+    (LOCALITY, dict(LOCALITY, m_loc=50.0), {"changed"}),  # a smaller margin
+    (LOCALITY, dict(LOCALITY, m_loc=200.0), {"loosened"}),
+    (LOCALITY, dict(LOCALITY, m_loc="100"), {"loosened"}),  # not a number
+    (LOCALITY, dict(LOCALITY, delta_loc=1e-6), {"loosened"}),  # non-monotone, either way
+    (LOCALITY, dict(LOCALITY, delta_loc=1e-4), {"loosened"}),
+    (LOCALITY, dict(LOCALITY, calibration="new record"), {"changed"}),
+    (LOCALITY, dict(LOCALITY, causes={"nonog": "x"}), {"changed"}),
+    (LOCALITY, dict(LOCALITY, extra=1), {"loosened"}),  # a key the guard does not know
+    (LOCALITY, {k: v for k, v in LOCALITY.items() if k != "m_loc"}, {"loosened"}),
+])
+def test_family_toml_locality_rules(a, b, want):
+    import tomllib
+
+    base = tomllib.loads(FAMILY)
+    f0 = dict(base, locality=a) if a is not None else base
+    f1 = dict(base, locality=b) if b is not None else base
+    assert {r for r, _ in guard.diff_family_toml(f0, f1)} == want
+
+
 def test_new_family_toml_is_a_change(repo):
     repo.write(G + "families/new/family.toml", FAMILY.replace("fam", "new"))
     repo.write(G + "families/new/sigma.h5", "sigma")
@@ -523,6 +552,36 @@ def test_rename_refused_when_the_applied_value_differs(repo):
     repo.put_ref("fam", dict(variables, **{"bbb.renamed": ("SENSITIVE", 1)}), applied={"bbb.renamed": APPLIED})
     code, v, text = repo.check()
     assert code == 1 and v["items"] == ["fam:bbb.sens"]
+
+
+LOC = (1e-5, {"column": np.array([0, 2]), "row": np.array([1, 3]), "mismatch": np.array([1e-6, -2e-6]),
+              "dfull": np.array([1e-3, 2e-3])})
+
+
+def test_new_locality_pattern_is_an_addition(repo):
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC)
+    code, v, text = repo.check()
+    assert code == 0, text
+    assert v["required"] == [] and "addition: guarded ['locality/steady']" in text
+
+
+def test_changed_locality_pattern_is_a_default_change(repo):
+    """PRD 7.6: a changed locality pattern needs Default results: changed, judged through guarded locality/steady."""
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC, release=V1, serve=False)
+    repo.base = repo.commit("locality pattern")
+    changed = (LOC[0], dict(LOC[1], mismatch=LOC[1]["mismatch"] * 2))
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=changed)
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:locality/steady"], text
+    assert not any("/locality/" in item for item in v["items"])  # the datasets are judged through guarded
+
+
+def test_removed_locality_pattern_is_a_default_change(repo):
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC, release=V1, serve=False)
+    repo.base = repo.commit("locality pattern")
+    repo.put_ref("fam", BASE_VARIABLES["fam"])
+    code, v, text = repo.check()
+    assert code == 1 and v["items"] == ["fam:locality/steady"] and "guarded locality/steady removed" in text
 
 
 def test_diagnostics_only(repo):

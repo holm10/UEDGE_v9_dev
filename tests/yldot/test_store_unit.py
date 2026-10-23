@@ -42,13 +42,19 @@ YJV[9] += 3.0
 TAG = "yldot-data-v3"
 
 
-def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None):
-    """A reference file and its manifest in a scratch suite; returns the manifest."""
+LOC = {"column": np.array([3, 0, 3]), "row": np.array([5, 2, 1]), "mismatch": np.array([2e-6, -1e-7, 3e-5]),
+       "dfull": np.array([1e-3, 4e-4, 2e-2])}
+
+
+def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None):
+    """A reference file and its manifest in a scratch suite; returns the manifest. locality: (delta, entries)."""
     ref = Path(suite) / "references"
     ref.mkdir(parents=True, exist_ok=True)
     w = store.create(ref / "{}.h5".format(family), kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, Y, YJ, SIGMA, DIAG)
+    if locality is not None:
+        w.write_locality("steady", *locality)
     for vid, yv, yjv in variants:
         w.write_variant("steady", vid, yv, yjv)
     out = w.finish()
@@ -305,11 +311,72 @@ def test_consistent_tamper_of_the_default_refused(tmp_path):
         store.open_store("fam", tmp_path, regions=SPEC)
 
 
-def test_locality_keys_of_guarded_are_ignored(tmp_path):
+@pytest.mark.parametrize("kind", ["full", "sketch"])
+def test_locality_round_trip(tmp_path, kind):
+    m = build(tmp_path, kind, locality=(1e-4, LOC))
+    assert sorted(n for n in m["datasets"] if "/locality/" in n) == [
+        "/steady/locality/" + k for k in ("column", "delta", "dfull", "mismatch", "row")]
+    assert "locality/steady" in m["guarded"] and "locality/timestep" not in m["guarded"]
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        delta, e = s.locality("steady")
+        assert delta == 1e-4 and s.locality("timestep") is None
+        order = np.lexsort((LOC["row"], LOC["column"]))  # stored sorted by column, then row
+        for k in LOC:
+            assert np.array_equal(getattr(e, k), LOC[k][order])
+
+
+def test_no_locality_stored_reads_none(tmp_path):
     m = build(tmp_path, "full")
-    m["guarded"]["locality/steady"] = "a" * 64
+    assert not any(k.startswith("locality/") for k in m["guarded"])
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.locality("steady") is None
+
+
+def test_locality_key_must_follow_the_datasets(tmp_path):
+    m = build(tmp_path, "full")
+    m["guarded"]["locality/steady"] = "a" * 64  # a key without datasets: no longer ignored (AIUE-100)
     mf.dump(m, mf.path("fam", tmp_path))
-    store.open_store("fam", tmp_path, regions=SPEC).close()
+    with pytest.raises(store.StoreIntegrityError, match=r"guarded \['locality/steady'\]"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_consistent_tamper_of_the_locality_refused(tmp_path):
+    build(tmp_path, "full", locality=(1e-4, LOC))
+    with h5py.File(tmp_path / mf.reference_path("fam"), "r+") as f:
+        f["steady/locality/mismatch"][0] *= 2
+    m = reseal(tmp_path)
+    m["datasets"]["/steady/locality/mismatch"] = store.dataset_sha256(
+        h5py.File(tmp_path / mf.reference_path("fam"), "r")["steady/locality/mismatch"][()])
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match=r"guarded \['locality/steady'\]"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+@pytest.mark.parametrize("config, delta, edit, error", [
+    ("timestep", 1e-4, {}, "steady configuration only"),
+    ("steady", 0.0, {}, "finite delta > 0"),
+    ("steady", 1e-4, {"row": np.array([5, 2, N])}, "outside"),
+    ("steady", 1e-4, {"dfull": np.array([1.0, np.nan, 1.0])}, "finite"),
+    ("steady", 1e-4, {"row": np.array([5, 2])}, "unequal lengths"),
+])
+def test_write_locality_refuses(tmp_path, config, delta, edit, error):
+    w = store.create(tmp_path / "x.h5", "full", "fam", DATA, IMAP)
+    w.write_default("steady", Y, YJ, SIGMA)
+    w.write_default("timestep", Y, YJ, SIGMA)
+    with pytest.raises(ValueError, match=error):
+        w.write_locality(config, delta, {**LOC, **edit})
+    w.finish()
+
+
+def test_write_locality_needs_the_default_and_runs_once(tmp_path):
+    w = store.create(tmp_path / "x.h5", "full", "fam", DATA, IMAP)
+    with pytest.raises(store.StoreError, match="default before"):
+        w.write_locality("steady", 1e-4, LOC)
+    w.write_default("steady", Y, YJ, SIGMA)
+    w.write_locality("steady", 1e-4, LOC)
+    with pytest.raises(store.StoreError, match="already written"):
+        w.write_locality("steady", 1e-4, LOC)
+    w.finish()
 
 
 def test_variant_removed_but_still_sensitive_refused(tmp_path):

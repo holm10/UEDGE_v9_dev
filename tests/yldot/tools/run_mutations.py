@@ -5,7 +5,7 @@ Usage (from a checkout whose tests/yldot is the commit's, references/ aside):
     python run_mutations.py list
     python run_mutations.py run --out DIR [--from-commit SHA] [mutation ...]
     python run_mutations.py gates DIR
-    <built python> run_mutations.py _child --families F [F ...] --out FILE
+    <built python> run_mutations.py _child --families F [F ...] --out FILE [--locality]
 
 list      parses and checks every tests/yldot/mutations/*.patch (header keys, the single-line diff, the families and
           blocks against the stored references) and prints the set.
@@ -13,7 +13,9 @@ run       applies the mutations (default: all) one at a time to a scratch worktr
           builds each --serial into one venv DIR/venv (make_references.PINS). First a baseline build of SHA: every
           referenced family must pass. Per mutation: git apply, build (DIR/<mutation>/build.log), the built bbbpy
           extension's SHA-256 must be new in the run (a stale build fails it), the evaluations, test_default.py with
-          the built python as a cross-check, git apply -R, the scratch tree clean again. Inner-loop rule: the
+          the built python as a cross-check (and test_locality.py for a range mutation), git apply -R, the scratch
+          tree clean again. The locality check runs only for a mutation whose Check is locality (owner, 2026-10-22,
+          AIUE-100 D4); for the others the part is absent ("not run"). Inner-loop rule: the
           mutation's first family (the smallest referenced family where its code is active) runs first; a verdict
           other than expected there stops the mutation (its other families: not run). Otherwise every other
           referenced family runs, active or not (owner, 2026-10-22, AIUE-90 Q8: a block firing where the code is
@@ -22,7 +24,9 @@ run       applies the mutations (default: all) one at a time to a scratch worktr
 gates     recomputes and prints the gates of DIR/matrix.json.
 _child    runs inside the built venv: per family and configuration one fresh evaluation, decided by Store.check as
           test_default.py decides it, with the fired blocks, failing cells and largest |diff|/tol per part (yldot,
-          flag difference) and the first differing intermediate (array-scaled, as Store.check's report).
+          flag difference) and the first differing intermediate (array-scaled, as Store.check's report). With
+          --locality also the steady part locality, decided by locality.compare_pattern as test_locality.py decides
+          it (fired blocks: those of the failing rows; largest ratio: score/M_loc, 1/score or the magnitude ratio).
 
 The matrix (owner, 2026-10-22, AIUE-90 Q5) is a working document: summarise it on the ticket page, never commit it.
 
@@ -75,7 +79,8 @@ SUITE = Path(__file__).resolve().parents[1]
 MUTATIONS = SUITE / "mutations"
 FAMILIES = SUITE / "families"
 CONFIGS = ("steady", "timestep")
-PARTS = ("yldot", "flag difference")
+PARTS = ("yldot", "flag difference", "locality")  # locality: steady only, for Check: locality (owner, AIUE-100 D4)
+DEFAULT_PARTS = PARTS[:2]  # the parts test_default.py decides
 EQ_NAMES = tuple(e for e, _, _ in EQUATIONS)
 KINDS = {"physics": "yldot", "flag-gating": "flag difference", "range": "locality"}  # kind -> its check
 FAULTS = ("sign", "factor 2", "dropped term", "off-by-one", "wrong multiplier", "loop bound", "window coupling",
@@ -382,9 +387,10 @@ def fired(result):
     return out
 
 
-def verdict(m, family, result, junit=None):
+def verdict(m, family, result, junit=None, junit_loc=None):
     """{"verdict", "problems", "flags"} of one mutation on one family. result: the child's {config: ...}; junit: the
-    test_default.py outcome {config: failed} for the family (None: not run)."""
+    test_default.py outcome {config: failed} for the family (None: not run); junit_loc: the test_locality.py outcome
+    (failed: bool) for the family (None: not run)."""
     crashed = ["{}: {} {}".format(c, r.get("status"), r.get("message", "")) for c, r in result.items()
                if r.get("status") != "ok"]
     if crashed:
@@ -393,10 +399,15 @@ def verdict(m, family, result, junit=None):
     flags = []
     if junit is not None:
         for config in CONFIGS:
-            fails = any(part for (c, part) in got if c == config)
+            fails = any(part in DEFAULT_PARTS for (c, part) in got if c == config)
             if junit.get(config) != fails:
                 flags.append("test_default[{}-{}] {} while the check {}".format(
                     family, config, "failed" if junit.get(config) else "passed", "fired" if fails else "passed"))
+    if junit_loc is not None:
+        fails = ("steady", "locality") in got
+        if junit_loc != fails:
+            flags.append("test_locality[{}] {} while the check {}".format(
+                family, "failed" if junit_loc else "passed", "fired" if fails else "passed"))
     active = family in m.families and m.pending is None
     if not active:
         if not got:
@@ -539,8 +550,36 @@ def part_summary(c, imap):
             "cells": cells}
 
 
-def child(families, out):
-    """Evaluate each family in both configurations and write {family: {config: ...}} as JSON to out."""
+def locality_part(runner, family, regions, tol):
+    """The locality part of one family (test_locality.py's decision): (status record or None, part summary)."""
+    from yldot.harness import FAMILIES, compare, open_store
+    from yldot.harness import locality as L
+
+    cfg = L.load_config(FAMILIES / family)
+    if cfg is None:
+        raise Stop(2, "{}: no [locality] in family.toml, so a range mutation can't be checked there".format(family))
+    r = runner.evaluate(family, locality=cfg["delta_loc"])
+    if not r.ok:
+        return {"status": r.status, "message": r.message, "log_tail": r.log_tail}, None
+    with open_store(family) as s:
+        stored = s.locality("steady")
+        if stored is None:
+            raise Stop(2, "{}: the reference stores no locality pattern".format(family))
+        imap = compare.index_map(r.data, regions)
+        t = compare.tolerances(s.default("steady"), s.sigma("steady"), tol["rtol"], tol["rule"]["k"], imap).tol
+        c = L.compare_pattern(stored[1], L.Entries.of(r.data["locality"]["entries"]), t,
+                              L.rtol_rows(tol["rtol"], imap), float(cfg["m_loc"]), imap, family)
+    stale = r.data["locality"]["stale"]
+    if stale.size:
+        return {"status": "error", "message": "{} stale locality columns".format(stale.size), "log_tail": ""}, None
+    return None, {"ok": bool(c.ok), "n_fail": int(c.n_fail), "max_ratio": float(c.max_ratio),
+                  "cells": {b: [list(x) for x in cells] for b, cells in c.fired.items()},
+                  "headline": c.headline()}
+
+
+def child(families, out, locality=False):
+    """Evaluate each family in both configurations and write {family: {config: ...}} as JSON to out. locality: also
+    the steady locality check (a range mutation, AIUE-100 D4), as the part "locality" of the steady configuration."""
     import numpy as np
 
     from yldot.harness import Runner, compare, open_store
@@ -572,6 +611,12 @@ def child(families, out):
                                      scaled=True)
             res[family][config] = {"status": "ok", "parts": parts, "intermediate": d.name if d else None,
                                    "first_difference": str(d) if d else None}
+        if locality and res[family]["steady"].get("status") == "ok":
+            failed, part = locality_part(runner, family, regions, tol)
+            if failed is not None:
+                res[family]["steady"] = failed
+            else:
+                res[family]["steady"]["parts"]["locality"] = part
     Path(out).write_text(json.dumps(res, indent=1) + "\n")
 
 
@@ -633,10 +678,10 @@ class Scratch:
     def remove(self):
         self.run(["git", "-C", str(self.root), "worktree", "remove", "--force", str(self.src)])
 
-    def evaluate(self, families, out):
+    def evaluate(self, families, out, locality=False):
         out.parent.mkdir(parents=True, exist_ok=True)
         cmd = [str(self.python), str(Path(__file__).resolve()), "_child", "--families"] + families + [
-            "--out", str(out)]
+            "--out", str(out)] + (["--locality"] if locality else [])
         if self.stream(cmd, cwd=self.out, env=self.env, log=out.with_suffix(".log")) != 0:
             raise Stop(2, "the evaluation of {} failed (log: {})".format(families, out.with_suffix(".log")))
         return json.loads(out.read_text())
@@ -650,6 +695,35 @@ class Scratch:
         if rc not in (0, 1):
             raise Stop(2, "test_default.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
         return parse_junit(out, families)
+
+    def test_locality(self, families, out):
+        """{family: failed} from test_locality.py's test_locality cases, run with the built python."""
+        expr = "test_locality and ({})".format(" or ".join(families))
+        cmd = [str(self.python), "-m", "pytest", "tests/yldot/test_locality.py", "-k", expr, "-q", "-p",
+               "no:cacheprovider", "--junitxml", str(out)]
+        rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
+        if rc not in (0, 1):
+            raise Stop(2, "test_locality.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
+        return parse_junit_locality(out, families)
+
+
+def parse_junit_locality(path, families):
+    """{family: failed} of the test_locality[<family>] cases in a JUnit XML file; a case collected twice or a family
+    without its case is a harness error (the test must run where the check ran)."""
+    res = {}
+    for case in ET.parse(path).getroot().iter("testcase"):
+        hit = re.match(r"^test_locality\[(.+)\]$", case.get("name", ""))
+        if not hit or hit.group(1) not in families:
+            continue
+        if hit.group(1) in res:
+            raise Stop(2, "test_locality[{}] collected twice ({})".format(hit.group(1), path))
+        if case.find("skipped") is not None:
+            raise Stop(2, "test_locality[{}] skipped ({})".format(hit.group(1), path))
+        res[hit.group(1)] = case.find("failure") is not None or case.find("error") is not None
+    missing = sorted(set(families) - set(res))
+    if missing:
+        raise Stop(2, "test_locality has no case for {} ({})".format(missing, path))
+    return res
 
 
 def parse_junit(path, families):
@@ -673,8 +747,8 @@ def parse_junit(path, families):
     return res
 
 
-def entry(m, family, result, junit):
-    v = verdict(m, family, result, junit)
+def entry(m, family, result, junit, junit_loc=None):
+    v = verdict(m, family, result, junit, junit_loc)
     got = [(c, p) for c, r in result.items() if r.get("status") == "ok" for p in r["parts"]]
     want = [(c, p) for c, p in got if c in m.configs and p == m.check]
     v["n_fail"] = sum(result[c]["parts"][p]["n_fail"] for c, p in want)
@@ -693,21 +767,24 @@ def run_one(m, scratch, out, families):
         inner = m.families[0] if m.pending is None and m.families[0] in families else None
         order = ([inner] if inner else []) + [f for f in families if f != inner]
         results = {}
+        loc = m.check == "locality"  # the locality check runs for the range mutations only (owner, AIUE-100 D4)
+
+        def evaluate(fams, name):
+            res = scratch.evaluate(fams, mdir / "{}.json".format(name), locality=loc)
+            junit = scratch.test_default(fams, mdir / "{}.junit.xml".format(name))
+            jloc = scratch.test_locality(fams, mdir / "{}.locality.junit.xml".format(name)) if loc else {}
+            for f in fams:
+                results[f] = entry(m, f, res[f], junit[f], jloc.get(f))
+
         first = [inner] if inner else order
-        res = scratch.evaluate(first, mdir / "first.json")
-        junit = scratch.test_default(first, mdir / "first.junit.xml")
-        for f in first:
-            results[f] = entry(m, f, res[f], junit[f])
+        evaluate(first, "first")
         rest = [f for f in order if f not in first]
         if inner and results[inner]["verdict"] != "expected":
             for f in rest:
                 results[f] = {"verdict": "not run", "problems": ["the inner-loop family {} failed".format(inner)],
                               "flags": []}
         elif rest:
-            res = scratch.evaluate(rest, mdir / "rest.json")
-            junit = scratch.test_default(rest, mdir / "rest.junit.xml")
-            for f in rest:
-                results[f] = entry(m, f, res[f], junit[f])
+            evaluate(rest, "rest")
     finally:
         scratch.git("apply", "-R", patch)
     scratch.clean()
@@ -767,10 +844,11 @@ def main(argv):
     p = sub.add_parser("_child", help="inside the built venv: evaluate")
     p.add_argument("--families", nargs="+", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--locality", action="store_true", help="also the steady locality check (range mutations)")
     args = parser.parse_args(argv[1:])
     try:
         if args.cmd == "_child":
-            child(args.families, args.out)
+            child(args.families, args.out, args.locality)
             return 0
         if args.cmd == "list":
             ms = load_set(stores=store_facts(referenced()))

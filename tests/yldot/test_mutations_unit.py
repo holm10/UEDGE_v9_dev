@@ -288,6 +288,59 @@ def test_parse_junit(tmp_path):
         rm.parse_junit(p, ["d_only", "ortho"])
 
 
+RANGE = {"Kind": "range", "Equation": "all", "Fault": "loop bound", "Check": "locality", "Configs": "steady",
+         "Intermediate": "none", "Blocks": "d_only: primary te[1]\n ortho: primary te[1]"}
+LOC = {("steady", "locality"): TE}
+
+
+@pytest.mark.parametrize("spec, junit_loc, want, problem", [
+    (LOC, True, "expected", None),
+    ({}, False, "missed", "steady locality: nothing fired"),
+    ({**LOC, ("steady", "yldot"): TE}, True, "unexpected", "not the expected check"),  # a range mutation moves yldot
+    ({("steady", "locality"): {**TE, "ni[1]": [[2, 1]]}}, True, "unexpected", "outside primary and coupled"),
+])
+def test_range_verdict(tmp_path, spec, junit_loc, want, problem):
+    v = rm.verdict(mut(tmp_path, **RANGE), "d_only", result(spec), junit={"steady": False, "timestep": False},
+                   junit_loc=junit_loc)
+    assert v["verdict"] == want, v
+    assert not v["flags"] or want != "expected", v
+    if problem:
+        assert any(problem in p for p in v["problems"]), v
+
+
+def test_range_verdict_flags_test_locality(tmp_path):
+    """test_locality.py is the cross-check of the locality part; test_default.py ignores it."""
+    v = rm.verdict(mut(tmp_path, **RANGE), "d_only", result(LOC), junit={"steady": False, "timestep": False},
+                   junit_loc=False)
+    assert v["flags"] == ["test_locality[d_only] passed while the check fired"], v
+    v = rm.verdict(mut(tmp_path, **RANGE), "d_only", result({}), junit={"steady": False, "timestep": False},
+                   junit_loc=True)
+    assert "test_locality[d_only] failed while the check passed" in v["flags"], v
+
+
+JUNIT_LOC = """<testsuites><testsuite>
+<testcase classname="t" name="test_locality[d_only]"><failure message="x"/></testcase>
+<testcase classname="t" name="test_locality[ortho]"/>
+<testcase classname="t" name="test_locality_configured"/>
+<testcase classname="t" name="test_compare_pattern_band[x]"/>
+{}</testsuite></testsuites>"""
+
+
+def test_parse_junit_locality(tmp_path):
+    p = tmp_path / "j.xml"
+    p.write_text(JUNIT_LOC.format(""))
+    assert rm.parse_junit_locality(p, ["d_only", "ortho"]) == {"d_only": True, "ortho": False}
+    with pytest.raises(rm.Stop, match="no case for"):
+        rm.parse_junit_locality(p, ["d_only", "d_c"])
+    p.write_text(JUNIT_LOC.format('<testcase classname="t" name="test_locality[ortho]"/>'))
+    with pytest.raises(rm.Stop, match="collected twice"):
+        rm.parse_junit_locality(p, ["d_only", "ortho"])
+    p.write_text(JUNIT_LOC.replace('name="test_locality[ortho]"/>', 'name="test_locality[ortho]"><skipped/>'
+                                   '</testcase>').format(""))
+    with pytest.raises(rm.Stop, match="skipped"):
+        rm.parse_junit_locality(p, ["d_only", "ortho"])
+
+
 def test_skipped_test_default_is_flagged(tmp_path):
     v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
     assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v
