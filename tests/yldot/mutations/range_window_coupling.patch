@@ -1,27 +1,36 @@
 Mutation: range_window_coupling
 Kind: range
-Equation: phi
+Equation: te
 Fault: window coupling
 Check: locality
 Configs: steady
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
 Intermediate: none
-Families: d_only
-Pending: AIUE-100 (locality check)
-Source: bbb/pandf.m:103 (at 8a67572)
-Description: a single weak coupling removed from the evaluation window: the potential's radial loops (j2p..j5p) of a
- local evaluation stop one row short, dropping the phi coupling to the next radial cell. The full RHS is
- unchanged (yc < 0 branch); the locality check (AIUE-100) catches it. Run now as a negative control.
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Source: bbb/pandf_plasma_energy.m:646 (at 6ccd347)
+Description: a single weak coupling removed from the evaluation window: the point-wise copy of the electron energy
+ source vsoree = vsoreec (iseesorave = 0) stops one row short. A local (Jacobian) evaluation's point range is the
+ perturbed cell itself (iys1 = iyf6 = yc, bbb/pandf.m:183-184), so resee(xc,yc) keeps a stale vsoree and loses the
+ source's dependence on the cell's own variables; the full RHS (iys1..iyf6 = j1..j6) only loses guard row ny+1,
+ which no residual reads (vsoree is used at bbb/pandf_plasma_energy.m:1052 over j2..j5), so yldot and the flag
+ difference must not fire. Owner, 2026-10-22 (AIUE-100 D1): replaces the j5p site, which was window padding.
+ Probes at delta 1e-6: max score outside the default pattern slab_phi 1.6e4, d_c 2.6e4, ortho 7.5e3, d_only
+ 2.2e3, d_mols 1.2e2 (demonstrated without the 10x margin).
 
-diff --git a/bbb/pandf.m b/bbb/pandf.m
-index b628b3c..4adb110 100644
---- a/bbb/pandf.m
-+++ b/bbb/pandf.m
-@@ -100,7 +100,7 @@ SUBROUTINE initialize_ranges(xc, yc, xlinc_loc, xrinc_loc, yinc_loc)
-          j5 = min(ny, yc+yinc_loc)
-          j5m = min(ny-1, yc+yinc_loc)
-          j6 = min(ny+1, yc+yinc_loc)
--         j5p = min(ny, yc+yinc_loc+1)
-+         j5p = min(ny, yc+yinc_loc)
-          j6p = min(ny+1, yc+yinc_loc+1)
- c         j6 = min(ny+1, yc+yinc_loc+1)
-          j7 = yc+yinc_loc
+diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
+index 7e0e260..7a37935 100644
+--- a/bbb/pandf_plasma_energy.m
++++ b/bbb/pandf_plasma_energy.m
+@@ -643,7 +643,7 @@ ccc             call volave(nx, ny, j2, j5, i2, i5, ixp1(0,0), ixm1(0,0),
+ c   Perform 5pt average of source terms as volume integral
+ c*************************************************************
+          if (iseesorave == 0.) then  #use only single-cell value
+-           do iy = iys1, iyf6
++           do iy = iys1, iyf6-1
+              do ix = ixs1, ixf6
+                vsoree(ix,iy) = vsoreec(ix,iy)
+              enddo
