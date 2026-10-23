@@ -6,12 +6,12 @@ Check: flag difference
 Configs: steady
 Intermediate: none
 Families: d_only
-Pending: AIUE-94, AIUE-96 (the ishosor variant, with ifixpsor = 0)
+Pending: AIUE-96 (the ishosor variant's Jacobian-flag reference, stored since AIUE-94, with ifixpsor = 0)
 Source: bbb/pandf_plasma_continuity.m:714 (at 8a67572)
 Description: drops the yl(neq+1) < 0 condition on ishosor's volume integration of the sources (PRD 7.8, decision
  27), so the Jacobian-flag (+1) evaluation also integrates them. ishosor = 0 in every default, so the
- default check must not fire; the ishosor variant's Jacobian-flag reference (AIUE-94, AIUE-96) catches
- it. Run now as a negative control.
+ default check must not fire; the ishosor variant's Jacobian-flag reference (stored since AIUE-94) and its
+ test (AIUE-96) catch it. Run now as a negative control (ishosor = 0 in the owner families too).
 
 diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
 index 59433cf..4173bfa 100644

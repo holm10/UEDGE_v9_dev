@@ -199,6 +199,27 @@ def test_sketch_round_trip_and_thresholds(tmp_path):
         assert not s.check("steady", "bbb.cfvisx", nan, YJV, TOL, IMAP).ok
 
 
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_failing_default_names_the_stored_intermediate(tmp_path, kind):
+    """AIUE-92: a sketch store keeps res* only, so the new run's other diagnostics (fnix here) are not compared; the
+    first difference is the changed resco, never "fnix missing in reference". A full store compares every array."""
+    from yldot.harness.compare import DIAG_SCALED_RTOL, first_difference
+
+    build(tmp_path, kind)
+    new = {"resco": DIAG["resco"] + 1.0, "fnix": DIAG["fnix"] + 1.0, "extra": np.zeros(2)}
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        ref, cut = s.diagnostic_pair("steady", new)
+        d = first_difference(ref, cut, rtol=DIAG_SCALED_RTOL, scaled=True)
+        bad = Y.copy()
+        bad[0] += 1.0
+        report = s.check("steady", None, bad, YJ + (bad - Y), TOL, IMAP, new).report
+    if kind == "sketch":
+        assert set(cut) == {"resco"} and d.name == "resco" and d.kind == "values"
+        assert "resco" in report and "missing" not in report
+    else:
+        assert cut is new and d.name == "fnix"  # fnix comes first in PANDF_ORDER; every array is compared
+
+
 THR_TOL = np.linspace(1e-9, 1e-7, N)
 
 

@@ -9,8 +9,11 @@ Blocks: d_only: primary up[1]
  d_mols: primary up[1]
  d_c: primary up[1]
  slab_phi: primary up[1]
+ dnull_imp2: primary up[1]
+ large_dd2c: primary up[1]
+ imp7: primary up[1]
 Intermediate: resmo
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_momentum.m:434 (at 8a67572)
 Description: the ion-atom charge-exchange momentum coupling of the main ions takes cfupimpg (the impurity-neutral
  drag multiplier) in place of cfupcx. cfupcx = 1 and cfupimpg = 0 in every small family (planning

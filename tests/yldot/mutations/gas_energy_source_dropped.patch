@@ -9,7 +9,7 @@ Intermediate: reseg
 Families: large_dd2c
 Pending: AIUE-92 (large_dd2c references; no small family evolves tg)
 Source: bbb/pandf_gas_energy.m:352 (at 8a67572)
-Description: drops the gas energy source segc from reseg. Pending AIUE-92 as gas_energy_divergence_sign.
+Description: drops the gas energy source segc from reseg. Active in large_dd2c only, as gas_energy_divergence_sign.
 
 diff --git a/bbb/pandf_gas_energy.m b/bbb/pandf_gas_energy.m
 index 7ad1ab8..d4220a4 100644

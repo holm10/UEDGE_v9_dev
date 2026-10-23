@@ -6,10 +6,13 @@ Check: yldot
 Configs: steady, timestep
 Blocks: d_mols: primary ng[2]
  d_c: primary ng[2]
+ large_dd2c: primary ng[2], ng[3]; coupled tg[2]
+ imp7: primary ng[2]
 Intermediate: resng
-Families: d_mols, d_c
+Families: d_mols, d_c, large_dd2c, imp7
 Source: bbb/pandf_gas_continuity.m:1059 (at 8a67572)
-Description: factor 2 on the radial part of the gas flux divergence in resng.
+Description: factor 2 on the radial part of the gas flux divergence in resng. In large_dd2c tg[2] is coupled through
+ rscalf (isflxvar = 0, bbb/oderhs.m:674-682); dnull_imp2 has no gas equation (ngsp = 1).
 
 diff --git a/bbb/pandf_gas_continuity.m b/bbb/pandf_gas_continuity.m
 index 21cf483..426eb08 100644

@@ -527,6 +527,15 @@ class Store:
         g = "{}/default/diagnostics".format(config)
         return {name: self.read("/{}/{}".format(g, name)) for name in self.f[g]}
 
+    def diagnostic_pair(self, config, new):
+        """(stored, new) diagnostics for compare.first_difference: a sketch store keeps the res* arrays only, so the new
+        run's are cut to the stored names; otherwise the first array not stored would always be the difference
+        (owner, 2026-10-23, AIUE-92). A full store compares every array, a new or lost name included."""
+        ref = self.diagnostics(config)
+        if self.kind == "sketch":
+            new = {name: a for name, a in new.items() if name in ref}
+        return ref, new
+
     def variants(self, config):
         g = "{}/variants".format(config)
         return sorted(self.f[g]) if g in self.f else []
@@ -550,7 +559,7 @@ class Store:
         n = imap.neq
         yldot, yldot_J = _f64("yldot", yldot, n, False), _f64("yldot_J", yldot_J, n, False)
         if vid is None:
-            diag = (self.diagnostics(config), diagnostics) if diagnostics is not None else None
+            diag = self.diagnostic_pair(config, diagnostics) if diagnostics is not None else None
             parts = [self._full_check(yldot, self.default(config), tol, imap, "yldot", diag),
                      self._full_check(yldot_J - yldot, self.jflag(config), tol, imap, "flag difference")]
         else:

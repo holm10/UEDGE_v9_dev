@@ -95,7 +95,7 @@ FLAGS = "--serial"
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
 CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
-           "large_dd2c": 9}
+           "large_dd2c": 9, "dnull_imp2": 9, "imp7": 9}  # the last two: owner, 2026-10-23 (AIUE-92 B4)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
 SAMPLE_N = 20  # the tolerance-inheritance sample per family, plus every SENSITIVE timestep variant (PRD 7.4; D2)

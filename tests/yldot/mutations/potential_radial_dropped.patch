@@ -8,8 +8,11 @@ Blocks: d_only: primary phi[1]
  ortho: primary phi[1]
  d_mols: primary phi[1]
  slab_phi: primary phi[1]
+ dnull_imp2: primary phi[1]
+ large_dd2c: primary phi[1]
+ imp7: primary phi[1]
 Intermediate: resphi
-Families: d_only, ortho, d_mols, slab_phi
+Families: d_only, ortho, d_mols, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_potencur.m:701 (at 8a67572)
 Description: drops the radial current divergence fqy from resphi. A small term (fqy about 0.1 against fqx about 1e4
  in d_only): a test of the per-entry tolerance's sensitivity.

@@ -9,8 +9,11 @@ Blocks: d_only: primary ti[1]
  d_mols: primary ti[1]
  d_c: primary ti[1]
  slab_phi: primary ti[1]
+ dnull_imp2: primary ti[1]
+ large_dd2c: primary ti[1]
+ imp7: primary ti[1]
 Intermediate: resei
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_energy.m:1019 (at 8a67572)
 Description: factor 2 on the constant part of the ion energy source, seic, in resei (non-zero in every small family,
  planning probe).

@@ -76,7 +76,7 @@ def test_default(tol, runner, family, config):
         if not chk.ok:
             ref = s.default(config)
             lines = [headline(family, config, "yldot", yldot, ref, t, imap,
-                              (s.diagnostics(config), r.data["diagnostics"])),
+                              s.diagnostic_pair(config, r.data["diagnostics"])),
                      headline(family, config, "flag difference", np.asarray(yldot_j) - np.asarray(yldot),
                               s.jflag(config), t, imap)]
             pytest.fail("\n".join(lines + [chk.report]), pytrace=False)

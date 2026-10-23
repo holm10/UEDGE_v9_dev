@@ -9,8 +9,11 @@ Blocks: d_only: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
  d_mols: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
  d_c: primary ni[1], ni[2], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], up[2], te[1], ti[1]
  slab_phi: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+ dnull_imp2: primary ni[1], ni[2]; coupled up[1], up[2], te[1], ti[1]
+ large_dd2c: primary ni[1], ni[2], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], up[2], te[1], ti[1]
+ imp7: primary ni[1], ni[2], ni[3], ni[4], ni[5], ni[6], ni[7], ni[8]; coupled up[1], up[2], te[1], ti[1]
 Intermediate: resco
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
 Source: bbb/pandf_plasma_continuity.m:1036 (at 8a67572)
 Description: drops the ionization source psor from the plasma continuity residual resco of every ion species
  (calc_plasma_particle_residuals). psor is non-zero for every species in every small family (planning
