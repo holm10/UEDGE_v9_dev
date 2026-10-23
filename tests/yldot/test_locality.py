@@ -118,6 +118,34 @@ def test_compare_pattern_band(new, ok, part):
         assert c.fired == {"ti[1]": [(r, 1) for _, r, _ in c.new_rows + c.lost + c.magnitude]}
 
 
+def raw(*items):
+    """Entries of (column, row, mismatch, dfull), unscaled."""
+    c, r, m, f = (np.array(v) for v in zip(*items))
+    return L.Entries.of({"column": c, "row": r, "mismatch": m.astype(float), "dfull": f.astype(float)})
+
+
+@pytest.mark.parametrize("new", [
+    raw((0, 2, 5e-8, 0.0), (4, 5, np.nan, 0.0)),  # NaN outside P
+    raw((0, 2, 5e-8, 0.0), (4, 5, np.inf, 0.0)),  # Inf outside P
+    raw((0, 2, np.nan, 0.0), (1, 3, 5e-9, 0.0)),  # a P entry whose live mismatch is NaN
+    raw((0, 2, 5e-8, np.nan), (1, 3, 5e-9, 0.0)),  # a P entry whose dfull is NaN
+    raw((0, 2, 5e-8, 0.0), (4, 5, 1e-12, -np.inf)),  # an otherwise quiet entry with Inf dfull
+])
+def test_compare_pattern_fails_on_nonfinite(new):
+    c = L.compare_pattern(REF, new, TOL, RT, M, Imap(N), "fam")
+    assert not c.ok and len(c.nonfinite) == 1 and c.n_fail == 1 and c.max_ratio == np.inf, c.report()
+    col, row, _ = c.nonfinite[0]
+    assert c.fired == {"ti[1]": [(row, 1)]}
+    assert c.headline() == "fam locality: column ti[1]({},1): non-finite mismatch or dfull in rows ti[1]({},1)".format(
+        col, row)
+    assert "non-finite live entries" in c.report()
+
+
+def test_entries_refuse_duplicate_keys():
+    with pytest.raises(ValueError, match="repeat"):
+        L.Entries.of({"column": [0, 0], "row": [2, 2], "mismatch": [1.0, 2.0], "dfull": [0.0, 0.0]})
+
+
 def test_compare_pattern_headline_names_column_and_rows():
     c = L.compare_pattern(REF, entries((0, 2, 500.0), (6, 7, 300.0), (6, 5, 200.0)), TOL, RT, M, Imap(N), "fam")
     assert c.headline() == "fam locality: column ti[1](6,1): new mismatch rows ti[1](7,1), ti[1](5,1) not in " \

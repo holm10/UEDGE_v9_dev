@@ -119,6 +119,9 @@ class Entries:
         n = e.column.size
         if any(getattr(e, k).shape != (n,) for k in FIELDS):
             raise ValueError("locality entries of unequal lengths: {}".format({k: getattr(e, k).shape for k in FIELDS}))
+        keys = set(zip(e.column.tolist(), e.row.tolist()))
+        if len(keys) != n:
+            raise ValueError("locality entries repeat a (column, row) key: {} of {} are unique".format(len(keys), n))
         return e
 
     def to_dict(self):
@@ -158,6 +161,7 @@ class LocalityComparison:
     new_rows: list  # (column, row, score): outside P, score > M_loc
     lost: list  # (column, row, score): in P, score <= 1 (0 when the entry vanished)
     magnitude: list  # (column, row, ratio): in P, |d_new - d_ref| / (tol_r + rtol_eq*|Delta_full,new|) > 1
+    nonfinite: list  # (column, row, inf): a live entry whose mismatch or dfull is NaN or Inf
     fired: dict  # {"eq[sp]": [(ix, iy), ...]}: the blocks of the failing rows
     max_ratio: float  # largest failing ratio: score/M_loc (new), 1/score (lost), the magnitude ratio
     n_pattern: int
@@ -165,10 +169,14 @@ class LocalityComparison:
     family: str = ""
 
     def headline(self):
-        """The first failing column in the PRD story 6 form."""
+        """The worst failing entry's column in the PRD story 6 form (non-finite, new, lost, then magnitude)."""
         if self.ok:
             return "{} locality: pattern of {} entries reproduced".format(self.family, self.n_pattern)
-        if self.new_rows:
+        if self.nonfinite:
+            col = self.nonfinite[0][0]
+            rows = [r for c, r, _ in self.nonfinite if c == col]
+            what = "non-finite mismatch or dfull in rows {}".format(", ".join(short(self.imap, r) for r in rows))
+        elif self.new_rows:
             col = self.new_rows[0][0]
             rows = [r for c, r, _ in self.new_rows if c == col]
             what = "new mismatch rows {} not in reference pattern".format(", ".join(short(self.imap, r) for r in rows))
@@ -186,7 +194,8 @@ class LocalityComparison:
         lines = [self.headline()]
         if self.ok:
             return lines[0]
-        for name, items, unit in (("new mismatch entries (score > M_loc, not in the pattern)", self.new_rows, "score"),
+        for name, items, unit in (("non-finite live entries (NaN or Inf mismatch or dfull)", self.nonfinite, "score"),
+                                  ("new mismatch entries (score > M_loc, not in the pattern)", self.new_rows, "score"),
                                   ("pattern entries lost (score <= 1)", self.lost, "score"),
                                   ("pattern entries changed magnitude", self.magnitude, "ratio")):
             if items:
@@ -203,18 +212,24 @@ def compare_pattern(ref, new, tol, rteq, m_loc, imap, family=""):
     if not (math.isfinite(m_loc) and m_loc > 1):
         raise ValueError("M_loc = {}, need a finite M_loc > 1".format(m_loc))
     tol, rteq = np.asarray(tol, dtype=float), np.asarray(rteq, dtype=float)
+    if not (np.isfinite(ref.mismatch).all() and np.isfinite(ref.dfull).all()):
+        raise ValueError("the stored reference pattern has non-finite entries")
     s_ref, s_new = scores(ref, tol, rteq), scores(new, tol, rteq)
+    bad = ~(np.isfinite(new.mismatch) & np.isfinite(new.dfull))  # every comparison below is False for NaN
+    nonfinite = sorted((int(new.column[i]), int(new.row[i]), math.inf) for i in np.flatnonzero(bad))
     in_p = s_ref > m_loc
     live = {(int(c), int(r)): i for i, (c, r) in enumerate(zip(new.column, new.row))}
     pkeys = {(int(ref.column[i]), int(ref.row[i])) for i in np.flatnonzero(in_p)}
     new_rows, lost, magnitude = [], [], []
-    for i in np.flatnonzero(s_new > m_loc):
+    for i in np.flatnonzero((s_new > m_loc) & ~bad):
         key = (int(new.column[i]), int(new.row[i]))
         if key not in pkeys:
             new_rows.append((key[0], key[1], float(s_new[i])))
     for i in np.flatnonzero(in_p):
         key = (int(ref.column[i]), int(ref.row[i]))
         j = live.get(key)
+        if j is not None and bad[j]:
+            continue  # counted in nonfinite
         s = float(s_new[j]) if j is not None else 0.0
         if s <= 1.0:
             lost.append((key[0], key[1], s))
@@ -227,10 +242,10 @@ def compare_pattern(ref, new, tol, rteq, m_loc, imap, family=""):
     new_rows, magnitude = order(new_rows), order(magnitude)
     lost = sorted(lost, key=lambda t: (t[2], t[0], t[1]))
     fired = {}
-    for c, r, _ in new_rows + lost + magnitude:
+    for c, r, _ in nonfinite + new_rows + lost + magnitude:
         fired.setdefault("{}[{}]".format(imap.eq[r], imap.species[r]), []).append((int(imap.ix[r]), int(imap.iy[r])))
-    ratios = [s / m_loc for _, _, s in new_rows] + [math.inf if s == 0 else 1.0 / s for _, _, s in lost] + \
+    ratios = [math.inf] * len(nonfinite) + [s / m_loc for _, _, s in new_rows] + [math.inf if s == 0 else 1.0 / s for _, _, s in lost] + \
         [s for _, _, s in magnitude]
-    n_fail = len(new_rows) + len(lost) + len(magnitude)
-    return LocalityComparison(n_fail == 0, n_fail, new_rows, lost, magnitude, fired, max(ratios, default=0.0),
+    n_fail = len(nonfinite) + len(new_rows) + len(lost) + len(magnitude)
+    return LocalityComparison(n_fail == 0, n_fail, new_rows, lost, magnitude, nonfinite, fired, max(ratios, default=0.0),
                               int(in_p.sum()), imap, family)
