@@ -47,11 +47,12 @@
     "/steady/default/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/default/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/default/sigma": "6956e79c1cfa0de5d3e08c99688c54e3ec301444f4d11fabfc49ee70bcffe316",
-    "/steady/default/sketch_threshold/block": "c7de984a00aafec13dc5a6232309d5000befb7769e203413bf045fd66f539d6c",
-    "/steady/default/sketch_threshold/cell_block": "3cef6d027eb5e1880a5bc49c120bc90f2f2962943de7b9ef1e6a05f15a35e716",
+    "/steady/default/sketch_threshold/block": "e0578417e188becdf77e42605f49cc9bde6c2621238ca6bc3d14323ac18cdbd6",
+    "/steady/default/sketch_threshold/cell_block": "b0d6147bf7acbbeb2e53a421a6fb0a3f6e224e2b34a2a0ad4153128a24e51264",
     "/steady/default/sketch_threshold/cell_ix": "4a9794b4fae7b25dcec07826066af5330583c01283cc809825591db7844b0223",
     "/steady/default/sketch_threshold/cell_iy": "81a4684528116efb4051fed1f2e3c73511bb0582666255e2b8395c425687da60",
-    "/steady/default/sketch_threshold/cell_m": "85bb2327921ae96ce5ff15173dfcff85284800d363f6182d965d5e463ff0baf1",
+    "/steady/default/sketch_threshold/cell_m": "a6abf77d11e80453f9351006341c22841247e16437f229158cc90f53c256dd18",
+    "/steady/default/sketch_weight": "c653faa06930f58e24b99f3d3332436a4a5a335efb34e762d48f22b90e8ca56f",
     "/steady/default/yldot": "7e61fbf1ee1ce5d155fbc900201ad4cd534356617ebf3335b56519131bb08aed",
     "/timestep/default/diagnostics/resco": "33bd97cf0e9b9ab4fee5402a7188bba89b77afe86daf0ecdc0add7cc3077de42",
     "/timestep/default/diagnostics/resee": "373e7f33259512e24869f317c75974af31d15fde449a947fde0bec0fa4d32d24",
@@ -63,11 +64,12 @@
     "/timestep/default/jflag/index": "6902ff1eeb10628067703119c2ddedfbee3e0125806230008495860064912f33",
     "/timestep/default/jflag/value": "37b3acc108c682b278cd8f1fe5024bb1120854c977b3dce052a2e7b6a61e463b",
     "/timestep/default/sigma": "d5109cd275ecbe28fa79e4c78255aa6a4fd1ca4461856ff8e9831a29a67168a1",
-    "/timestep/default/sketch_threshold/block": "1a32aeb7c0a2eb86e9bafc06b705b2333356a92b674512a4747140aaff761918",
-    "/timestep/default/sketch_threshold/cell_block": "2d1edf7c8767d6174315f9139ef93381c66742dde86f31a03490e70a584ff55c",
+    "/timestep/default/sketch_threshold/block": "e0578417e188becdf77e42605f49cc9bde6c2621238ca6bc3d14323ac18cdbd6",
+    "/timestep/default/sketch_threshold/cell_block": "922559fb45f0213db3fc267d45c2359533ca7aad57b8289d20f4c1d1f8d1c532",
     "/timestep/default/sketch_threshold/cell_ix": "4a9794b4fae7b25dcec07826066af5330583c01283cc809825591db7844b0223",
     "/timestep/default/sketch_threshold/cell_iy": "81a4684528116efb4051fed1f2e3c73511bb0582666255e2b8395c425687da60",
-    "/timestep/default/sketch_threshold/cell_m": "7adde0e74621a6c49623af9a8fbe31dec73ed58386f357adf427cc27141aa70a",
+    "/timestep/default/sketch_threshold/cell_m": "a6abf77d11e80453f9351006341c22841247e16437f229158cc90f53c256dd18",
+    "/timestep/default/sketch_weight": "fd5e52040d10ab1ef3c0e6a9abc90302eecdb064921c27bfe843b30055c10af9",
     "/timestep/default/yldot": "b9b2a712bee2a396a3dd28bd9a50e4b02cfebadde392091e62ff10f1e883de54"
   },
   "external": {
@@ -92,29 +94,31 @@
       "sha256": "c771adeb6fdaf2bb06c4d0b1f5d5cf691a56a82e68ad4074d2c5bce808ba7e70"
     },
     "references/large_dd2c.h5": {
-      "bytes": 3158100,
-      "sha256": "7d0a189db0bd847792ae7b590fd9a90cc15da3ee2eb03abec74ca93c81fad546"
+      "bytes": 3632980,
+      "sha256": "c007f27d4715b3e5ca584a87e2a592a0eb011d338202c05d2e073a323de8c2a4"
     }
   },
   "family": "large_dd2c",
   "guarded": {
     "steady/default": "226f02487a66ee821cd0f992c860f6c687b6e9b9b2b5fa6725e08f030a676c1f",
     "steady/sigma": "7cc0012828f58c515b343a06a9c971aa9b8108cfc65e8e925d44f108dafb6da0",
-    "steady/sketch_threshold": "fb4f16f163a9e0f01103e94ff522ff2bbd26e01e5019da1b009219aaaf14280e",
+    "steady/sketch_threshold": "4378153807c74a7cd0794efa5b54617eeeca9d729719b4102a3a448d78e1af34",
+    "steady/sketch_weight": "9f4650b1bf954fecb3c5bdf422d2e7e9d89739c491356290ab7bdb01e757f4c6",
     "timestep/default": "5951f77f60babd37a6ddcd59847aeffaeb205dc6fa48d203ec6d1f440b7bace7",
     "timestep/sigma": "1ac3532e97e66f36c6c49ea77cb5e35f54f4a5ac963fb6a6fb4e2b4e154631b0",
-    "timestep/sketch_threshold": "baa1a1c94699cc2b41020299bcc1d4be7551aa69d3a7d1c9d7e5d775a39b5acc"
+    "timestep/sketch_threshold": "b16e36750f3396977bf37cfa4db14b1801cc0a5297114e8ef497deed4c1ba677",
+    "timestep/sketch_weight": "9a5346a3bc318a22949c11e7539791eb4279cbcc2b875cd7034fa7dd22c92dbd"
   },
   "provenance": {
-    "commit": "17455309389412afe8279edd588551f54644cf5f",
+    "commit": "e514b094576a368335c5f90a99abee6ad12a493c",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T22:02:25+00:00",
+    "date": "2026-10-23T23:31:22+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v6",
+  "release": "yldot-data-v7",
   "schema": 1,
   "sketch": {
     "k": 8,
