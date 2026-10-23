@@ -5,12 +5,13 @@
 import os
 import os.path
 from os import remove, environ
+import json
 import string
 import site
 from Forthon.compilers import FCompiler
 import getopt
 import logging
-from subprocess import call, check_output
+from subprocess import call, check_output, CalledProcessError, DEVNULL
 from sys import hexversion, argv, platform
 import numpy
 try:
@@ -694,7 +695,50 @@ def mppl2f90(
 ========================================================================== """
 
 
+# The build record written into the installed package as uedge/_build_info.json (AIUE-181): the options, the flags
+# passed to make, the compiler and the commit. Read by src/uedge/_provenance.py and the yldot tests.
+SRCDIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def _probe(command):
+    """The command's stripped output, run in the source tree; None if it can't be run or fails."""
+    try:
+        return check_output(command, cwd=SRCDIR, stderr=DEVNULL, text=True).strip()
+    except (OSError, CalledProcessError):
+        return None
+
+
+def build_info(makeenv):
+    """The build record (schema 1), from the flags uedgeBuild.run passed to make and make's environment (None:
+    make inherited the caller's)."""
+    version = _probe([fcompiler.fcompexec, '--version'])
+    info = {
+        'schema': 1,
+        'options': dict(sorted(arglist.items())),
+        'fargs': ' '.join(FLAGS['FARGS']),
+        'cargs': ' '.join(FLAGS['CARGS']) if FLAGS['CARGS'] != [] else None,
+        'ompflags': ' '.join(FLAGS['OMPargs']),
+        'ldflags': None if makeenv is None else makeenv.get('LDFLAGS'),
+        # make runs Forthon3 with --omp in an OpenMP build and never with -g, -t or -F; its own optimisation flags
+        # come before --fargs on every Fortran source compile
+        'forthon_fopt': getattr(FCompiler(debug=0, omp=not arglist['serial']), 'fopt', None),
+        'fcompiler': fcompiler.fcompexec,
+        'fcompiler_version': version.splitlines()[0] if version else None,
+        'platform': platform,
+        'machine': os.uname().machine,
+        'git_sha': None,
+        'git_branch': None,
+        'git_commit_date_iso': None,
+        'git_dirty': None,
+    }
+    # Only the source tree's own repository: a tree without .git (a git archive) inside another one records no commit
+    if os.path.exists(os.path.join(SRCDIR, '.git')):
+        status = _probe(['git', 'status', '--porcelain', '--untracked-files=no'])
+        info.update(git_sha=_probe(['git', 'rev-parse', 'HEAD']),
+                    git_branch=_probe(['git', 'rev-parse', '--abbrev-ref', 'HEAD']),
+                    git_commit_date_iso=_probe(['git', 'show', '-s', '--format=%cI', 'HEAD']),
+                    git_dirty=None if status is None else bool(status))
+    return info
 
 
 class uedgeWheel(bdist_wheel):
@@ -819,6 +863,10 @@ class uedgeBuild(build):
         if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
             raise SystemExit("UEDGE build failure")
         build.run(self)
+        # Record how this build was compiled, for the installed package (AIUE-181; read by _provenance.py and AIUE-96)
+        infopath = os.path.join(self.build_lib, 'uedge', '_build_info.json')
+        with open(infopath, 'w') as f:
+            json.dump(build_info(makeenv), f, indent=1, sort_keys=True)
 
 # Modify clean to use make clean
 class uedgeClean(build):
