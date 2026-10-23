@@ -15,22 +15,24 @@ rtol = "max(rtol_factor * s, rtol_floor), s = max_i |d_i| / max_i |ref_i| over t
 
 [rtol]
 ni = 3.486872545249137e-08
-up = 1.5045913993128796e-08
+up = 1.5891380782367185e-08
 te = 2.541960335884719e-08
 ti = 2.506520111776073e-08
 ng = 3.4958021597728424e-08
+tg = 2.5437547948528416e-10
 phi = 1.1514061956547166e-08
 
 [rtol_source]
 ni = "d_mols steady mac_vs_linux"
-up = "d_mols steady mac_vs_linux"
+up = "dnull_imp2 steady mac_vs_linux"
 te = "d_only steady mac_vs_linux"
 ti = "d_mols steady mac_vs_linux"
 ng = "d_mols steady mac_vs_linux"
+tg = "large_dd2c steady o0_vs_o3"
 phi = "d_only steady mac_vs_linux"
 
 [builds.linux-serial]
-commit = "9c231eafd92c92a521e76eed574f9836448746fc"
+commit = "6ccd347fa26b292137db868b3e877991323ad55a"
 compiler = "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
 image = "ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
 image_id = "sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51"
@@ -43,51 +45,51 @@ python = "3.12.3"
 
 [builds.mac-debug]
 cc = "Homebrew LLVM clang (/opt/homebrew/opt/llvm/bin/clang)"
-commit = "9c231eafd92c92a521e76eed574f9836448746fc"
+commit = "6ccd347fa26b292137db868b3e877991323ad55a"
 compiler = "GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0"
-date = "2026-10-21"
+date = "2026-10-22"
 label = "mac-debug"
 options = "--serial --debug (-Og, -ffpe-trap=invalid,overflow,underflow, -finit-real=snan, -fcheck=all)"
 pins = "forthon 0.10.10, numpy 2.5.4, setuptools 84.2.1, h5py 3.16.0"
 platform = "macOS 26.5.1 arm64 (Apple M4 Pro)"
 python = "3.13.12 (pyenv)"
-venv = "../uedge-wt/venvs/AIUE-87-debug"
+venv = "../uedge-wt/venvs/AIUE-92-debug"
 
 [builds.mac-noopt]
 cc = "Homebrew LLVM clang (/opt/homebrew/opt/llvm/bin/clang)"
-commit = "9c231eafd92c92a521e76eed574f9836448746fc"
+commit = "6ccd347fa26b292137db868b3e877991323ad55a"
 compiler = "GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0"
-date = "2026-10-21"
+date = "2026-10-22"
 label = "mac-noopt"
 options = "--serial --noopt (-O0)"
 pins = "forthon 0.10.10, numpy 2.5.4, setuptools 84.2.1, h5py 3.16.0"
 platform = "macOS 26.5.1 arm64 (Apple M4 Pro)"
 python = "3.13.12 (pyenv)"
-venv = "../uedge-wt/venvs/AIUE-87-noopt"
+venv = "../uedge-wt/venvs/AIUE-92-noopt"
 
 [builds.mac-omp]
 cc = "Homebrew LLVM clang (/opt/homebrew/opt/llvm/bin/clang)"
-commit = "9c231eafd92c92a521e76eed574f9836448746fc"
+commit = "6ccd347fa26b292137db868b3e877991323ad55a"
 compiler = "GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0"
-date = "2026-10-21"
+date = "2026-10-22"
 label = "mac-omp"
 options = "default (-O3 -fopenmp)"
 pins = "forthon 0.10.10, numpy 2.5.4, setuptools 84.2.1, h5py 3.16.0"
 platform = "macOS 26.5.1 arm64 (Apple M4 Pro)"
 python = "3.13.12 (pyenv)"
-venv = "../uedge-wt/venvs/AIUE-87-omp"
+venv = "../uedge-wt/venvs/AIUE-92-omp"
 
 [builds.mac-serial]
 cc = "Homebrew LLVM clang (/opt/homebrew/opt/llvm/bin/clang)"
-commit = "9c231eafd92c92a521e76eed574f9836448746fc"
+commit = "6ccd347fa26b292137db868b3e877991323ad55a"
 compiler = "GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0"
-date = "2026-10-21"
+date = "2026-10-22"
 label = "mac-serial"
 options = "--serial (-O3)"
 pins = "forthon 0.10.10, numpy 2.5.4, setuptools 84.2.1, h5py 3.16.0"
 platform = "macOS 26.5.1 arm64 (Apple M4 Pro)"
 python = "3.13.12 (pyenv)"
-venv = "../uedge-wt/venvs/AIUE-87-serial"
+venv = "../uedge-wt/venvs/AIUE-92-serial"
 
 [pairs.debug_vs_o3]
 first = "mac-debug run 1"
@@ -377,6 +379,13 @@ ti = { max_abs = 0.0, max_ref = 3950949.6579003315, s = 0.0, max_rel = 0.0 }
 ng = { max_abs = 0.0, max_ref = 37721871.114855506, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 33871918164.18458, s = 0.0, max_rel = 0.0 }
 
+[raw.d_only.steady.debug_vs_o3]
+ni = { max_abs = 3.324530553072691e-05, max_ref = 8002805.12541008, s = 4.154206557544203e-12, max_rel = 2.261491323187585e-08 }
+up = { max_abs = 0.001078905537724495, max_ref = 11300530.773528805, s = 9.547388165623181e-11, max_rel = 1.6428153746860855e-08 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 3.931323590222746e-06, max_ref = 1017146.8249599969, s = 3.8650502501223065e-12, max_rel = 7.698924637315612e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.1423407891312297e-10 }
+
 [raw.d_only.steady.mac_vs_linux]
 ni = { max_abs = 3.324530553072691e-05, max_ref = 8002805.12541008, s = 4.154206557544203e-12, max_rel = 2.261491323187585e-08 }
 up = { max_abs = 0.001078905537724495, max_ref = 11300530.773528805, s = 9.547388165623181e-11, max_rel = 1.6428153746860855e-08 }
@@ -393,6 +402,13 @@ phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514
 
 [raw.d_only.steady."same_build:linux-serial"]
 ni = { max_abs = 0.0, max_ref = 8002805.125410062, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11300530.7724499, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only.steady."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 8002805.12541008, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 11300530.7724499, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
@@ -419,6 +435,13 @@ te = { max_abs = 0.0, max_ref = 879042.4491966148, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 1017146.8249599969, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 138243957.28583843, s = 0.0, max_rel = 0.0 }
 
+[raw.d_only.timestep.debug_vs_o3]
+ni = { max_abs = 3.324530553072691e-05, max_ref = 8002805.12541008, s = 4.154206557544203e-12, max_rel = 2.8931787567732147e-09 }
+up = { max_abs = 0.001078905537724495, max_ref = 11311328.119472824, s = 9.538274606914845e-11, max_rel = 2.4897667464520925e-09 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 3.931323590222746e-06, max_ref = 1017146.8249599969, s = 3.8650502501223065e-12, max_rel = 1.4186518327806937e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.1423407891312297e-10 }
+
 [raw.d_only.timestep.mac_vs_linux]
 ni = { max_abs = 3.324530553072691e-05, max_ref = 8002805.12541008, s = 4.154206557544203e-12, max_rel = 2.8931787567732147e-09 }
 up = { max_abs = 0.001078905537724495, max_ref = 11311328.119472824, s = 9.538274606914845e-11, max_rel = 2.4897667464520925e-09 }
@@ -435,6 +458,13 @@ phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514
 
 [raw.d_only.timestep."same_build:linux-serial"]
 ni = { max_abs = 0.0, max_ref = 8002805.125410062, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11311328.118393918, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only.timestep."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 8002805.12541008, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 11311328.118393918, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
@@ -461,6 +491,397 @@ te = { max_abs = 0.0, max_ref = 879042.4491966148, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 1017146.8249599969, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 138243957.28583843, s = 0.0, max_rel = 0.0 }
 
+[raw.dnull_imp2.steady.debug_vs_o3]
+ni = { max_abs = 0.14422380924224854, max_ref = 1433228206.098666, s = 1.0062864282781211e-10, max_rel = 1.663889950710198e-06 }
+up = { max_abs = 3.111320063471794, max_ref = 19578664564.06274, s = 1.589138040182128e-10, max_rel = 5.8673388200793154e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240125898.745027, s = 1.2568069722410519e-11, max_rel = 4.827046058763938e-07 }
+ti = { max_abs = 0.04451063275337219, max_ref = 178056248.13598818, s = 2.4998074046453997e-10, max_rel = 1.4969218841738395e-05 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.steady.mac_vs_linux]
+ni = { max_abs = 0.14423370361328125, max_ref = 1433228206.098666, s = 1.0063554638370824e-10, max_rel = 1.663889950710198e-06 }
+up = { max_abs = 3.1113201379776, max_ref = 19578664564.06274, s = 1.5891380782367185e-10, max_rel = 5.8673388200793154e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240125898.745027, s = 1.2568069722410519e-11, max_rel = 4.827044188346923e-07 }
+ti = { max_abs = 0.044513583183288574, max_ref = 178056248.13598818, s = 2.4999731067730854e-10, max_rel = 1.4969218149400154e-05 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.steady.o0_vs_o3]
+ni = { max_abs = 0.14422380924224854, max_ref = 1433228206.098666, s = 1.0062864282781211e-10, max_rel = 1.663889950710198e-06 }
+up = { max_abs = 3.111320063471794, max_ref = 19578664564.06274, s = 1.589138040182128e-10, max_rel = 5.8673388200793154e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240125898.745027, s = 1.2568069722410519e-11, max_rel = 4.827046058763938e-07 }
+ti = { max_abs = 0.04451063275337219, max_ref = 178056248.13598818, s = 2.4998074046453997e-10, max_rel = 1.4969218841738395e-05 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098686, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578664564.062737, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240125898.7452, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056248.0914746, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.steady."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578664564.062733, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240125898.7452, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056248.09147754, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.steady."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578664564.062733, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240125898.7452, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056248.09147754, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.steady."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578664564.06274, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240125898.745027, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056248.13598818, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.steady."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578664564.06274, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240125898.745027, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056248.13598818, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.timestep.debug_vs_o3]
+ni = { max_abs = 0.14422380924224854, max_ref = 1433228206.098666, s = 1.0062864282781211e-10, max_rel = 1.0140628931044593e-07 }
+up = { max_abs = 3.111320063471794, max_ref = 19578732200.875847, s = 1.589132550335721e-10, max_rel = 5.5532667785055965e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240192334.0003295, s = 1.2567396469643366e-11, max_rel = 4.827046058763938e-07 }
+ti = { max_abs = 0.04451063275337219, max_ref = 178056817.19087237, s = 2.4997994154673633e-10, max_rel = 1.8169292957166684e-07 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.timestep.mac_vs_linux]
+ni = { max_abs = 0.14423370361328125, max_ref = 1433228206.098666, s = 1.0063554638370824e-10, max_rel = 1.0140628931044593e-07 }
+up = { max_abs = 3.1113201379776, max_ref = 19578732200.875847, s = 1.58913258839018e-10, max_rel = 5.553265968542992e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240192334.0003295, s = 1.2567396469643366e-11, max_rel = 4.827044188346923e-07 }
+ti = { max_abs = 0.044513583183288574, max_ref = 178056817.19087237, s = 2.499965117065478e-10, max_rel = 1.8169292933110414e-07 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.timestep.o0_vs_o3]
+ni = { max_abs = 0.14422380924224854, max_ref = 1433228206.098666, s = 1.0062864282781211e-10, max_rel = 1.0140628931044593e-07 }
+up = { max_abs = 3.111320063471794, max_ref = 19578732200.875847, s = 1.589132550335721e-10, max_rel = 5.5532667785055965e-08 }
+te = { max_abs = 0.015585988759994507, max_ref = 1240192334.0003295, s = 1.2567396469643366e-11, max_rel = 4.827046058763938e-07 }
+ti = { max_abs = 0.04451063275337219, max_ref = 178056817.19087237, s = 2.4997994154673633e-10, max_rel = 1.8169292957166684e-07 }
+phi = { max_abs = 15.644134521484375, max_ref = 918519607657.5746, s = 1.7031900452708168e-11, max_rel = 2.5632298003890253e-08 }
+
+[raw.dnull_imp2.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098686, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578732200.875843, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240192334.0005023, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056817.1463588, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.timestep."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578732200.87584, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240192334.0005023, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056817.14636174, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.timestep."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578732200.87584, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240192334.0005023, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056817.14636174, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.timestep."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578732200.875847, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240192334.0003295, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056817.19087237, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.dnull_imp2.timestep."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 1433228206.098666, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 19578732200.875847, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 1240192334.0003295, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 178056817.19087237, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 918519607657.5746, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.steady.debug_vs_o3]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 2.7543232705789946e-07 }
+up = { max_abs = 0.023949623107910156, max_ref = 17048031298.39152, s = 1.4048321878767198e-12, max_rel = 2.2722454335367e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24159986519.63943, s = 3.7787786940757293e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511585935.9081024, s = 6.3357890735057e-12, max_rel = 4.776674687903853e-09 }
+ng = { max_abs = 0.01037248969078064, max_ref = 9899862161.247992, s = 1.047740819198746e-12, max_rel = 7.26041124154167e-10 }
+phi = { max_abs = 0.7933316230773926, max_ref = 3319705014417.071, s = 2.3897654147945403e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.steady.mac_vs_linux]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 2.7543232705789946e-07 }
+up = { max_abs = 0.02395009994506836, max_ref = 17048031298.39152, s = 1.4048601580950904e-12, max_rel = 2.2721486006254336e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24159986519.63943, s = 3.7787786940757293e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511585935.9081024, s = 6.3357890735057e-12, max_rel = 4.779746259352614e-09 }
+ng = { max_abs = 0.01037222146987915, max_ref = 9899862161.247992, s = 1.0477137258011694e-12, max_rel = 7.260676102904708e-10 }
+phi = { max_abs = 0.793331503868103, max_ref = 3319705014417.071, s = 2.389765055698509e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.steady.o0_vs_o3]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 2.7543232705789946e-07 }
+up = { max_abs = 0.023949623107910156, max_ref = 17048031298.39152, s = 1.4048321878767198e-12, max_rel = 2.2722454335367e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24159986519.63943, s = 3.7787786940757293e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511585935.9081024, s = 6.3357890735057e-12, max_rel = 4.776674687903853e-09 }
+ng = { max_abs = 0.01037248969078064, max_ref = 9899862161.247992, s = 1.047740819198746e-12, max_rel = 7.26041124154167e-10 }
+phi = { max_abs = 0.7933316230773926, max_ref = 3319705014417.071, s = 2.3897654147945403e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048031298.391558, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24159986519.63912, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511585935.9081288, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.steady."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048031298.391562, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24159986519.63912, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511585935.9081288, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.steady."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048031298.391562, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24159986519.63912, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511585935.9081288, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.steady."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048031298.39152, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24159986519.63943, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511585935.9081024, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.247992, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.steady."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048031298.39152, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24159986519.63943, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511585935.9081024, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.247992, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.timestep.debug_vs_o3]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 1.4295978981323143e-08 }
+up = { max_abs = 0.023949623107910156, max_ref = 17048117280.211168, s = 1.4048251026352336e-12, max_rel = 1.9797636429909497e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24160196691.146355, s = 3.7787458221739556e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511589189.25773, s = 6.335748782316097e-12, max_rel = 1.3569396920748779e-09 }
+ng = { max_abs = 0.01037248969078064, max_ref = 9899862161.247992, s = 1.047740819198746e-12, max_rel = 7.252530974406388e-10 }
+phi = { max_abs = 0.7933316230773926, max_ref = 3319705014417.071, s = 2.3897654147945403e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.timestep.mac_vs_linux]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 1.4295978981323143e-08 }
+up = { max_abs = 0.02395009994506836, max_ref = 17048117280.211168, s = 1.404853072712537e-12, max_rel = 1.9797508108284793e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24160196691.146355, s = 3.7787458221739556e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511589189.25773, s = 6.335748782316097e-12, max_rel = 1.3569396920748779e-09 }
+ng = { max_abs = 0.01037222146987915, max_ref = 9899862161.247992, s = 1.0477137258011694e-12, max_rel = 7.252795548295587e-10 }
+phi = { max_abs = 0.793331503868103, max_ref = 3319705014417.071, s = 2.389765055698509e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.timestep.o0_vs_o3]
+ni = { max_abs = 0.14483456313610077, max_ref = 8504653949.261054, s = 1.7030036025003117e-11, max_rel = 1.4295978981323143e-08 }
+up = { max_abs = 0.023949623107910156, max_ref = 17048117280.211168, s = 1.4048251026352336e-12, max_rel = 1.9797636429909497e-09 }
+te = { max_abs = 0.009129524230957031, max_ref = 24160196691.146355, s = 3.7787458221739556e-13, max_rel = 5.0097941432083645e-09 }
+ti = { max_abs = 0.003241300582885742, max_ref = 511589189.25773, s = 6.335748782316097e-12, max_rel = 1.3569396920748779e-09 }
+ng = { max_abs = 0.01037248969078064, max_ref = 9899862161.247992, s = 1.047740819198746e-12, max_rel = 7.252530974406388e-10 }
+phi = { max_abs = 0.7933316230773926, max_ref = 3319705014417.071, s = 2.3897654147945403e-13, max_rel = 4.9612812935866476e-08 }
+
+[raw.imp7.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048117280.211206, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24160196691.14604, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511589189.2577564, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.timestep."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048117280.21121, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24160196691.14604, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511589189.2577564, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.timestep."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048117280.21121, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24160196691.14604, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511589189.2577564, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.245108, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.timestep."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048117280.211168, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24160196691.146355, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511589189.25773, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.247992, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.imp7.timestep."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 8504653949.261054, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 17048117280.211168, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 24160196691.146355, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 511589189.25773, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 9899862161.247992, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 3319705014417.071, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.steady.debug_vs_o3]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 3.942909944800708e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567795156.9233447, s = 5.401940080145688e-12, max_rel = 3.1615158032536326e-09 }
+te = { max_abs = 8.29811287985649e-05, max_ref = 122238644.86832882, s = 6.788452938753473e-13, max_rel = 3.1950644131334312e-09 }
+ti = { max_abs = 8.48962226882577e-05, max_ref = 7928613.367531569, s = 1.0707575051637133e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.5033423076800177e-10 }
+tg = { max_abs = 1.1200597782590194e-08, max_ref = 4403.175103690825, s = 2.5437547948528415e-12, max_rel = 1.4888810966931692e-10 }
+phi = { max_abs = 0.006208088248968124, max_ref = 114968959592.6082, s = 5.399795102057501e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.steady.mac_vs_linux]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 3.942909944800708e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567795156.9233447, s = 5.401940080145688e-12, max_rel = 3.1612763865297762e-09 }
+te = { max_abs = 8.298089960590005e-05, max_ref = 122238644.86832882, s = 6.78843418914568e-13, max_rel = 3.1950555884122226e-09 }
+ti = { max_abs = 8.489607716910541e-05, max_ref = 7928613.367531569, s = 1.0707556697967261e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.5033402536615104e-10 }
+tg = { max_abs = 1.1200484095752472e-08, max_ref = 4403.175103690825, s = 2.543728975566748e-12, max_rel = 1.4888785749738312e-10 }
+phi = { max_abs = 0.0062080807983875275, max_ref = 114968959592.6082, s = 5.3997886215425657e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.steady.o0_vs_o3]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 3.942909944800708e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567795156.9233447, s = 5.401940080145688e-12, max_rel = 3.1615158032536326e-09 }
+te = { max_abs = 8.29811287985649e-05, max_ref = 122238644.86832882, s = 6.788452938753473e-13, max_rel = 3.1950644131334312e-09 }
+ti = { max_abs = 8.48962226882577e-05, max_ref = 7928613.367531569, s = 1.0707575051637133e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.5033423076800177e-10 }
+tg = { max_abs = 1.1200597782590194e-08, max_ref = 4403.175103690825, s = 2.5437547948528415e-12, max_rel = 1.4888810966931692e-10 }
+phi = { max_abs = 0.006208088248968124, max_ref = 114968959592.6082, s = 5.399795102057501e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567795156.9212964, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122238644.86839208, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.steady."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567795156.9212964, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122238644.86839208, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.steady."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567795156.9212964, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122238644.86839208, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.steady."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567795156.9233447, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122238644.86832882, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.7698, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690825, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.steady."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567795156.9233447, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122238644.86832882, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.7698, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690825, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.timestep.debug_vs_o3]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 1.911757518290721e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567855832.6092695, s = 5.401362880087389e-12, max_rel = 2.02475644013629e-09 }
+te = { max_abs = 8.29811287985649e-05, max_ref = 122246002.36331837, s = 6.788044369086424e-13, max_rel = 3.1950644131334312e-09 }
+ti = { max_abs = 8.48962226882577e-05, max_ref = 7928613.367531569, s = 1.0707575051637133e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.4879815581741706e-10 }
+tg = { max_abs = 1.1200597782590194e-08, max_ref = 4403.175103690825, s = 2.5437547948528415e-12, max_rel = 1.4372954856644894e-10 }
+phi = { max_abs = 0.006208088248968124, max_ref = 114968959592.6082, s = 5.399795102057501e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.timestep.mac_vs_linux]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 1.911757518290721e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567855832.6092695, s = 5.401362880087389e-12, max_rel = 2.02475644013629e-09 }
+te = { max_abs = 8.298089960590005e-05, max_ref = 122246002.36331837, s = 6.788025620607094e-13, max_rel = 3.1950555884122226e-09 }
+ti = { max_abs = 8.489607716910541e-05, max_ref = 7928613.367531569, s = 1.0707556697967261e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.4887377724938836e-10 }
+tg = { max_abs = 1.1200484095752472e-08, max_ref = 4403.175103690825, s = 2.543728975566748e-12, max_rel = 1.4372930513157503e-10 }
+phi = { max_abs = 0.0062080807983875275, max_ref = 114968959592.6082, s = 5.3997886215425657e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.timestep.o0_vs_o3]
+ni = { max_abs = 0.00030704494565725327, max_ref = 196407510.87206748, s = 1.5633055186838088e-12, max_rel = 1.911757518290721e-07 }
+up = { max_abs = 0.003067195415496826, max_ref = 567855832.6092695, s = 5.401362880087389e-12, max_rel = 2.02475644013629e-09 }
+te = { max_abs = 8.29811287985649e-05, max_ref = 122246002.36331837, s = 6.788044369086424e-13, max_rel = 3.1950644131334312e-09 }
+ti = { max_abs = 8.48962226882577e-05, max_ref = 7928613.367531569, s = 1.0707575051637133e-11, max_rel = 1.5029597193099078e-09 }
+ng = { max_abs = 1.5579605102539062, max_ref = 254885196445.7698, s = 6.1124009239406064e-12, max_rel = 1.4879815581741706e-10 }
+tg = { max_abs = 1.1200597782590194e-08, max_ref = 4403.175103690825, s = 2.5437547948528415e-12, max_rel = 1.4372954856644894e-10 }
+phi = { max_abs = 0.006208088248968124, max_ref = 114968959592.6082, s = 5.399795102057501e-14, max_rel = 2.187422583331668e-09 }
+
+[raw.large_dd2c.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567855832.6072211, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122246002.36338162, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.timestep."same_build:mac-debug"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567855832.6072211, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122246002.36338162, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.timestep."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567855832.6072211, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122246002.36338162, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.6186, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690828, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.timestep."same_build:mac-omp"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567855832.6092695, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122246002.36331837, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.7698, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690825, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.large_dd2c.timestep."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 196407510.87206748, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 567855832.6092695, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 122246002.36331837, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 7928613.367531569, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 254885196445.7698, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 4403.175103690825, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 114968959592.6082, s = 0.0, max_rel = 0.0 }
+
+[raw.ortho.steady.debug_vs_o3]
+ni = { max_abs = 2.3283064365386963e-10, max_ref = 14315417.399224648, s = 1.6264327973173887e-17, max_rel = 3.254517722022482e-12 }
+up = { max_abs = 1.1641532182693481e-09, max_ref = 14462686.233769301, s = 8.049356803102985e-17, max_rel = 6.804351136849721e-14 }
+te = { max_abs = 3.6709479900309816e-08, max_ref = 549469.7312896526, s = 6.680892105585055e-14, max_rel = 2.100909319929767e-10 }
+ti = { max_abs = 1.2223608791828156e-09, max_ref = 473230.31425278226, s = 2.583014744338367e-15, max_rel = 4.3830320891119366e-13 }
+phi = { max_abs = 9.778887033462524e-09, max_ref = 239609246.46986514, s = 4.0811809967827693e-17, max_rel = 4.8843101963546725e-14 }
+
 [raw.ortho.steady.mac_vs_linux]
 ni = { max_abs = 2.3283064365386963e-10, max_ref = 14315417.399224648, s = 1.6264327973173887e-17, max_rel = 3.254517722022482e-12 }
 up = { max_abs = 1.1641532182693481e-09, max_ref = 14462686.233769301, s = 8.049356803102985e-17, max_rel = 9.697773162712044e-14 }
@@ -476,6 +897,13 @@ ti = { max_abs = 1.2223608791828156e-09, max_ref = 473230.31425278226, s = 2.583
 phi = { max_abs = 9.778887033462524e-09, max_ref = 239609246.46986514, s = 4.0811809967827693e-17, max_rel = 4.8843101963546725e-14 }
 
 [raw.ortho.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 14315417.399224648, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 14462686.233769301, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 549469.7312896517, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 473230.3142527835, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 239609246.46986514, s = 0.0, max_rel = 0.0 }
+
+[raw.ortho.steady."same_build:mac-debug"]
 ni = { max_abs = 0.0, max_ref = 14315417.399224648, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 14462686.233769301, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 549469.7312896517, s = 0.0, max_rel = 0.0 }
@@ -503,6 +931,13 @@ te = { max_abs = 0.0, max_ref = 549469.7312896526, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 473230.31425278226, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 239609246.46986514, s = 0.0, max_rel = 0.0 }
 
+[raw.ortho.timestep.debug_vs_o3]
+ni = { max_abs = 2.3283064365386963e-10, max_ref = 14315417.399224648, s = 1.6264327973173887e-17, max_rel = 3.254517722022482e-12 }
+up = { max_abs = 1.1641532182693481e-09, max_ref = 14478200.341968732, s = 8.040731518921969e-17, max_rel = 1.983735518411424e-14 }
+te = { max_abs = 3.6709479900309816e-08, max_ref = 549469.7312896526, s = 6.680892105585055e-14, max_rel = 3.6928508860833616e-11 }
+ti = { max_abs = 1.2223608791828156e-09, max_ref = 473230.31425278226, s = 2.583014744338367e-15, max_rel = 2.328880804779511e-14 }
+phi = { max_abs = 9.778887033462524e-09, max_ref = 239609246.46986514, s = 4.0811809967827693e-17, max_rel = 4.8843101963546725e-14 }
+
 [raw.ortho.timestep.mac_vs_linux]
 ni = { max_abs = 2.3283064365386963e-10, max_ref = 14315417.399224648, s = 1.6264327973173887e-17, max_rel = 3.254517722022482e-12 }
 up = { max_abs = 1.1641532182693481e-09, max_ref = 14478200.341968732, s = 8.040731518921969e-17, max_rel = 1.983735518411424e-14 }
@@ -518,6 +953,13 @@ ti = { max_abs = 1.2223608791828156e-09, max_ref = 473230.31425278226, s = 2.583
 phi = { max_abs = 9.778887033462524e-09, max_ref = 239609246.46986514, s = 4.0811809967827693e-17, max_rel = 4.8843101963546725e-14 }
 
 [raw.ortho.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 14315417.399224648, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 14478200.341968732, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 549469.7312896517, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 473230.3142527835, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 239609246.46986514, s = 0.0, max_rel = 0.0 }
+
+[raw.ortho.timestep."same_build:mac-debug"]
 ni = { max_abs = 0.0, max_ref = 14315417.399224648, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 14478200.341968732, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 549469.7312896517, s = 0.0, max_rel = 0.0 }
@@ -545,6 +987,13 @@ te = { max_abs = 0.0, max_ref = 549469.7312896526, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 473230.31425278226, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 239609246.46986514, s = 0.0, max_rel = 0.0 }
 
+[raw.slab_phi.steady.debug_vs_o3]
+ni = { max_abs = 1.0841176845133305e-08, max_ref = 94586829.30326577, s = 1.1461613551263205e-16, max_rel = 1.2890038910783243e-11 }
+up = { max_abs = 3.814697265625e-06, max_ref = 12762079105.057829, s = 2.9890876198323915e-16, max_rel = 1.0741907767261918e-12 }
+te = { max_abs = 2.8870999813079834e-08, max_ref = 6532758.894822556, s = 4.4194191578019405e-15, max_rel = 6.2542569788321916e-12 }
+ti = { max_abs = 3.5797711461782455e-09, max_ref = 2832410.82997348, s = 1.2638601393187594e-15, max_rel = 3.59840905705043e-13 }
+phi = { max_abs = 0.000652313232421875, max_ref = 254711363711.98813, s = 2.560989909973041e-15, max_rel = 3.1168037509946636e-12 }
+
 [raw.slab_phi.steady.mac_vs_linux]
 ni = { max_abs = 1.0841176845133305e-08, max_ref = 94586829.30326577, s = 1.1461613551263205e-16, max_rel = 1.2890038910783243e-11 }
 up = { max_abs = 3.814697265625e-06, max_ref = 12762079105.057829, s = 2.9890876198323915e-16, max_rel = 1.0741907767261918e-12 }
@@ -560,6 +1009,13 @@ ti = { max_abs = 3.5797711461782455e-09, max_ref = 2832410.82997348, s = 1.26386
 phi = { max_abs = 0.000652313232421875, max_ref = 254711363711.98813, s = 2.560989909973041e-15, max_rel = 3.1168037509946636e-12 }
 
 [raw.slab_phi.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 94586829.30326577, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 12762079105.057829, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 6532758.8948225565, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2832410.82997348, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 254711363711.98816, s = 0.0, max_rel = 0.0 }
+
+[raw.slab_phi.steady."same_build:mac-debug"]
 ni = { max_abs = 0.0, max_ref = 94586829.30326577, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 12762079105.057829, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 6532758.8948225565, s = 0.0, max_rel = 0.0 }
@@ -587,6 +1043,13 @@ te = { max_abs = 0.0, max_ref = 6532758.894822556, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 2832410.82997348, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 254711363711.98813, s = 0.0, max_rel = 0.0 }
 
+[raw.slab_phi.timestep.debug_vs_o3]
+ni = { max_abs = 1.0841176845133305e-08, max_ref = 94586829.30326577, s = 1.1461613551263205e-16, max_rel = 4.885413349228316e-12 }
+up = { max_abs = 3.814697265625e-06, max_ref = 12762123211.031517, s = 2.989077289527807e-16, max_rel = 7.789393957790865e-13 }
+te = { max_abs = 2.8870999813079834e-08, max_ref = 6534092.674699711, s = 4.418517038313459e-15, max_rel = 6.2542569788321916e-12 }
+ti = { max_abs = 3.5797711461782455e-09, max_ref = 2832410.82997348, s = 1.2638601393187594e-15, max_rel = 3.59840905705043e-13 }
+phi = { max_abs = 0.000652313232421875, max_ref = 254711363711.98813, s = 2.560989909973041e-15, max_rel = 3.1168037509946636e-12 }
+
 [raw.slab_phi.timestep.mac_vs_linux]
 ni = { max_abs = 1.0841176845133305e-08, max_ref = 94586829.30326577, s = 1.1461613551263205e-16, max_rel = 4.885413349228316e-12 }
 up = { max_abs = 3.814697265625e-06, max_ref = 12762123211.031517, s = 2.989077289527807e-16, max_rel = 7.789393957790865e-13 }
@@ -602,6 +1065,13 @@ ti = { max_abs = 3.5797711461782455e-09, max_ref = 2832410.82997348, s = 1.26386
 phi = { max_abs = 0.000652313232421875, max_ref = 254711363711.98813, s = 2.560989909973041e-15, max_rel = 3.1168037509946636e-12 }
 
 [raw.slab_phi.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 94586829.30326577, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 12762123211.031517, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 6534092.674699712, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2832410.82997348, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 254711363711.98816, s = 0.0, max_rel = 0.0 }
+
+[raw.slab_phi.timestep."same_build:mac-debug"]
 ni = { max_abs = 0.0, max_ref = 94586829.30326577, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 12762123211.031517, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 6534092.674699712, s = 0.0, max_rel = 0.0 }
@@ -647,6 +1117,24 @@ sha256 = "1fb10b58bab4848ec4c2fa9d06061629b9f705970b5be359d2f3938e2a0f316c"
 steady = { entries = 420, zero = 133, max = 0.015917494893074036 }
 timestep = { entries = 420, zero = 133, max = 0.015917494893074036 }
 
+[sigma.dnull_imp2]
+file = "families/dnull_imp2/sigma.h5"
+sha256 = "0720df9ab2fb36c56cb9a553647921efc4052eb4317181e7a014645ebfdfebd5"
+steady = { entries = 27048, zero = 2081, max = 15.644134521484375 }
+timestep = { entries = 27048, zero = 2081, max = 15.644134521484375 }
+
+[sigma.imp7]
+file = "families/imp7/sigma.h5"
+sha256 = "ee508b47c1fc888020cc4fcce111d7d55fbbe11c57a7b699337e193386abbad2"
+steady = { entries = 44352, zero = 2937, max = 0.7933316230773926 }
+timestep = { entries = 44352, zero = 2937, max = 0.7933316230773926 }
+
+[sigma.large_dd2c]
+file = "families/large_dd2c/sigma.h5"
+sha256 = "c771adeb6fdaf2bb06c4d0b1f5d5cf691a56a82e68ad4074d2c5bce808ba7e70"
+steady = { entries = 29568, zero = 2272, max = 1.5579605102539062 }
+timestep = { entries = 29568, zero = 2272, max = 1.5579605102539062 }
+
 [sigma.ortho]
 file = "families/ortho/sigma.h5"
 sha256 = "2a246396a4f79de6c7ce916f506ae532809e6d490a0882f7ca44fa27cbe33193"
@@ -663,36 +1151,51 @@ timestep = { entries = 4522, zero = 1668, max = 0.000652313232421875 }
 "d_c.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_c.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_c.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
-"d_c.timestep.n4" = { status = "crash", exitcode = -5 }
+"d_c.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_mols.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_mols.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
-"d_mols.timestep.n1" = { status = "crash", exitcode = -5 }
-"d_mols.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"d_mols.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"d_mols.timestep.n4" = { status = "crash", exitcode = -5 }
 "d_only.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_only.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
-"d_only.timestep.n1" = { status = "crash", exitcode = -5 }
+"d_only.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "d_only.timestep.n4" = { status = "crash", exitcode = -5 }
-"ortho.steady.n1" = { status = "crash", exitcode = -5 }
-"ortho.steady.n4" = { status = "corrupt" }
-"ortho.timestep.n1" = { status = "crash", exitcode = -5 }
+"dnull_imp2.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"dnull_imp2.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"dnull_imp2.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"dnull_imp2.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"imp7.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"imp7.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"imp7.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"imp7.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"large_dd2c.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"large_dd2c.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"large_dd2c.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"large_dd2c.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"ortho.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"ortho.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"ortho.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 "ortho.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
-"slab_phi.steady.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"slab_phi.steady.n1" = { status = "crash", exitcode = -5 }
 "slab_phi.steady.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
-"slab_phi.timestep.n1" = { status = "ok", nthreads = 1, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
+"slab_phi.timestep.n1" = { status = "crash", exitcode = -5 }
 "slab_phi.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 
 [floor]  # PRD 7.4 floor report: (equation, species, region) groups with sigma = 0 in more than floor_limit of their entries
-over_limit = { d_c = { steady = 17, timestep = 17 }, d_mols = { steady = 11, timestep = 11 }, d_only = { steady = 8, timestep = 8 }, ortho = { steady = 23, timestep = 23 }, slab_phi = { steady = 33, timestep = 33 } }
+over_limit = { d_c = { steady = 17, timestep = 17 }, d_mols = { steady = 11, timestep = 11 }, d_only = { steady = 8, timestep = 8 }, dnull_imp2 = { steady = 13, timestep = 13 }, imp7 = { steady = 17, timestep = 17 }, large_dd2c = { steady = 23, timestep = 23 }, ortho = { steady = 23, timestep = 23 }, slab_phi = { steady = 33, timestep = 33 } }
 
 [owner]  # items_raised must equal items_answered: new owner items need new answers
-items_raised = 184
-items_answered = 184
+items_raised = 290
+items_answered = 290
 answers = [
-  "2026-10-22, AIUE-87: every floor group over 10 % (sigma = 0 in rows bitwise identical across the serial builds) is accepted with the PRD 7.4 floor unchanged; open finding for the owner: d_mols phi[1] guard ix=7 iy=0 (ref -37.6) gets k*sigma_min,r = 1.5e-3*|ref| from the ix=9 guard cells", 
+  "2026-10-22, AIUE-87: every floor group over 10 % (sigma = 0 in rows bitwise identical across the serial builds) is accepted with the PRD 7.4 floor unchanged; d_mols phi[1] guard ix=7 iy=0 (ref -37.6) gets k*sigma_min,r = 1.5e-3*|ref| from the ix=9 guard cells, and keeps the floor: AIUE-150 (no code change) found two base-state noise draws that nearly match in a dphi/dy = 0 boundary row", 
   "2026-10-22, AIUE-87: the --debug bounds-check stop at bbb/pandf_plasma_energy.m:603 (ng(ix,iy,2) with ngsp = 1) is bug AIUE-145", 
-  "2026-10-22, AIUE-87: the OpenMP crashes with OMPParallelJac/OMPParallelPandf1 = 1 are bug AIUE-146; the measured OpenMP rows stay report only"
+  "2026-10-22, AIUE-87: the OpenMP crashes with OMPParallelJac/OMPParallelPandf1 = 1 are bug AIUE-146; the measured OpenMP rows stay report only", 
+  "2026-10-22, AIUE-92: the owner families' floor groups over 10 % (53 per configuration; the same groups after AIUE-170, 2026-10-23) are accepted with the PRD 7.4 floor unchanged; the quiet-cell mutation stays at slab_phi (18,1)", 
+  "2026-10-23, AIUE-92: imp7's spread at its inner-target corner (1,42) and guard (0,42), which would have raised ni, up, ti and phi (AIUE-164), is removed by com.redopltvtag = 1 in imp7's deck (AIUE-170); imp7 sets no rtol", 
+  "2026-10-23, AIUE-92: up rises from 1.505e-8 to 1.589e-8, set by dnull_imp2 up[2] on its wall ring iy = ny (-O3 arm64 against -O0 and Linux, 2.3e-8 of the entry): accepted"
 ]
 
 [findings]
 same_build_zero = { "same_build:linux-serial" = true, "same_build:mac-debug" = true, "same_build:mac-noopt" = true, "same_build:mac-omp" = true, "same_build:mac-serial" = true }
-items = ["mac-debug d_only steady 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug d_only steady 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug d_only timestep 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug d_only timestep 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug ortho steady 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug ortho steady 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug ortho timestep 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug ortho timestep 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug slab_phi steady 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug slab_phi steady 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug slab_phi timestep 1: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-debug slab_phi timestep 2: error (exit 2): At line 603 of file ../../bbb/pandf_plasma_energy.F Fortran runtime error: Index '2' of dimension 3 of array 'ng' above upper bound of 1", "mac-omp d_c timestep omp4: crash (exit -5)", "mac-omp d_mols steady omp4: exit code -11 after the result was written", "mac-omp d_mols timestep omp1: crash (exit -5)", "mac-omp d_only steady omp4: exit code -11 after the result was written", "mac-omp d_only timestep omp1: crash (exit -5)", "mac-omp d_only timestep omp4: crash (exit -5)", "mac-omp ortho steady omp1: crash (exit -5)", "mac-omp ortho timestep omp1: crash (exit -5)", "ortho steady omp4: result vectors of shapes {'ffun': (2,), 'pandf': (420,)} for neq = 420 (memory overwritten in the child)"]
+items = ["mac-omp d_c timestep omp1: exit code -11 after the result was written", "mac-omp d_mols steady omp1: exit code -11 after the result was written", "mac-omp d_mols timestep omp4: crash (exit -5)", "mac-omp d_only steady omp1: exit code -11 after the result was written", "mac-omp d_only steady omp4: exit code -11 after the result was written", "mac-omp d_only timestep omp1: exit code -11 after the result was written", "mac-omp d_only timestep omp4: crash (exit -5)", "mac-omp ortho steady omp1: exit code -11 after the result was written", "mac-omp ortho timestep omp1: exit code -11 after the result was written", "mac-omp ortho timestep omp4: exit code -11 after the result was written", "mac-omp slab_phi steady omp1: crash (exit -5)", "mac-omp slab_phi timestep omp1: crash (exit -5)", "mac-omp slab_phi timestep omp4: exit code -11 after the result was written"]
