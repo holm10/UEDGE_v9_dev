@@ -55,7 +55,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
   through `Runner.evaluate(..., variant=, replay=)`); `tests/yldot/overrides.toml` holds the additions, exclusions,
-  explicit values, bounds, phase and configuration, each with a reason.
+  explicit values, bounds, phase and configuration, each with a reason. Switches that pick the geometry, the topology
+  or the species model (`isudsym`, `islimon`, `isfixlb`, `isnonog`, `mhdgeo`, `gengrid`, `ishymol`) are EXCLUDED as
+  family-level and are covered only by families of their own (owner, 2026-10-23, AIUE-159).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections onto Rademacher signs from
@@ -136,7 +138,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
   own python and checks it under that rule (exit 3 = owner); on the yldot-data-v3 references mac-noopt passes every
   family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
-  `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
+  `com.isnonog`, EXCLUDED as family-level since AIUE-159, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
   design); `collect` and `check` do the same on the seeded sample against the serial pairs.
   `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
   baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
