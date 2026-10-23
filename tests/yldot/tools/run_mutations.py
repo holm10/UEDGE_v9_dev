@@ -611,8 +611,8 @@ class Scratch:
 
     def build(self, log):
         log.parent.mkdir(parents=True, exist_ok=True)
-        # setup.py's MPPL conversion returns to getenv("PWD"), not the cwd (setup.py:478-487): without PWD set
-        # here it converts and makes the caller's checkout, and the wheel ships that tree's build (AIUE-90)
+        # setup.py before AIUE-163 returned to getenv("PWD"), not the cwd, for the MPPL conversion: without PWD set
+        # it converted and made the caller's checkout (AIUE-90); --from-commit may name such a commit
         env = dict(self.env, PWD=str(self.src))
         if self.stream([str(self.python), "-m", "pip", "install", "-v", "--no-build-isolation", "--no-deps", ".",
                         "-C", "--build-option={}".format(mr.FLAGS)], cwd=self.src, env=env, log=log) != 0:

@@ -92,7 +92,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `make_references.py` (`generate --from-commit SHA`: builds SHA `--serial` and writes each family's steady and
   `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance; `--platform
   linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, `--platform host` a
-  temporary worktree and venv, a preview with `release: null` (owner, 2026-10-22, AIUE-88); default families: those
+  temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
+  null` (owner, 2026-10-22, AIUE-88); default families: those
   with `sigma.h5`; refuses a `tests/yldot` that differs from SHA (references/ excepted; also an ignored file in the
   families' directories or `data/`), a `sigma.h5` that differs from `tolerances.toml`, a family whose manifest names
   other release assets and a preview `--write` over a released manifest; `--write` installs the files and manifests
@@ -120,7 +121,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_build_flags.py` pins that table (27 cases: the default, `--serial`, `--debug`, `--checkbounds`,
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
   `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
-  intended flag change updates its `EXPECTED`, with the reason in the PR.
+  intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
+  `mppl2f90` on two scratch trees with the working directory and `$PWD` differing; the test requires it to convert
+  in and stay in the working directory, and a copy with the pre-AIUE-163 `getenv("PWD")` lines to fail (AIUE-163).
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
   the head only as data (`git diff`/`git cat-file`, base side at the merge base, the PR description from `PR_BODY`
   without its comments and code fences) and prints which of `Default
@@ -130,8 +133,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: 697 tests, none skipped, in about 355 s, serial build, Darwin
-  arm64, 2026-10-22, AIUE-90; about 250 s of that
+- **Tests** (the whole suite, `-m "not nightly"`: 699 tests, none skipped, in about 370 s, serial build, Darwin
+  arm64, 2026-10-22, AIUE-163; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1

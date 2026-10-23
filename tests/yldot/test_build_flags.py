@@ -133,6 +133,36 @@ EDITS = {
 }
 
 
+def conversion(setup_path, cwd):
+    """The tool's --conversion record for setup_path, from a child interpreter."""
+    proc = subprocess.run([sys.executable, "-I", str(TOOL), "--setup", str(setup_path), "--conversion"], cwd=cwd,
+                          capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    return json.loads(proc.stdout)
+
+
+# setup.py before AIUE-163: the conversion returned to $PWD, not to the working directory
+OLD_CONVERSION = (("        from os import getcwd, mkdir, chdir\n", "        from os import getenv, mkdir, chdir\n"),
+                  ("        curpath = getcwd()\n", '        curpath = getenv("PWD")\n'))
+
+
+def test_conversion_follows_the_working_directory(tmp_path):
+    """With the working directory A and $PWD naming B (a build launched with subprocess cwd=A, or `pip install A` run
+    from B), setup.py converts A's sources and stays in A (AIUE-163)."""
+    assert conversion(SETUP, tmp_path) == {"cwd_after": "A", "converted_in": ["A"]}
+
+
+def test_conversion_check_detects_the_old_code(tmp_path):
+    """Negative control: the same check on setup.py with the pre-AIUE-163 lines restored sees B."""
+    source = SETUP.read_text()
+    for new, old in OLD_CONVERSION:
+        assert source.count(new) == 1, "{!r} no longer matches setup.py exactly once; update OLD_CONVERSION".format(new)
+        source = source.replace(new, old)
+    edited = tmp_path / "setup.py"
+    edited.write_text(source)
+    assert conversion(edited, tmp_path) == {"cwd_after": "B", "converted_in": ["B"]}
+
+
 @pytest.mark.parametrize("edit", list(EDITS))
 def test_detects_flag_changes(edit, tmp_path):
     old, new, case = EDITS[edit]

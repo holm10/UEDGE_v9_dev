@@ -5,6 +5,7 @@ The child tests need the built uedge (in the Runner's children); git, docker, pi
 the real Linux run is the ticket's validation.
 """
 import json
+import os
 import shutil
 import sys
 import tomllib
@@ -89,9 +90,11 @@ class FakeStream:
     def __init__(self, child_dir, fail=None):
         self.child_dir, self.fail = child_dir, fail
         self.calls = []
+        self.envs = []  # the env of each call, in the order of calls
 
     def __call__(self, cmd, cwd=None, env=None, log=None):
         self.calls.append((cmd, cwd, log))
+        self.envs.append(env)
         if self.fail and self.fail in cmd:
             return 1
         out = None
@@ -185,6 +188,12 @@ def test_host_is_a_preview(tmp_path, children):
     build = [(c, cwd, log) for c, cwd, log in stream.calls if "--no-build-isolation" in c]
     assert build == [([str(out / "venv" / "bin" / "python"), "-m", "pip", "install", "-v", "--no-build-isolation",
                        "--no-deps", ".", "-C", "--build-option=--serial"], out / "src", out / "build.log")]
+    # PWD names the scratch tree for the build only (setup.py before AIUE-163 converted in $PWD); the child keeps
+    # the caller's
+    envs = {("build" if "--no-build-isolation" in c else "child" if "_child" in c else "other"): e
+            for (c, _, _), e in zip(stream.calls, stream.envs)}
+    assert envs["build"]["PWD"] == str(out / "src")
+    assert envs["child"].get("PWD") == os.environ.get("PWD")
     assert run.calls[-1] == ["git", "-C", str(suite.parents[1]), "worktree", "remove", "--force", str(out / "src")]
 
 

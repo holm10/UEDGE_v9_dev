@@ -2,6 +2,11 @@
 
 Usage (from anywhere):
     python -I build_flags.py [--setup PATH] [--json]
+    python -I build_flags.py [--setup PATH] --conversion
+
+--conversion instead runs setup.py's MPPL conversion (mppl2f90, not stubbed) on two scratch trees with the working
+directory and $PWD differing and prints where it converted and where it left the process, as JSON (AIUE-163:
+setup.py must follow the working directory, not $PWD).
 
 PRD section 8: the opt-in, results-neutral build options (--noopt, AIUE-85; --coverage, AIUE-105) may not change
 the default flags. This tool runs setup.py (default: the one in this checkout) once per case in CASES, with the
@@ -76,12 +81,13 @@ def case_name(platform, options, ldflags):
     return name if ldflags is None else "{}@{}".format(name, ldflags)
 
 
-def evaluate(setup_path, options, platform, ldflags, libgcov):
-    """Run setup_path for one case and return its record (see the module docstring)."""
-    saved_argv, saved_env = list(sys.argv), dict(os.environ)
+@contextlib.contextmanager
+def stubs():
+    """Forthon (a fake FCompiler), setuptools.setup (records its arguments in the dict yielded) and os.system
+    (returns 1) replaced while setup.py is executed; restored afterwards."""
     saved_modules = {k: sys.modules.get(k) for k in ("Forthon", "Forthon.compilers")}
     saved_setup, saved_system = setuptools.setup, os.system
-    captured, calls = {}, []
+    captured = {}
     try:
         fake = types.ModuleType("Forthon.compilers")
         fake.FCompiler = FakeFCompiler
@@ -89,41 +95,51 @@ def evaluate(setup_path, options, platform, ldflags, libgcov):
         sys.modules["Forthon.compilers"] = fake
         setuptools.setup = lambda **kw: captured.update(kw)
         os.system = lambda command: 1
-        os.environ.pop("LDFLAGS", None)
-        if ldflags is not None:
-            os.environ["LDFLAGS"] = ldflags
-        os.environ.pop("OMP", None)
-        caller_env = dict(os.environ)
-        sys.argv = [str(setup_path), "bdist_wheel", "--dist-dir", "dist"] + ["--" + o for o in options]
-
-        def fake_call(command, env=None):
-            seen = dict(os.environ if env is None else env)
-            other = {k: seen.get(k) for k in set(seen) | set(caller_env)
-                     if seen.get(k) != caller_env.get(k) and k not in ("PATH", "LDFLAGS", "OMP")}
-            calls.append((command, None if env is None else env.get("LDFLAGS"), other))
-            return 0
-
-        ns = {"__name__": "__main__", "__file__": str(setup_path)}
-        with contextlib.redirect_stdout(io.StringIO()):
-            try:
-                exec(compile(Path(setup_path).read_text(), str(setup_path), "exec"), ns)
-                ns.update(platform=platform, call=fake_call, mppl2f90=lambda *a, **k: None,
-                          check_output=lambda *a, **k: libgcov + "\n",
-                          build=types.SimpleNamespace(run=lambda self: None))
-                captured["cmdclass"]["build"].run(None)
-            except SystemExit as e:
-                return {"exit": str(e)}
-        omp_env = os.environ.get("OMP")
+        yield captured
     finally:
-        sys.argv = saved_argv
-        os.environ.clear()
-        os.environ.update(saved_env)
         setuptools.setup, os.system = saved_setup, saved_system
         for k, v in saved_modules.items():
             if v is None:
                 sys.modules.pop(k, None)
             else:
                 sys.modules[k] = v
+
+
+def evaluate(setup_path, options, platform, ldflags, libgcov):
+    """Run setup_path for one case and return its record (see the module docstring)."""
+    saved_argv, saved_env = list(sys.argv), dict(os.environ)
+    calls = []
+    try:
+        with stubs() as captured:
+            os.environ.pop("LDFLAGS", None)
+            if ldflags is not None:
+                os.environ["LDFLAGS"] = ldflags
+            os.environ.pop("OMP", None)
+            caller_env = dict(os.environ)
+            sys.argv = [str(setup_path), "bdist_wheel", "--dist-dir", "dist"] + ["--" + o for o in options]
+
+            def fake_call(command, env=None):
+                seen = dict(os.environ if env is None else env)
+                other = {k: seen.get(k) for k in set(seen) | set(caller_env)
+                         if seen.get(k) != caller_env.get(k) and k not in ("PATH", "LDFLAGS", "OMP")}
+                calls.append((command, None if env is None else env.get("LDFLAGS"), other))
+                return 0
+
+            ns = {"__name__": "__main__", "__file__": str(setup_path)}
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    exec(compile(Path(setup_path).read_text(), str(setup_path), "exec"), ns)
+                    ns.update(platform=platform, call=fake_call, mppl2f90=lambda *a, **k: None,
+                              check_output=lambda *a, **k: libgcov + "\n",
+                              build=types.SimpleNamespace(run=lambda self: None))
+                    captured["cmdclass"]["build"].run(None)
+                except SystemExit as e:
+                    return {"exit": str(e)}
+            omp_env = os.environ.get("OMP")
+    finally:
+        sys.argv = saved_argv
+        os.environ.clear()
+        os.environ.update(saved_env)
 
     if len(calls) != 2 or calls[0][0] != ["make", "-f", "Makefile.Forthon", "clean"]:
         raise RuntimeError("expected make clean, then the build; got {}".format(calls))
@@ -145,6 +161,41 @@ def evaluate(setup_path, options, platform, ldflags, libgcov):
             "uedgec_macros": [list(m) for m in uedgec.define_macros], "make_calls": len(calls)}
 
 
+MPPL_SOURCE = "      subroutine x\n      real y\n      y = float(1)\n      end\n"
+
+
+def conversion_check(setup_path=SETUP):
+    """Where setup.py's MPPL conversion (mppl2f90) converts, and where it leaves the process, when the working
+    directory and $PWD differ (AIUE-163): two trees A and B, each with bbb/x.m, the process in A and PWD naming B, as
+    for a build launched with subprocess cwd=A or for `pip install A` run from B. Returns {"cwd_after": "A", "B" or
+    "other", "converted_in": the trees that got bbb/x.F}. Correct: A and ["A"]; before AIUE-163 setup.py returned to
+    $PWD: B and ["B"]."""
+    saved_argv, saved_env, saved_cwd = list(sys.argv), dict(os.environ), os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        trees = {name: Path(tmp, name) for name in ("A", "B")}
+        for tree in trees.values():
+            (tree / "bbb").mkdir(parents=True)
+            (tree / "bbb" / "x.m").write_text(MPPL_SOURCE)
+        try:
+            with stubs():
+                sys.argv = [str(setup_path), "bdist_wheel", "--dist-dir", "dist"]
+                ns = {"__name__": "__main__", "__file__": str(setup_path)}
+                with contextlib.redirect_stdout(io.StringIO()):
+                    exec(compile(Path(setup_path).read_text(), str(setup_path), "exec"), ns)
+                    os.chdir(trees["A"])
+                    os.environ["PWD"] = str(trees["B"])
+                    ns["mppl2f90"](dirlist=["bbb"])
+                here = os.getcwd()  # samefile: on macOS getcwd() gives /private/var/... for tempfile's /var/...
+                cwd_after = next((n for n, tree in trees.items() if os.path.samefile(here, tree)), "other")
+        finally:
+            os.chdir(saved_cwd)
+            sys.argv = saved_argv
+            os.environ.clear()
+            os.environ.update(saved_env)
+        return {"cwd_after": cwd_after,
+                "converted_in": sorted(n for n, tree in trees.items() if (tree / "bbb" / "x.F").is_file())}
+
+
 def table(setup_path=SETUP):
     """Every case of CASES, by name."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -157,9 +208,14 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--setup", type=Path, default=SETUP, help="the setup.py to evaluate (default: %(default)s)")
     parser.add_argument("--json", action="store_true", help="print one JSON object instead of a table")
+    parser.add_argument("--conversion", action="store_true",
+                        help="check where the MPPL conversion runs when cwd and $PWD differ (JSON)")
     args = parser.parse_args(argv[1:])
     if not args.setup.is_file():
         parser.error("no such file: {}".format(args.setup))
+    if args.conversion:
+        print(json.dumps(conversion_check(args.setup.resolve())))
+        return 0
     result = table(args.setup.resolve())
     if args.json:
         print(json.dumps(result, indent=1))

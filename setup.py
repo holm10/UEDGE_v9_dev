@@ -474,9 +474,9 @@ class processdirs:
     # in a root directory whose default is called "converted" and
     # is parallel to ".".
     def __init__(self,indirs = ["."],outroot = "../converted",clean=None):
-        from os import getenv, mkdir, chdir
-        # create the output root directory if it needs to be
-        curpath = getenv("PWD")
+        from os import getcwd, mkdir, chdir
+        # create the output root directory if it needs to be; return to the cwd, not $PWD (AIUE-163)
+        curpath = getcwd()
         try:
             mkdir(outroot)
             print("Creating directory "+outroot)
