@@ -14,7 +14,8 @@ replay   the population check (review I1-B1, D8): every SENSITIVE variant of REF
          "installed" (tests/yldot/references); default families: every one REFS holds with classified variants.
          Prints per family the count, the failures (a failed evaluation is one) and the largest
          max |d_i| / tol_i(variant) (inf for a non-finite entry); --json writes every row; --build refuses
-         references of another commit than FILE's.
+         references of another commit than FILE's. Without --build nothing ties this build to the references'
+         commit: pass it whenever the result is recorded (review I2-m2).
 collect and check: the seeded sample (D2) under the default's tol_i. For them REFS is the references directory of a
 make_references.py run (--out DIR/references): <family>.json (the manifest fields, with each variant's applied
 value) and samples/<family>.npz, the sample its child drew (make_references.tolerance_sample: the 20 SENSITIVE ids
