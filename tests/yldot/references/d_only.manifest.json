@@ -875,10 +875,6 @@
     "/steady/variants/bbb.isfdiax/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isfdiax/yldot/index": "e71b85ad79a1811e5a6c3d5ada140bb3834602dcc0c28614c715472a8dccd08e",
     "/steady/variants/bbb.isfdiax/yldot/value": "e86b400ee2fdbe51b1bb02ef141161608397049c210d3be89f8a868319ce1717",
-    "/steady/variants/bbb.isfixlb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/bbb.isfixlb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/bbb.isfixlb/yldot/index": "dbb1791f6e7ad5a58f94baded6bf3d714fcfd9285d9bf8fcd84623aab9340ad6",
-    "/steady/variants/bbb.isfixlb/yldot/value": "1cf86011213a2dd1c9d15ecc92dcaf82fc6ec0309706880dcbcd47ded8957c8e",
     "/steady/variants/bbb.isfixrb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.isfixrb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isfixrb/yldot/index": "cfc985cfed5d0187ce0809dcc38f7086dcba5f395615eb55ba07f917f48802c8",
@@ -1455,10 +1451,6 @@
     "/steady/variants/bbb.znuclin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.znuclin/yldot/index": "db469b81973c84a666dc40c44efe2965fa8bc2a6f9859c2e7be6d0216df50b2a",
     "/steady/variants/bbb.znuclin/yldot/value": "0679e607825246c7b1ab0f6bb093e2e80a9247640882bd621125d75f950fbfa7",
-    "/steady/variants/com.islimon/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/com.islimon/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/com.islimon/yldot/index": "764735cd27c1a8ada26f63317f1976f924c712689239019b06901df55923278c",
-    "/steady/variants/com.islimon/yldot/value": "7ff3fb05d1e15f3098c9dbe6bce150440c8ca8c99524502692b6beb4c4216942",
     "/timestep/default/diagnostics/edisse": "0477813e763898ebeac8f4deb83221777d723e1039a85f8f5c3eb10c3c327829",
     "/timestep/default/diagnostics/eiamoldiss": "acaa9724d566b646ca60db946dc1535f6b5cadee1fc2f7dd805caf2f0d95671d",
     "/timestep/default/diagnostics/emolia": "acaa9724d566b646ca60db946dc1535f6b5cadee1fc2f7dd805caf2f0d95671d",
@@ -1619,8 +1611,8 @@
   },
   "external": {
     "references/d_only.h5": {
-      "bytes": 1042082,
-      "sha256": "c0c99191d8485fe0b5be811be2aa9ecd14863caefc4dbfdc936a84f9b39c7ec9"
+      "bytes": 1036598,
+      "sha256": "c6af8850c32dff724dbe1277b7d35f8ea9887196b6437856597775a5532bddcb"
     }
   },
   "family": "d_only",
@@ -1632,15 +1624,15 @@
     "timestep/sigma": "1c2020d0027c19c11fa82206212dfb63b4ce94b269ad774fdc7f065879ad1490"
   },
   "provenance": {
-    "commit": "430a5be7ea76bf59071b54b38f199d5641b600fc",
+    "commit": "b3c18ec4d91d28a37ca8f11ea4c9e3a73b9eee8f",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T03:22:42+00:00",
+    "date": "2026-10-23T18:39:40+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v4",
+  "release": "yldot-data-v5",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -11855,12 +11847,12 @@
     "bbb.gengrid": {
       "applied": null,
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EXCLUDED",
       "config": "steady",
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: bbbpy.error: Right hand side has incorrect dimensions",
+      "reason": "family-level: grid generation, not physics: not tested here (leaves UEDGE); owner 2026-10-23",
       "sha256": null
     },
     "bbb.gradvconst": {
@@ -13785,70 +13777,15 @@
       "sha256": null
     },
     "bbb.isfixlb": {
-      "applied": {
-        "data": [1, 1],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
-      "block_l2": {
-        "ni[1] core": 160.40378446262622,
-        "ni[1] guard": 39264880.72273132,
-        "ni[1] inner_leg": 52.58019433253193,
-        "ni[1] outer_leg": 395.454596220193,
-        "ni[1] pf": 706.6219625409465,
-        "ni[1] sol": 132.82889243141184,
-        "ni[2] core": 3.4733856937909677,
-        "ni[2] guard": 23489623.446830086,
-        "ni[2] inner_leg": 42.3570338912006,
-        "ni[2] outer_leg": 130.18973901154442,
-        "ni[2] pf": 939.248109009753,
-        "ni[2] sol": 8.712427585008541,
-        "phi[1] core": 0.9272494576240804,
-        "phi[1] guard": 1517576.0316966753,
-        "phi[1] inner_leg": 12.337572410478602,
-        "phi[1] outer_leg": 355.6377355977138,
-        "phi[1] pf": 4.859707109342844,
-        "phi[1] sol": 1140.8305172893602,
-        "te[1] core": 1896.1432087812418,
-        "te[1] guard": 16158724.45086561,
-        "te[1] inner_leg": 19.576087159806463,
-        "te[1] outer_leg": 826.0684155154069,
-        "te[1] pf": 1785.3875113886809,
-        "te[1] sol": 7817.516131194359,
-        "ti[1] core": 6122.888875067744,
-        "ti[1] guard": 15957051.994243111,
-        "ti[1] inner_leg": 103.2413387327183,
-        "ti[1] outer_leg": 1246.9800306657608,
-        "ti[1] pf": 5820.1430941676235,
-        "ti[1] sol": 3068.6915589176256,
-        "up[1] core": 16.246566615249776,
-        "up[1] guard": 45186944.78310842,
-        "up[1] inner_leg": 15.240567323375288,
-        "up[1] outer_leg": 108.70705617685758,
-        "up[1] pf": 2129.1405369205827,
-        "up[1] sol": 115.74525557422672,
-        "up[2] core": 168631.68305821452,
-        "up[2] guard": 41489233.176597826,
-        "up[2] inner_leg": 9099.274247208361,
-        "up[2] outer_leg": 259.99922893552866,
-        "up[2] pf": 31344.15598136303,
-        "up[2] sol": 56223.909233661485
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0, 0],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 1.15e+11",
-      "sha256": "6a332014040db2b98ebcd220bf6ab89cf724bd6ec3074d4c8d0546294d5f2404"
+      "reason": "family-level: fixed left-boundary setup; no family yet (AIUE-173); owner 2026-10-23",
+      "sha256": null
     },
     "bbb.isfixrb": {
       "applied": {
@@ -14316,7 +14253,7 @@
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "suspected uninitialized read (AIUE-160): ishymol = 0 with nhgsp = 2 (d_mols) gives build-dependent yldot, 5e16 x tol between builds; owner 2026-10-22",
+      "reason": "family-level: molecular model; covered by d_mols and large_dd2c (1) against the other families (0); owner 2026-10-23",
       "sha256": null
     },
     "bbb.isi_sputpf": {
@@ -19989,12 +19926,12 @@
     "bbb.mhdgeo": {
       "applied": null,
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EXCLUDED",
       "config": "steady",
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: ueinit -- error in sign vol",
+      "reason": "family-level: covered by slab_phi (-1) against the MHD families (1); owner 2026-10-23",
       "sha256": null
     },
     "bbb.minu": {
@@ -26163,55 +26100,25 @@
       "sha256": null
     },
     "com.islimon": {
-      "applied": {
-        "data": [1],
-        "dtype": "int64",
-        "shape": []
-      },
-      "block_l2": {
-        "ni[1] guard": 19120746745.194363,
-        "ni[1] inner_leg": 688234.3642157166,
-        "ni[1] pf": 3145.2767744843336,
-        "ni[2] guard": 165415044085.82047,
-        "ni[2] inner_leg": 9404358.049943307,
-        "ni[2] pf": 516601.6529815348,
-        "phi[1] guard": 4274972.32458226,
-        "phi[1] inner_leg": 2594870.4191658315,
-        "phi[1] pf": 1675.4013331683527,
-        "te[1] guard": 1323008475.3109207,
-        "te[1] inner_leg": 491782.3517697729,
-        "te[1] pf": 2749.235452409856,
-        "ti[1] guard": 3318080535.534294,
-        "ti[1] inner_leg": 129288.36185256687,
-        "ti[1] pf": 4448.128948931409,
-        "up[1] guard": 26911870979.26002,
-        "up[1] inner_leg": 258.883821215925,
-        "up[1] pf": 65.07109843083714,
-        "up[2] guard": 12486502200.616919,
-        "up[2] inner_leg": 570409.2853365026,
-        "up[2] pf": 25344.307181039007
-      },
-      "class": "SENSITIVE",
-      "config": "steady",
-      "d": {
-        "data": [0],
-        "dtype": "int64",
-        "shape": []
-      },
-      "jflag_block_l2": {},
-      "phase": "PRE",
-      "reason": "max |diff|/tol = 1.76e+15",
-      "sha256": "f299200b54d622b822b022360f2edfb0e894283774a4fd83ac1f0105ac9dcd6b"
-    },
-    "com.isnonog": {
       "applied": null,
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EXCLUDED",
       "config": "steady",
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: *** methy has improper value in fd2tra ***",
+      "reason": "family-level: limiter topology; no family yet (AIUE-172); owner 2026-10-23",
+      "sha256": null
+    },
+    "com.isnonog": {
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
+      "config": "steady",
+      "d": null,
+      "jflag_block_l2": {},
+      "phase": "PRE",
+      "reason": "family-level: covered by ortho (0) against the non-orthogonal families (1); owner 2026-10-23",
       "sha256": null
     },
     "com.ispradextrap": {
@@ -26271,7 +26178,7 @@
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "suspected memory error (AIUE-159): non-finite yldot in d_c, d_mols, d_only, 1e28-1e30 x tol in ortho and slab_phi, intermittent SIGBUS on the -O0 build; owner 2026-10-22",
+      "reason": "family-level: up/down-symmetric dnbot geometry; no family yet (AIUE-171); owner 2026-10-23",
       "sha256": null
     },
     "com.mcfilename": {
