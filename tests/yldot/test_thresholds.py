@@ -7,8 +7,9 @@ Three comparators: the full-vector compare (yldot), the Jacobian-flag difference
 and the sketch comparator, its sketches built from the stored default. Pure Python: no evaluation, and only the
 yldot harness's comparator and store modules, which never import uedge at module level;
 it reads the reference files (fetch them with tools/fetch_data.py; an absent one fails, AIUE-156). For a sketch store
-also the single-entry check (PRD 7.11 b and d; AIUE-92): its stored sketch thresholds are those of its default, sigma
-and tolerances.toml, and one entry moved by 10 times its block's threshold fails that block alone, by 0.1 times passes.
+also the single-entry check (PRD 7.11 b and d; AIUE-92): its stored sketch thresholds are those of its default, sigma,
+tolerances.toml and stored weights, one entry moved by 10 times its threshold fails that block alone, by 0.1 times
+passes, and every entry of every block is seen within R_max = 2*c*sqrt(N_block) of its own tolerances (AIUE-174).
 The locality comparator is AIUE-100's.
 
 Rows per block (the guard rows are their own region blocks): the first and last, the largest and smallest |ref_i|,
@@ -42,12 +43,12 @@ def tol():
 
 @pytest.fixture(params=[(f, c) for f in REFERENCED for c in CONFIGS], ids=lambda p: "{}-{}".format(*p))
 def case(request, tol):
-    """(store, config, ref, per-entry tol) for one family and configuration."""
+    """(store, config, ref, per-entry tol, sketch weights: a sketch store's stored ones, else None)."""
     family, config = request.param
     with open_store(family) as s:
         ref = np.array(s.default(config))
         t = compare.tolerances(ref, s.sigma(config), tol["rtol"], tol["rule"]["k"], s.imap).tol
-        yield s, config, ref, t
+        yield s, config, ref, t, (np.array(s.weights(config)) if s.kind == "sketch" else None)
 
 
 def picks(s, ref):
@@ -73,7 +74,7 @@ def worst_ratio(chk):
 
 
 def test_full_comparator(case):
-    s, config, ref, t = case
+    s, config, ref, t, _ = case
     imap, problems = s.imap, []
     for label, rows in picks(s, ref).items():
         for i in rows:
@@ -101,7 +102,7 @@ def test_full_comparator(case):
 def test_flag_comparator(case):
     """The Jacobian-flag difference yldot_J - yldot against the stored one, through Store.check: yldot itself is the
     stored default, so only the flag part may fail."""
-    s, config, ref, t = case
+    s, config, ref, t, _ = case
     imap, jf, problems = s.imap, s.jflag(config), []
     ref_j = ref + jf
     for label, rows in picks(s, ref).items():
@@ -128,29 +129,30 @@ def test_flag_comparator(case):
 
 
 def test_sketch_comparator(case):
-    """Per block, a perturbation along one projection j of size M * c * sqrt(sum tol_i^2) over the block (its
-    projection on r_j is exactly that, on the others at most that): M = 10 fails that block alone with a worst
-    |dP|/bound of 10, which only projection j reaches (so a projection left out of the comparison is seen); M = 0.1
-    passes; a NaN in the block fails it."""
-    s, config, ref, t = case
+    """Per block, a perturbation along one weighted projection j of size M * c * sqrt(sum (tol_i w_i)^2) over the
+    block (w the store's weights, 1 for a full store; its weighted projection on r_j is exactly that, on the others at
+    most that): M = 10 fails that block alone with a worst |dP|/bound of 10, which only projection j reaches (so a
+    projection left out of the comparison is seen); M = 0.1 passes; a NaN in the block fails it."""
+    s, config, ref, t, w = case
     imap, labels, rows = s.imap, s.labels, s.rows
-    refsk = store.sketch(ref, labels, rows)
+    ww = np.ones(imap.neq) if w is None else w
+    refsk = store.sketch(ref, labels, rows, w=w)
     problems = []
     for b, (label, r) in enumerate(zip(labels, rows)):
         n, j = len(r), b % store.K
-        bound = store.C * math.sqrt(store.fsum(t[r] ** 2))
+        bound = store.C * math.sqrt(store.fsum((t[r] * ww[r]) ** 2))
         sgn = store.signs(store.SEED, label, n, store.K)[j]
         for m, ok in ((FAIL, False), (PASS, True)):
             x = ref.copy()
-            x[r] += m * bound / n * sgn
-            chk = store.sketch_compare(refsk, store.sketch(x, labels, rows), t, labels, rows, imap)
+            x[r] += m * bound / n * sgn / ww[r]
+            chk = store.sketch_compare(refsk, store.sketch(x, labels, rows, w=w), t, labels, rows, imap, w=w)
             caught = names_only(chk, label) and worst_ratio(chk) == pytest.approx(m, rel=1e-2)
             if chk.ok != ok or (not ok and not caught):
                 problems.append("{} {}: block {} at {:g} x the bound: ok {}, want {}\n{}".format(
                     s.family, config, label, m, chk.ok, ok, chk.report))
         x = ref.copy()
         x[r[0]] = np.nan
-        chk = store.sketch_compare(refsk, store.sketch(x, labels, rows), t, labels, rows, imap)
+        chk = store.sketch_compare(refsk, store.sketch(x, labels, rows, w=w), t, labels, rows, imap, w=w)
         if not names_only(chk, label):
             problems.append("{} {}: a NaN in block {} not failed in that block alone".format(s.family, config, label))
     assert not problems, "\n".join(problems[:20])
@@ -161,35 +163,45 @@ SKETCHED = [(f, c) for f in REFERENCED if mf.load(f)["store"] == "sketch" for c 
 
 @pytest.mark.parametrize("family, config", SKETCHED, ids=lambda p: str(p))
 def test_sketch_single_entry(family, config, tol):
-    """PRD 7.11 (b) and (d), AIUE-92: the stored sketch thresholds equal store.sketch_thresholds of the stored
-    default's tolerances; at the picked rows of each block, one entry moved by FAIL * delta_b fails that block alone
-    with a worst |dP|/bound of FAIL, and by PASS * delta_b passes. One entry moves only its block's projections, so the
-    moved sketch is the default's with that block recomputed, compared over every block."""
+    """PRD 7.11 (b) and (d), AIUE-92, AIUE-174: the stored sketch thresholds equal store.sketch_thresholds of the
+    stored default's tolerances and the stored weights w; every entry i of every block is seen within
+    R_max = 2*c*sqrt(N_block) of its own tolerances (R_i = delta_b / (tol_i w_i), owner 2026-10-23, AIUE-92 D3); at
+    the picked rows of each block, one entry moved by FAIL * delta_b / w_i fails that block alone with a worst
+    |dP|/bound of FAIL, and by PASS * delta_b / w_i passes. One entry moves only its block's projections, so the moved
+    sketch is the default's with that block recomputed, compared over every block."""
     with open_store(family) as s:
         ref = np.array(s.default(config))
         t = compare.tolerances(ref, s.sigma(config), tol["rtol"], tol["rule"]["k"], s.imap).tol
-        stored = s.sketch_thresholds(config)
+        stored, w = s.sketch_thresholds(config), np.array(s.weights(config))
         imap, labels, rows = s.imap, s.labels, s.rows
         chosen = picks(s, ref)
     assert stored is not None, "{} {}: the reference stores no sketch thresholds".format(family, config)
-    delta, cell = store.sketch_thresholds(t, labels, rows, imap)
+    delta, cell = store.sketch_thresholds(t, labels, rows, imap, w=w)
     want, got = store.threshold_arrays(delta, cell), store.threshold_arrays(*stored)
     assert all(want[k].tobytes() == got[k].tobytes() for k in store.THRESHOLD_KEYS), \
         "{} {}: the stored sketch thresholds differ from those of the stored default".format(family, config)
-    refsk = store.sketch(ref, labels, rows)
+    over = []
+    for b, (label, r) in enumerate(zip(labels, rows)):
+        ratio = delta[b] / (t[r] * w[r])
+        if not ratio.max() <= 2.0 * store.C * math.sqrt(len(r)):
+            over.append("{} {}: block {} R up to {:.3g} at {}, over 2*c*sqrt(N) = {:.3g}".format(
+                family, config, label, float(ratio.max()), imap.label(int(r[int(np.argmax(ratio))])),
+                2.0 * store.C * math.sqrt(len(r))))
+    assert not over, "\n".join(over[:20])
+    refsk = store.sketch(ref, labels, rows, w=w)
     problems = []
     for b, (label, r) in enumerate(zip(labels, rows)):
         for i in chosen[label]:
             for m, ok in ((FAIL, False), (PASS, True)):
                 x = ref.copy()
-                x[i] += m * delta[b]
+                x[i] += m * delta[b] / w[i]
                 new = {k: v.copy() for k, v in refsk.items()}
-                one = store.sketch(x, [label], [r])
+                one = store.sketch(x, [label], [r], w=w)
                 for k in new:
                     new[k][b] = one[k][0]
-                chk = store.sketch_compare(refsk, new, t, labels, rows, imap)
+                chk = store.sketch_compare(refsk, new, t, labels, rows, imap, w=w)
                 caught = names_only(chk, label) and worst_ratio(chk) == pytest.approx(m, rel=1e-2)
                 if chk.ok != ok or (not ok and not caught):
-                    problems.append("{} {}: {} moved by {:g} x delta_b of {}: ok {}, want {}\n{}".format(
+                    problems.append("{} {}: {} moved by {:g} x delta_b / w_i of {}: ok {}, want {}\n{}".format(
                         family, config, imap.label(i), m, label, chk.ok, ok, chk.report))
     assert not problems, "\n".join(problems[:20])

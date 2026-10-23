@@ -4,30 +4,32 @@ Usage:
     python sketch_sensitivity.py run <family>... (--from-collection DIR | --from-store) [--collections DIR]
                                      [--json FILE] [--report FILE] [--toml FILE]
 
-The sketch comparator (harness/store.py, sketch_compare) passes a block b while every projection difference
-|<new - ref, r_j>| stays within delta_b = c * sqrt(fsum(tol_i^2 over b)). A change of one entry i by delta moves every
-projection of its block by +-delta, so the smallest detectable single-entry change of block b is delta_b, whichever
-entry changes. Per family, configuration and block (equation, species, region) this reports:
+The sketch comparator (harness/store.py, sketch_compare) projects the weighted vector x * w (w_i = 1 / tol_i of the
+default at generation, stored per configuration in the sketch store, AIUE-174) and passes a block b while every
+projection difference |<(new - ref) * w, r_j>| stays within delta_b = c * sqrt(fsum((tol_i * w_i)^2 over b)). A change
+of one entry i by delta moves every projection of its block by +-delta * w_i, so the smallest detectable single-entry
+change at entry i is delta_b / w_i. Per family, configuration and block (equation, species, region) this reports:
 
-    entry threshold  delta_b, analytic, confirmed by bisection with sketch_compare on the block alone at the
+    entry threshold  delta_b / w_i, analytic, confirmed by bisection with sketch_compare on the block alone at the
                      rows of test_thresholds' picks (to 1e-3 relative); |measured/analytic - 1| > 1e-2 is a
                      harness error (exit 2)
-    ratio            R_i = delta_b / tol_i, how many of its own tolerances an entry must move to be seen: N, c*sqrt(N)
-                     (R for a uniform tol), min/median/max R and the entry with the largest R
+    ratio            R_i = delta_b / (tol_i * w_i), how many of its own tolerances an entry must move to be seen: N,
+                     c*sqrt(N) (R of every entry while tol is the generation tol), min/median/max R and the entry with
+                     the largest R; a block whose max R exceeds R_max = 2 * c * sqrt(N) (owner, 2026-10-23, AIUE-92 D3)
+                     is a finding for the owner (exit 3)
     cell multiple    a single-cell change moves every entry at one (ix, iy) by the same +m * its own tol_e (owner, 2026-10-22,
                      AIUE-92 D5); m(ix, iy) = min over the blocks b holding the cell's entries of
-                     delta_b / max_j |sum_e r_j,e tol_e| (one entry per block: delta_b / tol_e), with the block that
-                     fires first; reported per region, the worst cell
+                     delta_b / max_j |sum_e r_j,e tol_e w_e| (one entry per block: delta_b / (tol_e w_e)), with the
+                     block that fires first; reported per region, the worst cell
     round-off        with --collections (measure_roundoff.py's collections directory): per serial pair and block,
-                     max_j |<d, r_j>| / delta_b for d the pair's yldot difference and its Jacobian-flag difference
+                     max_j |<d * w, r_j>| / delta_b for d the pair's yldot difference and its Jacobian-flag difference
                      difference; a ratio >= 1 means c is too small for the measured round-off (exit 3)
 
 The tolerances are those of test_default.py: compare.tolerances(ref, sigma, rtol, k, imap) with ref the release-grade
 default, sigma families/<f>/sigma.h5 and rtol, k from tolerances.toml. --from-collection DIR reads the default from
-DIR/<family>.<config>.1.pkl (a measure_roundoff collection, the linux-serial label before the reference file exists);
---from-store reads it from the family's reference file (open_store), whose stored thresholds (store.py,
-sketch_threshold) must equal the recomputed ones (exit 2 otherwise). The owner set R_max = 2 * c * sqrt(N_block) from
-this table (2026-10-23, AIUE-92 D3); the remedy for the blocks over it, a tolerance-weighted sketch, is AIUE-174.
+DIR/<family>.<config>.1.pkl (a measure_roundoff collection, the linux-serial label before the reference file exists)
+and weights it by 1 / tol; --from-store reads the default and the stored weights from the family's reference file
+(open_store), whose stored thresholds (store.py, sketch_threshold) must equal the recomputed ones (exit 2 otherwise).
 Pure Python: no evaluation, no uedge import. Exit codes: 0 ok, 2 usage or harness error, 3 a finding for the owner.
 """
 import argparse
@@ -46,6 +48,7 @@ from yldot.harness.process import family_dir  # noqa: E402
 
 SUITE = Path(__file__).resolve().parents[1]
 SEED_PICKS = 89  # test_thresholds.py's: the seed selects rows only
+R_MAX_FACTOR = 2.0  # R_max = 2 * c * sqrt(N_block) (owner, 2026-10-23, AIUE-92 D3)
 BISECT_RTOL = 1e-3
 AGREE_RTOL = 1e-2
 # the serial pairs of measure_roundoff.py (PRD section 7.7): (name, first label, first run, second label, second run)
@@ -76,15 +79,16 @@ def picks(labels, rows, ref):
     return out
 
 
-def bisect_threshold(ref, i, b, tol, labels, rows, imap, guess, c=store.C):
-    """The smallest change of entry i that sketch_compare fails on block b alone, by bisection to BISECT_RTOL."""
+def bisect_threshold(ref, i, b, tol, labels, rows, imap, guess, c=store.C, w=None):
+    """The smallest change of entry i that sketch_compare (weights w) fails on block b alone, by bisection to
+    BISECT_RTOL."""
     lab, r = [labels[b]], [rows[b]]
-    refsk = store.sketch(ref, lab, r)
+    refsk = store.sketch(ref, lab, r, w=w)
 
     def fails(d):
         x = ref.copy()
         x[i] += d
-        return not store.sketch_compare(refsk, store.sketch(x, lab, r), tol, lab, r, imap, c=c).ok
+        return not store.sketch_compare(refsk, store.sketch(x, lab, r, w=w), tol, lab, r, imap, c=c, w=w).ok
 
     lo, hi = 0.0, 2.0 * guess
     while not fails(hi):
@@ -97,13 +101,13 @@ def bisect_threshold(ref, i, b, tol, labels, rows, imap, guess, c=store.C):
     return hi
 
 
-def roundoff_ratios(a, b, delta, labels, rows, seed=store.SEED, k=store.K):
-    """Per block, max_j |<a - b, r_j>| / delta_b for yldot and for the flag difference yldot_J - yldot."""
+def roundoff_ratios(a, b, delta, labels, rows, seed=store.SEED, k=store.K, w=None):
+    """Per block, max_j |<(a - b) * w, r_j>| / delta_b for yldot and for the flag difference yldot_J - yldot."""
     out = {}
     for part, va, vb in (("yldot", a["yldot"], b["yldot"]),
                          ("flag difference", np.asarray(a["yldot_J"]) - np.asarray(a["yldot"]),
                           np.asarray(b["yldot_J"]) - np.asarray(b["yldot"]))):
-        sa, sb = store.sketch(va, labels, rows, seed, k), store.sketch(vb, labels, rows, seed, k)
+        sa, sb = store.sketch(va, labels, rows, seed, k, w), store.sketch(vb, labels, rows, seed, k, w)
         out[part] = np.abs(sa["proj"] - sb["proj"]).max(axis=1) / delta
     return out
 
@@ -139,12 +143,14 @@ def default_from_collection(directory, family, config):
     return np.asarray(r["yldot"], dtype=np.float64), compare.index_map(r, regions), r
 
 
-def analyze(family, config, ref, sigma, imap, tol_toml, collections=None, stored=None):
+def analyze(family, config, ref, sigma, imap, tol_toml, collections=None, stored=None, w=None):
     """The (d) table of one family and configuration as a dict; findings in its 'owner' and 'errors' lists. stored:
-    the reference file's (delta, cell) (SketchStore.sketch_thresholds), which must equal the recomputed ones."""
+    the reference file's (delta, cell) (SketchStore.sketch_thresholds), which must equal the recomputed ones. w: the
+    stored sketch weights (default 1 / tol, the weights a reference generated now would store)."""
     t = compare.tolerances(ref, sigma, tol_toml["rtol"], tol_toml["rule"]["k"], imap).tol
+    w = 1.0 / t if w is None else np.asarray(w, dtype=np.float64)
     labels, rows, _ = store.blocks(imap)
-    delta, cell = store.sketch_thresholds(t, labels, rows, imap)
+    delta, cell = store.sketch_thresholds(t, labels, rows, imap, w=w)
     out = {"family": family, "config": config, "neq": int(imap.neq), "c": store.C, "blocks": [], "regions": {},
            "roundoff": {}, "errors": [], "owner": []}
     if stored is not None:
@@ -155,19 +161,25 @@ def analyze(family, config, ref, sigma, imap, tol_toml, collections=None, stored
                                  "and tolerances.toml".format(family, config))
     chosen = picks(labels, rows, ref)
     for b, (label, r) in enumerate(zip(labels, rows)):
-        ratio = delta[b] / t[r]
+        ratio = delta[b] / (t[r] * w[r])
         worst = int(r[int(np.argmax(ratio))])
         agree = []
         for i in chosen[label]:
-            measured = bisect_threshold(ref, i, b, t, labels, rows, imap, delta[b])
-            agree.append(measured / delta[b] - 1.0)
-            if abs(measured / delta[b] - 1.0) > AGREE_RTOL:
+            analytic = delta[b] / w[i]
+            measured = bisect_threshold(ref, i, b, t, labels, rows, imap, analytic, w=w)
+            agree.append(measured / analytic - 1.0)
+            if abs(measured / analytic - 1.0) > AGREE_RTOL:
                 out["errors"].append("{} {}: {} bisection {:.6e} vs analytic {:.6e}".format(
-                    family, config, imap.label(i), measured, delta[b]))
+                    family, config, imap.label(i), measured, analytic))
+        r_max_limit = R_MAX_FACTOR * store.C * math.sqrt(len(r))
         out["blocks"].append({
             "block": label, "n": len(r), "delta": float(delta[b]), "c_sqrt_n": store.C * math.sqrt(len(r)),
-            "r_min": float(ratio.min()), "r_median": float(np.median(ratio)), "r_max": float(ratio.max()),
-            "worst": imap.label(worst), "bisection_max_dev": float(max(abs(a) for a in agree))})
+            "r_max_limit": r_max_limit, "r_min": float(ratio.min()), "r_median": float(np.median(ratio)),
+            "r_max": float(ratio.max()), "worst": imap.label(worst),
+            "bisection_max_dev": float(max(abs(a) for a in agree))})
+        if not ratio.max() <= r_max_limit:
+            out["owner"].append("{} {}: block {} has R up to {:.3g} at {}, over R_max = 2*c*sqrt(N) = {:.3g}".format(
+                family, config, label, float(ratio.max()), imap.label(worst), r_max_limit))
     for (ix, iy), (m, b) in sorted(cell.items()):
         region = imap.region[rows[b][0]]
         cur = out["regions"].get(region)
@@ -180,13 +192,13 @@ def analyze(family, config, ref, sigma, imap, tol_toml, collections=None, stored
             if a is None or b is None or a.get("status") != "ok" or b.get("status") != "ok":
                 out["errors"].append("{} {}: pair {} not collected".format(family, config, name))
                 continue
-            ratios = roundoff_ratios(a, b, delta, labels, rows)
+            ratios = roundoff_ratios(a, b, delta, labels, rows, w=w)
             worst = {part: (float(v.max()), labels[int(np.argmax(v))]) for part, v in ratios.items()}
-            out["roundoff"][name] = {part: {"max": w, "block": lab} for part, (w, lab) in worst.items()}
-            for part, (w, lab) in worst.items():
-                if w >= 1.0:
+            out["roundoff"][name] = {part: {"max": q, "block": lab} for part, (q, lab) in worst.items()}
+            for part, (q, lab) in worst.items():
+                if q >= 1.0:
                     out["owner"].append("{} {}: round-off {} {} block {} reaches {:.3g} of the sketch bound".format(
-                        family, config, name, part, lab, w))
+                        family, config, name, part, lab, q))
     return out
 
 
@@ -213,18 +225,18 @@ def run(families, args):
         if load_toml(fdir / "family.toml")["family"].get("store") != "sketch":
             raise Stop(2, "{}: not a sketch-store family".format(family))
         for config in CONFIGS:
-            stored = None
+            stored = w = None
             if args.from_store:
                 with open_store(family) as s:
                     ref, sigma, imap = np.array(s.default(config)), np.array(s.sigma(config)), s.imap
-                    stored = s.sketch_thresholds(config)
+                    stored, w = s.sketch_thresholds(config), np.array(s.weights(config))
                 if stored is None:
                     raise Stop(2, "{} {}: the reference file stores no sketch thresholds".format(family, config))
             else:
                 ref, imap, _ = default_from_collection(args.from_collection, family, config)
                 sigma = sigma_h5(family, config)
             coll = load_collections(args.collections, family, config) if args.collections else None
-            tables.append(analyze(family, config, ref, sigma, imap, tol_toml, coll, stored))
+            tables.append(analyze(family, config, ref, sigma, imap, tol_toml, coll, stored, w))
     return tables
 
 
@@ -233,20 +245,24 @@ def run(families, args):
 
 def report(tables):
     lines = ["# Sketch sensitivity (PRD 7.11 (d))", "",
-             "R = delta_b / tol_i: how many of its own tolerances one entry must move before its block's sketch fails "
-             "(c = {}); c*sqrt(N) is R for a uniform tol. m: the same for a whole cell (D5).".format(store.C), ""]
+             "R = delta_b / (tol_i * w_i): how many of its own tolerances one entry must move before its block's "
+             "weighted sketch fails (c = {}; w the stored weights, AIUE-174); c*sqrt(N) is R while tol is the "
+             "generation tol, R_max = 2*c*sqrt(N) the owner's limit (AIUE-92 D3). m: the same for a whole cell "
+             "(D5).".format(store.C), ""]
     for t in tables:
         lines += ["## {} {} (neq {}, {} blocks)".format(t["family"], t["config"], t["neq"], len(t["blocks"])), "",
-                  "| block | N | c*sqrt(N) | R min | R median | R max | worst entry |", "|---|---|---|---|---|---|---|"]
+                  "| block | N | c*sqrt(N) | R_max | R min | R median | R max | worst entry |",
+                  "|---|---|---|---|---|---|---|---|"]
         for b in t["blocks"]:
-            lines.append("| {} | {} | {:.0f} | {:.3g} | {:.3g} | {:.3g} | {} |".format(
-                b["block"], b["n"], b["c_sqrt_n"], b["r_min"], b["r_median"], b["r_max"], b["worst"]))
+            lines.append("| {} | {} | {:.0f} | {:.0f} | {:.4g} | {:.4g} | {:.4g} | {} |".format(
+                b["block"], b["n"], b["c_sqrt_n"], b["r_max_limit"], b["r_min"], b["r_median"], b["r_max"],
+                b["worst"]))
         lines += ["", "Worst cell per region (median m over all cells {:.3g}):".format(t["cell_m_median"]), "",
                   "| region | m | ix | iy | fires first |", "|---|---|---|---|---|"]
         for region, w in sorted(t["regions"].items()):
             lines.append("| {} | {:.3g} | {} | {} | {} |".format(region, w["m"], w["ix"], w["iy"], w["fires"]))
         if t["roundoff"]:
-            lines += ["", "Round-off against the sketch bound (max_j |<d, r_j>| / delta_b, worst block):", "",
+            lines += ["", "Round-off against the sketch bound (max_j |<d * w, r_j>| / delta_b, worst block):", "",
                       "| pair | yldot | block | flag difference | block |", "|---|---|---|---|---|"]
             for name, r in t["roundoff"].items():
                 lines.append("| {} | {:.3g} | {} | {:.3g} | {} |".format(

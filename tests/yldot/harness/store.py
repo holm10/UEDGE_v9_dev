@@ -14,9 +14,12 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
     /<config>/default/{yldot, sigma}                                   full vectors in both stores
     /<config>/default/jflag/{index, value}                             rows where yldot_J != yldot, yldot_J - yldot
     /<config>/default/diagnostics/<name>                               full: every diagnostic array; sketch: res*
+    sketch: /<config>/default/sketch_weight                            the weights w_i = 1 / tol_i of the default at
+                                                                       generation, required (AIUE-174)
     sketch: /<config>/default/sketch_threshold/{block, cell_ix, cell_iy, cell_m, cell_block}
-                                                                       sketch_thresholds of the default's tol_i
-                                                                       (PRD 7.11 d; AIUE-92), cells in (ix, iy) order
+                                                                       sketch_thresholds of the default's tol_i and
+                                                                       w_i (PRD 7.11 d; AIUE-92), cells in (ix, iy)
+                                                                       order
     full:   /<config>/variants/<id>/yldot/{index, value}                rows differing (bitwise) from the default
             /<config>/variants/<id>/jflag/{index, value}                the variant's own flag difference
     sketch: /<config>/variants/<id>/{yldot, jflag}/{proj, l2, maxabs, argmax}
@@ -26,8 +29,10 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
 Blocks are (equation, species, region) from compare.IndexMap.groups() (index truth, decision 19). A sketch projects a
 block onto k Rademacher (+-1) vectors whose signs are the raw bits of numpy's PCG64 bit generator, which numpy keeps
 stream-stable (Generator methods are not used); each block's vectors depend only on (seed, label, block size). Sums
-are math.fsum, correctly rounded and independent of the order. The sketch comparator is
-|<new - ref, r_j>| <= c * sqrt(sum tol_i^2) over the block, c = 6.5 (owner-confirmed, decision 30).
+are math.fsum, correctly rounded and independent of the order. A sketch store projects the weighted vector x * w
+with its stored per-configuration weights w (AIUE-174), and the sketch comparator is
+|<(new - ref) * w, r_j>| <= c * sqrt(sum (tol_i * w_i)^2) over the block, c = 6.5 (owner-confirmed, decision 30):
+with w_i = 1 / tol_i one entry is seen once it moves c * sqrt(N_block) of its own tolerances, whichever entry it is.
 
 Integrity (PRD section 7.6): open_store checks the file's SHA-256, its set of datasets and its blocks against the
 manifest and the family's regions, and that the manifest's guarded, unguarded and variant SHA-256s and the set of
@@ -55,6 +60,7 @@ K = 8
 SEED = 20261019
 C = 6.5  # owner-confirmed, decision 30
 SCHEMA = 1
+WEIGHT = "sketch_weight"  # /<config>/default/sketch_weight, a sketch store's weights (AIUE-174)
 LIBVER = ("v110", "latest")  # owner, 2026-10-22 (AIUE-94 D3)
 FETCH = "python tests/yldot/tools/fetch_data.py"
 
@@ -165,16 +171,28 @@ def fsum(v):
         return float("inf")
 
 
-def sketch(x, labels, rows, seed=SEED, k=K):
-    """Per block: proj (nblock, k), l2, maxabs and argmax (the 0-based row of the largest |entry|)."""
+def per_entry(name, a, n):
+    """a as a float64 vector of shape (n,), finite and > 0 at every entry (a tolerance or a weight), else ValueError."""
+    a = np.asarray(a, dtype=np.float64)
+    if a.shape != (n,) or not (np.isfinite(a).all() and (a > 0).all()):
+        raise ValueError("{} must have shape ({},) and be finite and > 0 at every entry".format(name, n))
+    return a
+
+
+def sketch(x, labels, rows, seed=SEED, k=K, w=None):
+    """Per block: proj (nblock, k) of the weighted x * w (of x if w is None), and l2, maxabs and argmax (the 0-based
+    row of the largest |entry|) of x itself. w: a sketch store's stored weights (AIUE-174)."""
     x = np.asarray(x, dtype=np.float64)
+    if w is not None:
+        w = per_entry("w", w, len(x))
     nb = len(labels)
     out = {"proj": np.empty((nb, k)), "l2": np.empty(nb), "maxabs": np.empty(nb), "argmax": np.empty(nb, np.int32)}
     for b, (label, r) in enumerate(zip(labels, rows)):
         xb = x[r]
+        xw = xb if w is None else xb * w[r]
         s = signs(seed, label, len(xb), k)
         for j in range(k):
-            out["proj"][b, j] = fsum(np.where(s[j] > 0, xb, -xb))
+            out["proj"][b, j] = fsum(np.where(s[j] > 0, xw, -xw))
         out["l2"][b] = math.sqrt(fsum(xb * xb)) if np.isfinite(xb).all() else float("nan")
         a = np.abs(xb)
         i = int(np.argmax(a)) if not np.isnan(a).any() else int(np.flatnonzero(np.isnan(a))[0])
@@ -202,15 +220,17 @@ class Check:
         return "\n".join(self.lines)
 
 
-def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot"):
-    """|P_new[b, j] - P_ref[b, j]| <= c * sqrt(fsum(tol_i^2 over block b)) for every block and projection (PRD
-    section 7.4); a non-finite projection fails. ref, new: sketch() dicts; tol: the per-entry tolerances."""
-    tol = np.asarray(tol, dtype=np.float64)
-    if tol.shape != (imap.neq,) or not (np.isfinite(tol).all() and (tol > 0).all()):
-        raise ValueError("tol must have shape ({},) and be finite and > 0 at every entry".format(imap.neq))
+def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot", w=None):
+    """|P_new[b, j] - P_ref[b, j]| <= c * sqrt(fsum((tol_i * w_i)^2 over block b)) for every block and projection (PRD
+    section 7.4; w_i = 1 if w is None); a non-finite projection fails. ref, new: sketch() dicts made with the same w;
+    tol: the per-entry tolerances. With w_i = 1/tol_i (a sketch store's weights, AIUE-174) one entry moved by m * tol_i
+    moves every projection of its block by +-m, so every entry is seen at the same m = c * sqrt(N_block)."""
+    tw = per_entry("tol", tol, imap.neq)
+    if w is not None:
+        tw = tw * per_entry("w", w, imap.neq)
     fails = []
     for b, label in enumerate(labels):
-        bound = c * math.sqrt(fsum(tol[rows[b]] ** 2))
+        bound = c * math.sqrt(fsum(tw[rows[b]] ** 2))
         with np.errstate(invalid="ignore"):
             d = np.abs(np.asarray(new["proj"][b]) - np.asarray(ref["proj"][b]))
             bad = ~(d <= bound)
@@ -219,7 +239,8 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot"):
             ratio[~np.isfinite(ratio)] = np.inf
             fails.append((float(ratio.max()), b))
     if not fails:
-        return Check(True, ["{} PASS: all {} blocks within c*sqrt(sum tol^2), c = {}".format(what, len(labels), c)])
+        return Check(True, ["{} PASS: all {} blocks within c*sqrt(sum {}^2), c = {}".format(
+            what, len(labels), "tol" if w is None else "(w*tol)", c)])
     lines = ["{} FAIL: {} of {} blocks out of tolerance (c = {})".format(what, len(fails), len(labels), c)]
     for ratio, b in sorted(fails, reverse=True):
         lines.append("  {:24s} worst |dP|/bound {:.3g}; largest |entry| stored {} ({:.6e}), new {} ({:.6e}); "
@@ -230,15 +251,16 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot"):
     return Check(False, lines)
 
 
-def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K):
-    """(delta, cell) of the sketch comparator (PRD section 7.11 (d)): delta[b] = c * sqrt(fsum(tol^2 over block b)),
-    the smallest single-entry change block b's sketch detects, whichever entry changes (it moves every projection by
-    +-the change); cell {(ix, iy): (m, b)}, the smallest multiple m such that moving every entry e at (ix, iy) by the
-    same +m * tol_e fails some block, and the block b that fails first (owner, 2026-10-22, AIUE-92 D5); m is inf
-    where such a change cancels in every projection of every block holding the cell."""
-    tol = np.asarray(tol, dtype=np.float64)
-    if tol.shape != (imap.neq,) or not (np.isfinite(tol).all() and (tol > 0).all()):
-        raise ValueError("tol must have shape ({},) and be finite and > 0 at every entry".format(imap.neq))
+def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K, w=None):
+    """(delta, cell) of the sketch comparator (PRD section 7.11 (d)) with weights w (w_i = 1 if None): delta[b] =
+    c * sqrt(fsum((tol_i * w_i)^2 over block b)), the bound in weighted units, so the smallest single-entry change
+    block b's sketch detects at entry i is delta[b] / w_i (it moves every projection by +-the change times w_i); cell
+    {(ix, iy): (m, b)}, the smallest multiple m such that moving every entry e at (ix, iy) by the same +m * tol_e fails
+    some block, and the block b that fails first (owner, 2026-10-22, AIUE-92 D5); m is inf where such a change
+    cancels in every projection of every block holding the cell."""
+    tol = per_entry("tol", tol, imap.neq)
+    if w is not None:
+        tol = tol * per_entry("w", w, imap.neq)  # from here on tol_e * w_e, what one tol_e moves a projection by
     delta = np.array([c * math.sqrt(fsum(tol[r] ** 2)) for r in rows])
     cell = {}
     for b, (label, r) in enumerate(zip(labels, rows)):
@@ -295,7 +317,7 @@ class Writer:
             raise ValueError("neq = {} does not fit int32 indices".format(imap.neq))
         self.path, self.kind, self.imap, self.k, self.seed = Path(path), kind, imap, k, seed
         self.labels, self.rows, ids = blocks(imap)
-        self.defaults = {}
+        self.defaults, self.weights = {}, {}
         self.f = h5py.File(self.path, "w", libver=LIBVER)
         self.f.attrs["schema"], self.f.attrs["family"], self.f.attrs["store"] = SCHEMA, family, kind
         if kind == "sketch":
@@ -334,19 +356,30 @@ class Writer:
                 _ds(gd, name, np.asarray(diagnostics[name], dtype=np.float64))
         self.defaults[config] = yldot
 
-    def write_sketch_thresholds(self, config, tol):
-        """A sketch store's single-entry and single-cell thresholds of the default (sketch_thresholds), from tol, the
-        default's per-entry tolerance (compare.tolerances with its sigma and tolerances.toml)."""
+    def write_sketch_thresholds(self, config, tol, weights=None):
+        """A sketch store's weights and its single-entry and single-cell thresholds of the default
+        (sketch_thresholds), from tol, the default's per-entry tolerance (compare.tolerances with its sigma and
+        tolerances.toml). The weights /<config>/default/sketch_weight are 1 / tol unless given (make_references.py
+        --only keeps the stored ones, so the copied variant sketches stay valid); every sketch of the configuration
+        is weighted by them (AIUE-174; owner, 2026-10-23: required in a sketch store)."""
         if self.kind != "sketch":
             raise StoreError("sketch thresholds belong to a sketch store, not a {} store".format(self.kind))
         if config not in self.defaults:
             raise StoreError("{}: write the default before its sketch thresholds".format(config))
-        if "{}/default/sketch_threshold".format(config) in self.f:
+        if config in self.weights:
             raise StoreError("{}: sketch thresholds already written".format(config))
-        delta, cell = sketch_thresholds(tol, self.labels, self.rows, self.imap, seed=self.seed, k=self.k)
+        tol = per_entry("tol", tol, self.imap.neq)
+        with np.errstate(over="ignore"):  # an overflow is refused below
+            w = 1.0 / tol if weights is None else np.array(per_entry("weights", weights, self.imap.neq))
+        if not (np.isfinite(w).all() and (w > 0).all()):
+            raise ValueError("1 / tol is not finite and > 0 at rows {}".format(listed(np.flatnonzero(
+                ~(np.isfinite(w) & (w > 0))) + 1)))
+        _ds(self.f["{}/default".format(config)], WEIGHT, w)
+        delta, cell = sketch_thresholds(tol, self.labels, self.rows, self.imap, seed=self.seed, k=self.k, w=w)
         g = self.f.create_group("{}/default/sketch_threshold".format(config))
         for name, a in threshold_arrays(delta, cell).items():
             _ds(g, name, a)
+        self.weights[config] = w
 
     def write_locality(self, config, delta, entries):
         """The locality entries the reference keeps (locality.pattern: score > 1) of a run at delta."""
@@ -380,6 +413,8 @@ class Writer:
             raise StoreError("{}: write the default before its variants".format(config))
         if "/" in vid or not vid:
             raise ValueError("variant id {!r}: non-empty, without '/'".format(vid))
+        if self.kind == "sketch" and config not in self.weights:
+            raise StoreError("{}: write the sketch weights (write_sketch_thresholds) before its variants".format(config))
         n = self.imap.neq
         yldot, yldot_J = _f64("yldot", yldot, n), _f64("yldot_J", yldot_J, n)
         g = self.f.create_group("{}/variants/{}".format(config, vid))
@@ -392,7 +427,7 @@ class Writer:
         else:
             for name, x in (("yldot", yldot), ("jflag", yldot_J - yldot)):
                 gs = g.create_group(name)
-                for key, a in sketch(x, self.labels, self.rows, self.seed, self.k).items():
+                for key, a in sketch(x, self.labels, self.rows, self.seed, self.k, self.weights[config]).items():
                     _ds(gs, key, a)
 
     def copy_variant(self, config, vid, src):
@@ -406,6 +441,13 @@ class Writer:
             raise StoreError("copy from a {} store into a {} store".format(src.kind, self.kind))
         if vid not in src.variants(config):
             raise StoreError("{}: no stored variant {} in {}".format(src.path, vid, config))
+        if self.kind == "sketch":  # the stored projections are in the source's weights
+            if config not in self.weights:
+                raise StoreError("{}: write the sketch weights (write_sketch_thresholds) before its variants".format(
+                    config))
+            if np.asarray(src.weights(config)).tobytes() != self.weights[config].tobytes():
+                raise StoreError("{}: the sketch weights of {} differ from this file's: its variant sketches cannot "
+                                 "be copied".format(config, src.path))
         prefix = "{}/variants/{}".format(config, vid)
         if prefix in self.f:
             raise StoreError("{}: variant {} already written".format(config, vid))
@@ -421,6 +463,10 @@ class Writer:
         import h5py
 
         self.f.close()
+        missing = [config for config in self.defaults if self.kind == "sketch" and config not in self.weights]
+        if missing:
+            raise StoreError("{}: a sketch store needs its weights: no write_sketch_thresholds for {}".format(
+                self.path, missing))
         with h5py.File(self.path, "r") as f:
             shas = {name: dataset_sha256(a) for name, a in _datasets(f).items()}
         return {"datasets": shas, "sha256": file_sha256(self.path), "bytes": self.path.stat().st_size}
@@ -613,12 +659,21 @@ class SketchStore(Store):
                 for ix, iy, m, b in zip(a["cell_ix"], a["cell_iy"], a["cell_m"], a["cell_block"])}
         return np.array(a["block"]), cell
 
+    def weights(self, config):
+        """The configuration's stored sketch weights w_i (1 / tol_i of the default at generation, AIUE-174)."""
+        w = self.read("/{}/default/{}".format(config, WEIGHT))
+        try:
+            return per_entry("the stored sketch weights", w, self.imap.neq)
+        except ValueError as e:
+            raise StoreIntegrityError("{}: {} ({})".format(self.path, e, config))
+
     def _check_variant(self, config, vid, yldot, yldot_J, tol, imap):
         ref, ref_j = self.variant(config, vid)
-        new = sketch(yldot, self.labels, self.rows, self.seed, self.k)
-        new_j = sketch(yldot_J - yldot, self.labels, self.rows, self.seed, self.k)
-        return [sketch_compare(ref, new, tol, self.labels, self.rows, imap, what="yldot"),
-                sketch_compare(ref_j, new_j, tol, self.labels, self.rows, imap, what="flag difference")]
+        w = self.weights(config)
+        new = sketch(yldot, self.labels, self.rows, self.seed, self.k, w)
+        new_j = sketch(yldot_J - yldot, self.labels, self.rows, self.seed, self.k, w)
+        return [sketch_compare(ref, new, tol, self.labels, self.rows, imap, what="yldot", w=w),
+                sketch_compare(ref_j, new_j, tol, self.labels, self.rows, imap, what="flag difference", w=w)]
 
 
 STORED_VARIANT = re.compile(r"^/([^/]+)/variants/([^/]+)/")
@@ -680,6 +735,15 @@ def open_store(family, suite=mf.SUITE, regions=None):
         if m["store"] == "sketch" and {"k": int(f.attrs["k"]), "seed": int(f.attrs["seed"])} != m["sketch"]:
             raise StoreIntegrityError("{}: k/seed differ from the manifest's sketch {}".format(p, m["sketch"]))
         check_derived(m, p)
+        weighted = {name for name in m["datasets"] if name.endswith("/default/" + WEIGHT)}
+        if m["store"] == "sketch":  # weights required in a sketch store (owner, 2026-10-23, AIUE-174)
+            lacking = [config for config in mf.CONFIG_NAMES if "/{}/default/yldot".format(config) in m["datasets"]
+                       and "/{}/default/{}".format(config, WEIGHT) not in weighted]
+            if lacking:
+                raise StoreIntegrityError("{}: a sketch store without sketch weights for {}: regenerate it".format(
+                    p, lacking))
+        elif weighted:
+            raise StoreIntegrityError("{}: a full store with sketch weights {}".format(p, sorted(weighted)))
         if regions is None:
             regions = load_regions(Path(suite) / "families" / family)
         cls = FullVectorStore if m["store"] == "full" else SketchStore

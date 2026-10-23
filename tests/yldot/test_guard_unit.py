@@ -93,16 +93,17 @@ def variant(seed):
 
 
 def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None,
-             locality=None, kind="full", thresholds=None):
+             locality=None, kind="full", thresholds=None, weights=None):
     """(manifest, .h5 bytes) of a reference (a full store unless kind); variables {id: (class, seed)}, the SENSITIVE
     ones stored; locality: (delta, entries) of a stored locality pattern; thresholds: the tol of a sketch store's
-    stored sketch thresholds."""
+    stored sketch thresholds (default THR: a sketch store always has them and its weights, AIUE-174); weights: its
+    stored weights (default 1 / thresholds)."""
     p = Path(where) / "{}-{}.h5".format(family, next(COUNTER))
     w = store.create(p, kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, default, YJ + (default - Y), sigma, diag)
-        if thresholds is not None:
-            w.write_sketch_thresholds(config, thresholds)
+        if kind == "sketch":
+            w.write_sketch_thresholds(config, THR if thresholds is None else thresholds, weights)
     if locality is not None:
         w.write_locality("steady", *locality)
     for vid, (cls, seed) in sorted(variables.items()):
@@ -592,13 +593,53 @@ def test_removed_locality_pattern_is_a_default_change(repo):
 THR = np.linspace(1e-9, 1e-7, N)
 
 
+def without(prefix_end, other_thresholds=False):
+    """A put_ref edit: the manifest without the datasets ending in prefix_end (a store from before they existed);
+    other_thresholds: also another SHA for every sketch threshold dataset (an unweighted store's, as in v6)."""
+    def edit(m):
+        for name in [n for n in m["datasets"] if n.endswith(prefix_end) or prefix_end + "/" in n]:
+            del m["datasets"][name]
+        if other_thresholds:
+            for name in [n for n in m["datasets"] if "/sketch_threshold/" in n]:
+                m["datasets"][name] = hashlib.sha256(name.encode()).hexdigest()
+        m["guarded"], m["unguarded"] = mf.summarize(m["datasets"])
+    return edit
+
+
 def test_new_sketch_thresholds_are_an_addition(repo):
-    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False)
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False,
+                 edit=lambda m: (without("/sketch_threshold")(m), without("/sketch_weight")(m)))
     repo.base = repo.commit("a sketch store")
     repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=THR)
     code, v, text = repo.check()
     assert code == 0, text
-    assert v["required"] == [] and "addition: guarded ['steady/sketch_threshold', 'timestep/sketch_threshold']" in text
+    assert v["required"] == [] and "addition: guarded ['steady/sketch_threshold', 'steady/sketch_weight', " \
+        "'timestep/sketch_threshold', 'timestep/sketch_weight']" in text
+
+
+def test_weights_added_to_an_unweighted_store(repo):
+    """AIUE-174, the v6 -> v7 step: weights are an addition, the weighted thresholds a loosening (changed)."""
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False,
+                 edit=without("/sketch_weight", other_thresholds=True))
+    repo.base = repo.commit("an unweighted sketch store")
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch")
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"changed", "loosened"}, text
+    assert "addition: guarded ['steady/sketch_weight', 'timestep/sketch_weight']" in text
+    assert "stored sketch thresholds steady/sketch_threshold changed" in text
+    assert not any("sketch_weight" in item for item in v["items"])
+
+
+def test_changed_sketch_weights_are_a_default_change(repo):
+    """AIUE-174: a weight change changes what every variant sketch means, so it is judged like the defaults."""
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", release=V1, serve=False)
+    repo.base = repo.commit("a sketch store")
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", weights=2.0 / THR)
+    code, v, text = repo.check()
+    assert code == 1 and "default" in reqs(v), text
+    assert "guarded steady/sketch_weight changed" in text
+    assert {"oth:steady/sketch_weight", "oth:timestep/sketch_weight"} <= set(v["items"])
+    assert not any(item.endswith("/default/sketch_weight") for item in v["items"])  # judged through guarded only
 
 
 def test_changed_sketch_thresholds_are_a_loosening(repo):
@@ -606,7 +647,7 @@ def test_changed_sketch_thresholds_are_a_loosening(repo):
     changed sigma), judged through guarded <config>/sketch_threshold, not per dataset."""
     repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=THR, release=V1, serve=False)
     repo.base = repo.commit("sketch thresholds")
-    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=0.5 * THR)
+    repo.put_ref("oth", BASE_VARIABLES["oth"], kind="sketch", thresholds=0.5 * THR, weights=1.0 / THR)  # same weights
     code, v, text = repo.check()
     assert code == 1 and reqs(v) == {"changed", "loosened"}, text  # a loosening also needs the changed line
     assert "stored sketch thresholds steady/sketch_threshold changed" in text
@@ -1134,6 +1175,8 @@ def ref_file(tmp_path, kind):
     w = store.create(p, kind, "fam", DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, Y, YJ, SIGMA, DIAG)
+        if kind == "sketch":
+            w.write_sketch_thresholds(config, THR)
     out = w.finish()
     m = {"family": "fam", "store": kind, "datasets": out["datasets"]}
     if kind == "sketch":

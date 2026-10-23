@@ -53,6 +53,8 @@ def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", releas
     w = store.create(ref / "{}.h5".format(family), kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
         w.write_default(config, Y, YJ, SIGMA, DIAG)
+        if kind == "sketch":  # weights 1/TOL, required (AIUE-174)
+            w.write_sketch_thresholds(config, TOL)
     if locality is not None:
         w.write_locality("steady", *locality)
     for vid, yv, yjv in variants:
@@ -154,6 +156,8 @@ def test_copy_variant_is_verbatim(tmp_path, kind):
         w = store.create(p, kind, "fam", DATA, IMAP)
         for config in mf.CONFIG_NAMES:
             w.write_default(config, Y, YJ, SIGMA, DIAG)
+            if kind == "sketch":
+                w.write_sketch_thresholds(config, TOL)
         for vid, _, _ in variants:
             w.copy_variant("steady", vid, s)
         with pytest.raises(store.StoreError, match="already written"):
@@ -182,8 +186,9 @@ def test_sketch_round_trip_and_thresholds(tmp_path):
         assert s.default("steady").tobytes() == Y.tobytes()  # the default stays a full vector
         assert set(s.diagnostics("steady")) == {"resco"}  # res* only
         ref, ref_j = s.variant("steady", "bbb.cfvisx")
+        assert s.weights("steady").tobytes() == (1.0 / TOL).tobytes()
         for stored, x in ((ref, YV), (ref_j, YJV - YV)):
-            again = store.sketch(x, LABELS, ROWS)
+            again = store.sketch(x, LABELS, ROWS, w=1.0 / TOL)
             assert all(stored[k].tobytes() == again[k].tobytes() for k in again)
         assert s.check("steady", "bbb.cfvisx", YV, YJV, TOL, IMAP).ok
         noise = 0.1 * TOL * np.where(RNG.random(N) < 0.5, -1.0, 1.0)
@@ -243,18 +248,31 @@ def build_thresholds(suite):
 
 
 def test_sketch_thresholds_round_trip(tmp_path):
-    """AIUE-92 (PRD 7.11 d): the stored thresholds are store.sketch_thresholds of the tol given, guarded per
-    configuration; a store without them reads None."""
+    """AIUE-92 (PRD 7.11 d), AIUE-174: the stored weights are 1 / tol and the stored thresholds
+    store.sketch_thresholds of the tol given with them, both guarded per configuration."""
     m = build_thresholds(tmp_path)
-    assert {"steady/sketch_threshold", "timestep/sketch_threshold"} <= set(m["guarded"])
-    delta, cell = store.sketch_thresholds(THR_TOL, LABELS, ROWS, IMAP)
+    assert {"steady/sketch_threshold", "timestep/sketch_threshold", "steady/sketch_weight",
+            "timestep/sketch_weight"} <= set(m["guarded"])
+    delta, cell = store.sketch_thresholds(THR_TOL, LABELS, ROWS, IMAP, w=1.0 / THR_TOL)
     with store.open_store("fam", tmp_path, regions=SPEC) as s:
         for config in mf.CONFIG_NAMES:
+            assert s.weights(config).tobytes() == (1.0 / THR_TOL).tobytes()
             got_delta, got_cell = s.sketch_thresholds(config)
             assert got_delta.tobytes() == delta.tobytes() and got_cell == cell
-    build(tmp_path / "plain", "sketch")
-    with store.open_store("fam", tmp_path / "plain", regions=SPEC) as s:
-        assert s.sketch_thresholds("steady") is None
+
+
+def test_given_weights_are_stored(tmp_path):
+    """make_references.py --only passes the stored weights on, so they are kept, not 1 / the new tol."""
+    keep = np.linspace(2.0, 3.0, N)
+    w = store.create(tmp_path / "s.h5", "sketch", "fam", DATA, IMAP)
+    for config in mf.CONFIG_NAMES:
+        w.write_default(config, Y, YJ, SIGMA, DIAG)
+        w.write_sketch_thresholds(config, THR_TOL, keep)
+    w.finish()
+    with h5py.File(tmp_path / "s.h5", "r") as f:
+        assert f["steady/default/sketch_weight"][()].tobytes() == keep.tobytes()
+        delta, _ = store.sketch_thresholds(THR_TOL, LABELS, ROWS, IMAP, w=keep)
+        assert f["steady/default/sketch_threshold/block"][()].tobytes() == delta.tobytes()
 
 
 def test_write_sketch_thresholds_refuses(tmp_path):
@@ -272,6 +290,13 @@ def test_write_sketch_thresholds_refuses(tmp_path):
         w.write_default("steady", Y, YJ, SIGMA, DIAG)
         with pytest.raises(ValueError, match="finite and > 0"):
             w.write_sketch_thresholds("steady", np.zeros(N))
+        for bad in (np.zeros(N), np.full(N, np.nan), -np.ones(N), np.ones(N - 1)):
+            with pytest.raises(ValueError, match="weights must have shape"):
+                w.write_sketch_thresholds("steady", THR_TOL, bad)
+        with pytest.raises(ValueError, match="1 / tol"):
+            w.write_sketch_thresholds("steady", np.full(N, 1e-320))  # 1 / tol overflows
+        with pytest.raises(store.StoreError, match="sketch weights .* before its variants"):
+            w.write_variant("steady", "bbb.cfvisx", YV, YJV)
         w.write_sketch_thresholds("steady", THR_TOL)
         with pytest.raises(store.StoreError, match="already written"):
             w.write_sketch_thresholds("steady", THR_TOL)
@@ -292,6 +317,65 @@ def test_consistent_tamper_of_the_sketch_thresholds_refused(tmp_path):
     reseal(tmp_path)
     with pytest.raises(store.StoreIntegrityError, match="guarded"):
         store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_consistent_tamper_of_the_sketch_weights_refused(tmp_path):
+    m = build_thresholds(tmp_path)
+    name = "/steady/default/sketch_weight"
+    with h5py.File(tmp_path / mf.reference_path("fam"), "a") as f:
+        f[name][0] = 0.5 * f[name][0]
+        m["datasets"][name] = store.dataset_sha256(f[name][()])
+    mf.dump(m, mf.path("fam", tmp_path))
+    reseal(tmp_path)
+    with pytest.raises(store.StoreIntegrityError, match=r"guarded \['steady/sketch_weight'\]"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def drop_or_add_weights(suite, add):
+    """Remove the steady weights from a sketch file, or add some to a full one, with a consistent manifest."""
+    m = mf.load("fam", suite)
+    name = "/steady/default/sketch_weight"
+    with h5py.File(Path(suite) / mf.reference_path("fam"), "a") as f:
+        if add:
+            f.create_dataset(name[1:], data=np.ones(N), track_times=False)
+            m["datasets"][name] = store.dataset_sha256(np.ones(N))
+        else:
+            del f[name[1:]]
+            del m["datasets"][name]
+    m["guarded"], m["unguarded"] = mf.summarize(m["datasets"])
+    mf.dump(m, mf.path("fam", suite))
+    reseal(suite)
+
+
+def test_weights_required_in_a_sketch_store_only(tmp_path):
+    """Owner, 2026-10-23 (AIUE-174): a sketch store without weights is refused at open and at finish; a full store
+    never has any."""
+    build(tmp_path / "s", "sketch")
+    drop_or_add_weights(tmp_path / "s", add=False)
+    with pytest.raises(store.StoreIntegrityError, match=r"without sketch weights for \['steady'\]"):
+        store.open_store("fam", tmp_path / "s", regions=SPEC)
+    build(tmp_path / "f", "full")
+    drop_or_add_weights(tmp_path / "f", add=True)
+    with pytest.raises(store.StoreIntegrityError, match="full store with sketch weights"):
+        store.open_store("fam", tmp_path / "f", regions=SPEC)
+    w = store.create(tmp_path / "x.h5", "sketch", "fam", DATA, IMAP)
+    w.write_default("steady", Y, YJ, SIGMA, DIAG)
+    with pytest.raises(store.StoreError, match=r"needs its weights.*\['steady'\]"):
+        w.finish()
+
+
+def test_copy_variant_refuses_other_weights(tmp_path):
+    """Copied variant sketches are in the source's weights: a file with other weights cannot take them."""
+    build(tmp_path / "src", "sketch")
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        w = store.create(tmp_path / "copy.h5", "sketch", "fam", DATA, IMAP)
+        w.write_default("steady", Y, YJ, SIGMA, DIAG)
+        with pytest.raises(store.StoreError, match="sketch weights .* before its variants"):
+            w.copy_variant("steady", "bbb.cfvisx", s)
+        w.write_sketch_thresholds("steady", TOL, 2.0 / TOL)
+        with pytest.raises(store.StoreError, match="weights of .* differ"):
+            w.copy_variant("steady", "bbb.cfvisx", s)
+        w.f.close()
 
 
 def test_sketch_bound_is_root_sum_square():
@@ -325,6 +409,78 @@ def test_sketch_compare_refuses_bad_tolerances():
     for tol in (np.zeros(N), np.full(N, np.nan), np.ones(N - 1)):
         with pytest.raises(ValueError, match="tol"):
             store.sketch_compare(z, z, tol, LABELS, ROWS, IMAP)
+    for w in (np.zeros(N), np.full(N, np.inf), np.ones(N - 1)):
+        with pytest.raises(ValueError, match="w must"):
+            store.sketch_compare(z, z, TOL, LABELS, ROWS, IMAP, w=w)
+        with pytest.raises(ValueError, match="w must"):
+            store.sketch(np.zeros(N), LABELS, ROWS, w=w)
+
+
+# ---------------------------------------------------------------- weighted sketches (AIUE-174)
+
+SPREAD = np.logspace(-12, -3, N)  # per-entry tolerances over nine decades, as in the owner families' blocks
+
+
+def test_uniform_weights_reproduce_the_unweighted_sketch():
+    """w = 1 everywhere gives the unweighted projections, verdicts, reports and thresholds bit for bit."""
+    x = RNG.standard_normal(N)
+    a, b = store.sketch(x, LABELS, ROWS), store.sketch(x, LABELS, ROWS, w=np.ones(N))
+    assert all(a[k].tobytes() == b[k].tobytes() for k in a)
+    for scale in (0.0, 1e-9, 1e-3):
+        y = x + scale * RNG.standard_normal(N)
+        sy = store.sketch(y, LABELS, ROWS)
+        plain = store.sketch_compare(a, sy, SPREAD, LABELS, ROWS, IMAP)
+        ones = store.sketch_compare(a, store.sketch(y, LABELS, ROWS, w=np.ones(N)), SPREAD, LABELS, ROWS, IMAP,
+                                    w=np.ones(N))
+        assert plain.ok == ones.ok and plain.lines[1:] == ones.lines[1:]
+    d0, c0 = store.sketch_thresholds(SPREAD, LABELS, ROWS, IMAP)
+    d1, c1 = store.sketch_thresholds(SPREAD, LABELS, ROWS, IMAP, w=np.ones(N))
+    assert d0.tobytes() == d1.tobytes() and c0 == c1
+
+
+def test_weights_see_a_small_tolerance_entry_at_c_sqrt_n():
+    """One entry with tol_i 1e-6 times its block's others: with w = 1/tol it fails at 1.01 * c*sqrt(N) * tol_i and
+    passes at 0.99 *; unweighted, 1000 times that still passes (the dilution AIUE-174 removes)."""
+    r = ROWS[0]
+    i = int(r[1])
+    tol = np.full(N, 1e-3)
+    tol[i] = 1e-9
+    w = 1.0 / tol
+    x = np.zeros(N)
+    at = store.C * np.sqrt(len(r)) * tol[i]
+    for m, ok in ((0.99, True), (1.01, False)):
+        y = x.copy()
+        y[i] += m * at
+        c = store.sketch_compare(store.sketch(x, LABELS, ROWS, w=w), store.sketch(y, LABELS, ROWS, w=w), tol, LABELS,
+                                 ROWS, IMAP, w=w)
+        assert c.ok is ok, c.report
+        if not ok:
+            assert len(c.lines) == 2 and c.lines[1].strip().startswith(LABELS[0] + " ")
+    y = x.copy()
+    y[i] += 1e3 * at
+    assert store.sketch_compare(store.sketch(x, LABELS, ROWS), store.sketch(y, LABELS, ROWS), tol, LABELS, ROWS,
+                                IMAP).ok
+    delta, _ = store.sketch_thresholds(tol, LABELS, ROWS, IMAP, w=w)
+    ratio = delta[0] / (tol[r] * w[r])
+    assert np.allclose(ratio, store.C * np.sqrt(len(r)), rtol=1e-12)
+
+
+def test_weighted_roundoff_half_the_bound_passes_twice_fails():
+    """Round-off |e_i| <= tol_i passes every block (Hoeffding, unchanged by the weights); scaled so the largest
+    weighted projection is 0.5 x the bound it passes, at 2 x it fails that block alone."""
+    w = 1.0 / SPREAD
+    e = SPREAD * RNG.uniform(-1.0, 1.0, N)
+    zero = store.sketch(np.zeros(N), LABELS, ROWS, w=w)
+    assert store.sketch_compare(zero, store.sketch(e, LABELS, ROWS, w=w), SPREAD, LABELS, ROWS, IMAP, w=w).ok
+    for b, (label, r) in enumerate(zip(LABELS, ROWS)):
+        eb = np.zeros(N)
+        eb[r] = e[r]
+        top = np.abs(store.sketch(eb, LABELS, ROWS, w=w)["proj"][b]).max()
+        bound = store.C * np.sqrt(store.fsum((SPREAD[r] * w[r]) ** 2))
+        for m, ok in ((0.5, True), (2.0, False)):
+            c = store.sketch_compare(zero, store.sketch(eb * (m * bound / top), LABELS, ROWS, w=w), SPREAD, LABELS,
+                                     ROWS, IMAP, w=w)
+            assert c.ok is ok and (ok or c.lines[1].strip().startswith(label + " ")), (label, m, c.report)
 
 
 def test_reads_are_read_only(tmp_path):
@@ -548,7 +704,8 @@ def test_manifest_round_trip(tmp_path):
     m = build(tmp_path, "sketch")
     text = mf.path("fam", tmp_path).read_text()
     assert text == mf.dumps(m) and text.endswith("}\n") and mf.load("fam", tmp_path) == json.loads(text)
-    assert set(m["guarded"]) == {"steady/default", "timestep/default", "steady/sigma", "timestep/sigma"}
+    assert set(m["guarded"]) == {"{}/{}".format(c, k) for c in mf.CONFIG_NAMES
+                                 for k in ("default", "sigma", "sketch_threshold", "sketch_weight")}
     assert set(m["unguarded"]) == {"diagnostics"}
     assert mf.asset_name("families/large_dd2c/base_state.h5") == "families--large_dd2c--base_state.h5"
 

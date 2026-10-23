@@ -1,6 +1,7 @@
 """Unit tests of tools/sketch_sensitivity.py (AIUE-92, PRD section 7.11 (d)): the single-entry threshold of a sketch
 block, its ratio to tol_i, the single-cell multiple (owner, 2026-10-22, D5), the bisection that confirms the analytic
-threshold and the round-off re-check of c, on the synthetic index data of test_compare_unit.py; no uedge import.
+threshold and the round-off re-check of c, unweighted and with the weights 1/tol (AIUE-174: R = c*sqrt(N) at every
+entry, R_max = 2*c*sqrt(N)), on the synthetic index data of test_compare_unit.py; no uedge import.
 """
 import math
 
@@ -100,22 +101,24 @@ def test_cell_multiple_with_two_entries_in_one_block(setup):
 
 
 def test_roundoff_ratio(setup):
-    """d along one projection j of size x * delta_b: ratio x; analyze sends a ratio >= 1 to the owner."""
+    """d along one weighted projection j of size x * delta_b (w = 1/tol, as analyze weights it): ratio x; analyze
+    sends a ratio >= 1 to the owner."""
     data, imap, labels, rows, ref = setup
     sigma = 1e-14 * np.abs(ref)
     toml = {"rtol": {e: 1e-8 for e in set(imap.eq)}, "rule": {"k": 100.0}}
     from yldot.harness import compare
 
     t = compare.tolerances(ref, sigma, toml["rtol"], toml["rule"]["k"], imap).tol
-    delta, _ = store.sketch_thresholds(t, labels, rows, imap)
+    w = 1.0 / t
+    delta, _ = store.sketch_thresholds(t, labels, rows, imap, w=w)
     b = max(range(len(rows)), key=lambda n: len(rows[n]))
     r, j = rows[b], 3
     sgn = store.signs(store.SEED, labels[b], len(r), store.K)[j]
     a = dict(data, yldot=ref, yldot_J=ref, status="ok")
     for x, owner in ((0.5, False), (2.0, True)):
         y = ref.copy()
-        y[r] += x * delta[b] / len(r) * sgn
-        ratios = ss.roundoff_ratios(dict(a, yldot=y, yldot_J=y), a, delta, labels, rows)
+        y[r] += x * delta[b] / len(r) * sgn / w[r]
+        ratios = ss.roundoff_ratios(dict(a, yldot=y, yldot_J=y), a, delta, labels, rows, w=w)
         assert ratios["yldot"][b] == pytest.approx(x, rel=1e-6)  # y - ref rounds at 1e-16 |ref|
         assert ratios["flag difference"].max() == 0.0
         coll = {(label, run): a for label in ss.SERIAL_LABELS for run in ("1", "2")}
@@ -156,9 +159,53 @@ def test_stored_thresholds_must_match(setup):
     sigma = 1e-14 * np.abs(ref)
     toml = {"rtol": {e: 1e-8 for e in set(imap.eq)}, "rule": {"k": 100.0}}
     t = compare.tolerances(ref, sigma, toml["rtol"], toml["rule"]["k"], imap).tol
-    delta, cell = store.sketch_thresholds(t, labels, rows, imap)
+    delta, cell = store.sketch_thresholds(t, labels, rows, imap, w=1.0 / t)
     assert not ss.analyze("fam", "steady", ref, sigma, imap, toml, stored=(delta, cell))["errors"]
     raised = delta.copy()
     raised[0] *= 1.5
     errors = ss.analyze("fam", "steady", ref, sigma, imap, toml, stored=(raised, cell))["errors"]
     assert len(errors) == 1 and "stored sketch thresholds differ" in errors[0]
+
+
+def spread_case(setup):
+    """A default whose tolerances spread over nine decades inside every block (the owner families' case)."""
+    from yldot.harness import compare
+
+    _, imap, labels, rows, ref = setup
+    sigma = np.logspace(-14, -5, imap.neq)
+    toml = {"rtol": {e: 1e-12 for e in set(imap.eq)}, "rule": {"k": 1.0}}
+    return imap, labels, rows, ref, sigma, toml, compare.tolerances(ref, sigma, toml["rtol"], 1.0, imap).tol
+
+
+def test_weighted_ratio_is_c_sqrt_n_at_every_entry(setup):
+    """AIUE-174: with the weights 1/tol every entry of every block has R = c*sqrt(N), within R_max: no finding."""
+    imap, labels, rows, ref, sigma, toml, t = spread_case(setup)
+    assert t.max() / t.min() > 1e6
+    out = ss.analyze("fam", "steady", ref, sigma, imap, toml)
+    assert not out["errors"] and not out["owner"]
+    for blk in out["blocks"]:
+        assert blk["r_min"] == pytest.approx(blk["c_sqrt_n"], rel=1e-12)
+        assert blk["r_max"] == pytest.approx(blk["c_sqrt_n"], rel=1e-12)
+        assert blk["r_max_limit"] == pytest.approx(2 * blk["c_sqrt_n"])
+
+
+def test_unweighted_spread_is_over_r_max(setup):
+    """Weights 1 (today's unweighted sketch) on the same spread: blocks over R_max = 2*c*sqrt(N) are owner findings
+    (exit 3 in main)."""
+    imap, labels, rows, ref, sigma, toml, t = spread_case(setup)
+    out = ss.analyze("fam", "steady", ref, sigma, imap, toml, w=np.ones(imap.neq))
+    over = [blk for blk in out["blocks"] if blk["r_max"] > blk["r_max_limit"]]
+    assert over and len(out["owner"]) == len(over)
+    assert all("over R_max" in m for m in out["owner"])
+
+
+def test_weighted_bisection_equals_the_analytic_threshold(setup):
+    """The measured single-entry threshold of a weighted sketch is delta_b / w_i."""
+    imap, labels, rows, ref, sigma, toml, t = spread_case(setup)
+    w = 1.0 / t
+    delta, _ = store.sketch_thresholds(t, labels, rows, imap, w=w)
+    for label, chosen in ss.picks(labels, rows, ref).items():
+        b = labels.index(label)
+        for i in chosen:
+            measured = ss.bisect_threshold(ref, i, b, t, labels, rows, imap, delta[b] / w[i], w=w)
+            assert measured == pytest.approx(delta[b] / w[i], rel=2 * ss.BISECT_RTOL)
