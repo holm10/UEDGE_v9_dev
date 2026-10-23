@@ -27,7 +27,7 @@ bound.json that ci/jac_bound.py wrote). The script
 * --common-code: the result of ci/common_check.py (0 PASS, 1 FAIL, 2 ERROR; omitted = skipped), shown in
   the summary and folded into the exit code, so the verdict line never says PASS for a red job;
 * for flows whose ppp sets OMPJacVerbose, lists the NchunksJac values the jac runs printed (run.log);
-* checks that every serial reference of an --itermx N flow made N Newton iterations (exit 2 if not);
+* checks that every serial reference of an --itermx N flow made exactly N Newton iterations (exit 2 if not);
 * writes OUT/summary.md (the combined summary; OUT is the parent of the first flow directory) and,
   when GITHUB_STEP_SUMMARY is set, appends the same text to it;
 * on GitHub Actions (GITHUB_ACTIONS=true) emits ::error:: annotations for the gated arm(s) and
@@ -35,7 +35,7 @@ bound.json that ci/jac_bound.py wrote). The script
 
 Exit code: the largest of the flow exit codes (bitwise mode) or of the adjusted gated verdicts (tolerance
 mode), the bound and common-block results (2 harness error > 1 mismatch > 0 clean); 2 when a flow left no
-readable flow.json, a bound result is missing, or an --itermx N serial reference iterated fewer than N times.
+readable flow.json, a bound result is missing, or an --itermx N serial reference did not iterate exactly N times.
 """
 import argparse
 import json
@@ -273,7 +273,7 @@ def one_eval_locations(flows):
 
 
 def iteration_problems(path, flow):
-    """Serial references of an --itermx N flow that made fewer than N Newton iterations (the record's
+    """Serial references of an --itermx N flow that did not make exactly N Newton iterations (the record's
     largest `iterations[].iter`): such a configuration does not test what the CI set claims."""
     itermx = flow.get("settings", {}).get("itermx")
     if not itermx:
@@ -286,13 +286,17 @@ def iteration_problems(path, flow):
         seen.add(rundir)
         try:
             with open(os.path.join(path, rundir, "record.json")) as f:
-                its = json.load(f).get("iterations", [])
+                record = json.load(f)
         except (OSError, ValueError):
             continue  # a failed serial reference is already an ERROR of the flow
+        its = record.get("iterations", [])
         done = max([int(i.get("iter", 0)) for i in its] or [0])
-        if done < int(itermx):
-            out.append("serial reference {} made {} Newton iteration(s), fewer than --itermx {}".format(
-                rundir, done, itermx))
+        if done != int(itermx):
+            # the harness forces exactly N iterations (AIUE-169): fewer is an early nksol stop, more an
+            # overshoot past itermx (nkstop's stale-preconditioner path); say why nksol stopped
+            why = " (nksol iterm={})".format(record["iterm"]) if "iterm" in record else ""
+            out.append("serial reference {} made {} Newton iteration(s), {} than --itermx {}{}".format(
+                rundir, done, "fewer" if done < int(itermx) else "more", itermx, why))
     return out
 
 

@@ -5,7 +5,8 @@ Usage (from a directory that holds a copy of the case files):
 
 Runs input_mod4.py from the current directory, then one exmain(). With the default
 ftol=1e20 that is one Jacobian (sfsetnk) and the iteration-0 residual; with
---itermx N it is N Newton iterations at ftol=1e-8. Prints, and writes to ./fingerprint.json, one JSON object with
+--itermx N it is up to N Newton iterations at ftol=1e-8 (deliberately not forced as in the harness's
+config.force_newton: it reproduces the fingerprints recorded in the README). Prints, and writes to ./fingerprint.json, one JSON object with
 SHA-256 digests of the raw bytes of yldot, the post-exmain jac/jacj/jaci, sfscal
 and suscal, plus get_fnrm() as float.hex. Two runs are bitwise equal if and only if
 the JSON objects are equal. The harness of AIUE-49 supersedes this script.

@@ -34,7 +34,7 @@ Arguments after "--" are passed to the child:
                      normally given before "--" so that it is recorded in the label)
   --set PKG.VAR=VAL  assignment after the deck (VAL is a Python literal); repeatable
   --tebox            the 25-equation "Te box" reduction of the AIUE-46 reproducer
-  --newton N         itermx=N with ftol=1e-30 (N Newton iterations) instead of ftol=1e20
+  --newton N         itermx=N with ftol=stptol=1e-30 (exactly N Newton iterations) instead of ftol=1e20
   --capture K        bbb.jaccapture=K (keep up to K raw Jacobians); --skip S sets jaccapskip
   --iprint N         com.iprint (default 1, so nksol prints the fnrm sequence)
 
@@ -98,8 +98,11 @@ def child(argv):
         setattr(pkgs[pkg], var, ast.literal_eval(val))
     com.iprint = a.iprint
     if a.newton > 0:
+        # exactly N iterations, as harness.config.force_newton (AIUE-169): a tiny stptol too, or a
+        # near-converged state stops on the step test (iterm=2) or overshoots itermx
         bbb.itermx = a.newton
         bbb.ftol = 1e-30
+        bbb.stptol = 1e-30
     else:
         bbb.ftol = 1e20
     has_capture = hasattr(bbb, "jaccapture")

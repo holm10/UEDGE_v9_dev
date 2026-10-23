@@ -58,13 +58,34 @@ def apply_preset(bbb, name):
             getattr(bbb, var)[tuple(slice(a, b) for a, b in index)] = value
 
 
+# Forced Newton iterations (AIUE-169): a run that asks for N iterations makes exactly N, whatever
+# state the solution is in. At the deck's tolerances a converged start makes none (the nightly ni/ng
+# isolations start at fnrm ~1e-11), and how converged a state is depends on platform round-off.
+# Both nksol tolerances must be tiny and positive (0 selects nksol's default, svr/nksol.m:976,983):
+# - ftol: maxnorm(sf*f) <= ftol stops with iterm=1;
+# - stptol: a scaled step <= stptol stops with iterm=2 (default epsmch**(2/3) ~ 3.7e-11), or, with a
+#   stale preconditioner, forces a new one and skips the itermx test, so the run overshoots N
+#   (nkstop, svr/nksol.m:1255-1262). stptol also sets the line search's minimum lambda
+#   (rlmin = stptol/rlngth, svr/nksol.m:3281) and inexct's minimum constrained step (:3924), so a
+#   failing line search backtracks further before it gives up.
+NEWTON_FTOL = 1e-19
+NEWTON_STPTOL = 1e-30
+
+
+def force_newton(bbb, itermx):
+    """Make the next exmain run exactly itermx Newton iterations (unless nksol fails first)."""
+    bbb.itermx = itermx
+    bbb.ftol = NEWTON_FTOL
+    bbb.stptol = NEWTON_STPTOL
+
+
 @dataclass
 class RunSpec:
     preset: str = "tebox"
     arm: str = "serial"
     threads: int = 1
     # None: one evaluation (ftol=1e20: one Jacobian and the iteration-0 residual).
-    # N > 0: N Newton iterations (itermx=N) at the deck's ftol.
+    # N > 0: exactly N Newton iterations (force_newton: itermx=N, ftol and stptol far below the noise floor).
     itermx: int = None
     omp_stacksize: str = "512M"
     # extra ppp settings, e.g. {"OMPJacNchunks": -1, "OMPAutoBalance": 0}

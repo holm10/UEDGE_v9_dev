@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))  # tests/deterministic_omp, for "harness"
 sys.path.insert(0, os.getcwd())  # the run directory, for input_mod4
 
-from harness.config import ARMS, DIAGNOSTIC_SWITCHES, RunSpec, apply_preset  # noqa: E402
+from harness.config import ARMS, DIAGNOSTIC_SWITCHES, RunSpec, apply_preset, force_newton  # noqa: E402
 
 EQ_CODES = ["ni", "up", "te", "ti", "ng", "tg", "phi"]
 
@@ -174,7 +174,7 @@ def run(spec):
     if spec.itermx is None:
         bbb.ftol = 1e20
     else:
-        bbb.itermx = spec.itermx
+        force_newton(bbb, spec.itermx)
     hook = has_capture_hook(bbb) and spec.capture > 0
     if hook:
         start_capture(bbb, spec.capture)  # after the deck, so its populate exmain isn't captured
@@ -211,6 +211,11 @@ def run(spec):
         "capture": capture,
         "post_exmain_from": last,
         "post_exmain_permuted": permuted,
+        # why nksol stopped (1 ftol, 2 stptol, 3 line search, 4 itermx, ...) and the tolerances it ran with;
+        # informational, not compared
+        "iterm": int(bbb.iterm),
+        "ftol": float(bbb.ftol),
+        "stptol": float(bbb.stptol),
     }
 
     if spec.rhs_probe:
