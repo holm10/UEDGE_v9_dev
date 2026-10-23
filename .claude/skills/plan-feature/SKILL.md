@@ -101,6 +101,9 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    (a count, not a file's existence). The same holds for a repo tool used as a VALIDATE step: probe what that mode
    actually verifies (run it once on the current tree, or cite the contract in its docstring), else mark it
    *assumed* (AIUE-91: `fetch_data.py --check` verifies only cached files, not the files at their manifest paths).
+   An estimate that decides a gate (a size cap, a budget, a runtime) is probed with the code that will produce it:
+   the real writer and serializer on one case. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
+   put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB).
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -119,6 +122,11 @@ literature belongs in the physics spec, not here.
   (measurement collections, build records; AIUE-87's `tolerances.toml`, which AIUE-92 rewrites), the plan names where
   that data is kept after the worktree goes (`branching.md` → Working documents) and ends with a task that puts it
   there.
+- **Samples and populations.** When an acceptance criterion confirms a property on a sample (the criterion's ≥ N
+  cases) and checking the whole population would take under about 10 minutes, or under about twice the sample's run,
+  the plan checks the population too; otherwise it records that estimate in one line. A sample
+  pass alone is reported as a sample pass, not as the property (AIUE-94: 26 of ~330 variants per family passed the
+  tolerance check; the full replay, minutes per family, found failures).
 - **Owner questions cover the whole class.** When a rule needs exceptions that are the owner's to decide (the meaning
   of an index, term, flag or layout; an epic rule such as AIUE-9's decision 23), list every member of the class, not
   only the examples the ticket or PRD names, and ask once, during planning. Build the list with the same tool or query
