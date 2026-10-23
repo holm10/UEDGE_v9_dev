@@ -25,7 +25,9 @@ entry changes. Per family, configuration and block (equation, species, region) t
 The tolerances are those of test_default.py: compare.tolerances(ref, sigma, rtol, k, imap) with ref the release-grade
 default, sigma families/<f>/sigma.h5 and rtol, k from tolerances.toml. --from-collection DIR reads the default from
 DIR/<family>.<config>.1.pkl (a measure_roundoff collection, the linux-serial label before the reference file exists);
---from-store reads it from the family's reference file (open_store). The owner sets R_max from this table (D3).
+--from-store reads it from the family's reference file (open_store), whose stored thresholds (store.py,
+sketch_threshold) must equal the recomputed ones (exit 2 otherwise). The owner set R_max = 2 * c * sqrt(N_block) from
+this table (2026-10-23, AIUE-92 D3); the remedy for the blocks over it, a tolerance-weighted sketch, is AIUE-174.
 Pure Python: no evaluation, no uedge import. Exit codes: 0 ok, 2 usage or harness error, 3 a finding for the owner.
 """
 import argparse
@@ -60,31 +62,6 @@ class Stop(Exception):
 
 
 # ---------------------------------------------------------------- the math
-
-
-def sketch_thresholds(tol, labels, rows, imap, c=store.C, seed=store.SEED, k=store.K):
-    """(delta, cell): delta[b] = c * sqrt(fsum(tol^2 over block b)), the smallest single-entry change block b's sketch
-    detects; cell {(ix, iy): (m, b)}, the smallest multiple m of each entry's own tol that a change of every entry at
-    (ix, iy) needs to fail some block, and the block b that fails first (D5)."""
-    tol = np.asarray(tol, dtype=np.float64)
-    if tol.shape != (imap.neq,) or not (np.isfinite(tol).all() and (tol > 0).all()):
-        raise ValueError("tol must have shape ({},) and be finite and > 0 at every entry".format(imap.neq))
-    delta = np.array([c * math.sqrt(store.fsum(tol[r] ** 2)) for r in rows])
-    cell = {}
-    for b, (label, r) in enumerate(zip(labels, rows)):
-        r = np.asarray(r)
-        s = store.signs(seed, label, len(r), k).astype(np.float64)
-        keys = list(zip(imap.ix[r].tolist(), imap.iy[r].tolist()))
-        uniq = sorted(set(keys))
-        pos = {key: n for n, key in enumerate(uniq)}
-        where = np.array([pos[key] for key in keys])
-        moved = np.zeros((len(uniq), k))  # per cell, sum_e r_j,e tol_e over its entries in this block
-        np.add.at(moved, where, (s * tol[r]).T)
-        m = delta[b] / np.abs(moved).max(axis=1)
-        for key, mb in zip(uniq, m.tolist()):
-            if key not in cell or mb < cell[key][0]:
-                cell[key] = (mb, b)
-    return delta, cell
 
 
 def picks(labels, rows, ref):
@@ -162,13 +139,20 @@ def default_from_collection(directory, family, config):
     return np.asarray(r["yldot"], dtype=np.float64), compare.index_map(r, regions), r
 
 
-def analyze(family, config, ref, sigma, imap, tol_toml, collections=None):
-    """The (d) table of one family and configuration as a dict; findings in its 'owner' and 'errors' lists."""
+def analyze(family, config, ref, sigma, imap, tol_toml, collections=None, stored=None):
+    """The (d) table of one family and configuration as a dict; findings in its 'owner' and 'errors' lists. stored:
+    the reference file's (delta, cell) (SketchStore.sketch_thresholds), which must equal the recomputed ones."""
     t = compare.tolerances(ref, sigma, tol_toml["rtol"], tol_toml["rule"]["k"], imap).tol
     labels, rows, _ = store.blocks(imap)
-    delta, cell = sketch_thresholds(t, labels, rows, imap)
+    delta, cell = store.sketch_thresholds(t, labels, rows, imap)
     out = {"family": family, "config": config, "neq": int(imap.neq), "c": store.C, "blocks": [], "regions": {},
            "roundoff": {}, "errors": [], "owner": []}
+    if stored is not None:
+        same = all(stored_a.tobytes() == a.tobytes() for stored_a, a in zip(
+            store.threshold_arrays(*stored).values(), store.threshold_arrays(delta, cell).values()))
+        if not same:
+            out["errors"].append("{} {}: the stored sketch thresholds differ from those of the stored default, sigma "
+                                 "and tolerances.toml".format(family, config))
     chosen = picks(labels, rows, ref)
     for b, (label, r) in enumerate(zip(labels, rows)):
         ratio = delta[b] / t[r]
@@ -229,14 +213,18 @@ def run(families, args):
         if load_toml(fdir / "family.toml")["family"].get("store") != "sketch":
             raise Stop(2, "{}: not a sketch-store family".format(family))
         for config in CONFIGS:
+            stored = None
             if args.from_store:
                 with open_store(family) as s:
                     ref, sigma, imap = np.array(s.default(config)), np.array(s.sigma(config)), s.imap
+                    stored = s.sketch_thresholds(config)
+                if stored is None:
+                    raise Stop(2, "{} {}: the reference file stores no sketch thresholds".format(family, config))
             else:
                 ref, imap, _ = default_from_collection(args.from_collection, family, config)
                 sigma = sigma_h5(family, config)
             coll = load_collections(args.collections, family, config) if args.collections else None
-            tables.append(analyze(family, config, ref, sigma, imap, tol_toml, coll))
+            tables.append(analyze(family, config, ref, sigma, imap, tol_toml, coll, stored))
     return tables
 
 

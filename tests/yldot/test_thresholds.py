@@ -6,8 +6,10 @@ off-by-one block, NaN compared as equal, a vector compared with itself, a tolera
 Three comparators: the full-vector compare (yldot), the Jacobian-flag difference through Store.check (decision 27)
 and the sketch comparator, its sketches built from the stored default. Pure Python: no evaluation, and only the
 yldot harness's comparator and store modules, which never import uedge at module level;
-it reads the reference files (fetch them with tools/fetch_data.py; an absent one fails, AIUE-156). The large family's
-single-entry sketch check is AIUE-92's; the locality comparator is AIUE-100's.
+it reads the reference files (fetch them with tools/fetch_data.py; an absent one fails, AIUE-156). For a sketch store
+also the single-entry check (PRD 7.11 b and d; AIUE-92): its stored sketch thresholds are those of its default, sigma
+and tolerances.toml, and one entry moved by 10 times its block's threshold fails that block alone, by 0.1 times passes.
+The locality comparator is AIUE-100's.
 
 Rows per block (the guard rows are their own region blocks): the first and last, the largest and smallest |ref_i|,
 and two from a seeded generator (the seed only selects rows).
@@ -151,4 +153,43 @@ def test_sketch_comparator(case):
         chk = store.sketch_compare(refsk, store.sketch(x, labels, rows), t, labels, rows, imap)
         if not names_only(chk, label):
             problems.append("{} {}: a NaN in block {} not failed in that block alone".format(s.family, config, label))
+    assert not problems, "\n".join(problems[:20])
+
+
+SKETCHED = [(f, c) for f in REFERENCED if mf.load(f)["store"] == "sketch" for c in CONFIGS]
+
+
+@pytest.mark.parametrize("family, config", SKETCHED, ids=lambda p: str(p))
+def test_sketch_single_entry(family, config, tol):
+    """PRD 7.11 (b) and (d), AIUE-92: the stored sketch thresholds equal store.sketch_thresholds of the stored
+    default's tolerances; at the picked rows of each block, one entry moved by FAIL * delta_b fails that block alone
+    with a worst |dP|/bound of FAIL, and by PASS * delta_b passes. One entry moves only its block's projections, so the
+    moved sketch is the default's with that block recomputed, compared over every block."""
+    with open_store(family) as s:
+        ref = np.array(s.default(config))
+        t = compare.tolerances(ref, s.sigma(config), tol["rtol"], tol["rule"]["k"], s.imap).tol
+        stored = s.sketch_thresholds(config)
+        imap, labels, rows = s.imap, s.labels, s.rows
+        chosen = picks(s, ref)
+    assert stored is not None, "{} {}: the reference stores no sketch thresholds".format(family, config)
+    delta, cell = store.sketch_thresholds(t, labels, rows, imap)
+    want, got = store.threshold_arrays(delta, cell), store.threshold_arrays(*stored)
+    assert all(want[k].tobytes() == got[k].tobytes() for k in store.THRESHOLD_KEYS), \
+        "{} {}: the stored sketch thresholds differ from those of the stored default".format(family, config)
+    refsk = store.sketch(ref, labels, rows)
+    problems = []
+    for b, (label, r) in enumerate(zip(labels, rows)):
+        for i in chosen[label]:
+            for m, ok in ((FAIL, False), (PASS, True)):
+                x = ref.copy()
+                x[i] += m * delta[b]
+                new = {k: v.copy() for k, v in refsk.items()}
+                one = store.sketch(x, [label], [r])
+                for k in new:
+                    new[k][b] = one[k][0]
+                chk = store.sketch_compare(refsk, new, t, labels, rows, imap)
+                caught = names_only(chk, label) and worst_ratio(chk) == pytest.approx(m, rel=1e-2)
+                if chk.ok != ok or (not ok and not caught):
+                    problems.append("{} {}: {} moved by {:g} x delta_b of {}: ok {}, want {}\n{}".format(
+                        family, config, imap.label(i), m, label, chk.ok, ok, chk.report))
     assert not problems, "\n".join(problems[:20])

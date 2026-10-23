@@ -14,6 +14,9 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
     /<config>/default/{yldot, sigma}                                   full vectors in both stores
     /<config>/default/jflag/{index, value}                             rows where yldot_J != yldot, yldot_J - yldot
     /<config>/default/diagnostics/<name>                               full: every diagnostic array; sketch: res*
+    sketch: /<config>/default/sketch_threshold/{block, cell_ix, cell_iy, cell_m, cell_block}
+                                                                       sketch_thresholds of the default's tol_i
+                                                                       (PRD 7.11 d; AIUE-92), cells in (ix, iy) order
     full:   /<config>/variants/<id>/yldot/{index, value}                rows differing (bitwise) from the default
             /<config>/variants/<id>/jflag/{index, value}                the variant's own flag difference
     sketch: /<config>/variants/<id>/{yldot, jflag}/{proj, l2, maxabs, argmax}
@@ -227,6 +230,45 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot"):
     return Check(False, lines)
 
 
+def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K):
+    """(delta, cell) of the sketch comparator (PRD section 7.11 (d)): delta[b] = c * sqrt(fsum(tol^2 over block b)),
+    the smallest single-entry change block b's sketch detects, whichever entry changes (it moves every projection by
+    +-the change); cell {(ix, iy): (m, b)}, the smallest multiple m of each entry's own tol that a change of every
+    entry at (ix, iy) needs to fail some block, and the block b that fails first (owner, 2026-10-22, AIUE-92 D5)."""
+    tol = np.asarray(tol, dtype=np.float64)
+    if tol.shape != (imap.neq,) or not (np.isfinite(tol).all() and (tol > 0).all()):
+        raise ValueError("tol must have shape ({},) and be finite and > 0 at every entry".format(imap.neq))
+    delta = np.array([c * math.sqrt(fsum(tol[r] ** 2)) for r in rows])
+    cell = {}
+    for b, (label, r) in enumerate(zip(labels, rows)):
+        r = np.asarray(r)
+        s = signs(seed, label, len(r), k).astype(np.float64)
+        keys = list(zip(imap.ix[r].tolist(), imap.iy[r].tolist()))
+        uniq = sorted(set(keys))
+        pos = {key: n for n, key in enumerate(uniq)}
+        where = np.array([pos[key] for key in keys])
+        moved = np.zeros((len(uniq), k))  # per cell, sum_e r_j,e tol_e over its entries in this block
+        np.add.at(moved, where, (s * tol[r]).T)
+        m = delta[b] / np.abs(moved).max(axis=1)
+        for key, mb in zip(uniq, m.tolist()):
+            if key not in cell or mb < cell[key][0]:
+                cell[key] = (mb, b)
+    return delta, cell
+
+
+THRESHOLD_KEYS = ("block", "cell_ix", "cell_iy", "cell_m", "cell_block")
+
+
+def threshold_arrays(delta, cell):
+    """The stored form of sketch_thresholds: {block, cell_ix, cell_iy, cell_m, cell_block}, cells in (ix, iy) order."""
+    keys = sorted(cell)
+    return {"block": np.asarray(delta, dtype=np.float64),
+            "cell_ix": np.array([ix for ix, _ in keys], dtype=np.int32),
+            "cell_iy": np.array([iy for _, iy in keys], dtype=np.int32),
+            "cell_m": np.array([cell[key][0] for key in keys], dtype=np.float64),
+            "cell_block": np.array([cell[key][1] for key in keys], dtype=np.int32)}
+
+
 # ---------------------------------------------------------------- writing
 
 
@@ -289,6 +331,20 @@ class Writer:
             if self.kind == "full" or name.startswith("res"):
                 _ds(gd, name, np.asarray(diagnostics[name], dtype=np.float64))
         self.defaults[config] = yldot
+
+    def write_sketch_thresholds(self, config, tol):
+        """A sketch store's single-entry and single-cell thresholds of the default (sketch_thresholds), from tol, the
+        default's per-entry tolerance (compare.tolerances with its sigma and tolerances.toml)."""
+        if self.kind != "sketch":
+            raise StoreError("sketch thresholds belong to a sketch store, not a {} store".format(self.kind))
+        if config not in self.defaults:
+            raise StoreError("{}: write the default before its sketch thresholds".format(config))
+        if "{}/default/sketch_threshold".format(config) in self.f:
+            raise StoreError("{}: sketch thresholds already written".format(config))
+        delta, cell = sketch_thresholds(tol, self.labels, self.rows, self.imap, seed=self.seed, k=self.k)
+        g = self.f.create_group("{}/default/sketch_threshold".format(config))
+        for name, a in threshold_arrays(delta, cell).items():
+            _ds(g, name, a)
 
     def write_locality(self, config, delta, entries):
         """The locality entries the reference keeps (locality.pattern: score > 1) of a run at delta."""
@@ -535,6 +591,16 @@ class SketchStore(Store):
         p = "/{}/variants/{}".format(config, vid)
         return tuple({key: self.read("{}/{}/{}".format(p, what, key)) for key in ("proj", "l2", "maxabs", "argmax")}
                      for what in ("yldot", "jflag"))
+
+    def sketch_thresholds(self, config):
+        """The stored (delta, cell) of the default (sketch_thresholds' form), or None if the file stores none."""
+        g = "/{}/default/sketch_threshold".format(config)
+        if g[1:] not in self.f:
+            return None
+        a = {key: self.read("{}/{}".format(g, key)) for key in THRESHOLD_KEYS}
+        cell = {(int(ix), int(iy)): (float(m), int(b))
+                for ix, iy, m, b in zip(a["cell_ix"], a["cell_iy"], a["cell_m"], a["cell_block"])}
+        return np.array(a["block"]), cell
 
     def _check_variant(self, config, vid, yldot, yldot_J, tol, imap):
         ref, ref_j = self.variant(config, vid)

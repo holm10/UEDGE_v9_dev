@@ -12,9 +12,10 @@ The manifest is the reviewable text next to each family's one binary reference f
                 the release asset of a path is asset_name(path);
     datasets    {HDF5 dataset path: SHA-256 of its data (store.dataset_sha256)}: every dataset of the reference file,
                 recomputed at each read;
-    guarded     the steady and timestep defaults (yldot and the Jacobian-flag difference), their sigma, and the
-                locality pattern (locality/steady over the /steady/locality datasets, AIUE-100); unguarded: the
-                diagnostics (summarize);
+    guarded     the steady and timestep defaults (yldot and the Jacobian-flag difference), their sigma, a sketch
+                store's sketch thresholds (<config>/sketch_threshold, AIUE-92) and the locality pattern
+                (locality/steady over the /steady/locality datasets, AIUE-100); unguarded: the diagnostics
+                (summarize);
     provenance  {commit, compiler, flags, runner_image, numpy, h5py, date};
     variables   {variant id: {class, reason, applied, d (variants.encode form), phase, config, sha256 (of the
                 variant's stored datasets, or null), block_l2, jflag_block_l2}}. block_l2 is the L2 norm of
@@ -61,6 +62,18 @@ def reference_path(family):
 def asset_name(p):
     """The release asset name of an external path: the path with "/" replaced by "--"."""
     return p.replace("/", "--")
+
+
+def family_assets(m):
+    """The external paths under families/<family>/ of manifest m: an owner family's states, grid and inputs, and its
+    sigma.h5 once measured (owner, 2026-10-22, AIUE-92 D6). A small family keeps them in git: none."""
+    prefix = "families/{}/".format(m["family"])
+    return sorted(p for p in m["external"] if p.startswith(prefix))
+
+
+def owner_family(family, suite=SUITE):
+    """Whether family is an owner family: its manifest names release assets under families/<family>/."""
+    return path(family, suite).is_file() and bool(family_assets(load(family, suite)))
 
 
 def _text(o, level):
@@ -117,6 +130,9 @@ def summarize(datasets):
         sig = {n: s for n, s in datasets.items() if n == base + "sigma"}
         if sig:
             guarded["{}/sigma".format(config)] = combined_sha(sig)
+        thr = {n: s for n, s in datasets.items() if n.startswith(base + "sketch_threshold/")}
+        if thr:
+            guarded["{}/sketch_threshold".format(config)] = combined_sha(thr)
         loc = {n: s for n, s in datasets.items() if n.startswith("/{}/locality/".format(config))}
         if loc:
             guarded["locality/{}".format(config)] = combined_sha(loc)
