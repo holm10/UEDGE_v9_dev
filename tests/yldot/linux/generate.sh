@@ -4,8 +4,10 @@
 # mount, so the image (built for collect.sh, AIUE-87) is used as it is:
 #
 #   docker run --rm --platform linux/amd64 -v "$PWD/tests:/tests:ro" -v OUT:/out yldot-linux:24.04 \
-#       bash /tests/yldot/linux/generate.sh COMMIT RUNNER_IMAGE d_c d_mols d_only ortho slab_phi
+#       bash /tests/yldot/linux/generate.sh COMMIT RUNNER_IMAGE d_c d_mols d_only ortho slab_phi [_child options]
 #
+# Arguments after RUNNER_IMAGE (the families, then make_references.py's _child options such as --sweep none,
+# --only VAR ... or --full, AIUE-94) go to the child unchanged.
 # RUNNER_IMAGE is the manifest's provenance runner_image ("yldot-linux:24.04 <image id> (<base digest>)"). The archive
 # OUT/src.tar must name COMMIT in its pax header. Writes OUT/build.log, OUT/build.json (the build record) and
 # OUT/references/<family>.{h5,json}.
@@ -29,4 +31,6 @@ import json, subprocess, sys
 gfortran = subprocess.run(["gfortran", "--version"], capture_output=True, text=True).stdout.splitlines()[0]
 print(json.dumps({"commit": sys.argv[1], "compiler": gfortran, "runner_image": sys.argv[2]}, indent=1))
 EOF
-/opt/venv/bin/python /tests/yldot/tools/make_references.py _child "$@" --out /out/references --build /out/build.json
+# --repo: the variant inventory comes from the archive's .v files (only tests/ is mounted)
+/opt/venv/bin/python /tests/yldot/tools/make_references.py _child "$@" --repo /work/src --out /out/references \
+  --build /out/build.json

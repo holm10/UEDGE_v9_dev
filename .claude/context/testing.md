@@ -30,8 +30,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   family with absent `families/<f>/` assets fails at setup naming the cause, except those marked `toml_only`;
   different files fail (`test_smoke.py::test_external_files`).
   The five small families also hold `sigma.h5`, the measured round-off spread σ_i per configuration (see
-  Tolerances). Their reference files `references/<f>.h5` (the defaults, see Store) are release assets of
-  `yldot-data-v2`, gitignored, named by `references/<f>.manifest.json` (AIUE-88); `fetch_data.py` fetches them.
+  Tolerances). Their reference files `references/<f>.h5` (the defaults and the SENSITIVE variants, see Store) are
+  release assets of `yldot-data-v3`, gitignored, named by `references/<f>.manifest.json`, which also classifies
+  every variant (AIUE-88, AIUE-94); `fetch_data.py` fetches them.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
@@ -59,9 +60,12 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections onto Rademacher signs from
   `PCG64.random_raw`, summed with `math.fsum`; `sketch_compare` with c = 6.5), both with the sparse Jacobian-flag
-  difference; files written with `track_times=False` so the bytes are reproducible. `tests/yldot/harness/manifest.py`
+  difference; files written with `track_times=False` so the bytes are reproducible, in the HDF5 1.10 format
+  (`LIBVER`, superblock version 3: smaller group headers keep the variant groups within the caps; owner,
+  2026-10-22, AIUE-94); `Writer.copy_variant` copies a stored variant verbatim. `tests/yldot/harness/manifest.py`
   is the schema of `references/<f>.manifest.json`, the only record of the external files' SHA-256s (owner,
-  2026-10-21). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
+  2026-10-21); `dumps` writes it indented and sorted, each encoded value's `data` list on one line (owner,
+  2026-10-22, AIUE-94). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`).
 - **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: 27 patches (AIUE-89, AIUE-90), a sign
@@ -97,14 +101,34 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   with `sigma.h5`; refuses a `tests/yldot` that differs from SHA (references/ excepted; also an ignored file in the
   families' directories or `data/`), a `sigma.h5` that differs from `tolerances.toml`, a family whose manifest names
   other release assets and a preview `--write` over a released manifest; `--write` installs the files and manifests
-  and opens each with `open_store`); `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one
-  scratch worktree and venv for the run, a baseline build that must pass, then per mutation apply, build `--serial`,
-  evaluate the inner-loop family first (a miss there stops the mutation) and then every other referenced family,
-  cross-check with `test_default.py`, revert; writes the coverage matrix `matrix.json`/`matrix.md` (a working
-  document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
-  `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation). Two Linux runs from one
+  and opens each with `open_store`). It also sweeps every variant of `variants.plan()` in a fresh child each and
+  classifies it (PRD §7.2, `M_CLS = 100` × the default's `tol_i`, for `yldot` and `yldot_J`): SENSITIVE (evaluated
+  twice, stored only if both agree bit for bit, else INVALID "nondeterministic"), INERT (bitwise equal), MARGINAL,
+  INVALID (error, crash, timeout, `neq` change, an equation layout change at the same `neq`, non-finite; owner,
+  2026-10-22, AIUE-94), EXCLUDED (as planned, or the application changes nothing
+  in the family: value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94). Results that fit no class
+  and a file over its PRD §7.3 cap (`CAPS_MB`) are findings: exit 3, nothing written. `--defaults-only` (the AIUE-88
+  run), `--only VAR…` (the rest copied verbatim from the installed reference, whose defaults must be reproduced bit
+  for bit) and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
+  marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
+  exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
+  `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
+  nondeterminism only, not build or memory-layout dependence. Two Linux runs from one
   commit gave the same SHA-256s on one host (x86 emulation on Apple silicon); bit-identity on a native amd64 host is
-  AIUE-98's check.
+  AIUE-98's check. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
+  absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's).
+  `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
+  own python and checks it under that rule (exit 3 = owner); on the yldot-data-v3 references mac-noopt passes every
+  family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
+  `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
+  design); `collect` and `check` do the same on the seeded sample against the serial pairs.
+  `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
+  baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
+  miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
+  writes the coverage matrix `matrix.json`/`matrix.md` (a working document, not committed) and its four gates (PRD
+  §7.11 c; a run of named mutations evaluates G1 and G2 only); `gates DIR`; exit 3 = owner; run at the end of every
+  phase, about 3 min per mutation).
 - **Tolerances** (PRD §7.4, §7.7; AIUE-87): `tests/yldot/tolerances.toml`, generated by `measure_roundoff.py analyze
   --write`: `k`, `rtol_eq` per equation (100 × the largest block-normalised spread over the serial pairs, floored at
   1e-14) with its source, the build records, the pairs, the raw spreads, the floor-report counts, the owner's answers
@@ -133,8 +157,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: 699 tests, none skipped, in about 370 s, serial build, Darwin
-  arm64, 2026-10-22, AIUE-163; about 250 s of that
+- **Tests** (the whole suite, `-m "not nightly"`: 747 tests, none skipped, in about 390 s, serial build, Darwin
+  arm64, 2026-10-22, AIUE-94; about 250 s of that
   are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
@@ -152,8 +176,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and `gh` fallback (fakes, no network),
   `tests/yldot/test_build_flags.py` the build options' flags (about 2 s, no build),
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
-  `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; its
-  refusals and the git/docker commands with fakes; the manifests that hold data),
+  `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; a
+  ten-variant sweep with every class as probed, `--only` reproducing the file bit for bit, a nondeterministic second
+  run; `classify` on synthetic results; its refusals, caps and the git/docker commands with fakes; the manifests that
+  hold data), `tests/yldot/test_variant_tolerances_unit.py` `variant_tolerances.py` (synthetic sides; a collect and
+  a `replay` on `d_only`, `replay` failing on an offset, a NaN and an error),
   `tests/yldot/test_guard_unit.py` the reference guard on scratch git repositories (about 20 s; fakes for the
   downloads and `gh`),
   `tests/yldot/test_tolerances.py` `tolerances.toml` against `sigma.h5` and a live evaluation per family,
