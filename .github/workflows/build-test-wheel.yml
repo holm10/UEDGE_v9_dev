@@ -17,19 +17,20 @@ jobs:
           # Set "checking" variable to false by default.
           # Get your last commit message, not the merge commit.
           text=$(git log -1 --no-merges --pretty=%B)
-          # Read the commit message into an array split by "#".
-          readarray -d "#" -t commit_message <<< "$text"
+          # Tags sit on a line that starts with "#", e.g. "#@notest @nobasis".
+          # Only those lines count: a squash title ends in "(#N)".
+          tags=$(grep -E '^#[[:space:]]*@' <<< "$text" | grep -oE '@[a-z]+' | tr '\n' ' ' || true)
           # Sanity check.
-          echo "Tags are: ${commit_message[1]}"
+          echo "Tags are: ${tags}"
           # Add tags and overwrite "checking" variable to true if there are tags.
-          if [[ "${commit_message[1]}" == *"@notest"*  ]]; then
+          if [[ "${tags}" == *"@notest"*  ]]; then
               echo "Seting test flags to FALSE"
               echo "test=FALSE" >> $GITHUB_OUTPUT
           else
               echo "Seting test flags to TRUE"
               echo "test=TRUE" >> $GITHUB_OUTPUT
           fi
-          if [[ "${commit_message[1]}" == *"@nowheel"*  ]]; then
+          if [[ "${tags}" == *"@nowheel"*  ]]; then
               echo "Seting wheel flags to FALSE"
               echo "wheel=FALSE" >> $GITHUB_OUTPUT
           else

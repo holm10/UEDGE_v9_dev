@@ -1,6 +1,6 @@
 name: Builds BASIS UEDGE using Docker
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   run-all-tests:
@@ -17,14 +17,13 @@ jobs:
           echo "has_tags=false" >> $GITHUB_ENV
           # Get your last commit message, not the merge commit.
           text=$(git log -1 --no-merges --pretty=%B)
-          # Read the commit message into an array split by "#".
-          readarray -d "#" -t commit_message <<< "$text"
+          # Tags sit on a line that starts with "#", e.g. "#@notest @nobasis".
+          # Only those lines count: a squash title ends in "(#N)" and its body
+          # holds e-mail addresses, and GITHUB_ENV takes single-line values only.
+          tags=$(grep -E '^#[[:space:]]*@' <<< "$text" | grep -oE '@[a-z]+' | tr '\n' ' ' || true)
           # Sanity check.
-          echo "the tags are: ${commit_message[1]}"
-          # Add tags and overwrite "checking" variable to true if there are tags.
-          if [[ "${commit_message[1]}" == *"@"*  ]]; then
-            echo "spec_tags=${commit_message[1]}" >> $GITHUB_ENV
-          fi
+          echo "the tags are: ${tags}"
+          echo "spec_tags=${tags}" >> $GITHUB_ENV
     - name: Build using Docker
       if: ${{ ! contains(env.spec_tags, '@nobasis') }}
       env:
