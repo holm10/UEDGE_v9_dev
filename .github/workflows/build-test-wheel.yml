@@ -17,7 +17,7 @@ jobs:
           # Set "checking" variable to false by default.
           # Get your last commit message, not the merge commit.
           text=$(git log -1 --no-merges --pretty=%B)
-          # Tags sit on a line that starts with "#", e.g. "#@notest @nobasis".
+          # Tags sit on a line that starts with "#", e.g. "#@notest @nowheel".
           # Only those lines count: a squash title ends in "(#N)".
           tags=$(grep -E '^#[[:space:]]*@' <<< "$text" | grep -oE '@[a-z]+' | tr '\n' ' ' || true)
           # Sanity check.

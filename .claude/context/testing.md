@@ -382,9 +382,10 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   shell redirects to a file named `=0.10.7`, so Forthon is installed unpinned. (`build-test-omp.yml` quotes it.)
 - Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
-- `build-basis.yml` runs BASIS level-1/level-2 tests in Docker (`fusionbillm/basisuedge`); skip with `#@nobasis`.
-  Both workflows read tags only from message lines that start with `#` (`#@notest @nobasis`), so a squash title's
-  `(#N)` and its `Co-Authored-By` addresses are not tags (AIUE-175). `build-basis.yml` also runs on `workflow_dispatch`.
-  Tags apply to push runs only: a `pull_request` run checks out GitHub's merge commit (depth 1, so `--no-merges` keeps
-  it) and reads its "Merge … into …" message.
+  The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
+  its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out
+  GitHub's merge commit (depth 1, so `--no-merges` keeps it) and reads its "Merge … into …" message.
+- There is no BASIS CI. `build-basis.yml` was removed (AIUE-178, owner 2026-10-23): its `fusionbillm/basisuedge` image
+  built LLNL/UEDGE's branch of the same name, never the fork (LLNL `master` for a branch upstream lacks; on
+  `v9-develop`, LLNL's `v9-develop`, which fails in BASIS make on `bbb.pack`). A `#@nobasis` tag has no effect.
 - `claude-review.yml` runs `/code-review` on PR open or `@claude-review` comment.
