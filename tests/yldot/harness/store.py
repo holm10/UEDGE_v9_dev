@@ -233,8 +233,9 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot"):
 def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K):
     """(delta, cell) of the sketch comparator (PRD section 7.11 (d)): delta[b] = c * sqrt(fsum(tol^2 over block b)),
     the smallest single-entry change block b's sketch detects, whichever entry changes (it moves every projection by
-    +-the change); cell {(ix, iy): (m, b)}, the smallest multiple m of each entry's own tol that a change of every
-    entry at (ix, iy) needs to fail some block, and the block b that fails first (owner, 2026-10-22, AIUE-92 D5)."""
+    +-the change); cell {(ix, iy): (m, b)}, the smallest multiple m such that moving every entry e at (ix, iy) by the
+    same +m * tol_e fails some block, and the block b that fails first (owner, 2026-10-22, AIUE-92 D5); m is inf
+    where such a change cancels in every projection of every block holding the cell."""
     tol = np.asarray(tol, dtype=np.float64)
     if tol.shape != (imap.neq,) or not (np.isfinite(tol).all() and (tol > 0).all()):
         raise ValueError("tol must have shape ({},) and be finite and > 0 at every entry".format(imap.neq))
@@ -249,7 +250,8 @@ def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K):
         where = np.array([pos[key] for key in keys])
         moved = np.zeros((len(uniq), k))  # per cell, sum_e r_j,e tol_e over its entries in this block
         np.add.at(moved, where, (s * tol[r]).T)
-        m = delta[b] / np.abs(moved).max(axis=1)
+        with np.errstate(divide="ignore"):  # a cell whose entries cancel in every projection: never seen, m = inf
+            m = delta[b] / np.abs(moved).max(axis=1)
         for key, mb in zip(uniq, m.tolist()):
             if key not in cell or mb < cell[key][0]:
                 cell[key] = (mb, b)

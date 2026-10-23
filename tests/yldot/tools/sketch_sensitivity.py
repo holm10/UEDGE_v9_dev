@@ -14,7 +14,7 @@ entry changes. Per family, configuration and block (equation, species, region) t
                      harness error (exit 2)
     ratio            R_i = delta_b / tol_i, how many of its own tolerances an entry must move to be seen: N, c*sqrt(N)
                      (R for a uniform tol), min/median/max R and the entry with the largest R
-    cell multiple    a single-cell change moves every entry at one (ix, iy) by m * its own tol_e (owner, 2026-10-22,
+    cell multiple    a single-cell change moves every entry at one (ix, iy) by the same +m * its own tol_e (owner, 2026-10-22,
                      AIUE-92 D5); m(ix, iy) = min over the blocks b holding the cell's entries of
                      delta_b / max_j |sum_e r_j,e tol_e| (one entry per block: delta_b / tol_e), with the block that
                      fires first; reported per region, the worst cell

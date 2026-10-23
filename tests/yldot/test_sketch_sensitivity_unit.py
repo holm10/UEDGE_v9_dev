@@ -126,6 +126,27 @@ def test_roundoff_ratio(setup):
         assert out["roundoff"]["mac_vs_linux"]["yldot"]["block"] == labels[b]
 
 
+def test_cell_change_cancelling_in_every_projection_is_inf(setup, monkeypatch):
+    """Review I1-m1: two equal-tol entries of one cell in one block with opposite signs in every projection: moving
+    both by +m tol is never seen, m = inf, without a division warning."""
+    import warnings
+
+    _, imap, labels, rows, _ = setup
+    b = max(range(len(rows)), key=lambda n: len(rows[n]))
+    lab, r = [labels[b]], [rows[b]]
+    one = type(imap)(imap.neq, imap.eq, imap.species, imap.ix.copy(), imap.iy.copy(), imap.region)
+    one.ix[r[0][1]], one.iy[r[0][1]] = one.ix[r[0][0]], one.iy[r[0][0]]
+    signs = np.ones((store.K, len(r[0])), dtype=np.int8)
+    signs[:, 1] = -1  # entry 1 cancels entry 0 in every projection
+    monkeypatch.setattr(store, "signs", lambda seed, label, n, k: signs)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _, cell = store.sketch_thresholds(np.ones(imap.neq), lab, r, one)
+    m, block = cell[(int(one.ix[r[0][0]]), int(one.iy[r[0][0]]))]
+    assert m == np.inf and block == 0
+    assert all(np.isfinite(v) for key, (v, _) in cell.items() if key != (int(one.ix[r[0][0]]), int(one.iy[r[0][0]])))
+
+
 def test_stored_thresholds_must_match(setup):
     """--from-store: the reference file's thresholds equal those recomputed from its default, sigma and the toml;
     another threshold is a harness error."""
