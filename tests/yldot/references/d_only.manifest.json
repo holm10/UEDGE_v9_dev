@@ -170,6 +170,11 @@
     "/steady/default/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/default/sigma": "489152f218fc35e4e1d58bb543a613587f4a29e289cd58c426ab919e121e310d",
     "/steady/default/yldot": "9b911a242b7b20290adfb810ec58dfd7ffd5a6320843e075a7e9ab236db38c5a",
+    "/steady/locality/column": "bb3651ae857f025488a226a44248b8cc72ee0873a10d0c2360ecff7831312b06",
+    "/steady/locality/delta": "13c24c01a9a0ea2e0981601ae705a77c226caa2d97ef79901c3241d8a3338f6e",
+    "/steady/locality/dfull": "cce274aa9ae1085e6634282086e539b497c6edee03397d32dd37f5270f7b6091",
+    "/steady/locality/mismatch": "cce274aa9ae1085e6634282086e539b497c6edee03397d32dd37f5270f7b6091",
+    "/steady/locality/row": "19204076aaf215a789cefc559574cbe7350d07d87983bedd4584e1c0213b6c4f",
     "/steady/variants/bbb.albdsi/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.albdsi/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.albdsi/yldot/index": "2b068198bc90ce79b3b280e0411fbfaf61ef48acc643c2fb206c7bbbde38e671",
@@ -1614,27 +1619,28 @@
   },
   "external": {
     "references/d_only.h5": {
-      "bytes": 1040401,
-      "sha256": "f2e6483840052080171531652720832e7da1db6ef117168e991f5c07c8bddf13"
+      "bytes": 1042082,
+      "sha256": "c0c99191d8485fe0b5be811be2aa9ecd14863caefc4dbfdc936a84f9b39c7ec9"
     }
   },
   "family": "d_only",
   "guarded": {
+    "locality/steady": "b990829153f3cb841ccfb4c849e88fca5fb3ec83a1b2717cb2dc5a701f16679d",
     "steady/default": "a140a2938aea03e4aacf486c86721cd15f724bc648d5943afaff16451c2cd59a",
     "steady/sigma": "fcb060f81d0fac1f93770f213d4fd64c0c16ad1beab74f3afbf9d27f50eb0ff4",
     "timestep/default": "82a32a1f5511c86a720d32fefb2c36c7e3d04886fc881919d0f57b892ff633f9",
     "timestep/sigma": "1c2020d0027c19c11fa82206212dfb63b4ce94b269ad774fdc7f065879ad1490"
   },
   "provenance": {
-    "commit": "cb84f82bd654d48ec4fd1cdc44822d80bb083ce6",
+    "commit": "430a5be7ea76bf59071b54b38f199d5641b600fc",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T00:58:21+00:00",
+    "date": "2026-10-23T03:22:42+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v3",
+  "release": "yldot-data-v4",
   "schema": 1,
   "store": "full",
   "unguarded": {
