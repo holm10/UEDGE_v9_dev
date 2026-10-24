@@ -193,13 +193,22 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
   without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and
   `build.run` stubbed; `argv` as pip passes `-C "--build-option=--<opt>"`) and records the `--fargs`/`--cargs` strings,
-  `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, and the uedgeC link and compile
-  arguments and macros; it needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
-  reaches Forthon's real `FCompiler` and its own flags, `-g`/`-t`/`-F`, `--noclean`, `--parallel`, PETSc.
+  `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, the uedgeC link and compile
+  arguments and macros, and the build record `uedgeBuild.run` writes into a scratch `build_lib`
+  (`<build_lib>/uedge/_build_info.json`, AIUE-181; `machine` shown as `<machine>`). Its `check_output` answers only the known
+  commands (libgcov lookup, the compiler's `--version`, the record's git probes; anything else raises), and `SRCDIR`
+  is a scratch tree with an empty `.git` (`--no-git`: without), so a record does not depend on where the evaluated
+  `setup.py` lies. It needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
+  reaches Forthon's real `FCompiler` and its own flags (the record's `forthon_fopt` is the fake's fixed value),
+  `-g`/`-t`/`-F`, `--noclean`, `--parallel`, PETSc.
   `tests/yldot/test_build_flags.py` pins that table (27 cases: the default, `--serial`, `--debug`, `--checkbounds`,
-  `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`) to `v9-develop`'s, checks that
-  `--coverage` changes only its own build, and edits a copy of `setup.py` seven ways to show each is caught. An
-  intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
+  `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`), each with its build record, to
+  `v9-develop`'s, checks that `--coverage` changes only its own build, and edits a copy of `setup.py` nine ways
+  (seven flag changes, the record dropped, the record without `platform`) to show each is caught; an unedited copy
+  must show no difference and `--no-git` must null only the git fields. `test_installed_record` checks the record of
+  the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, platform, the commit
+  `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built before AIUE-181 fails it, naming
+  the cause. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
   `mppl2f90` on two scratch trees with the working directory and `$PWD` differing; the test requires it to convert
   in and stay in the working directory, and a copy with the pre-AIUE-163 `getenv("PWD")` lines to fail (AIUE-163).
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
@@ -239,7 +248,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   placeholders), `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch
   known-answer vector; fakes for `gh` and `git`), `tests/yldot/test_fetch_unit.py` `fetch_data.py`'s HTTPS download
   and `gh` fallback (fakes, no network),
-  `tests/yldot/test_build_flags.py` the build options' flags (about 2 s, no build),
+  `tests/yldot/test_build_flags.py` the build options' flags and build record (about 5 s, no build; needs a UEDGE built from AIUE-181 on),
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
   `tests/yldot/test_sketch_sensitivity_unit.py` `sketch_sensitivity.py`'s thresholds, bisection, cell multiple,
   round-off ratio and stored-threshold check on synthetic data,

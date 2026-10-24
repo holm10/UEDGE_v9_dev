@@ -1,7 +1,7 @@
 # MPPL Fortran — writing `.m` source that survives conversion
 
 `.m` files are fixed-form Fortran with MPPL extensions. They are **converted by text substitution**
-(`M2F.subrules`, `setup.py:647-673`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
+(`M2F.subrules`, `setup.py:648-674`) into `.F`, then preprocessed with `-cpp`. Understand the rules — they
 are not a parser.
 
 ## File skeleton (copy from `bbb/pandf_plasma_continuity.m:1-21`)
@@ -29,14 +29,14 @@ c     Full-line comment: 'c' in column 1
       END SUBROUTINE my_routine
 ```
 
-- `Use(Group)` → `use Group` (`Use2use`, `setup.py:173`). Groups are defined in `.v` files.
-- Declarations may be written before or after `Use(...)`; `MoveDecs` (`setup.py:230`) reorders them.
+- `Use(Group)` → `use Group` (`Use2use`, `setup.py:174`). Groups are defined in `.v` files.
+- Declarations may be written before or after `Use(...)`; `MoveDecs` (`setup.py:231`) reorders them.
 - Continuation: non-blank char (convention `.`) in column 6 (`bbb/pandf.m:573-575`).
-- Preprocessor: `c!ifdef`/`c!else`/`c!endif`/`c!include` → `#ifdef`/… (`setup.py:650,656,657,666`).
-- Conditional lines: `c!omp …` enabled only when building with OpenMP (`Omp`, `setup.py:222-228`);
+- Preprocessor: `c!ifdef`/`c!else`/`c!endif`/`c!include` → `#ifdef`/… (`setup.py:651,657,658,667`).
+- Conditional lines: `c!omp …` enabled only when building with OpenMP (`Omp`, `setup.py:223-229`);
   `cpetsc`/`cunipetsc` for PETSc; `c!nopdb` when no PACT.
 
-## Substitution hazards (`setup.py:647-673`)
+## Substitution hazards (`setup.py:648-674`)
 
 | Written | Becomes | Consequence |
 |---|---|---|
@@ -59,7 +59,7 @@ c     Full-line comment: 'c' in column 1
 
 - `real` is 8-byte (Forthon `--realsize 8`, gfortran `-fdefault-real-8`). Write `real`, never `real*8`/`double precision`.
 - Literals: `1.`, `0.5`, `1.e-10` (no `d0` needed). `Pi` macro from `mppl.h`.
-- `-fimplicit-none` and `-Wconversion` are on (`setup.py:79-86`): declare everything, watch int↔real mixing.
+- `-fimplicit-none` and `-Wconversion` are on (`setup.py:80-87`): declare everything, watch int↔real mixing.
 - Grid neighbours: `ixm1(ix,iy)` / `ixp1(ix,iy)` (handles cuts & X-points); radial neighbours `iy±1`.
 - Guard cells: arrays span `0:nx+1, 0:ny+1`; interior is `1:nx, 1:ny`.
 
