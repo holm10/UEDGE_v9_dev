@@ -107,6 +107,10 @@ Run `tests/deterministic_omp/harness/serial_check.py` against base venvs of the 
 `RESULT: AGREE (bitwise identical; complete gate)`. For an intended change to results (a bug fix or physics that is
 meant to move cases), ⚠️ when exactly the cases the plan or RCA names move, ❌ for any other. Quote the `RESULT` line.
 
+Build the compared venvs from the final committed HEAD, code and code-facts included. A fix after the gate, even a
+comment, needs a rebuild before the gate counts (`RESULT: INCOMPLETE … build older than HEAD`). Keep review-minor
+fixes to comments on existing lines where possible, so the AI layer's line references don't move.
+
 ## Report
 
 ```
