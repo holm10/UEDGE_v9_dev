@@ -356,3 +356,77 @@ def test_locality_part_not_run_without_locality():
     """AIUE-92: a family without [locality] (an owner family) has no locality part; it never stops the run."""
     assert rm.has_locality("d_only") and not rm.has_locality("large_dd2c")
     assert rm.locality_part(None, "large_dd2c", None, None) == (None, None)
+
+
+# ---------------------------------------------------------------- a mutation checked through a stored variant (AIUE-96)
+
+VARIANT = {"Kind": "flag-gating", "Equation": "ni", "Fault": "gating", "Check": "flag difference", "Configs": "steady",
+           "Intermediate": "none", "Blocks": "d_only: primary ni[1], te[1]", "Families": "d_only",
+           "Variant": "bbb.v"}
+ENTRY = {"class": "SENSITIVE", "config": "steady", "jflag_block_l2": {"ni[1] core": 1.0, "te[1] sol": 2.0}}
+
+
+def test_variant_header(tmp_path, stores):
+    m = mut(tmp_path, **VARIANT)
+    assert m.variant == "bbb.v" and m.summary()["variant"] == "bbb.v"
+    assert rm.problems(m, stores) == []
+    assert rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": ENTRY}}) == []
+    assert rm.variant_problems(mut(tmp_path), None, None) == []
+
+
+@pytest.mark.parametrize("plan_ids, entry, over, match", [
+    (set(), ENTRY, {}, "not a variant of the inventory"),
+    ({"bbb.v"}, None, {}, "d_only stores no such variant"),
+    ({"bbb.v"}, dict(ENTRY, **{"class": "INERT"}), {}, "stores it as INERT"),
+    ({"bbb.v"}, dict(ENTRY, jflag_block_l2={}), {}, "need SENSITIVE with some"),
+    ({"bbb.v"}, ENTRY, {"Configs": "steady, timestep"}, "checked in steady only"),
+    ({"bbb.v"}, ENTRY, {"Blocks": "d_only: primary ni[1], up[1]"}, r"primary \['up\[1\]'\] outside"),
+])
+def test_variant_problems(tmp_path, plan_ids, entry, over, match):
+    m = mut(tmp_path, **{**VARIANT, **over})
+    found = rm.variant_problems(m, plan_ids, {"d_only": {} if entry is None else {"bbb.v": entry}})
+    assert any(re.search(match, p) for p in found), found
+
+
+def test_ishosor_through_its_variant():
+    """The committed ishosor mutation is checked through d_only's stored bbb.ishosor variant (AIUE-96 D7)."""
+    m = rm.load(rm.MUTATIONS / "ishosor_flag_gating.patch")
+    assert (m.variant, m.families, m.pending) == ("bbb.ishosor", ["d_only"], None)
+
+
+def variant_result(spec):
+    """The child's result for a variant in its configuration only (steady)."""
+    return {"steady": result(spec)["steady"]}
+
+
+FLAG = {("steady", "flag difference"): {"ni[1]": [[3, 1]], "te[1]": [[3, 1]]}}
+
+
+@pytest.mark.parametrize("spec, junit, want, flag", [
+    (FLAG, {"steady": True}, "expected", None),
+    ({}, {"steady": False}, "missed", None),
+    ({("steady", "flag difference"): {"ni[1]": [[3, 1]]}}, {"steady": True}, "unexpected", None),
+    (FLAG, {"steady": False}, "expected", "test_sensitive[d_only-bbb.v] passed while the check fired"),
+    (FLAG, {}, "expected", "test_sensitive[d_only-bbb.v] passed while the check fired"),
+])
+def test_variant_verdict(tmp_path, spec, junit, want, flag):
+    """Only the variant's configuration ran: no timestep entry is asked of the cross-check."""
+    v = rm.verdict(mut(tmp_path, **VARIANT), "d_only", variant_result(spec), junit=junit)
+    assert v["verdict"] == want, v
+    assert v["flags"] == ([flag] if flag else []), v
+
+
+JUNIT_VARIANT = """<testsuites><testsuite>
+<testcase classname="t" name="test_sensitive[d_only-bbb.ishosor]"><failure message="x"/></testcase>
+<testcase classname="t" name="test_sensitive[d_only-bbb.ishosor=1]"/>
+<testcase classname="t" name="test_inert[d_only-bbb.ishosor]"/>
+{}</testsuite></testsuites>"""
+
+
+def test_parse_junit_variant(tmp_path):
+    p = tmp_path / "j.xml"
+    p.write_text(JUNIT_VARIANT.format(""))
+    assert rm.parse_junit_variant(p, ["d_only"], "bbb.ishosor") == {"d_only": {"steady": True}}
+    p.write_text(JUNIT_VARIANT.format('<testcase classname="t" name="test_sensitive[d_only-bbb.ishosor]"/>'))
+    with pytest.raises(rm.Stop, match="collected twice"):
+        rm.parse_junit_variant(p, ["d_only"], "bbb.ishosor")

@@ -167,36 +167,43 @@ def reference_stores(refs, families):
         yield stores
 
 
-def replay_family(name, s, runner, plan, timeout):
-    """{id: row} for every SENSITIVE variant of the open store s: the variant evaluated once with this build, in a
-    fresh child, its recorded applied value replayed, and checked against its stored reference with
+def check_sensitive(name, s, runner, v, e, timeout):
+    """The row of one SENSITIVE variant v (its manifest entry e) of the open full store s: evaluated once with this
+    build, in a fresh child, its recorded applied value replayed, and checked against its stored reference with
     make_references.variant_tolerance (D8) through Store.check, yldot and the flag difference. A row: ok, ratio
-    (the largest |d_i| / tol_i(variant) over both, inf for a non-finite entry) and, for a failed evaluation,
-    status and message."""
+    (the largest |d_i| / tol_i(variant) over both, inf for a non-finite entry), for a failed evaluation status and
+    message, for a failed Store.check its report (test_variants.py, AIUE-96)."""
     import make_references as mr
     from yldot.harness import compare
     from yldot.harness.process import family_dir
 
+    r = runner.evaluate(name, variant=v, replay=e["applied"], timeout=timeout)
+    if not r.ok:
+        return {"ok": False, "ratio": float("inf"), "status": r.status, "message": mr.error_reason(r)}
+    fdir = family_dir(name)
+    config = e["config"]
+    ref, ref_j = s.variant(config, v.id)
+    tol = mr.variant_tolerance(fdir, ref, config, s.imap)
+    y, yj = r.data["yldot"], r.data["yldot_J"]
+    ratio = max(worst(y - ref, tol), worst((yj - y) - ref_j, tol))
+    chk = s.check(config, v.id, y, yj, tol, compare.index_map(r.data, compare.load_regions(fdir)))
+    row = {"ok": bool(chk.ok) and ratio <= 1, "ratio": ratio}
+    if not chk.ok:
+        row["report"] = chk.report
+    return row
+
+
+def replay_family(name, s, runner, plan, timeout):
+    """{id: row} for every SENSITIVE variant of the open store s (check_sensitive)."""
     if s.kind != "full":
         raise Stop(2, "{}: a {} store holds no dense variant reference, D8's rtol term needs one".format(name, s.kind))
-    fdir = family_dir(name)
     rows = {}
     for vid, e in s.manifest["variables"].items():
         if e["class"] != "SENSITIVE":
             continue
         if vid not in plan:
             raise Stop(2, "{} {}: not in this inventory (prune it first, AIUE-95)".format(name, vid))
-        r = runner.evaluate(name, variant=plan[vid], replay=e["applied"], timeout=timeout)
-        if not r.ok:
-            rows[vid] = {"ok": False, "ratio": float("inf"), "status": r.status, "message": mr.error_reason(r)}
-            continue
-        config = e["config"]
-        ref, ref_j = s.variant(config, vid)
-        tol = mr.variant_tolerance(fdir, ref, config, s.imap)
-        y, yj = r.data["yldot"], r.data["yldot_J"]
-        ratio = max(worst(y - ref, tol), worst((yj - y) - ref_j, tol))
-        chk = s.check(config, vid, y, yj, tol, compare.index_map(r.data, compare.load_regions(fdir)))
-        rows[vid] = {"ok": bool(chk.ok) and ratio <= 1, "ratio": ratio}
+        rows[vid] = check_sensitive(name, s, runner, plan[vid], e, timeout)
     return rows
 
 
