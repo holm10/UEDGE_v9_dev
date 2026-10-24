@@ -5,13 +5,17 @@ Fault: gating
 Check: flag difference
 Configs: steady
 Intermediate: none
+Blocks: d_only: primary ni[1], ni[2], up[1], up[2], te[1], ti[1]
 Families: d_only
-Pending: AIUE-96 (the ishosor variant's Jacobian-flag reference, stored since AIUE-94, with ifixpsor = 0)
+Variant: bbb.ishosor
 Source: bbb/pandf_plasma_continuity.m:714 (at 8a67572)
 Description: drops the yl(neq+1) < 0 condition on ishosor's volume integration of the sources (PRD 7.8, decision
  27), so the Jacobian-flag (+1) evaluation also integrates them. ishosor = 0 in every default, so the
- default check must not fire; the ishosor variant's Jacobian-flag reference (stored since AIUE-94) and its
- test (AIUE-96) catch it. Run now as a negative control (ishosor = 0 in the owner families too).
+ default check must not fire; d_only's ishosor variant (ishosor = 1, ifixpsor = 0), whose Jacobian-flag
+ reference is stored since AIUE-94, and its test_variants.py test catch it (AIUE-96 D7): the blocks are those
+ where the variant's stored flag difference departs from the default's (its jflag_block_l2), the integration's
+ share, which the mutation removes by integrating in the +1 evaluation too. The other families
+ run at their defaults as negative controls (ishosor = 0 in the owner families too).
 
 diff --git a/bbb/pandf_plasma_continuity.m b/bbb/pandf_plasma_continuity.m
 index 59433cf..4173bfa 100644

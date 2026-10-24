@@ -49,6 +49,8 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "toml_only: reads family.toml only, runs without the family's release assets")
+    config.addinivalue_line("markers", "nightly: the nightly tier (PRD section 4), deselected in the PR tier with "
+                                       "-m \"not nightly\"")
 
 
 def pytest_sessionstart(session):

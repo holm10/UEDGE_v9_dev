@@ -5,7 +5,7 @@ Usage (from a checkout whose tests/yldot is the commit's, references/ aside):
     python run_mutations.py list
     python run_mutations.py run --out DIR [--from-commit SHA] [mutation ...]
     python run_mutations.py gates DIR
-    <built python> run_mutations.py _child --families F [F ...] --out FILE [--locality]
+    <built python> run_mutations.py _child --families F [F ...] --out FILE [--locality | --variant ID]
 
 list      parses and checks every tests/yldot/mutations/*.patch (header keys, the single-line diff, the families and
           blocks against the stored references) and prints the set.
@@ -21,10 +21,13 @@ run       applies the mutations (default: all) one at a time to a scratch worktr
           other than expected there stops the mutation (its other families: not run). Otherwise every other
           referenced family runs, active or not (owner, 2026-10-22, AIUE-90 Q8: a block firing where the code is
           inactive is unexpected). Pending mutations run on every referenced family as negative controls (Q6).
+          A mutation with a Variant runs that stored SENSITIVE variant instead of the defaults in its Families
+          (its recorded applied value replayed, checked against its stored reference under tol_i(variant) as
+          test_variants.py checks it), with test_variants.py's test_sensitive as the cross-check there (AIUE-96).
           Writes DIR/matrix.json after each mutation, then DIR/matrix.md, and prints the gates.
 gates     recomputes and prints the gates of DIR/matrix.json.
 _child    runs inside the built venv: per family and configuration one fresh evaluation, decided by Store.check as
-          test_default.py decides it, with the fired blocks, failing cells and largest |diff|/tol per part (yldot,
+          test_default.py decides it (with --variant: the variant in its configuration, as test_variants.py), with the fired blocks, failing cells and largest |diff|/tol per part (yldot,
           flag difference) and the first differing intermediate (array-scaled, as Store.check's report). With
           --locality also the steady part locality, decided by locality.compare_pattern as test_locality.py decides
           it (fired blocks: those of the failing rows; largest ratio: score/M_loc, 1/score or the magnitude ratio).
@@ -47,6 +50,9 @@ line for Blocks and Cells), a blank line, then the single-line `git diff` (git a
                   exceptions approved by the epic owner, `; <family>: <array or none> (<who, date, why>)`
     Families      the families where the code is active, the inner-loop family first
     Pending       optional, AIUE-<n>[, AIUE-<n>] (<reason>): the ticket whose check will catch it
+    Variant       optional, a variant id: in Families the mutation is checked through this stored SENSITIVE
+                  variant (its Jacobian-flag reference, for a flag-gating whose code no default runs; AIUE-96 D7),
+                  Configs its configuration, the primary blocks among its stored flag-difference blocks
     Source        <file>:<line> (at <sha>), the mutated line
     Description   free text
 Species are Fortran's 1-based ifld/igsp.
@@ -73,6 +79,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # tools/, for make_ref
 
 import make_references as mr  # noqa: E402
 
+from yldot.harness import build as hb  # noqa: E402
 from yldot.harness import manifest as mf  # noqa: E402
 from yldot.harness.compare import EQUATIONS  # noqa: E402
 
@@ -88,7 +95,7 @@ FAULTS = ("sign", "factor 2", "dropped term", "off-by-one", "wrong multiplier", 
           "gating")
 REQUIRED = ("Mutation", "Kind", "Equation", "Fault", "Check", "Configs", "Intermediate", "Families", "Source",
             "Description")
-OPTIONAL = ("Blocks", "Cells", "Pending")
+OPTIONAL = ("Blocks", "Cells", "Pending", "Variant")
 LIST_KEYS = ("Blocks", "Cells")  # one entry per line
 BLOCK_RE = re.compile(r"^([a-z]+)\[(\d+)\]$")
 CELL_RE = re.compile(r"\((\d+),(\d+)\)")
@@ -126,11 +133,12 @@ class Mutation:
     intermediate_by: dict = field(default_factory=dict)  # {family: array or none}, owner-approved exceptions
     families: list = field(default_factory=list)
     pending: str = None
+    variant: str = None  # checked through this stored variant in its Families (AIUE-96)
     source: tuple = None  # (file, line, sha)
 
     def summary(self):
         return {"kind": self.kind, "equation": self.equation, "fault": self.fault, "check": self.check,
-                "configs": self.configs, "families": self.families, "pending": self.pending,
+                "configs": self.configs, "families": self.families, "pending": self.pending, "variant": self.variant,
                 "intermediate": self.intermediate, "intermediate_by": self.intermediate_by, "blocks": self.blocks,
                 "cells": {f: [b, [list(c) for c in cells]] for f, (b, cells) in self.cells.items()},
                 "source": "{}:{}".format(*self.source[:2]) if self.source else None}
@@ -218,6 +226,7 @@ def load(path):
     m.blocks = parse_blocks(keys.get("Blocks", []))
     m.cells = parse_cells(keys.get("Cells", []))
     m.pending = keys.get("Pending")
+    m.variant = keys.get("Variant")
     hit = SOURCE_RE.match(keys["Source"])
     if not hit:
         raise ValueError("Source {!r}: need `<file>:<line> (at <sha>)`".format(keys["Source"]))
@@ -315,6 +324,33 @@ def problems(m, stores=None):
     return out
 
 
+def variant_problems(m, plan_ids, variables):
+    """The defects of a mutation's Variant: plan_ids, the inventory's variant ids; variables: {family: the manifest's
+    variables} of the referenced families."""
+    if m.variant is None:
+        return []
+    if m.variant not in plan_ids:
+        return ["Variant {}: not a variant of the inventory".format(m.variant)]
+    out = []
+    for f in m.families:
+        e = variables.get(f, {}).get(m.variant)
+        if e is None:
+            out.append("Variant {}: {} stores no such variant".format(m.variant, f))
+            continue
+        stored = sorted({label.split(" ")[0] for label in e["jflag_block_l2"]})  # "ni[1] core" -> ni[1]
+        if e["class"] != "SENSITIVE" or not stored:
+            out.append("Variant {}: {} stores it as {} with flag-difference blocks {}, need SENSITIVE with some".format(
+                m.variant, f, e["class"], stored))
+            continue
+        if m.configs != [e["config"]]:
+            out.append("Configs {}: the variant {} is checked in {} only".format(m.configs, m.variant, e["config"]))
+        outside = sorted(set(m.blocks.get(f, {}).get("primary", [])) - set(stored))
+        if outside:
+            out.append("Blocks {}: primary {} outside the variant's stored flag-difference blocks {}".format(
+                f, outside, stored))
+    return out
+
+
 def composition(ms):
     """Defects of the set as a whole (PRD 7.8: 27 patches; 7 equations x sign, factor 2, dropped term)."""
     out = []
@@ -359,8 +395,14 @@ def load_set(names=None, stores=None):
             ms.append(load(p))
         except ValueError as e:
             bad.append("{}: {}".format(p.name, e))
+    plan_ids = variables = None
+    if any(m.variant for m in ms):
+        from yldot.harness import variants
+
+        plan_ids = {v.id for v in variants.plan()}
+        variables = {f: mf.load(f).get("variables") or {} for f in referenced()}
     for m in ms:
-        bad += ["{}: {}".format(m.path.name, e) for e in problems(m, stores)]
+        bad += ["{}: {}".format(m.path.name, e) for e in problems(m, stores) + variant_problems(m, plan_ids, variables)]
     if names is None:
         bad += composition(ms)
     if bad:
@@ -388,10 +430,15 @@ def fired(result):
     return out
 
 
+def checked_by_variant(m, family):
+    return m.variant is not None and family in m.families
+
+
 def verdict(m, family, result, junit=None, junit_loc=None):
     """{"verdict", "problems", "flags"} of one mutation on one family. result: the child's {config: ...}; junit: the
-    test_default.py outcome {config: failed} for the family (None: not run); junit_loc: the test_locality.py outcome
-    (failed: bool) for the family (None: not run)."""
+    test_default.py outcome {config: failed} for the family (test_variants.py's test_sensitive for a Variant in its
+    Families; None: not run); junit_loc: the test_locality.py outcome (failed: bool) for the family (None: not
+    run)."""
     crashed = ["{}: {} {}".format(c, r.get("status"), r.get("message", "")) for c, r in result.items()
                if r.get("status") != "ok"]
     if crashed:
@@ -399,11 +446,13 @@ def verdict(m, family, result, junit=None, junit_loc=None):
     got = fired(result)
     flags = []
     if junit is not None:
-        for config in CONFIGS:
+        for config in result:  # a variant runs in its own configuration only
             fails = any(part in DEFAULT_PARTS for (c, part) in got if c == config)
             if junit.get(config) != fails:
-                flags.append("test_default[{}-{}] {} while the check {}".format(
-                    family, config, "failed" if junit.get(config) else "passed", "fired" if fails else "passed"))
+                test = "test_sensitive[{}-{}]".format(family, m.variant) if checked_by_variant(m, family) else \
+                    "test_default[{}-{}]".format(family, config)
+                flags.append("{} {} while the check {}".format(test, "failed" if junit.get(config) else "passed",
+                                                              "fired" if fails else "passed"))
     if junit_loc is not None:
         fails = ("steady", "locality") in got
         if junit_loc != fails:
@@ -586,9 +635,39 @@ def locality_part(runner, family, regions, tol):
                   "headline": c.headline()}
 
 
-def child(families, out, locality=False):
+def variant_child(runner, family, vid):
+    """{config: ...} of the stored SENSITIVE variant vid in its configuration: its recorded applied value replayed,
+    decided by Store.check under tol_i(variant) as test_variants.py decides it (variant_tolerances.check_sensitive);
+    no first differing intermediate (no variant stores diagnostics)."""
+    import numpy as np
+
+    from yldot.harness import compare, open_store, variants
+    from yldot.harness.process import family_dir
+
+    v = next(x for x in variants.plan() if x.id == vid)
+    with open_store(family) as s:
+        e = s.manifest["variables"][vid]
+        config = e["config"]
+        r = runner.evaluate(family, variant=v, replay=e["applied"])
+        if not r.ok:
+            return {config: {"status": r.status, "message": r.message, "log_tail": r.log_tail}}
+        imap = compare.index_map(r.data, compare.load_regions(family))
+        ref, ref_j = s.variant(config, vid)
+        t = mr.variant_tolerance(family_dir(family), ref, config, s.imap)
+        y, yj = np.asarray(r.data["yldot"]), np.asarray(r.data["yldot_J"])
+        chk = s.check(config, vid, y, yj, t, imap)
+        parts = {part: part_summary(compare.compare(new, old, t, imap, worst=1), imap)
+                 for part, new, old in (("yldot", y, ref), ("flag difference", yj - y, ref_j))}
+    if chk.ok != all(p["ok"] for p in parts.values()):
+        raise Stop(2, "{} {}: Store.check says {} but the comparisons {}".format(
+            family, vid, chk.ok, {k: p["ok"] for k, p in parts.items()}))
+    return {config: {"status": "ok", "parts": parts, "intermediate": None, "first_difference": None}}
+
+
+def child(families, out, locality=False, variant=None):
     """Evaluate each family in both configurations and write {family: {config: ...}} as JSON to out. locality: also
-    the steady locality check (a range mutation, AIUE-100 D4), as the part "locality" of the steady configuration."""
+    the steady locality check (a range mutation, AIUE-100 D4), as the part "locality" of the steady configuration.
+    variant: instead the stored variant of that id, in its configuration only (variant_child, AIUE-96)."""
     import numpy as np
 
     from yldot.harness import Runner, compare, open_store
@@ -598,6 +677,9 @@ def child(families, out, locality=False):
         tol = tomllib.load(f)
     runner, res = Runner(), {}
     for family in families:
+        if variant is not None:
+            res[family] = variant_child(runner, family, variant)
+            continue
         res[family] = {}
         regions = compare.load_regions(family)
         for config in CONFIGS:
@@ -687,10 +769,10 @@ class Scratch:
     def remove(self):
         self.run(["git", "-C", str(self.root), "worktree", "remove", "--force", str(self.src)])
 
-    def evaluate(self, families, out, locality=False):
+    def evaluate(self, families, out, locality=False, variant=None):
         out.parent.mkdir(parents=True, exist_ok=True)
         cmd = [str(self.python), str(Path(__file__).resolve()), "_child", "--families"] + families + [
-            "--out", str(out)] + (["--locality"] if locality else [])
+            "--out", str(out)] + (["--locality"] if locality else []) + (["--variant", variant] if variant else [])
         if self.stream(cmd, cwd=self.out, env=self.env, log=out.with_suffix(".log")) != 0:
             raise Stop(2, "the evaluation of {} failed (log: {})".format(families, out.with_suffix(".log")))
         return json.loads(out.read_text())
@@ -704,6 +786,19 @@ class Scratch:
         if rc not in (0, 1):
             raise Stop(2, "test_default.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
         return parse_junit(out, families)
+
+    def test_variant(self, families, vid, out):
+        """{family: {config: failed}} from test_variants.py's test_sensitive[<family>-<vid>], run with the built
+        python. A BuildLimitWarning counts as a failure: on a macOS FMA build the test reports a mismatch instead of
+        failing (owner, 2026-10-23, AIUE-96 D1), and the cross-check asks whether it noticed one. -W selects it by
+        its message (harness/build.py's REPORTED): pytest can't import yldot when it reads the option."""
+        expr = "test_sensitive and ({})".format(" or ".join("{}-{}".format(f, vid) for f in families))
+        cmd = [str(self.python), "-m", "pytest", "tests/yldot/test_variants.py", "-k", expr, "-q", "-p",
+               "no:cacheprovider", "-W", "error:{}:UserWarning".format(hb.REPORTED), "--junitxml", str(out)]
+        rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
+        if rc not in (0, 1):
+            raise Stop(2, "test_variants.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
+        return parse_junit_variant(out, families, vid)
 
     def test_locality(self, families, out):
         """{family: failed} from test_locality.py's test_locality cases, run with the built python."""
@@ -732,6 +827,23 @@ def parse_junit_locality(path, families):
     missing = sorted(set(families) - set(res))
     if missing:
         raise Stop(2, "test_locality has no case for {} ({})".format(missing, path))
+    return res
+
+
+def parse_junit_variant(path, families, vid):
+    """{family: {config: failed}} of the test_sensitive[<family>-<vid>] cases in a JUnit XML file, config the variant's
+    stored one. A skipped case has no entry (verdict() then flags it); a case collected twice is a harness error."""
+    res = {f: {} for f in families}
+    for case in ET.parse(path).getroot().iter("testcase"):
+        hit = re.match(r"^test_sensitive\[(.+)\]$", case.get("name", ""))
+        family = next((f for f in families if hit and hit.group(1) == "{}-{}".format(f, vid)), None)
+        if family is None:
+            continue
+        config = mf.load(family)["variables"][vid]["config"]
+        if config in res[family]:
+            raise Stop(2, "test_sensitive[{}-{}] collected twice ({})".format(family, vid, path))
+        if case.find("skipped") is None:
+            res[family][config] = case.find("failure") is not None or case.find("error") is not None
     return res
 
 
@@ -779,6 +891,15 @@ def run_one(m, scratch, out, families):
         loc = m.check == "locality"  # the locality check runs for the range mutations only (owner, AIUE-100 D4)
 
         def evaluate(fams, name):
+            by_variant = [f for f in fams if checked_by_variant(m, f)]
+            fams = [f for f in fams if f not in by_variant]
+            if by_variant:
+                res = scratch.evaluate(by_variant, mdir / "{}.variant.json".format(name), variant=m.variant)
+                junit = scratch.test_variant(by_variant, m.variant, mdir / "{}.variant.junit.xml".format(name))
+                for f in by_variant:
+                    results[f] = entry(m, f, res[f], junit[f])
+            if not fams:
+                return
             res = scratch.evaluate(fams, mdir / "{}.json".format(name), locality=loc)
             junit = scratch.test_default(fams, mdir / "{}.junit.xml".format(name))
             with_loc = [f for f in fams if has_locality(f)] if loc else []
@@ -856,17 +977,19 @@ def main(argv):
     p.add_argument("--families", nargs="+", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--locality", action="store_true", help="also the steady locality check (range mutations)")
+    p.add_argument("--variant", help="instead the stored variant of this id, in its configuration")
     args = parser.parse_args(argv[1:])
     try:
         if args.cmd == "_child":
-            child(args.families, args.out, args.locality)
+            child(args.families, args.out, args.locality, args.variant)
             return 0
         if args.cmd == "list":
             ms = load_set(stores=store_facts(referenced()))
             for m in ms:
-                print("{:36s} {:12s} {:4s} {:16s} {:16s} {}{}".format(
+                print("{:36s} {:12s} {:4s} {:16s} {:16s} {}{}{}".format(
                     m.name, m.kind, m.equation, m.fault, m.check, ", ".join(m.families),
-                    "  [pending {}]".format(m.pending.split(" (")[0]) if m.pending else ""))
+                    "  [pending {}]".format(m.pending.split(" (")[0]) if m.pending else "",
+                    "  [variant {}]".format(m.variant) if m.variant else ""))
             print("{} mutations".format(len(ms)))
             return 0
         if args.cmd == "gates":
