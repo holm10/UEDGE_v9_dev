@@ -111,6 +111,8 @@ Before validating, bring the AI layer's description of the code up to date (`.cl
    package or build step → update `.claude/context/architecture.md` (and `CLAUDE.md` if a rule or gotcha changed).
 4. Commit these separately with the trailer `AI-layer: code-facts`. Only `CLAUDE.md` and `.claude/context/` may
    change this way. Skills, agents and hooks never change on a ticket branch.
+   Commit the code-facts change before step 4's builds: `serial_check.py` refuses builds older than HEAD, so any
+   later commit, docs or a comment included, means a rebuild and a re-run (AIUE-181, twice).
 
 ### 4. Run Validation Commands
 
@@ -148,6 +150,10 @@ The work is not done until a fresh `uedge-reviewer` has approved it: run the **A
 (`end-to-end-feature` does this as its Step 3b). Run the tier check against the diff first (`process-tiers.md`). If you can't spawn a reviewer, say so in the report and hand the
 caller the ready-to-use reviewer prompt that loop describes. Rounds 2+ are verification rounds on the fix diff;
 MINORs alone never start a round.
+
+A ticket run as `plan-feature` → `execute`, not through `end-to-end-feature`, also owns that skill's Step 5 (Learn):
+run `execution-report` and `system-review` before the worktree is removed, while `.claude/work/<KEY>/` still holds
+the plan; for an S ticket only when the run diverged (`branching.md` → worktree removal).
 
 ## Output Report
 

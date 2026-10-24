@@ -137,7 +137,10 @@ pip install . -C "--build-option=--serial"
 - Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`. **Flush first**: the working
   folder `.claude/work/<KEY>/` and the `ticket-page` outbox go with the worktree, so run `ticket-page <KEY> flush`
   and check that nothing is queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list` prints nothing).
-  Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above).
+  Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
+  as `plan-feature` → `execute` (not `end-to-end-feature`) runs `execution-report` and `system-review` before its
+  worktree is removed, while `.claude/work/<KEY>/` still holds the plan; for an S ticket only when the run diverged
+  (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
 
 ## Improving the AI layer while doing ticket work
 

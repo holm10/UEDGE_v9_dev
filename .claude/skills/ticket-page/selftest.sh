@@ -86,7 +86,10 @@ $T render --repo "$R" --meta "$W/meta.json" --outbox "$ST" --out "$W/x.md" 2>/de
 $T render --repo "$R" --meta "$W/meta.json" --ticket "$W/tk1.md" --outbox "$ST" --out "$W/sk.md" >/dev/null; ok $? 0 "A6 skeleton render"
 [ "$(grep -cE '^## (Ticket|Progress|Validation|Reviews|Findings and decisions|Plan)$' "$W/sk.md")" = 6 ] && grep -q '_Not written yet' "$W/sk.md" && grep -q 'Status:\*\* Planned' "$W/sk.md" && [ ! -e "$ST" ]; ok $? 0 "A6 Ticket, four logs, Plan placeholder, status Planned; nothing written to the store"
 meta status=Planned page_id=950
-$T render --repo "$R" --meta "$W/meta.json" --ticket "$W/tk1.md" --current "$W/sk.md" --outbox "$ST" --out "$W/x.md" 2>/dev/null; ok $? 2 "A7 the skeleton never rewrites an existing page"
+$T render --repo "$R" --meta "$W/meta.json" --outbox "$ST" --out "$W/x.md" 2>&1 | grep -q 'the page exists'; ok $? 0 "A7 no plan, existing page, no --current/--local: refused"
+$T queue --repo "$R" --key T-1 --outbox "$W/st-a7" --add "Findings and decisions" prime "Owner: D1 before the plan." >/dev/null
+$T render --repo "$R" --meta "$W/meta.json" --current "$W/sk.md" --outbox "$W/st-a7" --out "$W/a7.md" >/dev/null; ok $? 0 "A7 owner decision before plan-feature: no-plan render on the spec-created page"
+grep -q 'Owner: D1 before the plan' "$W/a7.md" && grep -q 'it works' "$W/a7.md" && grep -q '_Not written yet' "$W/a7.md" && grep -q 'Plan:\*\* not written yet' "$W/a7.md"; ok $? 0 "A7 entry added, Ticket carried over, Plan placeholder and header kept"
 fakelog create "Plan: T-1 - Demo" "$W/sk.md" 1
 $T verify --log "$W/hook.jsonl" --body "$W/sk.md" --created --title "Plan: T-1 - Demo" --parent-id 800 | grep -q 'page 950'; ok $? 0 "A8 verify the create, prints the new page id"
 cp "$W/sk.md" "$W/skbad.md"; echo typo >> "$W/skbad.md"
@@ -139,6 +142,7 @@ $T queue --repo "$R" --key T-1 --outbox "$ST" --add Progress plan-feature "Plan 
 $T render --repo "$R" --plan $P --date 2026-10-16 --meta "$W/meta.json" --current "$W/sk.md" --outbox "$ST" --out "$W/b1.md" >/dev/null; ok $? 0 "C1 first publish fills the spec-created page (--current)"
 grep -q 'it works' "$W/b1.md" && ! grep -q '_Not written yet' "$W/b1.md" && grep -q "published 2026-10-16 (sha256 \`$PH\`)" "$W/b1.md"; ok $? 0 "C1 Ticket kept, placeholder replaced, header cites date and sha256"
 ! grep -qE '/Users/someone|/scratch/someone|/p/lustre1|file:///Users' "$W/b1.md" && grep -q '^## not a heading inside a fence' "$W/b1.md" && grep -q '^##### Detail' "$W/b1.md"; ok $? 0 "C1 paths masked (file:// too); headings demoted two levels, fenced line untouched"
+$T render --repo "$R" --meta "$W/meta.json" --current "$W/b1.md" --outbox "$W/st-a7" --out "$W/x.md" 2>&1 | grep -q 'holds a published Plan'; ok $? 0 "C1 a no-plan render never replaces a published plan with the placeholder"
 fakelog update 950 "$W/b1.md" 2
 V --body "$W/b1.md" --page-id 950 --after-version 1; ok $? 0 "C2 verify the update (v2)"
 $T state --repo "$R" --key T-1 --outbox "$ST" --set version=2 modified=2026-10-16T10:00:00.000Z page_id=950 --save-body "$W/b1.md" --save-plan "$R/$P" --plan-title Plan --date 2026-10-16 >/dev/null
