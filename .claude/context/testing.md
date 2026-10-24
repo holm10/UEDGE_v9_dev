@@ -29,7 +29,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (`fetch_data.fetch`: download if absent, SHA-256 check, link; decision 23, owner 2026-10-22, AIUE-156); nothing
   under `tests/yldot/` skips. If the fetch is impossible or `--yldot-no-fetch` is given, a test parametrised over a
   family with absent `families/<f>/` assets fails at setup naming the cause, except those marked `toml_only`;
-  different files fail (`test_smoke.py::test_external_files`).
+  different files fail (`test_smoke.py::test_external_files`). The marker `nightly` (AIUE-96) is the nightly tier
+  (PRD §4): the PR tier runs `-m "not nightly"`; the owner families' variant tests (AIUE-99) carry it.
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. The small families' hold the defaults and the
@@ -106,11 +107,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   flip, a factor 2 and a dropped term per equation, the X-point off-by-one, a wrong `cf*` multiplier, two range and
   two flag-gating mutations. A `Key: value` header (`Mutation`, `Kind`, `Equation`, `Fault`, `Check`, `Configs`,
   `Blocks` per family, optional `Cells`, `Intermediate`, `Families` with the inner-loop family first, optional
-  `Pending`, `Source`, `Description`; a line starting with a space continues the previous key's value, e.g. one
+  `Pending`, optional `Variant`, `Source`, `Description`; a line starting with a space continues the previous key's value, e.g. one
   `Blocks` line per family as `<family>: primary <blocks>; coupled <blocks>`; the keys are documented in
   `run_mutations.py`), a blank line, then a single-line `git diff`; `git apply` skips the header. Applied only in a
-  scratch worktree, never to a source on a branch. One is `Pending` (`ishosor`: AIUE-96) and runs as a negative
-  control (owner, 2026-10-22, AIUE-90); the gas-energy ones fire in large_dd2c's `tg[2]` since AIUE-92, which added
+  scratch worktree, never to a source on a branch. None is `Pending` since AIUE-96: `ishosor_flag_gating` (the
+  `ishosor` integration, which no default runs) names `Variant: bbb.ishosor` and is checked through d_only's stored
+  `bbb.ishosor` variant, its primary blocks those of the variant's stored flag difference (owner, 2026-10-23,
+  AIUE-96 D7); the gas-energy ones fire in large_dd2c's `tg[2]` since AIUE-92, which added
   the owner families to the headers (predicted before the run; appended in ascending `neq`, dnull_imp2, large_dd2c,
   imp7). The two range mutations
   (AIUE-100) are `initialize_ranges`' `i5` bound (`bbb/pandf.m:73`) and the point-wise `vsoree` copy
@@ -163,16 +166,25 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's).
   `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
-  own python and checks it under that rule (exit 3 = owner); on the yldot-data-v3 references mac-noopt passes every
+  own python and checks it under that rule (exit 3 = owner; `check_sensitive`, one variant's check, is also
+  `test_variants.py`'s); on the yldot-data-v3 references mac-noopt passes every
   family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
   `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
   design); on yldot-data-v5, where `com.isnonog` is EXCLUDED as family-level (AIUE-159), mac-serial fails the other
   two (d_c `bbb.mvolcur` 1.74 ×, slab_phi `bbb.icnucx` 3.07 ×), and the same two on yldot-data-v8, where the integer
   `bbb.ziin` variant replays within 0.017 × tol_i on mac-serial and 4e-4 × on mac-noopt in all five families
-  (AIUE-161); `collect` and `check` do the same on the seeded sample against the serial pairs.
+  (AIUE-161); `collect` and `check` do the same on the seeded sample against the serial pairs. In
+  `test_variants.py` such a macOS mismatch is reported, not failed (owner, 2026-10-23, AIUE-96 D1), when the build
+  record says so: `tests/yldot/harness/build.py` reads the installed `<site-packages>/uedge/_build_info.json` (AIUE-181) without
+  importing `uedge`; FMA contraction = darwin, the last `-O` of `forthon_fopt` then `fargs` at `-O2` or above, no
+  `-ffp-contract=off`; no record fails, naming it (D4).
   `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
   baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
   miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
+  a mutation with `Variant` runs that stored variant in its `Families` instead of the defaults (`_child --variant`:
+  its applied value replayed, Store.check under tol_i(variant), that configuration only) with `test_variants.py`'s
+  `test_sensitive` as the cross-check there, a `BuildLimitWarning` counting as a failure (selected by its message,
+  `build.REPORTED`: pytest's `-W` cannot import `yldot`);
   a range mutation (Check `locality`) also gets the steady part `locality` (`_child --locality`) and
   `test_locality.py` as its cross-check, the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
   with `[locality]` (owner, 2026-10-23, AIUE-92); writes the coverage matrix `matrix.json`/`matrix.md` (a working
@@ -227,10 +239,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: about 860 tests, none skipped, about 8 min, serial build, Darwin
-  arm64, 2026-10-23; update these figures only when a ticket moves the count or the runtime by more than about 10 %,
-  the exact count goes in the ticket's Validation record; about 250 s of the runtime
-  are the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
+- **Tests** (the whole suite, `-m "not nightly"`: about 5,760 tests, none skipped, about 15 min, serial build, Darwin
+  arm64, 2026-10-23 (AIUE-96); update these figures only when a ticket moves the count or the runtime by more than
+  about 10 %, the exact count goes in the ticket's Validation record; about 7 min of the runtime are
+  `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
   headline, and `test_timestep_exercised` (timestep − steady equals minus the stored timestep flag difference bit
@@ -242,8 +254,18 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   steady child each, every column: the `f00` cross-check, no stale column, the stored delta, the pattern with its
   band; story 6 headline), `test_locality_configured` (every small family) and `compare_pattern`'s band rules on
   synthetic entries (AIUE-100);
+  `tests/yldot/test_variants.py` every stored SENSITIVE, INERT and INVALID variant of every family whose manifest
+  classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
+  its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
+  default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`); an owner
+  family's are `nightly`; plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests, about
+  7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
-  comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family, `tests/yldot/test_inputs.py` the
+  comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
+  (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family all or
+  none, D6), a reason on every EXCLUDED, MARGINAL and INVALID entry, every tagged input `tests/yldot/harness/state.py` assigns
+  EXCLUDED, every `input.py` in normal form (no `restart`, `hdf5_restore`, `exmain`) and no skip or xfail under
+  `tests/yldot/` (through import aliases too), each shown failing on a planted defect, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
   `measure_history.py check` per family (about 3 s each) and the `[evaluation]` keys (measured, or the W = P = 2
@@ -263,8 +285,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   downloads and `gh`),
   `tests/yldot/test_tolerances.py` `tolerances.toml` against `sigma.h5` and a live evaluation per family,
   `tests/yldot/test_mutations_unit.py` the mutation set (headers, single-line diffs, `git apply --check` against the
-  tree, so a change to a mutated line fails until its patch is refreshed; the composition) and `run_mutations.py`'s
-  verdicts and gates (no build, about 2 s).
+  tree, so a change to a mutated line fails until its patch is refreshed; the composition), the `Variant` key's
+  checks and `run_mutations.py`'s verdicts and gates (no build, about 2 s).
 
 ## Serial old-vs-new bitwise check (required for Fortran, `.v` and `ppp/` changes)
 
