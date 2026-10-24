@@ -277,9 +277,9 @@ def cmd_render(a):
     if missing:
         die("meta.json is missing " + ", ".join(missing))
     key, pid = meta["key"], str(meta.get("page_id") or "")
-    skeleton = not (a.plan or a.mirrored)
-    if skeleton and (pid or not a.ticket):
-        die("the skeleton (no --plan/--mirrored) is only for creating a page: it needs --ticket and no page_id")
+    skeleton = not (a.plan or a.mirrored)  # no plan yet: a new page, or log entries on a page with only the placeholder
+    if skeleton and not pid and not a.ticket:
+        die("the skeleton (no --plan/--mirrored) of a new page needs --ticket")
     if pid and not (a.current or a.local):
         die("the page exists (meta has page_id): pass --current (the page as read) or --local --listing <parent listing>")
     d = store_dir(a.repo, a.outbox)
@@ -324,10 +324,16 @@ def cmd_render(a):
         current = last
     logs, ticket = {s: [] for s in SECTIONS}, None
     if current:
-        logs, seen, ticket = parse_page(load_current(current))
+        md = load_current(current)
+        logs, seen, ticket = parse_page(md)
         if pid and not set(SECTIONS) <= seen:
             die("--current lacks the log heading(s) " + ", ".join(f"'## {s}'" for s in SECTIONS if s not in seen)
                 + "; refusing to build a body that would drop their entries (a truncated copy?)")
+        if skeleton and pid:  # the placeholder must never replace a published plan
+            title, held = page_plan(md)
+            if held or (same_page and state.get("plan_hash")):
+                die(f"page {pid} holds a published {title or 'plan'}: render with --mirrored (in a fresh worktree: "
+                    "extract-plan, then state --save-plan)")
 
     def merge(entries):
         n = 0
@@ -669,15 +675,23 @@ def cmd_find(a):
 
 # ---------------------------------------------------------------- extract-plan, progress, sanitize
 
-def cmd_extract_plan(a):
-    lines, start, title = load_current(a.current).splitlines(), None, None
+def page_plan(md):
+    """(title, body) of the page's Plan or RCA section; body is "" while it holds a placeholder (no plan mirrored)."""
+    lines, start, title = md.splitlines(), None, None
     for i, (ln, in_fence) in enumerate(split_fences(lines)):
         lvl, t = (0, None) if in_fence else heading(ln)
         if lvl == 2 and t in ("Plan", "RCA"):
             start, title = i + 1, t
             break
     body = "\n".join(lines[start:]).strip() if start is not None else ""
-    if not body or norm(body).startswith((norm("_Not written yet"), norm("_Not mirrored here yet"))):
+    if norm(body).startswith((norm("_Not written yet"), norm("_Not mirrored here yet"))):
+        body = ""
+    return title, body
+
+
+def cmd_extract_plan(a):
+    title, body = page_plan(load_current(a.current))
+    if not body:
         print("ticket_page: the page has no plan mirrored yet", file=sys.stderr)
         return 3
     text = shift_headings(body, -2)

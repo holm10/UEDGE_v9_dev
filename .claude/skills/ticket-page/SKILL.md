@@ -159,13 +159,17 @@ entry, masks local paths and refuses secret-like strings (exit 1, naming only th
    --plan-title <Plan|RCA> --set plan_source="page version <N>"`; the header then says the copy was rebuilt. A rebuilt
    copy has local paths as placeholders (`{worktree}`, `{home}`, `{local}/<name>`) and plan headings deeper than h4
    come back as h4; fix them by hand before the next `publish` if they matter.
+   **No plan yet** (an owner decision or escalation before `plan-feature` publishes, so the page still holds the Plan
+   placeholder): pass neither `--plan` nor `--mirrored`, with `--current` or `--local` as usual. The log sections
+   merge as below and the Plan placeholder and "Plan: not written yet" header stay. It refuses a page that holds a
+   published plan or RCA (use `--mirrored`).
    The log sections keep every entry of the current page, re-add any entry of the sent log the page lost, and append
    the queued ones (compared ignoring formatting, so a retry never duplicates). The Ticket section is carried over;
    `--ticket <file>` replaces it on purpose (say so in a Progress entry). A secret-like string stops the render.
    **Refusals (exit 2), never worked around by dropping `page_id`:** an existing page without `--current` or
    `--local`; `--local` whose listing doesn't show the page at `state.modified`; a `--current` in storage form, lacking a log heading,
-   holding fewer entries than the last body sent, or lacking its Ticket section (pass `--ticket`); the skeleton for a
-   page that exists. `--allow-fewer` is only for a deliberate correction (see Corrections).
+   holding fewer entries than the last body sent, or lacking its Ticket section (pass `--ticket`); a render without a
+   plan for a page that holds one. `--allow-fewer` is only for a deliberate correction (see Corrections).
 
 ### 4. Write
 
