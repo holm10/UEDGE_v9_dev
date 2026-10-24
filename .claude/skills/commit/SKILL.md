@@ -33,8 +33,8 @@ description: Creates a git commit for the current work with an explicit file lis
      "Simplifies …" (see `git log --oneline`).
    - Body (if needed): what changed and why, wrapped at ~72 chars. For physics changes, state whether default
      results change and which reference cases move.
-   - Optional CI tags on their own line after `#`: `#@notest`, `#@nowheel`, `#@nobasis`
-     (only when the user asks to skip those CI stages).
+   - Optional CI tags on their own line after `#`: `#@notest`, `#@nowheel` (only when the user asks to skip those
+     CI stages). Both are inert at present and there is no BASIS CI, so no `#@nobasis` (`testing.md` → CI facts).
    - Trailer `AI-layer: code-facts` (before the attribution line) only in the case described in step 2.
    - End with the attribution line from the session instructions, if one is given.
 
