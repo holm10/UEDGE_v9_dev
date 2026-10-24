@@ -125,7 +125,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `gh release download` as the fallback, into the gitignored `.data/<tag>/`,
   refusing any SHA-256 mismatch, then a relative symlink at each manifest path; `--check` verifies only);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
-  target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves);
+  target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
+  only N = highest published + 1, so a ticket reserves its N on its ticket page once the owner agrees, and planning
+  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6);
   `measure_roundoff.py` (`collect`, run with each build's own python or in the Linux image: per family and
   configuration two fresh processes, pickled `yldot`/`yldot_J` and index arrays with the build record; `--omp N` adds
   the `ffun` RHS with the `ppp` OpenMP flags set in the `post` hook; `analyze`: the pairs `same_build:<label>`,
@@ -304,7 +306,11 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
   committed `origin/v9-develop` tree and shared by the tickets based on it (read-only: never reinstall into it); each
   ticket worktree keeps its own venv for its own build and rebuilds only when its sources changed. Name base venvs by
   their commit, `uedge-wt/venvs/base-{serial,omp}-<sha>`, so a stale one is visible; build a new pair when
-  `v9-develop` moves past it.
+  `v9-develop` moves past it. Base worktrees `uedge-wt/base-<sha>` and their venvs are shared across sessions:
+  closing a ticket never removes them; they go once `v9-develop` has moved on and no worktree is based on them.
+  Before building a base, look for its `BUILD.txt` and for a build still running in it (`ps`), so two sessions
+  never build the same base at once (AIUE-161 and AIUE-181 built `base-1c3010e` together, and AIUE-161's close-out
+  removed it while AIUE-181's `BUILD.txt` still named it).
 - **Compared builds use one install mode.** Builds whose results or logs are compared (base vs ticket venvs, the
   serial bitwise check, a build-log diff) must differ only in the source tree:
   - the same interpreter: create the venv with the Python named in the base venv's `pyvenv.cfg` (`home`/`version`;

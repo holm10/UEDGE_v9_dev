@@ -88,6 +88,10 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    commits or PR yet is not evidence of no overlap: its breakdown entry is. Without `gh`, use the worktrees and the
    breakdown, and say so in Notes. For each file this plan modifies that another ticket also touches, record the
    expected conflict and the merge order in Notes (the second to merge rebases and re-runs its tests).
+   A ticket that will publish a `yldot-data-vN` release reserves N as a Findings and decisions entry on its ticket
+   page once the owner agrees, and planning reads the in-flight tickets' pages for reservations: `release_data.py`
+   takes only highest + 1, and a branch shows its number only after generation (AIUE-161 planned v8 while AIUE-174
+   held v7 with no manifests yet; `testing.md` → Tools, `release_data.py`).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
@@ -104,6 +108,14 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    An estimate that decides a gate (a size cap, a budget, a runtime) is probed with the code that will produce it:
    the real writer and serializer on one case. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
    put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB).
+   A claim about what a check reports on a fault (which blocks fire, what it localizes to, the message text) is
+   probed with the fault applied, against the references the suite really uses (another platform's, if they are),
+   even when a build takes minutes (AIUE-89: `rscalf` couples a continuity fault into the up/te/ti rows, and the
+   localizer fired on macOS-vs-Linux round-off).
+   When the change touches code that a repo tool or test drives through stubs, read how it calls that code and run a
+   prototype of the change through it before writing the per-task VALIDATE lines (AIUE-181: `build_flags.py` runs
+   `uedgeBuild.run` with a fake `self` and a fake `FCompiler`, so task 1's check could only pass after task 2). A task
+   whose check needs a later task is a plan defect: merge the tasks or move the check.
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -122,6 +134,10 @@ literature belongs in the physics spec, not here.
   (measurement collections, build records; AIUE-87's `tolerances.toml`, which AIUE-92 rewrites), the plan names where
   that data is kept after the worktree goes (`branching.md` → Working documents) and ends with a task that puts it
   there.
+- **Generated data that records its own commit** (provenance, a build id): plan the commit order (the tool, then a
+  data-only commit), check that the plan's own tests pass at every commit in that order, and plan one regeneration
+  after every later change to the generator and after every rebase, since the recorded commit must stay in the PR's
+  history. Note the cost of one regeneration (AIUE-88 regenerated its manifests twice, unplanned).
 - **Samples and populations.** When an acceptance criterion confirms a property on a sample (the criterion's ≥ N
   cases) and checking the whole population would take under about 10 minutes, or under about twice the sample's run,
   the plan checks the population too; otherwise it records that estimate in one line. A sample
