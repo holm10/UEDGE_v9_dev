@@ -28,10 +28,11 @@ The gate is complete only with both pairs, base and new different builds, and ev
 Anything less that agrees prints RESULT: INCOMPLETE and exits 2, unless --partial-ok (exit 0, and the
 RESULT line says PARTIAL and why).
 
-Cases (--list): reproducer presets (repro-*, config.PRESETS, serial arm) and upstream pytests
-cases (pytests-*, run as their test_reference does, pytests_worker.py), plus ad hoc names
-repro:<preset>[@itN] and pytests:<path below pytests/>[@itN]. The pytests checkout is --pytests-dir,
-else $UEDGE_PYTESTS_DIR, else ../uedge-pytests or ../../uedge-pytests next to the repository.
+Cases (--list): reproducer presets (repro-*, config.PRESETS, serial arm) and yldot family cases
+(yldot-*, AIUE-106: a family of tests/yldot/families/ on its reference_state.h5, optionally with a
+settings file of tests/deterministic_omp/settings/<family>/, run by family_worker.py), plus ad hoc
+names repro:<preset>[@itN] and yldot:<family>[+<settings>][@itN]. The owner families (large_dd2c,
+dnull_imp2, imp7) run only by name, after tests/yldot/tools/fetch_data.py has fetched their states.
 
 Writes DIR/serial_check.json (builds, sources, cases, every report), DIR/summary.txt, and the runs
 under DIR/<pair>/<base|new>/<case>/. record.npz of agreeing cases is deleted unless --keep-records.
@@ -43,7 +44,6 @@ import concurrent.futures
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -58,13 +58,15 @@ from harness.compare import compare_records, format_report  # noqa: E402
 from harness.config import PRESETS, RunSpec  # noqa: E402
 from harness.runner import REPO_DIR, HarnessError, Record, parse_iterations, run_spec  # noqa: E402
 
-CRUMPET = ["rates/aph/crumpet_nrates.dat", "rates/aph/crumpet_Erates.dat"]  # base builds before AIUE-110 read them from cwd
+FAMILIES = os.path.join(REPO_DIR, "tests", "yldot", "families")
+SETTINGS = os.path.join(REPO_DIR, "tests", "deterministic_omp", "settings")
+STATE = "reference_state.h5"  # every family case (owner, 2026-10-24, AIUE-106)
 CAPTURE_SLOTS = 16  # raw Jacobians kept per run with the AIUE-47 hook (more is a harness error)
 BASE_REF = "origin/v9-develop"
 
-# name -> case. kind "repro": a reproducer preset on the serial arm. kind "pytests": a case directory
-# of the upstream pytests checkout; add_files are repository files copied next to it. itermx: exactly N
-# Newton iterations (config.force_newton) instead of one evaluation at ftol=1e20.
+# name -> case. kind "repro": a reproducer preset on the serial arm. kind "yldot": a family of
+# FAMILIES on its STATE, with settings = the name of a file of SETTINGS/<family>/ run after its input.py
+# (or None). itermx: exactly N Newton iterations (config.force_newton) instead of one evaluation at ftol=1e20.
 CASES = {}
 for _p in PRESETS:
     CASES["repro-" + _p] = {"kind": "repro", "preset": _p}
@@ -72,39 +74,36 @@ CASES.update({
     "repro-tebox-it5": {"kind": "repro", "preset": "tebox", "itermx": 5},
     "repro-te-it3": {"kind": "repro", "preset": "te", "itermx": 3},
     "repro-full-it3": {"kind": "repro", "preset": "full", "itermx": 3},
-    "pytests-D_only": {"kind": "pytests", "path": "unittests/D_only/nonog/default"},
-    "pytests-D+C": {"kind": "pytests", "path": "unittests/D+C/nonog_carbon/default"},
-    "pytests-D_mols": {"kind": "pytests", "path": "unittests/D_mols/nonog_mols/default", "add_files": CRUMPET},
-    "pytests-full-d_c-16x8": {"kind": "pytests", "path": "fulltests/nonog_d_c-fb_16x8"},
-    "pytests-D_mols-drift": {"kind": "pytests", "path": "unittests/D_mols/nonog_mols/tg_mol_atoms_drift",
-                             "add_files": CRUMPET},
-    "pytests-orthogonal": {"kind": "pytests", "path": "fulltests/orthogonal_unittest"},
-    "pytests-slab": {"kind": "pytests", "path": "unittests/slab_D_only/slab/default"},
 })
-for _name in ("D_only", "D+C", "D_mols", "full-d_c-16x8", "slab"):
-    CASES["pytests-{}-it5".format(_name)] = dict(CASES["pytests-" + _name], itermx=5)
-# boundary-condition, transport and drift variants of the D_only and D_mols families (one switch each)
-UNIT = ["istewc3", "istiwc4", "isnwcono3", "isnwconi2", "istepfc2", "isupwo3", "isupwi3", "recycmlb_therm_momflux",
-        "recycmrb", "tg_atom_drifts", "tg_atom_istgwc2", "newbcl_iskaplex", "isnewpot", "ishosor", "curcore",
-        "convis", "isfdiax", "isvylog", "core_nogradient"]
-for _v in UNIT:
-    CASES["pytests-unit-" + _v] = {"kind": "pytests", "path": "unittests/D_only/nonog/" + _v}
-CASES["pytests-unit-tg_mol_istgpfc4"] = {"kind": "pytests", "path": "unittests/D_mols/nonog_mols/tg_mol_istgpfc4",
-                                         "add_files": CRUMPET}
+# the small families: D_only, D+C on the 16x8 mesh (owner, 2026-10-24: it covers the 8x4 D+C case too), D_mols,
+# the orthogonal mesh and the slab
+SMALL = ["d_only", "d_c", "d_mols", "ortho", "slab_phi"]
+for _f in SMALL:
+    CASES["yldot-" + _f] = {"kind": "yldot", "family": _f, "settings": None}
+for _f in ("d_only", "d_c", "d_mols", "slab_phi"):
+    CASES["yldot-{}-it5".format(_f)] = dict(CASES["yldot-" + _f], itermx=5)
+# boundary-condition, transport and drift variants of the D_only and D_mols families: the lines each upstream
+# variant deck adds to its default deck (owner, 2026-10-24); the two drift decks too
+UNIT = {"d_only": ["istewc3", "istiwc4", "isnwcono3", "isnwconi2", "istepfc2", "isupwo3", "isupwi3",
+                   "recycmlb_therm_momflux", "recycmrb", "tg_atom_drifts", "tg_atom_istgwc2", "newbcl_iskaplex",
+                   "isnewpot", "ishosor", "curcore", "convis", "isfdiax", "isvylog", "core_nogradient"],
+        "d_mols": ["tg_mol_atoms_drift", "tg_mol_istgpfc4"]}
+for _f, _vs in UNIT.items():
+    for _v in _vs:
+        CASES["yldot-{}-{}".format(_f, _v)] = {"kind": "yldot", "family": _f, "settings": _v}
+# the owner families, too large for "all": by name only (yldot:<family>), after fetch_data.py
+BY_NAME = ["large_dd2c", "dnull_imp2", "imp7"]
 
-QUICK = ["repro-tebox", "repro-tebox-it5", "pytests-D_only", "pytests-D+C", "pytests-D_mols", "pytests-full-d_c-16x8",
-         "pytests-D_only-it5", "pytests-D+C-it5"]
+QUICK = ["repro-tebox", "repro-tebox-it5", "yldot-d_only", "yldot-d_c", "yldot-d_mols", "yldot-d_only-it5",
+         "yldot-d_c-it5"]
 # slowest first, so that parallel jobs finish together
 ALL = (["repro-full-it3", "repro-full", "repro-ni", "repro-up", "repro-te_phi", "repro-te-it3", "repro-ti", "repro-te",
         "repro-ng",
-        "pytests-full-d_c-16x8-it5", "pytests-slab-it5", "repro-tebox-it5", "repro-tebox", "pytests-full-d_c-16x8",
-        "pytests-D+C-it5", "pytests-D_mols-it5", "pytests-D_only-it5", "pytests-slab", "pytests-D+C",
-        "pytests-D_only", "pytests-D_mols", "pytests-D_mols-drift"]
-       + sorted(n for n in CASES if n.startswith("pytests-unit-")))
-# Cases that fail on v9-develop itself (0fac655), in both builds: left out of "all", still runnable by name.
-EXCLUDED = {
-    "pytests-orthogonal": "input.py stops with 'ueinit -- error in sign sx, sy' on builds before AIUE-110",
-}
+        "yldot-d_c-it5", "yldot-slab_phi-it5", "repro-tebox-it5", "repro-tebox", "yldot-d_c", "yldot-slab_phi",
+        "yldot-d_mols-it5", "yldot-d_only-it5", "yldot-d_only", "yldot-d_mols", "yldot-ortho"]
+       + sorted(n for n in CASES if CASES[n].get("settings")))
+# Cases that fail on v9-develop itself, in both builds: left out of "all", still runnable by name.
+EXCLUDED = {}
 assert sorted(ALL + list(EXCLUDED)) == sorted(CASES) and not set(ALL) & set(EXCLUDED) and set(QUICK) <= set(ALL)
 
 PAIRS = {"serial": ("base_python", "new_python", False), "omp0": ("base_omp_python", "new_omp_python", True)}
@@ -116,21 +115,6 @@ def clean_env(home, threads=1, stacksize="512M"):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("OMP_", "GOMP_", "KMP_", "PYTHON"))}
     env.update({"HOME": home, "OMP_NUM_THREADS": str(threads), "OMP_STACKSIZE": stacksize})
     return env
-
-
-def find_pytests_dir(arg=None):
-    candidates = [arg] if arg else []
-    candidates += [os.environ.get("UEDGE_PYTESTS_DIR")] if os.environ.get("UEDGE_PYTESTS_DIR") else []
-    if not arg:
-        for up in ("..", os.path.join("..", "..")):
-            candidates.append(os.path.join(REPO_DIR, up, "uedge-pytests"))
-    for c in candidates:
-        for d in (c, os.path.join(c, "pytests")):
-            if os.path.isdir(os.path.join(d, "unittests")):
-                return os.path.normpath(d)
-    raise HarnessError("no pytests checkout found (tried {}); create one with "
-                       "'git worktree add --detach ../uedge-pytests origin/pytests' or pass --pytests-dir"
-                       .format(candidates))
 
 
 def git(path, *args):
@@ -147,7 +131,14 @@ def git_head(path):
     return out if code == 0 and out else "unknown"
 
 
-ADHOC = re.compile(r"^(repro|pytests):([^@]+)(?:@it(\d+))?$")
+ADHOC = re.compile(r"^(repro|yldot):([^@+]+)(?:\+([^@]+))?(?:@it(\d+))?$")
+
+
+def family_files(case):
+    """(family directory, settings file or None) of a yldot case."""
+    settings = case.get("settings")
+    return (os.path.join(FAMILIES, case["family"]),
+            os.path.join(SETTINGS, case["family"], settings + ".py") if settings else None)
 
 
 def resolve_cases(text):
@@ -162,20 +153,23 @@ def resolve_cases(text):
         if n in CASES:
             continue
         m = ADHOC.match(n)
-        if m and m.group(1) == "repro" and m.group(2) in PRESETS:
+        if m and m.group(1) == "repro" and m.group(2) in PRESETS and not m.group(3):
             CASES[n] = {"kind": "repro", "preset": m.group(2)}
-        elif m and m.group(1) == "pytests":
-            CASES[n] = {"kind": "pytests", "path": m.group(2).strip("/")}
-            if "D_mols" in m.group(2):
-                CASES[n]["add_files"] = CRUMPET
+        elif m and m.group(1) == "yldot":
+            case = {"kind": "yldot", "family": m.group(2), "settings": m.group(3)}
+            family, settings = family_files(case)
+            if not os.path.isfile(os.path.join(family, "input.py")) or (settings and not os.path.isfile(settings)):
+                unknown.append(n)
+                continue
+            CASES[n] = case
         else:
             unknown.append(n)
             continue
-        if m.group(3):
-            CASES[n]["itermx"] = int(m.group(3))
+        if m.group(4):
+            CASES[n]["itermx"] = int(m.group(4))
     if unknown or not names:
         raise HarnessError("unknown case(s) {}; known: quick, all, {}, repro:<preset>[@itN], "
-                           "pytests:<path>[@itN]".format(unknown, ", ".join(sorted(CASES))))
+                           "yldot:<family>[+<settings>][@itN]".format(unknown, ", ".join(sorted(CASES))))
     return names
 
 
@@ -283,26 +277,31 @@ def check_pair(pair, base, new, want_openmp, allow_same):
 
 
 # ------------------------------------------------------------------ runs
-def run_pytests_case(case, case_dir, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
-    """Run one pytests case directory with pytests_worker.py in a fresh process. Returns a Record."""
-    if not os.path.isfile(os.path.join(case_dir, "input.py")):
-        raise HarnessError("pytests case missing: {}".format(case_dir))
+def case_label(case):
+    return case["family"] + ("+" + case["settings"] if case.get("settings") else "")
+
+
+def run_family_case(case, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
+    """Run one yldot family case with family_worker.py in a fresh process, in an empty run directory
+    (the worker changes to the family directory itself). Returns a Record."""
+    family, settings = family_files(case)
+    if not os.path.isfile(os.path.join(family, "input.py")):
+        raise HarnessError("family missing: {}".format(family))
+    if settings and not os.path.isfile(settings):
+        raise HarnessError("settings file missing: {}".format(settings))
+    if not os.path.isfile(os.path.join(family, STATE)):
+        raise HarnessError("{} has no {} (a missing or dangling link): fetch the family's data with "
+                           "'python tests/yldot/tools/fetch_data.py'".format(family, STATE))
     if os.path.exists(rundir):
         raise HarnessError("run directory {} already exists".format(rundir))
-    shutil.copytree(case_dir, rundir, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    for rel in case.get("add_files", []):
-        src = os.path.join(REPO_DIR, rel)
-        if not os.path.isfile(src):
-            raise HarnessError("file needed by the case is missing: {}".format(src))
-        shutil.copy2(src, rundir)
     home = os.path.join(rundir, "home")
     os.makedirs(home)
     # preset/arm/threads/itermx as in a RunSpec, so that compare.check_arm and the spec checks apply
-    spec = {"case": case["path"], "deck": "input.py", "rhs_probe": True, "itermx": case.get("itermx"),
-            "capture": capture, "preset": "pytests:" + case["path"], "arm": "serial", "threads": 1}
+    spec = {"family": family, "settings": settings, "state": STATE, "rhs_probe": True, "itermx": case.get("itermx"),
+            "capture": capture, "preset": "yldot:" + case_label(case), "arm": "serial", "threads": 1}
     with open(os.path.join(rundir, "spec.json"), "w") as f:
         json.dump(spec, f, sort_keys=True)
-    cmd = [python, "-I", os.path.join(HERE, "pytests_worker.py"), os.path.join(rundir, "spec.json")]
+    cmd = [python, "-I", os.path.join(HERE, "family_worker.py"), os.path.join(rundir, "spec.json")]
     start = time.time()
     with open(os.path.join(rundir, "run.log"), "wb") as log:
         try:
@@ -320,13 +319,13 @@ def run_pytests_case(case, case_dir, rundir, python, timeout=3600, capture=CAPTU
         text = f.read().replace(b"\x00", b"").decode(errors="replace")
     record.meta["iterations"] = parse_iterations(text)
     record.meta["elapsed_s"] = round(elapsed, 2)
-    record.meta["label"] = case["path"]
+    record.meta["label"] = case_label(case)
     with open(os.path.join(rundir, "record.json"), "w") as f:
         json.dump(record.meta, f, indent=1, sort_keys=True)
     return record
 
 
-def run_case(name, rundir, python, pytests_dir, timeout, capture=CAPTURE_SLOTS, identity=None):
+def run_case(name, rundir, python, timeout, capture=CAPTURE_SLOTS, identity=None):
     """Run one case; capture = raw-Jacobian slots (0 when not both builds of the pair have the hook);
     identity = the probed provenance["build"] the record must show (a reinstall mid-check fails)."""
     case = CASES[name]
@@ -334,8 +333,7 @@ def run_case(name, rundir, python, pytests_dir, timeout, capture=CAPTURE_SLOTS, 
         spec = RunSpec(preset=case["preset"], arm="serial", threads=1, itermx=case.get("itermx"), capture=capture)
         record = run_spec(spec, rundir, python=python, timeout=timeout)
     else:
-        record = run_pytests_case(case, os.path.join(pytests_dir, case["path"]), rundir, python, timeout=timeout,
-                                  capture=capture)
+        record = run_family_case(case, rundir, python, timeout=timeout, capture=capture)
     if identity is not None:
         got = record.meta.get("provenance", {}).get("build", {}).get("extensions_sha256")
         if got != identity.get("extensions_sha256"):
@@ -429,14 +427,10 @@ def serial_check(args):
             raise HarnessError("pair {} needs both --{} and --{}".format(p, b.replace("_", "-"), n.replace("_", "-")))
     if not pairs:
         raise HarnessError("give --base-python/--new-python and/or --base-omp-python/--new-omp-python")
-    pytests_dir = None
-    if any(CASES[n]["kind"] == "pytests" for n in names):
-        pytests_dir = find_pytests_dir(args.pytests_dir)
 
     result = {"agree": None, "exit_code": None, "gate_complete": None, "incomplete": [], "cases": names,
               "pairs": pairs, "skipped_pairs": [p for p in PAIRS if p not in pairs],
               "skipped_cases": [n for n in ALL if n not in names], "harness_commit": git_head(HERE),
-              "pytests_dir": pytests_dir, "pytests_commit": git_head(pytests_dir) if pytests_dir else None,
               "builds": {}, "results": {}, "errors": [], "warnings": []}
 
     def save():
@@ -488,7 +482,7 @@ def serial_check(args):
             python = os.path.abspath(getattr(args, PAIRS[p][0 if role == "base" else 1]))
             rundir = os.path.join(out, p, role, name)
             os.makedirs(os.path.dirname(rundir), exist_ok=True)
-            futures[pool.submit(run_case, name, rundir, python, pytests_dir, args.timeout,
+            futures[pool.submit(run_case, name, rundir, python, args.timeout,
                                 result["capture_slots"][p], result["builds"][p][role].get("identity"))] = (p, role, name)
         for fut in concurrent.futures.as_completed(futures):
             key = futures[fut]
@@ -601,8 +595,7 @@ def result_line(result):
 
 
 def summary_text(result):
-    lines = ["SERIAL BITWISE CHECK (AIUE-53)  harness {}  pytests {}".format(
-        result["harness_commit"][:12], (result["pytests_commit"] or "-")[:12])]
+    lines = ["SERIAL BITWISE CHECK (AIUE-53)  harness {}".format(result["harness_commit"][:12])]
     for p, probes in result["builds"].items():
         for role in ("base", "new"):
             b = probes[role]
@@ -615,10 +608,10 @@ def summary_text(result):
     for p, cases in result["results"].items():
         for name, e in cases.items():
             if e["status"] == "ERROR":
-                lines.append("[{}] {:30s} ERROR    {}".format(p, name, e["cause"]))
+                lines.append("[{}] {:36s} ERROR    {}".format(p, name, e["cause"]))
                 continue
             el = e["elapsed_s"]
-            lines.append("[{}] {:30s} {:8s} neq {:6d}  iters {}  jacobians {}+post({})  {} s / {} s".format(
+            lines.append("[{}] {:36s} {:8s} neq {:6d}  iters {}  jacobians {}+post({})  {} s / {} s".format(
                 p, name, e["status"], e["neq"], e["iterations"], e["report"].get("captured_compared", 0),
                 e.get("post_exmain_from"), el[0], el[1]))
             if e["status"] == "MISMATCH":
@@ -640,7 +633,6 @@ def main(argv=None):
     p.add_argument("--cases", default="all", help="all (the gate), quick, or a comma-separated list (--list)")
     p.add_argument("--out", help="new (or empty) directory for the runs and the report")
     p.add_argument("--jobs", type=int, default=4, help="processes run at the same time (each one serial)")
-    p.add_argument("--pytests-dir", default=None, help="upstream pytests checkout (or its pytests/ folder)")
     p.add_argument("--allow-same-build", action="store_true",
                    help="allow base and new to be the same build, source tree or commit (self-test of the tool)")
     p.add_argument("--partial-ok", action="store_true",
@@ -652,12 +644,13 @@ def main(argv=None):
     if args.list:
         for name in ALL + sorted(EXCLUDED):
             c = CASES[name]
-            where = "preset " + c["preset"] if c["kind"] == "repro" else c["path"]
+            where = "preset " + c["preset"] if c["kind"] == "repro" else "family " + case_label(c)
             group = "quick" if name in QUICK else ("all" if name in ALL else "-")
-            print("{:30s} {:6s} {}{}{}{}".format(
+            print("{:36s} {:6s} {}{}{}".format(
                 name, group, where, "  itermx={}".format(c["itermx"]) if c.get("itermx") else "",
-                "  (+ {})".format(", ".join(c["add_files"])) if c.get("add_files") else "",
                 "  EXCLUDED: " + EXCLUDED[name] if name in EXCLUDED else ""))
+        print("by name: repro:<preset>[@itN], yldot:<family>[+<settings>][@itN]; families outside 'all': {} "
+              "(fetch_data.py first)".format(", ".join(BY_NAME)))
         return 0
     if not args.out:
         p.error("--out is required")

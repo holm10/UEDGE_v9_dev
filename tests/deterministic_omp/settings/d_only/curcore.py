@@ -1,0 +1,8 @@
+# Settings of the serial-check case yldot-d_only-curcore (AIUE-106): the lines that
+# pytests/unittests/D_only/nonog/curcore/input.py (origin/pytests f695acd) adds to pytests/unittests/D_only/nonog/default/input.py, in order;
+# run after the family's input.py (owner, 2026-10-24, AIUE-106). Values as in the deck: never edit them.
+from uedge import *  # noqa: F401,F403  (as the decks)
+
+# templates/D_only/inputs/boundary/core/density/curcore.py
+bbb.isnicore[0] = 0 	#use fixed-current BC on core
+bbb.curcore[0] = 1000	#hydrogen ion flux on core

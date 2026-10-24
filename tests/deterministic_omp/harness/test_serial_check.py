@@ -26,34 +26,51 @@ def test_case_tables():
     for preset in ("full", "tebox", "te", "ti", "ni", "up", "ng", "te_phi"):
         assert sc.CASES["repro-" + preset] == {"kind": "repro", "preset": preset}
     kinds = {sc.CASES[n]["kind"] for n in sc.QUICK}
-    assert kinds == {"repro", "pytests"}
+    assert kinds == {"repro", "yldot"}
     assert sc.resolve_cases("quick") == sc.QUICK
-    assert sc.resolve_cases("repro-te, pytests-D_only") == ["repro-te", "pytests-D_only"]
-    assert sc.resolve_cases("pytests-orthogonal") == ["pytests-orthogonal"]  # excluded from "all", runnable
+    assert sc.resolve_cases("repro-te, yldot-d_only") == ["repro-te", "yldot-d_only"]
     assert any(sc.CASES[n].get("itermx") for n in sc.QUICK)  # the solver path is in quick and all
     assert sum(1 for n in sc.ALL if sc.CASES[n].get("itermx")) >= 5
     assert sc.CASES["repro-full-it3"]["itermx"] == 3 and "repro-full-it3" in sc.ALL
-    names = sc.resolve_cases("repro:te@it2,pytests:unittests/D_mols/nonog_mols/tg_mol@it4")
+    names = sc.resolve_cases("repro:te@it2,yldot:d_mols+tg_mol_istgpfc4@it4,yldot:imp7")
     assert sc.CASES[names[0]] == {"kind": "repro", "preset": "te", "itermx": 2}
-    assert sc.CASES[names[1]]["itermx"] == 4 and sc.CASES[names[1]]["add_files"] == sc.CRUMPET
-    with pytest.raises(HarnessError):
-        sc.resolve_cases("repro:nope@it2")
-    with pytest.raises(HarnessError):
-        sc.resolve_cases("repro-nope")
+    assert sc.CASES[names[1]] == {"kind": "yldot", "family": "d_mols", "settings": "tg_mol_istgpfc4", "itermx": 4}
+    assert sc.CASES[names[2]] == {"kind": "yldot", "family": "imp7", "settings": None}  # by name only
+    for bad in ("repro:nope@it2", "repro-nope", "yldot:nope", "yldot:d_only+nope", "repro:te+istewc3"):
+        with pytest.raises(HarnessError):
+            sc.resolve_cases(bad)
 
 
-def test_add_files_exist_in_repo():
-    for case in sc.CASES.values():
-        for rel in case.get("add_files", []):
-            assert os.path.isfile(os.path.join(sc.REPO_DIR, rel)), rel
+def test_case_files_exist():
+    """Every case's family and settings file exist, every case of "all" has its state in the repository, and
+    every settings file is used by a case."""
+    used = set()
+    for name, case in sc.CASES.items():
+        if case["kind"] != "yldot":
+            continue
+        family, settings = sc.family_files(case)
+        assert os.path.isfile(os.path.join(family, "input.py")), name
+        if name in sc.ALL:
+            assert os.path.isfile(os.path.join(family, sc.STATE)), name
+        if settings:
+            assert os.path.isfile(settings), name
+            used.add(os.path.relpath(settings, sc.SETTINGS))
+    files = {os.path.join(f, n) for f in os.listdir(sc.SETTINGS) for n in os.listdir(os.path.join(sc.SETTINGS, f))
+             if n.endswith(".py")}
+    assert files == used
 
 
-def test_find_pytests_dir(tmp_path):
-    (tmp_path / "pt" / "pytests" / "unittests").mkdir(parents=True)
-    assert sc.find_pytests_dir(str(tmp_path / "pt")) == str(tmp_path / "pt" / "pytests")
-    assert sc.find_pytests_dir(str(tmp_path / "pt" / "pytests")) == str(tmp_path / "pt" / "pytests")
-    with pytest.raises(HarnessError):
-        sc.find_pytests_dir(str(tmp_path / "missing"))
+def test_mapping():
+    """The coverage of the upstream-suite cases it replaces (AIUE-106, owner 2026-10-24)."""
+    settings = [n for n in sc.ALL if sc.CASES[n].get("settings")]
+    assert sum(sc.CASES[n]["family"] == "d_only" for n in settings) == 19
+    assert sum(sc.CASES[n]["family"] == "d_mols" for n in settings) == 2
+    for f in sc.SMALL:
+        assert "yldot-" + f in sc.ALL
+    for f in ("d_only", "d_c", "d_mols", "slab_phi"):
+        assert sc.CASES["yldot-{}-it5".format(f)]["itermx"] == 5 and "yldot-{}-it5".format(f) in sc.ALL
+    assert not set(sc.BY_NAME) & {sc.CASES[n].get("family") for n in sc.ALL}
+    assert len(sc.ALL) == 41
 
 
 # ---------------------------------------------------------------- build guard
@@ -197,7 +214,7 @@ def fake(monkeypatch):
         sha = "a" if (role == "base" or state["same"]) else "b"
         return build(sha + ("o" if "omp" in python else "s"), "omp" in python, python)
 
-    def run(name, rundir, python, pytests_dir, timeout, capture=0, identity=None):
+    def run(name, rundir, python, timeout, capture=0, identity=None):
         os.makedirs(rundir)
         if name == state["fail_case"] and "new" in python:
             raise HarnessError("run in {} failed:\nTraceback\nRuntimeError: boom".format(rundir))
@@ -216,7 +233,6 @@ def fake(monkeypatch):
     monkeypatch.setattr(sc, "probe_build", probe)
     monkeypatch.setattr(sc, "source_info", lambda probe: probe["source"])
     monkeypatch.setattr(sc, "run_case", run)
-    monkeypatch.setattr(sc, "find_pytests_dir", lambda arg=None: "/pytests")
     return state
 
 
@@ -252,17 +268,17 @@ def test_main_incomplete_is_not_the_gate(tmp_path, fake, capsys):
 
 
 def test_main_mismatch_names_case_and_entry(tmp_path, fake, capsys):
-    fake["diff_case"] = "pytests-D+C"
+    fake["diff_case"] = "yldot-d_c"
     assert sc.main(argv(tmp_path, "--cases", "quick")) == 1  # a mismatch is a mismatch, complete or not
     text = open(tmp_path / "out" / "summary.txt").read()
-    assert "[serial] pytests-D+C" in text and "MISMATCH" in text
+    assert "[serial] yldot-d_c" in text and "MISMATCH" in text
     assert "first mismatch: jacobian:post_exmain (1 entries): first value at row" in text
-    assert os.path.exists(tmp_path / "out" / "serial" / "base" / "pytests-D+C" / "record.npz")  # kept
+    assert os.path.exists(tmp_path / "out" / "serial" / "base" / "yldot-d_c" / "record.npz")  # kept
 
 
 def test_main_harness_errors(tmp_path, fake, capsys):
-    fake["fail_case"] = "pytests-D_only"
-    fake["diff_case"] = "pytests-D+C"
+    fake["fail_case"] = "yldot-d_only"
+    fake["diff_case"] = "yldot-d_c"
     assert sc.main(argv(tmp_path)) == 2  # an error wins over a mismatch
     text = open(tmp_path / "out" / "summary.txt").read()
     assert "ERROR    new: RuntimeError: boom" in text
@@ -270,7 +286,7 @@ def test_main_harness_errors(tmp_path, fake, capsys):
     fake["same"] = True
     assert sc.main(argv(tmp_path / "x")) == 2
     assert "same build" in capsys.readouterr().err
-    assert sc.main(argv(tmp_path / "y", "--allow-same-build")) == 1  # pytests-D+C still differs
+    assert sc.main(argv(tmp_path / "y", "--allow-same-build")) == 1  # yldot-d_c still differs
     assert sc.main(["--base-python", "/base/python", "--out", str(tmp_path / "z")]) == 2
 
 

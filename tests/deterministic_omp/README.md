@@ -220,7 +220,7 @@ Confluence page "Validation summary: AIUE-8 tickets" (space SD, under the AIUE-8
 `harness/serial_check.py` (AIUE-53) is the "nothing may change" gate of epic AIUE-8. **Run it for every PR that
 touches Fortran (`*.m`, `*.F90`, hand-written `*.f`), a `.v` file or `ppp/`**, and paste its build lines, its
 `RESULT` line and any `first mismatch` lines into the PR. Only `RESULT: AGREE (bitwise identical; complete gate)`
-meets the gate. The upstream pytests suite (`rtol=1e-5`) is no substitute.
+meets the gate. A tolerance-based regression suite (`rtol=1e-5`) is no substitute.
 
 It takes four interpreters: the `--serial` build and the default (OpenMP) build of the base (`v9-develop`) and of the
 change. Build them in separate venvs from clean, committed trees first (`pip install . -C "--build-option=--serial"`
@@ -242,36 +242,37 @@ python $H --list                                    # the case set
   (both builds have the `ppp` package).
 - **Evaluation cases** (`ftol=1e20`: one RHS and the `sfsetnk` Jacobian):
   - `repro-<preset>` for every preset of `harness/config.py`.
-  - `pytests-*`: upstream pytests cases run the way their `test_reference` runs them (`harness/pytests_worker.py`).
-    The worker execs `input.py`, sets `issfon=1`, `ftol=1e20` and runs `exmain()`. It then takes the equation
-    switches from `solution.h5:pytests/default` and the state from `solution.h5:bbb`, and runs `exmain()` again.
-  - `perturb_solution` is not called. The test does not call it either: it perturbs the file only when the reference
-    is written.
-  - `com.iprint` stays 1 so that the `fnrm` lines are printed. It changes no number.
-  - Families: the `default` case of D_only, D+C and D_mols, the 16x8 D+C fulltest, the D_mols drift case, slab, and
-    20 `pytests-unit-*` variants, each turning on one boundary-condition, transport or drift switch.
+  - `yldot-*` (AIUE-106): a family of the yldot suite, `tests/yldot/families/<family>/`, run by
+    `harness/family_worker.py`. The worker imports `uedge` in the empty run directory, changes to the family
+    directory (the decks read `../../data` by relative paths), execs `input.py` and then the case's settings file, if
+    it has one. It then sets the serial arm, allocates, restores the family's `reference_state.h5`, sets
+    `restart=1`, `issfon=1`, `ftol=1e20` and runs `exmain()` twice. `com.iprint` stays as the deck sets it, so the
+    `fnrm` lines are printed.
+  - Families: `d_only`, `d_c` (D+C on the 16x8 mesh; it stands for the 8x4 D+C unit case too), `d_mols`, `ortho`
+    (orthogonal mesh) and `slab_phi`.
+  - Settings variants: `yldot-d_only-<v>` (19) and `yldot-d_mols-<v>` (2), each turning on boundary-condition,
+    transport or drift switches. A settings file in `settings/<family>/<v>.py` holds the lines the upstream
+    regression suite's variant deck adds to its default deck, in order (taken once from `origin/pytests` f695acd;
+    its header names the deck). The two drift decks (`tg_atom_drifts`, `tg_mol_atoms_drift`) are in this form too and
+    start from the family state, which is not converged for drifts. Owner decisions of 2026-10-24 (AIUE-106 ticket
+    page): the settings form, `reference_state.h5` for every case, `d_c` for both D+C cases, the owner families by
+    name only. Never edit a value in a settings file to make a case pass.
 - **Solver cases** (`-itN`): exactly N Newton iterations (forced, as `--itermx` above), so `psetnk` (row normalisation, `jac_reorder`),
   the ILU preconditioner, the Krylov solve and the line search run too. The whole `fnrm` sequence is compared,
   together with the final state (`yldot`, `fnrm` at the final `yl`) and every Jacobian. A solver case whose record
   shows fewer than 2 printed iterations, or a post-`exmain` Jacobian not from `psetnk`, is an ERROR: it would
   silently cover only the evaluation path.
   - Reproducer: `repro-tebox-it5`, `repro-te-it3`, `repro-full-it3`.
-  - pytests: `pytests-{D_only,D+C,D_mols,full-d_c-16x8,slab}-it5`. These run the final `exmain` with `itermx=5`
-    and the forced tolerances.
-- **Case sets:** `all` (the default, and the gate) is everything above. `quick` = `repro-tebox`, `repro-tebox-it5`,
-  `pytests-{D_only,D+C,D_mols,full-d_c-16x8}`, `pytests-{D_only,D+C}-it5`.
-  - Ad hoc names: `repro:<preset>[@itN]` and `pytests:<path below pytests/>[@itN]`.
-  - `pytests-orthogonal` fails on `v9-develop` before AIUE-110 in both builds (`ueinit -- error in sign sx, sy`;
-    `cosangfx` was 0 for `isnonog=0`). AIUE-110 fixes it, but `all` leaves it out until the base includes the fix. It
-    still runs by name.
-  - There is no runnable double-null case: the pytests suite is all `snull` or slab, and `builder/test/rensink/dnull/`
-    holds only BASIS mesh-generation decks. The gap is left to AIUE-9.
-  - Builds before AIUE-110 do not install `rates/aph/crumpet_{n,E}rates.dat`, so the D_mols decks read them from the
-    working directory, and the tool copies them in. Builds with AIUE-110 read the installed copies (`aph.crmdir`).
-- **pytests checkout:** `--pytests-dir`, else `$UEDGE_PYTESTS_DIR`, else `../uedge-pytests` or `../../uedge-pytests`
-  next to the repository (`git worktree add --detach ../uedge-pytests origin/pytests`). v9 work uses `origin/pytests`,
-  which holds v9's references; the cases whose references differ from LLNL's `upstream/pytests` are listed in
-  `V9_REFERENCE_CHANGES.md` on that branch. The check compares two builds, so either branch gives the same verdict.
+  - Families: `yldot-{d_only,d_c,d_mols,slab_phi}-it5`. These run the final `exmain` with `itermx=5` and the forced
+    tolerances.
+- **Case sets:** `all` (the default, and the gate) is everything above, 41 cases. `quick` = `repro-tebox`,
+  `repro-tebox-it5`, `yldot-{d_only,d_c,d_mols}`, `yldot-{d_only,d_c}-it5`.
+  - Ad hoc names: `repro:<preset>[@itN]` and `yldot:<family>[+<settings>][@itN]`.
+  - The owner families `large_dd2c`, `dnull_imp2` (double null) and `imp7` (neq 27k-44k) are not in `all`; they run
+    by name (`yldot:dnull_imp2`) once `python tests/yldot/tools/fetch_data.py` has fetched their states. Without the
+    data the case is a harness error that says so.
+- **No regression-suite checkout** is read: the families, their states and the settings files are in this
+  repository.
 - **What is compared:** `compare.compare_records` (above), bit for bit:
   - **Raw captured Jacobians:** every `sfsetnk`/`psetnk` Jacobian captured by the AIUE-47 hook, when both builds
     have the hook. If only one has it, nothing is captured on either side and a warning says so.
@@ -319,14 +320,11 @@ python $H --list                                    # the case set
   - 0: the complete gate agrees: both pairs, two different builds from clean committed trees with known sources,
     base on `origin/v9-develop`, and every case of `all`.
   - 1: at least one mismatch.
-  - 2: a harness error (bad build pair, missing case or pytests checkout, a failed run, a record that is not on the
+  - 2: a harness error (bad build pair, missing case or family data, a failed run, a record that is not on the
     serial path, any unexpected exception), or an incomplete gate. An incomplete gate prints
     `RESULT: INCOMPLETE ... not the gate` and lists what was skipped. `--partial-ok` turns an agreeing incomplete run
     into exit 0, `RESULT: AGREE, PARTIAL`.
   - A harness error wins over a mismatch.
-- `pytests-D_mols` gives `fnrm` 2.4166 on `v9-develop`. LLNL's `upstream/pytests` stores 0.9957, so its test fails
-  there; `origin/pytests` stores v9's 2.4165856501082246 (AIUE-116, `V9_REFERENCE_CHANGES.md`). Neither matters here:
-  the check compares two builds, not a build with a reference.
 
 The owner's original check, from inside a copy of `case/` (with the environment above):
 
