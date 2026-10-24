@@ -86,7 +86,7 @@ PYTEST_INI = ("pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.i
 PYTEST_CONFIG = PYTEST_INI + ("setup.cfg", "pyproject.toml")
 MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/|sketch_threshold/)|locality/)")
+GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/|sketch_threshold/|sketch_weight$)|locality/)")
 
 # tolerances.toml (PRD 7.4, 7.6): a larger value loosens, a smaller one tightens; the rule texts and floor_limit
 # only loosen; the record sections are measurements and owner bookkeeping
@@ -375,7 +375,7 @@ def diff_manifest(family, m0, m1, base_classes):
                 add(LOOSENED, "stored sigma {} {}".format(key, "removed" if key not in g1 else "changed"))
             elif key.endswith("/sketch_threshold"):  # the manifest cannot show the thresholds smaller (AIUE-92)
                 add(LOOSENED, "stored sketch thresholds {} {}".format(key, "removed" if key not in g1 else "changed"))
-            else:
+            else:  # the defaults, the locality pattern and a sketch store's weights (AIUE-174): a default change
                 add(DEFAULT, "guarded {} {}".format(key, "removed" if key not in g1 else "changed"),
                     "{}:{}".format(family, key))
     if sorted(set(g1) - set(g0)):

@@ -12,7 +12,8 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
           five small ones), evaluates the steady and timestep defaults with both Jacobian flags (harness/state.py, PRD
           section 6) and the diagnostics, then every variant of harness/variants.plan() in a fresh child each, and
           writes DIR/references/<family>.h5 (harness/store.py, with the family's sigma_i of families/<f>/sigma.h5,
-          AIUE-87; a sketch store also the default's sketch thresholds, PRD 7.11 d, AIUE-92) and the manifest with
+          AIUE-87; a sketch store also its weights 1/tol_i, AIUE-174, and the default's sketch thresholds, PRD 7.11 d,
+          AIUE-92) and the manifest with
           provenance and one entry per variant (harness/manifest.py). It prints each file's
           SHA-256 and size, the family's summary line (PRD section 5, story 3, with MARGINAL) and its cost. Only with
           --write does it copy the files to tests/yldot/references/ and write references/<family>.manifest.json,
@@ -381,8 +382,10 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         w = store.create(out / "{}.h5".format(name), kind, name, data["steady"], imap)
         for config, d in data.items():
             w.write_default(config, d["yldot"], d["yldot_J"], sig[config], d["diagnostics"])
-            if kind == "sketch":  # PRD 7.11 (d), AIUE-92: what one entry or cell must move for the sketch to see it
-                w.write_sketch_thresholds(config, tolerance(fdir, d["yldot"], config, imap, suite))
+            if kind == "sketch":  # PRD 7.11 (d), AIUE-92: what one entry or cell must move for the sketch to see it;
+                # the weights (AIUE-174): 1/tol_i, or with --only the stored ones, which its copied variants are in
+                keep = previous.weights(config) if previous is not None and previous.kind == "sketch" else None
+                w.write_sketch_thresholds(config, tolerance(fdir, d["yldot"], config, imap, suite), keep)
         if loc is not None:  # the locality pattern (PRD 7.5; AIUE-100): the entries with score > 1
             run = data["steady"]["locality"]
             if run["stale"].size:

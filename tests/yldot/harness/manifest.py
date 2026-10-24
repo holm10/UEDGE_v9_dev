@@ -13,7 +13,8 @@ The manifest is the reviewable text next to each family's one binary reference f
     datasets    {HDF5 dataset path: SHA-256 of its data (store.dataset_sha256)}: every dataset of the reference file,
                 recomputed at each read;
     guarded     the steady and timestep defaults (yldot and the Jacobian-flag difference), their sigma, a sketch
-                store's sketch thresholds (<config>/sketch_threshold, AIUE-92) and the locality pattern
+                store's sketch thresholds (<config>/sketch_threshold, AIUE-92) and weights (<config>/sketch_weight,
+                AIUE-174) and the locality pattern
                 (locality/steady over the /steady/locality datasets, AIUE-100); unguarded: the diagnostics
                 (summarize);
     provenance  {commit, compiler, flags, runner_image, numpy, h5py, date};
@@ -133,6 +134,9 @@ def summarize(datasets):
         thr = {n: s for n, s in datasets.items() if n.startswith(base + "sketch_threshold/")}
         if thr:
             guarded["{}/sketch_threshold".format(config)] = combined_sha(thr)
+        wgt = {n: s for n, s in datasets.items() if n == base + "sketch_weight"}
+        if wgt:
+            guarded["{}/sketch_weight".format(config)] = combined_sha(wgt)
         loc = {n: s for n, s in datasets.items() if n.startswith("/{}/locality/".format(config))}
         if loc:
             guarded["locality/{}".format(config)] = combined_sha(loc)

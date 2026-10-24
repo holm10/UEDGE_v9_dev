@@ -23,7 +23,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
   The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5`, states and `sigma.h5` are
-  release assets of the release their manifest names (`yldot-data-v6` since AIUE-92; owner, 2026-10-22, D6),
+  release assets of the release their manifest names (`yldot-data-v7` since AIUE-174; owner, 2026-10-22, D6),
   gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner, 2026-10-21); a manifest naming
   release assets under `families/<f>/` is what makes an owner family (`manifest.owner_family`). `conftest.py` fetches every manifest's release assets at the start of the session
   (`fetch_data.fetch`: download if absent, SHA-256 check, link; decision 23, owner 2026-10-22, AIUE-156); nothing
@@ -34,7 +34,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. The small families' hold the defaults and the
   SENSITIVE variants and their manifests classify every variant (`yldot-data-v5` since AIUE-159; AIUE-88, AIUE-94);
-  the owner families' (sketch stores) hold the defaults only (`yldot-data-v6`, AIUE-92; their sweep is AIUE-99).
+  the owner families' (sketch stores) hold the defaults only (`yldot-data-v7`, AIUE-92, AIUE-174; their sweep is
+  AIUE-99).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
@@ -65,8 +66,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   family-level and are covered only by families of their own (owner, 2026-10-23, AIUE-159).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
-  `SketchStore` (full default, per (equation, species, region) block k = 8 projections onto Rademacher signs from
-  `PCG64.random_raw`, summed with `math.fsum`; `sketch_compare` with c = 6.5), both with the sparse Jacobian-flag
+  `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
+  onto Rademacher signs from `PCG64.random_raw`, summed with `math.fsum`; `sketch_compare` with c = 6.5 and the
+  bound c·sqrt(Σ(tol·w)²), AIUE-174), both with the sparse Jacobian-flag
   difference; files written with `track_times=False` so the bytes are reproducible, in the HDF5 1.10 format
   (`LIBVER`, superblock version 3: smaller group headers keep the variant groups within the caps; owner,
   2026-10-22, AIUE-94); `Writer.copy_variant` copies a stored variant verbatim. `tests/yldot/harness/manifest.py`
@@ -76,12 +78,17 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
   `/steady/locality/{delta, column, row, mismatch, dfull}` (the entries with score > 1), guarded as `locality/steady`
-  and derived from the datasets like the defaults (AIUE-100). A sketch store also stores, per configuration,
+  and derived from the datasets like the defaults (AIUE-100). A sketch store also stores, per configuration, its
+  weights `/<config>/default/sketch_weight` (w_i = 1/tol_i of the default at generation; required in every sketch
+  store, `open_store` and `Writer.finish` refuse one without and a full store with any; owner, 2026-10-23, AIUE-174),
+  guarded as `<config>/sketch_weight`, and
   `/<config>/default/sketch_threshold/{block, cell_ix, cell_iy, cell_m, cell_block}` (`store.sketch_thresholds` of
-  the default's tol_i: per block δ_b = c·sqrt(Σtol²), the smallest detectable single-entry change; per cell the
-  smallest multiple of its tolerances; PRD §7.11 d), guarded as `<config>/sketch_threshold` (AIUE-92). Single-entry
-  ratios run far above c·sqrt(N) in the owner families; the owner set R_max = 2·c·sqrt(N_block) with a
-  tolerance-weighted sketch as the remedy (AIUE-174, before AIUE-99).
+  the default's tol_i and the weights: per block δ_b = c·sqrt(Σ(tol·w)²), so the smallest detectable single-entry
+  change is δ_b/w_i; per cell the smallest multiple of its tolerances; PRD §7.11 d), guarded as
+  `<config>/sketch_threshold` (AIUE-92). With the weights every entry is seen at R_i = δ_b/(tol_i·w_i) = c·sqrt(N)
+  of its own tolerances while tol is the generation tol (unweighted, the owner families' guard rows needed up to
+  1e13), within the owner's R_max = 2·c·sqrt(N_block) (AIUE-92 D3). `make_references.py --only` keeps the stored
+  weights, so the copied variant sketches stay valid.
 - **Locality** (PRD §7.5; AIUE-100) `tests/yldot/harness/locality.py`: `jac_calc`'s protocol (`bbb/oderhs.m:1095-1226`)
   in the child after step 8b (`Runner.evaluate(family, locality=delta)`, steady, no variant): flag +1, `f00` (must
   equal `yldot_J` bitwise), then per column reset to `f00`, perturb by `delta·(|y|+dylconst/suscal)`, local `pandf`,
@@ -165,9 +172,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
   `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation).
   `sketch_sensitivity.py` (PRD §7.11 d, AIUE-92): `run <family>... --from-collection DIR | --from-store` per
-  sketch-store block the single-entry threshold δ_b (bisection-checked), R_i = δ_b/tol_i, the worst cell's multiple
-  per region and, with `--collections`, the round-off pairs against the bound; `--from-store` also checks the stored
-  thresholds (exit 2 = harness, 3 = owner).
+  sketch-store block the weighted single-entry threshold δ_b/w_i (bisection-checked), R_i = δ_b/(tol_i·w_i) against
+  R_max = 2·c·sqrt(N) (a block over it is an owner finding), the worst cell's multiple per region and, with
+  `--collections`, the round-off pairs against the bound; `--from-store` uses the stored weights and checks the
+  stored thresholds, `--from-collection` weights by 1/tol (exit 2 = harness, 3 = owner).
 - **Tolerances** (PRD §7.4, §7.7; AIUE-87): `tests/yldot/tolerances.toml`, generated by `measure_roundoff.py analyze
   --write`: `k`, `rtol_eq` per equation (100 × the largest block-normalised spread over the serial pairs, floored at
   1e-14) with its source, the build records, the pairs, the raw spreads, the floor-report counts, the owner's answers
@@ -197,7 +205,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page; `[locality]`, AIUE-100: a new
   section is a change, `m_loc` monotone, `delta_loc` non-monotone, the record keys a change, and a changed or
   removed `locality/steady` key `Default results: changed`; a changed or removed `<config>/sketch_threshold` key is a
-  loosening, as a changed σ, since a manifest cannot show it smaller, AIUE-92); it downloads the release assets a
+  loosening, as a changed σ, since a manifest cannot show it smaller, AIUE-92; a changed or removed
+  `<config>/sketch_weight` key is `Default results: changed`, since it changes what every stored variant sketch
+  means, AIUE-174); it downloads the release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
