@@ -13,6 +13,7 @@ source tree without .git records no commit. test_installed_record checks the rec
 interpreter against its own options.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -241,7 +242,8 @@ print(json.dumps({"record": json.loads(path.read_text()), "git_commit": prov.get
 
 def test_installed_record(tmp_path):
     """The installed UEDGE records its build (AIUE-181), and the record agrees with its own options: the last -O of
-    the Fortran flags, -fopenmp exactly in an OpenMP build, this platform, and the commit _provenance.py reports. A
+    the Fortran flags, -fopenmp exactly in an OpenMP build (in fargs and in Forthon's own flags, which are never the
+    debug -g: make never passes Forthon -g), this platform and machine, and the commit _provenance.py reports. A
     UEDGE built before AIUE-181 fails here, naming the cause (no skip)."""
     proc = subprocess.run([sys.executable, "-I", "-c", INSTALLED], cwd=tmp_path, capture_output=True, text=True,
                           timeout=60)
@@ -256,8 +258,12 @@ def test_installed_record(tmp_path):
     want = "-O0" if options["noopt"] or options["coverage"] else "-Og" if options["debug"] else "-O3"
     assert levels and levels[-1] == want, (options, record["fargs"])
     assert ("-fopenmp" in fargs) == (not options["serial"]), (options, record["fargs"])
+    fopt = (record["forthon_fopt"] or "").split()
+    assert any(a.startswith("-O") for a in fopt) and "-g" not in fopt, record["forthon_fopt"]
+    assert ("-fopenmp" in fopt) == (not options["serial"]), (options, record["forthon_fopt"])
     assert record["fcompiler"]
     assert record["platform"] == sys.platform
+    assert record["machine"] == os.uname().machine
     assert out["git_commit"] == record["git_sha"]
 
 

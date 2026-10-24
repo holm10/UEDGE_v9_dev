@@ -731,7 +731,8 @@ def build_info(makeenv):
         'git_commit_date_iso': None,
         'git_dirty': None,
     }
-    # Only the source tree's own repository: a tree without .git (a git archive) inside another one records no commit
+    # Only the source tree's own repository: a tree without .git (a git archive) inside another one records no commit.
+    # git_dirty counts changes to tracked files only
     if os.path.exists(os.path.join(SRCDIR, '.git')):
         status = _probe(['git', 'status', '--porcelain', '--untracked-files=no'])
         info.update(git_sha=_probe(['git', 'rev-parse', 'HEAD']),

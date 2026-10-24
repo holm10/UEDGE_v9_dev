@@ -54,7 +54,8 @@ def build_identity():
     they link an OpenMP runtime, and the compiler they were built with (from the .comment
     strings, found on Linux/ELF builds; macOS Mach-O builds keep none, so the list is empty there).
     The compile flags are not recorded in the binaries, so they can't be recovered from them; a
-    build from AIUE-181 on records them in uedge/_build_info.json, which build_probe.py reads. The source
+    build from AIUE-181 on records setup.py's flags and Forthon's own optimisation flags (not its
+    precision and form flags) in uedge/_build_info.json, which build_probe.py reads. The source
     tree's HEAD and dirty state are read at run time; together with extensions_sha256 they
     identify the build, but a tree changed after the build would show its current state."""
     import glob
