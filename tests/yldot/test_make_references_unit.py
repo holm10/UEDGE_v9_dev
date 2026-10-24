@@ -293,14 +293,15 @@ def make_owner(suite, content=GRID):
 OWNER_IGNORED = "!! tests/yldot/families/d_only/gridue\n!! tests/yldot/families/d_only/sigma.h5\n"
 
 
-def test_owner_families_are_not_default_and_need_defaults_only(tmp_path, children):
+def test_owner_families_are_not_default_but_sweep_when_named(tmp_path, children):
+    """AIUE-99: an owner family is generated only when named, and then swept like the others (no --defaults-only)."""
     suite = tmp_suite(tmp_path)
     make_owner(suite)
     assert mr.select([], suite) == []
     stream = FakeStream(children[0])
-    with pytest.raises(mr.Stop, match="--defaults-only") as e:
-        mr.generate(args(family=["d_only"], out=str(tmp_path / "gen")), suite, FakeRun(status=OWNER_IGNORED), stream)
-    assert e.value.code == 1 and not stream.calls
+    mr.generate(args(family=["d_only"], out=str(tmp_path / "gen")), suite, FakeRun(status=OWNER_IGNORED), stream)
+    (cmd, _, _), = [c for c in stream.calls if c[0][0] == "docker"]
+    assert "--sweep" not in cmd and "d_only" in cmd
 
 
 def test_owner_family_carries_its_assets_and_sigma(tmp_path, children):

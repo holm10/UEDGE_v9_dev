@@ -3,7 +3,9 @@ class SENSITIVE, INERT or INVALID of every family whose manifest classifies vari
 
 SENSITIVE  its recorded applied value replayed and checked against its stored reference, yldot and the Jacobian-flag
            difference yldot_J - yldot, under tol_i(variant) (AIUE-94 D8) through Store.check
-           (variant_tolerances.check_sensitive). On a macOS build that may contract into FMA instructions (the build
+           (variant_tolerances.check_sensitive); in a sketch store (the owner families), which keeps no dense
+           reference, the replayed run's yldot takes the reference's place in D8's rule and the sketch comparator
+           decides (owner, 2026-10-24, AIUE-99 Q2). On a macOS build that may contract into FMA instructions (the build
            record, harness/build.py) a mismatch is reported as a BuildLimitWarning, not failed (owner, 2026-10-23,
            AIUE-96 D1); without a build record it fails, naming that (D4).
 INERT      its recorded applied value replayed: yldot and yldot_J equal the live default of its configuration within
@@ -92,14 +94,15 @@ def record():
 @pytest.mark.parametrize("family, vid", params("SENSITIVE"))
 def test_sensitive(runner, plan, stores, record, family, vid):
     s = stores(family)
-    assert s.kind == "full", "{}: a {} store holds no dense variant reference".format(family, s.kind)
     e = s.manifest["variables"][vid]
     row = vt.check_sensitive(family, s, runner, plan[vid], e, None)
     if row["ok"]:
         return
     if "status" in row:
         pytest.fail("{}-{}: {}".format(family, vid, row["message"]), pytrace=False)
-    what = "{}-{}: largest |d_i| / tol_i(variant) = {:.3g}\n{}".format(family, vid, row["ratio"], row.get("report", ""))
+    what = "{}-{}: largest {} = {:.3g}\n{}".format(
+        family, vid, "sketch |dP| / bound" if s.kind == "sketch" else "|d_i| / tol_i(variant)", row["ratio"],
+        row.get("report", ""))
     if record is None:
         pytest.fail("{}\n{}".format(build.MISSING, what), pytrace=False)
     if build.fma_contraction(record) and math.isfinite(row["ratio"]):  # a non-finite entry is never round-off

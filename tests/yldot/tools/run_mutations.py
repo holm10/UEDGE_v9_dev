@@ -324,15 +324,20 @@ def problems(m, stores=None):
     return out
 
 
-def variant_problems(m, plan_ids, variables):
+def variant_problems(m, plan_ids, variables, kinds=None):
     """The defects of a mutation's Variant: plan_ids, the inventory's variant ids; variables: {family: the manifest's
-    variables} of the referenced families."""
+    variables} of the referenced families; kinds: {family: its store kind}. A Variant needs full stores in its
+    Families: variant_child compares dense vectors, which a sketch store does not keep (AIUE-99)."""
     if m.variant is None:
         return []
     if m.variant not in plan_ids:
         return ["Variant {}: not a variant of the inventory".format(m.variant)]
     out = []
     for f in m.families:
+        if (kinds or {}).get(f, "full") != "full":
+            out.append("Variant {}: {} is a {} store; a Variant mutation needs a full store".format(m.variant, f,
+                                                                                                 kinds[f]))
+            continue
         e = variables.get(f, {}).get(m.variant)
         if e is None:
             out.append("Variant {}: {} stores no such variant".format(m.variant, f))
@@ -395,14 +400,16 @@ def load_set(names=None, stores=None):
             ms.append(load(p))
         except ValueError as e:
             bad.append("{}: {}".format(p.name, e))
-    plan_ids = variables = None
+    plan_ids = variables = kinds = None
     if any(m.variant for m in ms):
         from yldot.harness import variants
 
         plan_ids = {v.id for v in variants.plan()}
         variables = {f: mf.load(f).get("variables") or {} for f in referenced()}
+        kinds = {f: mf.load(f)["store"] for f in referenced()}
     for m in ms:
-        bad += ["{}: {}".format(m.path.name, e) for e in problems(m, stores) + variant_problems(m, plan_ids, variables)]
+        bad += ["{}: {}".format(m.path.name, e)
+                for e in problems(m, stores) + variant_problems(m, plan_ids, variables, kinds)]
     if names is None:
         bad += composition(ms)
     if bad:

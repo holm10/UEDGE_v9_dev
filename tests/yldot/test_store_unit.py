@@ -504,6 +504,35 @@ def test_weighted_roundoff_half_the_bound_passes_twice_fails():
             assert c.ok is ok and (ok or c.lines[1].strip().startswith(label + " ")), (label, m, c.report)
 
 
+def test_sketch_ratio_is_the_largest_projection_over_its_bound(tmp_path):
+    """AIUE-99: one entry moved by m * c * sqrt(N_block) * tol_i (w = 1/tol) gives the ratio m, passing (0.5) or
+    failing (2); a NaN gives inf; Store.check carries the largest of its two parts', a full store's None."""
+    r = ROWS[0]
+    i = int(r[0])
+    w = 1.0 / SPREAD
+    x = np.zeros(N)
+    ref = store.sketch(x, LABELS, ROWS, w=w)
+    assert store.sketch_compare(ref, ref, SPREAD, LABELS, ROWS, IMAP, w=w).ratio == 0.0
+    for m, ok in ((0.5, True), (2.0, False)):
+        y = x.copy()
+        y[i] = m * store.C * np.sqrt(len(r)) * SPREAD[i]
+        c = store.sketch_compare(ref, store.sketch(y, LABELS, ROWS, w=w), SPREAD, LABELS, ROWS, IMAP, w=w)
+        assert c.ok is ok and c.ratio == pytest.approx(m, rel=1e-12)
+    y = x.copy()
+    y[i] = np.nan
+    c = store.sketch_compare(ref, store.sketch(y, LABELS, ROWS, w=w), SPREAD, LABELS, ROWS, IMAP, w=w)
+    assert not c.ok and c.ratio == np.inf
+    build(tmp_path / "s", "sketch", tol=SPREAD)
+    with store.open_store("fam", tmp_path / "s", regions=SPEC) as s:
+        bad = YJV.copy()
+        bad[i] += 2.0 * store.C * np.sqrt(len(r)) * SPREAD[i]
+        c = s.check("steady", "bbb.cfvisx", YV, bad, SPREAD, IMAP)
+        assert not c.ok and c.ratio == pytest.approx(2.0, rel=1e-6) and "yldot PASS" in c.report  # YJV's rounding
+    build(tmp_path / "f", "full")
+    with store.open_store("fam", tmp_path / "f", regions=SPEC) as s:
+        assert s.check("steady", "bbb.cfvisx", YV, YJV, TOL, IMAP).ratio is None
+
+
 def test_reads_are_read_only(tmp_path):
     build(tmp_path, "full")
     with store.open_store("fam", tmp_path, regions=SPEC) as s:

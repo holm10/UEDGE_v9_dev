@@ -57,7 +57,7 @@ file in the families' directories or data/, except an owner family's release ass
 families/<f>/ externals, and its sigma.h5) at their recorded SHA-256s. A preview (no --release) never --writes over a
 released manifest. It refuses a family without sigma.h5, whose sigma.h5 differs from tolerances.toml's SHA-256, or
 whose manifest names release assets of another family. An owner family (manifest.owner_family: its grid, inputs and
-states are release assets) is generated only when named and only with --defaults-only (its variant sweep is AIUE-99);
+states are release assets) is generated only when named, swept like the others (AIUE-99) or with --defaults-only;
 its new manifest carries those assets and adds families/<f>/sigma.h5 (owner, 2026-10-22, AIUE-92 D6), all under
 the new release. Every evaluation runs
 in a fresh child process (harness/process.py). Writing the same results twice gives the same bytes
@@ -96,7 +96,7 @@ FLAGS = "--serial"
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
 CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
-           "large_dd2c": 9, "dnull_imp2": 9, "imp7": 9}  # the last two: owner, 2026-10-23 (AIUE-92 B4)
+           "large_dd2c": 12, "dnull_imp2": 12, "imp7": 12}  # owner, 2026-10-24 (AIUE-99 Q3; 9 MB in AIUE-92 B4)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
 SAMPLE_N = 20  # the tolerance-inheritance sample per family, plus every SENSITIVE timestep variant (PRD 7.4; D2)
@@ -720,10 +720,6 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         raise Stop(2, "--only and --defaults-only together")
     sha = resolve(args.from_commit, root, run)
     families = select(args.family, suite)
-    owner = [f for f in families if mf.owner_family(f, suite)]
-    if owner and not args.defaults_only:
-        raise Stop(1, "{}: an owner family's references are its defaults only (its variant sweep is AIUE-99): "
-                      "--defaults-only".format(", ".join(owner)))
     assets = owner_assets(families, suite)
     check_tree(sha, root, families, run, {"tests/yldot/" + p for a in assets.values() for p in a})
     if args.defaults_only and args.write:

@@ -10,10 +10,13 @@ replay   the population check (review I1-B1, D8): every SENSITIVE variant of REF
          fresh child, its recorded applied value replayed, checked against its stored reference through Store.check,
          yldot and the flag difference, with tol_i(variant) = max(rtol_eq*|ref_i(variant)|, k*sigma_i)
          (make_references.variant_tolerance: the PRD 7.4 rule with the variant's own reference and the default's
-         sigma_i). REFS: a make_references.py run's --out DIR/references (<family>.h5 and <family>.json) or
+         sigma_i); in a sketch store, which keeps no dense reference, the replayed run's yldot takes the reference's
+         place in that rule and the sketch comparator decides (owner, 2026-10-24, AIUE-99 Q2). REFS: a
+         make_references.py run's --out DIR/references (<family>.h5 and <family>.json) or
          "installed" (tests/yldot/references); default families: every one REFS holds with classified variants.
          Prints per family the count, the failures (a failed evaluation is one) and the largest
-         max |d_i| / tol_i(variant) (inf for a non-finite entry); --json writes every row; --build refuses
+         max |d_i| / tol_i(variant) (a sketch store's: |dP| / bound; inf for a non-finite entry); --json writes every
+         row; --build refuses
          references of another commit than FILE's. Without --build nothing ties this build to the references'
          commit: pass it whenever the result is recorded (review I2-m2).
 collect and check: the seeded sample (D2) under the default's tol_i. For them REFS is the references directory of a
@@ -168,11 +171,13 @@ def reference_stores(refs, families):
 
 
 def check_sensitive(name, s, runner, v, e, timeout):
-    """The row of one SENSITIVE variant v (its manifest entry e) of the open full store s: evaluated once with this
-    build, in a fresh child, its recorded applied value replayed, and checked against its stored reference with
-    make_references.variant_tolerance (D8) through Store.check, yldot and the flag difference. A row: ok, ratio
-    (the largest |d_i| / tol_i(variant) over both, inf for a non-finite entry), for a failed evaluation status and
-    message, for a failed Store.check its report (test_variants.py, AIUE-96)."""
+    """The row of one SENSITIVE variant v (its manifest entry e) of the open store s: evaluated once with this build,
+    in a fresh child, its recorded applied value replayed, and checked against its stored reference through
+    Store.check, yldot and the flag difference. A full store: under make_references.variant_tolerance (D8), ratio the
+    largest |d_i| / tol_i(variant) over both. A sketch store keeps no dense reference: under the same rule with the
+    replayed run's yldot in the rtol term, tol_i = max(rtol_eq*|new_i|, k*sigma_i) (owner, 2026-10-24, AIUE-99 Q2),
+    ratio the sketch's largest |dP| / bound (Store.check). inf for a non-finite entry. A row: ok, ratio, for a failed
+    evaluation status and message, for a failed Store.check its report (test_variants.py, AIUE-96)."""
     import make_references as mr
     from yldot.harness import compare
     from yldot.harness.process import family_dir
@@ -182,11 +187,18 @@ def check_sensitive(name, s, runner, v, e, timeout):
         return {"ok": False, "ratio": float("inf"), "status": r.status, "message": mr.error_reason(r)}
     fdir = family_dir(name)
     config = e["config"]
+    y, yj = r.data["yldot"], r.data["yldot_J"]
+    imap = compare.index_map(r.data, compare.load_regions(fdir))
+    if s.kind == "sketch":
+        chk = s.check(config, v.id, y, yj, mr.tolerance(fdir, y, config, imap), imap)
+        row = {"ok": bool(chk.ok), "ratio": chk.ratio}
+        if not chk.ok:
+            row["report"] = chk.report
+        return row
     ref, ref_j = s.variant(config, v.id)
     tol = mr.variant_tolerance(fdir, ref, config, s.imap)
-    y, yj = r.data["yldot"], r.data["yldot_J"]
     ratio = max(worst(y - ref, tol), worst((yj - y) - ref_j, tol))
-    chk = s.check(config, v.id, y, yj, tol, compare.index_map(r.data, compare.load_regions(fdir)))
+    chk = s.check(config, v.id, y, yj, tol, imap)
     row = {"ok": bool(chk.ok) and ratio <= 1, "ratio": ratio}
     if not chk.ok:
         row["report"] = chk.report
@@ -194,9 +206,7 @@ def check_sensitive(name, s, runner, v, e, timeout):
 
 
 def replay_family(name, s, runner, plan, timeout):
-    """{id: row} for every SENSITIVE variant of the open store s (check_sensitive)."""
-    if s.kind != "full":
-        raise Stop(2, "{}: a {} store holds no dense variant reference, D8's rtol term needs one".format(name, s.kind))
+    """{id: row} for every SENSITIVE variant of the open store s, full or sketch (check_sensitive)."""
     rows = {}
     for vid, e in s.manifest["variables"].items():
         if e["class"] != "SENSITIVE":
