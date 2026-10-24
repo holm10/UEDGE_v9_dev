@@ -9,9 +9,11 @@ this script only builds and checks text, so a dry run and a real run write the s
   render        The ticket page body: header, Ticket section, the four append-only log sections (the current page's
                 entries + any entry of the sent log the page lost + the queue + --entry) and the plan: --plan mirrors
                 the working copy (cited by publish date and sha256), --mirrored repeats the copy last published.
-                Neither: the skeleton a new page is created with. For an existing page it needs --current (the page
-                as read) or --local --listing (the page is what this worktree last sent), and it refuses a
-                current page that lacks a log heading or holds fewer entries than this worktree last sent.
+                Neither: the skeleton a new page is created with, or the log entries of a page that has no plan yet
+                (Plan placeholder kept). For an existing page it needs --current (the page as read) or --local
+                --listing (the page is what this worktree last sent), and it refuses a current page that lacks a
+                log heading or holds fewer entries than this worktree last sent, and a no-plan render of a page
+                that holds a plan.
   ticket        The Ticket section: the ticket's entry in the epic breakdown (heading naming the key), or --text.
   find          A ticket's page id from the state file, the Jira link comment and a complete container listing.
                 Exit 3 (no page) only with a complete listing and a readable comment list; 2 = several or can't tell.
