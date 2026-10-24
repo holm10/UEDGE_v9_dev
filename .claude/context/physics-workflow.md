@@ -43,5 +43,22 @@ implementer updates it on the same branch as the code (trailer `AI-layer: code-f
 - SI units except temperatures, which are stored in **Joules** internally (`te`, `ti` in J; `ev` conversion factor).
   Check neighbours before assuming.
 - Read `openmp-jacobian.md` before writing anything inside the `pandf` tree.
-- Validate: regression suites unchanged with feature off (or the changes explained, if defaults moved on purpose); with feature on, check `checkbal()` (`src/uedge/balance.py`)
-  for particle/power balance, and `ppp.CheckPandf1 = 1` with threads.
+- Validate: regression suites unchanged with feature off, the pytests suites and the yldot suite (or the changes explained, if defaults moved on purpose); with feature on, check `checkbal()` (`src/uedge/balance.py`)
+  for particle/power balance, and run the AIUE-8 OpenMP test flow (`validate` step 4).
+
+## A new switch in the yldot suite
+
+The yldot suite's input inventory is read from the `.v` files (`tests/yldot/harness/inputs.py`), so a new `+input`
+switch is a new variant key (`<pkg>.<name>`) at once, and `test_manifest_inventory` fails with `missing:` in every
+family whose manifest classifies variants (`tests/yldot/test_inventory.py`). Give it its variant on the ticket branch:
+
+1. With the switch off by default, regenerate only its key from the committed tree:
+   `python tests/yldot/tools/make_references.py generate --from-commit <sha> --only <pkg>.<name> --release
+   yldot-data-v<N> --write` (the Linux image, the only release-grade path). The run must reproduce the stored
+   defaults bit for bit (exit 3 otherwise: the default moved). The new entries are an addition, which needs no PR
+   declaration.
+2. Reserve `N` on the ticket page once the owner agrees, and have the owner publish the release with
+   `release_data.py` (`.claude/context/testing.md` → Tools).
+3. If the generic value rules don't fit the switch (an index, a cell range, an enumerated selector), it needs an
+   `overrides.toml` entry with a reason, which needs `Test criteria: changed`. Ask the epic owner before adding it
+   (AIUE-9 decision 23).

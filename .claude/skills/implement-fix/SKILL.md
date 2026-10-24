@@ -65,9 +65,9 @@ review, but is at least M: its implementation review runs on Opus (`FORTRAN: yes
 
 1. Rebuild: `pip install . -C "--build-option=--serial"`; fix errors at the `.m` source.
 2. Re-run the reproduction — the failure must be gone.
-3. If the fix touches the `pandf` tree, threadprivate variables, or `ppp/`: run the OpenMP serial-vs-parallel
-   check (`validate --omp`).
-4. Run the `validate` skill with the suites matching the area.
+3. If the fix touches the `pandf` tree, threadprivate variables, or `ppp/`: run the AIUE-8 OpenMP test flow
+   (`validate --omp`, step 4).
+4. Run the `validate` skill with the suites matching the area (the yldot suite, its step 3b, included).
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
@@ -92,9 +92,10 @@ by resuming the long agent), rounds 2+ as verification rounds.
 
 ## 5. Regression coverage
 
-The regression suite lives on the `pytests` branch and is being redesigned. Do not add tests to this repo.
-Instead, record in the report the exact case (input deck/script and settings) that reproduces the bug, so a
-regression case can be added there.
+The old suite lives on the `pytests` branch; its replacement is the yldot suite (`tests/yldot`, epic AIUE-9). Do not
+add tests for the fix here. Record in the report the exact case (input deck/script and settings) that reproduces the
+bug, and, when a yldot family or variant shows it, the family, configuration and variant id. A case no family covers
+becomes its own intake ticket (a new family), not part of the fix.
 
 ## Output report
 
@@ -106,9 +107,9 @@ Changes:
   <file>:<lines> — <what changed>
 
 Reproduction: before <observed>, after <observed>
-Default results: unchanged | changed — <cases moved, why this is correct>
+Default results: unchanged | changed — <cases moved (the yldot <family>:<id>s the guard prints), why this is correct>
 Validate: <validate report block>
-Regression case to add on pytests branch: <case + settings>
+Regression case: <case + settings; the yldot family, configuration and variant id that show it, or "none">
 ```
 
 Suggested commit message (repo style, see `commit` skill):
