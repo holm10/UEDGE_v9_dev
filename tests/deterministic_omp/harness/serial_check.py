@@ -41,6 +41,7 @@ Exit codes: 0 the complete gate agrees (or a --partial-ok run agrees), 1 at leas
 """
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -281,6 +282,23 @@ def case_label(case):
     return case["family"] + ("+" + case["settings"] if case.get("settings") else "")
 
 
+def _sha256(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def input_problems(meta, family, settings):
+    """The files family_worker.py says it read (meta "inputs": SHA-256 of input.py, the settings file and the
+    state) against the files of the case. Returns the problems (empty = fine)."""
+    want = {"input.py": _sha256(os.path.join(family, "input.py")),
+            "state": _sha256(os.path.realpath(os.path.join(family, STATE)))}
+    if settings:
+        want["settings"] = _sha256(settings)
+    got = meta.get("inputs") or {}
+    return ["{} {}".format(k, "not read" if k not in got else "differs from the case's file")
+            for k in sorted(set(want) | set(got)) if got.get(k) != want.get(k)]
+
+
 def run_family_case(case, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
     """Run one yldot family case with family_worker.py in a fresh process, in an empty run directory
     (the worker changes to the family directory itself). Returns a Record."""
@@ -315,6 +333,9 @@ def run_family_case(case, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
     record = Record(rundir)
     if proc.returncode != 0:
         raise HarnessError("run in {} exited with {}".format(rundir, proc.returncode))
+    problems = input_problems(record.meta, family, settings)
+    if problems:  # e.g. a worker that skipped the settings file: both builds would still agree
+        raise HarnessError("run in {} did not read the case's files: {}".format(rundir, "; ".join(problems)))
     with open(os.path.join(rundir, "run.log"), "rb") as f:
         text = f.read().replace(b"\x00", b"").decode(errors="replace")
     record.meta["iterations"] = parse_iterations(text)

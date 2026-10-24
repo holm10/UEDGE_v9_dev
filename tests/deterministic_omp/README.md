@@ -257,6 +257,13 @@ python $H --list                                    # the case set
     start from the family state, which is not converged for drifts. Owner decisions of 2026-10-24 (AIUE-106 ticket
     page): the settings form, `reference_state.h5` for every case, `d_c` for both D+C cases, the owner families by
     name only. Never edit a value in a settings file to make a case pass.
+  - Because only the added lines run, after the whole family deck, three cases are not the upstream variant
+    exactly (inputs compared after `allocate`; the owner keeps them, 2026-10-24): `core_nogradient` keeps
+    `tcoree = tcorei = 100` and `curcore` keeps `ncore = 2e19` (lines their decks remove), and
+    `d_mols-tg_mol_atoms_drift` keeps `istgon[0] = 1`, so `tg(1)` is evolved (neq 540): in its deck the shared
+    equations block came later and reset it to 0. The other 18 match their decks.
+  - The worker records the SHA-256 of `input.py`, the settings file and the state it read (`inputs`), and the tool
+    checks them against the case's files: a run that skipped its settings file is a harness error.
 - **Solver cases** (`-itN`): exactly N Newton iterations (forced, as `--itermx` above), so `psetnk` (row normalisation, `jac_reorder`),
   the ILU preconditioner, the Krylov solve and the line search run too. The whole `fnrm` sequence is compared,
   together with the final state (`yldot`, `fnrm` at the final `yl`) and every Jacobian. A solver case whose record

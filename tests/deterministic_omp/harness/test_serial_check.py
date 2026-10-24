@@ -73,6 +73,21 @@ def test_mapping():
     assert len(sc.ALL) == 41
 
 
+def test_input_problems():
+    """A record must show the SHA-256 of exactly the case's input.py, settings file and state."""
+    family, settings = sc.family_files(sc.CASES["yldot-d_only-istewc3"])
+    good = {"input.py": sc._sha256(os.path.join(family, "input.py")),
+            "state": sc._sha256(os.path.realpath(os.path.join(family, sc.STATE))),
+            "settings": sc._sha256(settings)}
+    assert sc.input_problems({"inputs": good}, family, settings) == []
+    skipped = {k: v for k, v in good.items() if k != "settings"}  # a worker that skipped the settings file
+    assert sc.input_problems({"inputs": skipped}, family, settings) == ["settings not read"]
+    assert sc.input_problems({"inputs": dict(good, settings="0" * 64)}, family, settings) == [
+        "settings differs from the case's file"]
+    assert sc.input_problems({"inputs": good}, family, None) == ["settings differs from the case's file"]
+    assert sc.input_problems({}, family, None) == ["input.py not read", "state not read"]
+
+
 # ---------------------------------------------------------------- build guard
 def test_check_pair_kind_and_same():
     assert sc.check_pair("serial", build("a", False), build("b", False), False, False) == ([], [], [], False)
