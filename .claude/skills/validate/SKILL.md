@@ -121,8 +121,8 @@ Report its `required:` line. Exit 1 means the description lacks a declaration it
 The AIUE-8 test flow (`tests/deterministic_omp/README.md` → Test flow). It needs a default (OpenMP) build of this
 worktree, in a venv of its own beside the serial one (one venv per build kind), and on macOS also the base OpenMP
 venv of the branch point (`.claude/context/testing.md` → Fast iteration). Run the same command with each, from the
-worktree root, with an absolute, new `--out` (the workers run in their own directories, so a relative one fails
-every run with ERROR):
+worktree root, with an absolute `<venv>` and an absolute, new `--out` (the workers run in their own directories,
+so a relative path fails every run with ERROR):
 
 ```bash
 <venv>/bin/python tests/deterministic_omp/harness/cli.py flow --python <venv>/bin/python \
@@ -131,12 +131,14 @@ every run with ERROR):
 
 - **Linux:** ✅ on exit 0.
 - **macOS:** `full` fails on the base too, from the documented C2 round-off (`.claude/context/openmp-jacobian.md`).
-  ✅ when the change's summary table equals the base's: verdict, agreement, determinism, mismatch rows and first
-  mismatch of every group. ❌ for any group that differs (owner, 2026-10-24, AIUE-102).
+  ✅ when the change's summary table equals the base's: verdict, agreement and determinism of every group, and the
+  mismatch rows and first mismatch of every deterministic one (a nondeterministic group's cell moves from run to
+  run). ❌ for any group that differs (owner, 2026-10-24, AIUE-102).
 - Exit 2 (ERROR, the flow cannot judge) is ❌ everywhere. The `jacrhs` arm is report-only (epic AIUE-70).
 - The gate is `build-test-omp.yml`'s run on the PR (Linux, bitwise): quote its result.
 
-While iterating, `--configs tebox --threads 4` takes about 5 s and is bitwise on macOS too. When the change touches
+While iterating, `--configs tebox --threads 4` takes about 5 s (it passed bitwise on macOS at 45ee607; it did not
+at 0fac655, `tests/deterministic_omp/README.md`, so judge it against the base too). When the change touches
 `ppp/` or the Jacobian, run `--all` (every configuration at 2, 4 and 8 threads) once, judged the same way. The flow
 has one case, the AIUE-8 single-null deck, so for X-point or boundary code also run a double-null case with the
 diagnostics of `.claude/context/openmp-jacobian.md` → "Verifying a change touches this correctly" (a diagnostic,

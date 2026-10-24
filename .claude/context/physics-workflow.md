@@ -56,7 +56,8 @@ family whose manifest classifies variants (`tests/yldot/test_inventory.py`). Giv
    `python tests/yldot/tools/make_references.py generate --from-commit <sha> --only <pkg>.<name> --release
    yldot-data-v<N> --write` (the Linux image, the only release-grade path). The run must reproduce the stored
    defaults bit for bit (exit 3 otherwise: the default moved). The new entries are an addition, which needs no PR
-   declaration.
+   declaration. A switch that is on by default changes the defaults: that is a full regeneration and needs
+   `Default results: changed` with every moved `<family>:<id>` (`CLAUDE.md` → Hard rules).
 2. Reserve `N` on the ticket page once the owner agrees, and have the owner publish the release with
    `release_data.py` (`.claude/context/testing.md` → Tools).
 3. If the generic value rules don't fit the switch (an index, a cell range, an enumerated selector), it needs an
