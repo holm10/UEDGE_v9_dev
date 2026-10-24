@@ -3093,7 +3093,9 @@ minu(1:nispmx)  real  /nispmx*2./ +input
                                      #ion mass in units of proton mass (AMU)
 ziin(1:nispmx)  real  /nispmx*1./ +input
                                      #ion charge read in, used to reset zi in
-                                     #group Compla which gets erased on gallot
+                                     #group Compla which gets erased on gallot;
+                                     #whole numbers only (0 for neutrals):
+                                     #allocate and ueinit stop otherwise
 znuclin(1:nispmx) integer /nispmx*1./ +input #total nuclear charge of ion (i.d. isotope)
 isallloc		integer   /0/        #=1 for local process. allocation with mpi
 newaph			integer  /1/ +input #=1 calls aphread for hyd. atomic data;=0 not

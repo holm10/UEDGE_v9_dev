@@ -50,7 +50,7 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
   equal to serial on macOS arm64: it differs at round-off in the C2 rows.
   - The guarantee holds only where a full Jacobian-mode `pandf` resets all state and no shared variable carries
     results. `exmain` already refuses OpenMP with `ismcnon≠0` or `isimpon` not in {0, 2, 6, 7}
-    (`bbb/odesetup.m:6770-6788`). Not validated: `nxpt=2` and coupled walls (still racy, AIUE-69, see "Known
+    (`bbb/odesetup.m:6792-6810`). Not validated: `nxpt=2` and coupled walls (still racy, AIUE-69, see "Known
     OpenMP-unsafe paths"), limiter sputtering and `istabon=5,6` (made thread-safe by AIUE-60, not tested here).
   - The three inputs take effect at the next `exmain` (`InitOMPJac` runs from `allocate`).
   - Cost: the full problem (64 chunks) is within about 3 % of the old partition at 2-8 threads. Smaller problems get
@@ -68,7 +68,7 @@ Most subtle bugs in v9 come from here (see recent commits: "Fixes X-point bounda
 
 `bbb.jac` after `exmain` is not the matrix `jac_calc` returned: `sfsetnk` scales its columns by `1/suscal`,
 and `psetnk` also scales rows by `sfscal`, normalises rows and factorises it. To get the unscaled matrix, set
-`bbb.jaccapture = K` (group `Jacobian_capture`, `bbb/bbb.v:4223`). `jac_calc_interface` (`bbb/oderhs.m:4682`) then
+`bbb.jaccapture = K` (group `Jacobian_capture`, `bbb/bbb.v:4225`). `jac_calc_interface` (`bbb/oderhs.m:4682`) then
 copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/oderhs.m:4722`, routine
 `jac_capture` at `bbb/oderhs.m:4744`) into slots `1..bbb.jaccapn`:
 
@@ -78,8 +78,8 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
   pattern depends on `sfscal`.
 - Python: `bbb.jaccapv[:nnz,k]`, `bbb.jaccapj[:nnz,k]`, `bbb.jaccapi[:neq+1,k]` with `nnz = bbb.jaccapnnz[k]`
   and `neq = bbb.jaccapneq[k]`. These use the same 1-based CSR convention as `jac/jacj/jaci`.
-- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4263`). With `ppp.ForceSerialCheck>0`,
-  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4266`).
+- `jaccapsrc[k]`: 1 = `jac_calc`, 2 = `jac_calc_parallel` (`bbb/bbb.v:4265`). With `ppp.ForceSerialCheck>0`,
+  `jac_calc_parallel` returns a serial result. `jaccapfrom[k]`: 1 = `sfsetnk`, 2 = `psetnk` (`bbb/bbb.v:4268`).
   `jaccapseq[k]` is the Jacobian's sequence number.
 - Stores the Jacobians numbered `jaccapskip+1 .. jaccapskip+jaccapture`. `jaccapture=1, jaccapskip=k-1` keeps
   only the k-th. `exmain` does not reset the counters; set `jaccapcount = jaccapn = 0` to restart, and also after
@@ -122,7 +122,7 @@ copies each CSR Jacobian returned by `jac_calc` or `jac_calc_parallel` (`bbb/ode
 ## Known OpenMP-unsafe paths
 
 - `exmain` stops OpenMP runs with `isimpon` other than 0/2/6/7, `ismcnon>0`, `ishosor>0`, `ispsorave>0` or
-  `cfvisxneoq/v≠0` (`bbb/odesetup.m:6770-6815`). Behind it: the `isimpon=5` reduced-ion path (`mombal`/`fmombal`:
+  `cfvisxneoq/v≠0` (`bbb/odesetup.m:6792-6837`). Behind it: the `isimpon=5` reduced-ion path (`mombal`/`fmombal`:
   shared `Reduced_ion_*` arrays and SAVE locals) and the Monte Carlo neutral coupling write shared state in `pandf`.
 - Not blocked, still racy (AIUE-69): full double null (`nxpt=2`) writes the shared `com` `ghxpt/gvxpt/sxyxpt` on every
   call; coupled wall sources (`iscpli/iscplo=1`) write `iwalli/iwallo/fngysi/fngyso` in `wsmodi/wsmodo`.

@@ -100,6 +100,10 @@ def test_overrides_valid():
     ('["bbb.svrpkg"]\nbound = "com.nxpt"\nreason = "x"\n', "bound on a character"),
     ('["bbb.methn"]\nvalues = ["a"]\nreason = "x"\n', "integers or floats"),
     ('["bbb.methn"]\nvalues = [true]\nreason = "x"\n', "integers or floats"),
+    ('["bbb.ziin"]\ncharge = "com.nhsp"\nvalues = [1.0]\nreason = "x"\n', "charge together with"),
+    ('["bbb.isupgon"]\ncharge = "com.nhsp"\nreason = "x"\n', "not a real 1-D array"),
+    ('["bbb.kye"]\ncharge = "com.nhsp"\nreason = "x"\n', "not a real 1-D array"),
+    ('["bbb.ziin"]\ncharge = "bbb.kye"\nreason = "x"\n', "is not an integer scalar"),
 ])
 def test_overrides_refused(tmp_path, text, match):
     f = tmp_path / "overrides.toml"
@@ -157,6 +161,7 @@ def test_plan_values_phases_configs(plan):
         assert by_key[key][0].rule == "bounded" and by_key[key][0].bound == "com.nxpt"
     for key in ("bbb.igspsori", "bbb.igspsoro", "bbb.igspsorlb", "bbb.igspsorrb"):
         assert by_key[key][0].rule == "bounded" and by_key[key][0].bound == "com.ngsp"
+    assert [(v.rule, v.bound, v.excluded) for v in by_key["bbb.ziin"]] == [("charge", "com.nhsp", False)]
     allvars = inputs.parse()
     for v in plan:
         assert v.config == ("timestep" if v.key in TIMESTEP else "steady"), v.id
@@ -190,6 +195,18 @@ def test_rule_value_and_bounded():
     assert bitwise(variants.rule_value(np.array([2]), "bounded", bound=3), np.array([3]))
     with pytest.raises(TypeError):
         variants.rule_value(np.array([1.0]), "bounded", bound=2)
+
+
+def test_rule_charge():
+    # owner 2026-10-23 (AIUE-161): d+1 on the hydrogenic ion slots only; atoms and impurity charge states keep d
+    d = np.array([1, 0, 1, 2, 3, 4, 5, 6], dtype=np.float64)
+    assert bitwise(variants.rule_value(d, "charge", bound=2), np.array([2, 0, 1, 2, 3, 4, 5, 6], dtype=np.float64))
+    assert bitwise(variants.rule_value(np.zeros(2), "charge", bound=2), np.zeros(2))
+    assert bitwise(d, np.array([1, 0, 1, 2, 3, 4, 5, 6], dtype=np.float64))  # d itself is not changed
+    with pytest.raises(TypeError):
+        variants.rule_value(np.array([1, 0]), "charge", bound=2)
+    with pytest.raises(TypeError):
+        variants.rule_value(np.ones((2, 2)), "charge", bound=2)
 
 
 def test_encode_roundtrip():

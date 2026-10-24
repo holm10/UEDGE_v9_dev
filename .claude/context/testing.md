@@ -33,7 +33,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. The small families' hold the defaults and the
-  SENSITIVE variants and their manifests classify every variant (`yldot-data-v5` since AIUE-159; AIUE-88, AIUE-94);
+  SENSITIVE variants and their manifests classify every variant (`yldot-data-v8` since AIUE-161; AIUE-88, AIUE-94);
   the owner families' (sketch stores) hold the defaults only (`yldot-data-v7`, AIUE-92, AIUE-174; their sweep is
   AIUE-99).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
@@ -63,7 +63,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   through `Runner.evaluate(..., variant=, replay=)`); `tests/yldot/overrides.toml` holds the additions, exclusions,
   explicit values, bounds, phase and configuration, each with a reason. Switches that pick the geometry, the topology
   or the species model (`isudsym`, `islimon`, `isfixlb`, `isnonog`, `mhdgeo`, `gengrid`, `ishymol`) are EXCLUDED as
-  family-level and are covered only by families of their own (owner, 2026-10-23, AIUE-159).
+  family-level and are covered only by families of their own (owner, 2026-10-23, AIUE-159). `bbb.ziin` (the ion
+  charge, integers only: `chkziin` in `allocate` and `ueinit` refuses any other) takes the `charge` rule, d+1 on the
+  hydrogenic ion slots (`ziin > 0` among the first `com.nhsp`, read live), atoms and impurity charge states
+  unchanged (owner, 2026-10-23, AIUE-161).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
@@ -162,7 +165,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
   `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
   design); on yldot-data-v5, where `com.isnonog` is EXCLUDED as family-level (AIUE-159), mac-serial fails the other
-  two (d_c `bbb.mvolcur` 1.74 ×, slab_phi `bbb.icnucx` 3.07 ×); `collect` and `check` do the same on the seeded sample against the serial pairs.
+  two (d_c `bbb.mvolcur` 1.74 ×, slab_phi `bbb.icnucx` 3.07 ×), and the same two on yldot-data-v8, where the integer
+  `bbb.ziin` variant replays within 0.017 × tol_i on mac-serial and 4e-4 × on mac-noopt in all five families
+  (AIUE-161); `collect` and `check` do the same on the seeded sample against the serial pairs.
   `run_mutations.py` (`list`: checks the mutation set; `run --out DIR`: one scratch worktree and venv for the run, a
   baseline build that must pass, then per mutation apply, build `--serial`, evaluate the inner-loop family first (a
   miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
@@ -309,7 +314,7 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
 - **Probing initialisation without a solve** (grid-change interpolation, `ueinit` checks): after the restore and the
   input changes, `bbb.ifexmain = 1; bbb.allocate(); bbb.ifexmain = 0; bbb.ueinit()`. A Python `allocate()`
   (`ifexmain = 0`) sets `nxold`/`nyold` to the current size, reallocates `Interp` and sets `isimesh = 1`
-  (`bbb/odesetup.m:523-528`, AIUE-141). The next `ueinit` then copies the saved state as it is: a restore after the
+  (`bbb/odesetup.m:524-529`, AIUE-141). The next `ueinit` then copies the saved state as it is: a restore after the
   allocate is used for the current mesh, and the last `gridseq`'s old-mesh data are dropped. To interpolate after a
   same-mesh allocate (e.g. one made to set wall arrays), set `bbb.isimesh = 0` after it (owner, 2026-10-21). Without
   that, a mesh change with no restore stops with `variable nis=0, no saved solution for interp` (probed through

@@ -1415,6 +1415,10 @@
     "/steady/variants/bbb.vyup_use/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.vyup_use/yldot/index": "13b45bc2feaad414b831a70c7abc39ffdf70f2d1c338d0970101d1fd96fbb71b",
     "/steady/variants/bbb.vyup_use/yldot/value": "878f1de544f0a1cf00113a28307a226e9cff852b3fe840a819e2977316adf068",
+    "/steady/variants/bbb.ziin/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/bbb.ziin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/bbb.ziin/yldot/index": "f89e9aa56145a9f8595b3e84f95c42553515ba4b3e366cb3fa423212e0131bcd",
+    "/steady/variants/bbb.ziin/yldot/value": "83c83fdb3de154699f7319d2031d618f28228eb308a4b574add23e80d9008136",
     "/steady/variants/bbb.znuclin/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.znuclin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.znuclin/yldot/index": "1d28900eaa1030b48feaacfe9427212e4ad0823f587d18308bae78b32b324bf8",
@@ -1579,8 +1583,8 @@
   },
   "external": {
     "references/ortho.h5": {
-      "bytes": 1011547,
-      "sha256": "2afbb693b8bff6cbd0cbea7513fceab42c7ba53bd2a3477dd6f10e3c9e1d8ea0"
+      "bytes": 1015987,
+      "sha256": "a922fd0e3ab10a69262912c97f1896415d2cf2fa0e178ca375e08b40f7ad7fb5"
     }
   },
   "family": "ortho",
@@ -1592,15 +1596,15 @@
     "timestep/sigma": "bfa3c4f8741bb00fd0c80e801a7c83ee63151a3ffa8e35d27a0cfb36510dd137"
   },
   "provenance": {
-    "commit": "b3c18ec4d91d28a37ca8f11ea4c9e3a73b9eee8f",
+    "commit": "bfca6180bcf7687a836b224a00a7df8f23a9db89",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T18:39:42+00:00",
+    "date": "2026-10-23T23:14:59+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v5",
+  "release": "yldot-data-v8",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -25638,15 +25642,66 @@
       "sha256": null
     },
     "bbb.ziin": {
-      "applied": null,
-      "block_l2": {},
-      "class": "EXCLUDED",
+      "applied": {
+        "data": [2.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        "dtype": "float64",
+        "shape": [
+          31
+        ]
+      },
+      "block_l2": {
+        "ni[1] core": 90.81450603312659,
+        "ni[1] inner_leg": 5192.12537522193,
+        "ni[1] outer_leg": 10260.91338653739,
+        "ni[1] pf": 24.151796669865035,
+        "ni[1] sol": 103.51207054910017,
+        "ni[2] core": 90.81450603312653,
+        "ni[2] inner_leg": 5192.12537522193,
+        "ni[2] outer_leg": 10260.913386537388,
+        "ni[2] pf": 24.15179666986469,
+        "ni[2] sol": 103.51207054910022,
+        "phi[1] core": 125069602.19799232,
+        "phi[1] guard": 874777.9015727602,
+        "phi[1] inner_leg": 1129135.2595836723,
+        "phi[1] outer_leg": 8800827.755684203,
+        "phi[1] pf": 1206447.7198813856,
+        "phi[1] sol": 18886071.864129137,
+        "te[1] core": 261980.18225504507,
+        "te[1] guard": 729455.3617062134,
+        "te[1] inner_leg": 803.0024526652561,
+        "te[1] outer_leg": 1565.5784225164864,
+        "te[1] pf": 887.3321771501871,
+        "te[1] sol": 27246.798730798895,
+        "ti[1] core": 1176.4021110291983,
+        "ti[1] guard": 707903.0464060012,
+        "ti[1] inner_leg": 696.9855443481649,
+        "ti[1] outer_leg": 1845.549914062925,
+        "ti[1] pf": 1147.6563360216114,
+        "ti[1] sol": 2376.224372548946,
+        "up[1] core": 628.3977881650801,
+        "up[1] inner_leg": 3423.173916836845,
+        "up[1] outer_leg": 4825.165012993389,
+        "up[1] pf": 168.4910213623065,
+        "up[1] sol": 926.7785105384365,
+        "up[2] core": 1342.7562576090124,
+        "up[2] inner_leg": 44696.27261467908,
+        "up[2] outer_leg": 41568.9891079065,
+        "up[2] pf": 32.44415433714306,
+        "up[2] sol": 1269.986520121387
+      },
+      "class": "SENSITIVE",
       "config": "steady",
-      "d": null,
+      "d": {
+        "data": [1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        "dtype": "float64",
+        "shape": [
+          31
+        ]
+      },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "suspected memory error (AIUE-161): d_only yldot differs O(1) between same-commit builds (Linux max|yldot| 4.27e26, both macOS builds 3.00e26, 4e30 x tol), stable within a build; error in d_c, ortho, slab_phi; owner 2026-10-22",
-      "sha256": null
+      "reason": "max |diff|/tol = 7.98e+09",
+      "sha256": "4d9a3070a35a5ee2e8296283bfbed61315f55f2c075ad5c165d398ee4b257a0c"
     },
     "bbb.znuclin": {
       "applied": {

@@ -272,6 +272,7 @@ c ... Calculate variables related to size of the problem.
       nisp = nhsp + nzspt
       if (nisp .gt. nispmx)
      .   call xerrab('**Error:  variables in Comtra limit nisp < nispmx')
+      call chkziin
       nusp = nhsp
       if (isimpon .eq. 4) nusp = nisp
       if (isimpon .eq. 5 .or. isimpon .eq. 6 .or. isimpon .eq. 7) then
@@ -910,6 +911,7 @@ c     call sscal (nisp, mp, mi, 1)
       zn_last = 0.
       igsp = 1
       iigsp = 1
+      call chkziin
       do 1 ifld = 1, nhsp    # determine mi, zi, iigsp, and mg for hydrogen
 	 mi(ifld) = minu(ifld)*mp
          zi(ifld) = ziin(ifld)
@@ -2021,6 +2023,26 @@ c...  Set eymask1d to give ey=0 in core+sep for 1d SOL pot (isphicore0=1)
       return
       end
 c***** end of subroutine ueinit ****************************************
+
+c-----------------------------------------------------------------------
+      subroutine chkziin
+
+c ... Stop if an ion charge ziin(ifld), ifld = 1..nisp, is not a whole
+c ... number (ziin = 0 for neutral species).
+
+      implicit none
+      Use(Dim)      # nisp
+      Use(UEint)    # ziin
+      integer ifld
+
+      do ifld = 1, nisp
+         if (ziin(ifld) .ne. anint(ziin(ifld))) then
+            write (*,*) '*** ziin(', ifld, ') = ', ziin(ifld)
+            call xerrab('*** ziin must be an integer ion charge ***')
+         endif
+      enddo
+      return
+      end
 
 c----------------------------------------------------------------------c
 

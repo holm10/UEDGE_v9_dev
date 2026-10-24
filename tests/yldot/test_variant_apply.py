@@ -1,7 +1,7 @@
 """Variant application and replay in the evaluation child (AIUE-93, PRD section 7.2): one variant per phase on
 d_only (a PRE scalar and a POST dynamic array, steady), plus a POST array in the timestep configuration, where the
 variant is applied in both passes. Each one changes yldot, and replaying the recorded value reproduces yldot and
-yldot_J bit for bit in a new child."""
+yldot_J bit for bit in a new child. The ion-charge rule (bbb.ziin, AIUE-161) has its own test."""
 import numpy as np
 import pytest
 
@@ -51,6 +51,27 @@ def test_apply_and_replay(runner, plan, key, phase, config):
     assert rep.data["variant"][phase]["applied"] == rec["applied"]
     for k in ("yldot", "yldot_J"):
         assert rep.data[k].tobytes() == gen.data[k].tobytes(), "{} {}: replay differs".format(key, k)
+
+
+def test_ion_charge(runner, plan):
+    """bbb.ziin (AIUE-161): the charge rule raises the D+ charge to 2 and keeps the atom slot at 0, which changes
+    yldot; a replayed non-integer charge stops in allocate."""
+    v = plan["bbb.ziin"]
+    assert (v.phase, v.config, v.rule, v.bound) == ("PRE", "steady", "charge", "com.nhsp")
+    default = runner.evaluate(FAMILY)
+    gen = runner.evaluate(FAMILY, variant=v)
+    assert default.ok and gen.ok, describe(default if not default.ok else gen)
+    rec = gen.data["variant"]["PRE"]
+    assert rec["status"] == "applied" and rec["bound"] == 2, rec
+    d, applied = variants.decode(rec["d"]), variants.decode(rec["applied"])
+    assert list(d[:2]) == [1.0, 0.0] and list(applied[:2]) == [2.0, 0.0]
+    assert applied[2:].tobytes() == d[2:].tobytes()
+    assert (gen.data["yldot"] != default.data["yldot"]).any()
+
+    d[0] = 1.1
+    x = runner.evaluate(FAMILY, variant=v, replay=variants.encode(d))
+    assert x.status == "error", describe(x)
+    assert "ziin must be an integer ion charge" in x.message, describe(x)
 
 
 def test_replay_wrong_shape(runner, plan):
