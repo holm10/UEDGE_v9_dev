@@ -138,8 +138,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   release then fails has used up its N. `--generated`: the manifests naming the tag come from a generation of
   `--target` and are not committed (`tests/yldot` outside `references/` must be `--target`'s, and each manifest's
   provenance commit `--target`); `--renumber` (with it) takes the highest release or remote tag + 1, rewriting the
-  manifests' `release`, and moves on after a collision, at most `ATTEMPTS` = 3; `--note`; `--gate` checks only
-  `--target`; a successful run ends with `tag=<tag>`. `regenerate-references.yml` runs it, below, AIUE-98);
+  manifests' `release` (a dry run only reports the N), and moves on after a collision, at most `ATTEMPTS` = 3;
+  `--note`; `--gate` checks only `--target`; a successful run ends with `tag=<tag>`. `regenerate-references.yml` runs it, below, AIUE-98);
   `measure_roundoff.py` (`collect`, run with each build's own python or in the Linux image: per family and
   configuration two fresh processes, pickled `yldot`/`yldot_J` and index arrays with the build record; `--omp N` adds
   the `ffun` RHS with the `ppp` OpenMP flags set in the `post` hook; `analyze`: the pairs `same_build:<label>`,
@@ -485,7 +485,10 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
   (inputs `from_commit`, `families`, `mode` sweep/only/defaults-only, `only`, `publish`, `expect_ref`, `note`), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
-  `v9-develop` or in it (`release_data.py --gate`) and `from_commit` is empty or that commit. `generate` (350 min) runs
+  `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
+  history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
+  workflow and of `release_data.py`, so the gate catches mistakes, not a branch that edits it: the owner's approval in
+  `yldot-data` is the control, and the approver reads the run's diff of `.github/` and `tests/yldot/tools/` first. `generate` (350 min) runs
   `make_references.py generate` in `yldot-linux:24.04`, pulled from `ghcr.io/holm10/yldot-linux` by its digest
   `sha256:2f833938…` with Docker's containerd image store, so `.Id` is the digest the manifests' `runner_image`
   records, and fails on any other id (owner D1: never rebuilt in CI, a rebuild on 2026-10-25 gave another id and a
