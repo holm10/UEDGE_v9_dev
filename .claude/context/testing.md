@@ -80,7 +80,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   is the schema of `references/<f>.manifest.json`, the only record of the external files' SHA-256s (owner,
   2026-10-21); `dumps` writes it indented and sorted, each encoded value's `data` list on one line (owner,
   2026-10-22, AIUE-94), as `runs` (`[[value, count], ...]`) when they are fewer, and `loads` expands them, so read
-  manifest text with `load`/`loads`, never `json.loads` (owner, 2026-10-25, AIUE-190: `tests/yldot` 29.19 → 14.55 MB
+  manifest text with `load`/`loads`, never `json.loads` (owner, 2026-10-25, AIUE-190: `tests/yldot` 29.19 → 14.56 MB
   in git). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
