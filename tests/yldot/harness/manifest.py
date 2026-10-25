@@ -84,6 +84,8 @@ def owner_family(family, suite=SUITE):
 
 ENCODED = {"dtype", "shape", "data"}
 RUNS = {"dtype", "shape", "runs"}
+MAX_RUN_VALUES = 10 ** 7  # an expanded runs form, at most (largest real value 25,344 at AIUE-190): the guard reads PR
+                          # manifests, and a few bytes of runs must not expand to gigabytes
 
 
 def runs(data):
@@ -135,9 +137,13 @@ def _expand(o, where, errors):
             if not (isinstance(shape, list) and all(_int(n) and n >= 0 for n in shape)):
                 errors.append("{}: shape must be a list of ints >= 0".format(where))
                 return o
-            if sum(n for _, n in r) != math.prod(shape):
-                errors.append("{}: runs hold {} values, shape {} needs {}".format(
-                    where, sum(n for _, n in r), shape, math.prod(shape)))
+            total = sum(n for _, n in r)
+            if total > MAX_RUN_VALUES:
+                errors.append("{}: runs hold {} values, more than {}".format(where, total, MAX_RUN_VALUES))
+                return o
+            if total != math.prod(shape):
+                errors.append("{}: runs hold {} values, shape {} needs {}".format(where, total, shape,
+                                                                                    math.prod(shape)))
                 return o
             return {"dtype": o["dtype"], "shape": shape, "data": [x for x, n in r for _ in range(n)]}
         return {k: _expand(v, "{}.{}".format(where, k), errors) for k, v in o.items()}

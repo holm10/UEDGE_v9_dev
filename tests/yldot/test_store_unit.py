@@ -807,6 +807,7 @@ def test_manifest_writes_runs(tmp_path):
 
 @pytest.mark.parametrize("runs, shape, message", [
     ([[2.0, 3]], [4], "runs hold 3 values, shape \\[4\\] needs 4"),
+    ([[0.0, 10 ** 12]], [10 ** 6, 10 ** 6], "more than 10000000"),
     ([[2.0, 1.5]], [1], "int count"),
     ([[2.0, 0]], [0], "int count"),
     ([[2.0, True]], [1], "int count"),
