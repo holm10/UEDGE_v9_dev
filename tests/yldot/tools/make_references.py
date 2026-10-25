@@ -99,6 +99,7 @@ CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # ref
            "large_dd2c": 13, "dnull_imp2": 13, "imp7": 13}  # owner, 2026-10-24 (AIUE-99; 9 MB in AIUE-92 B4)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
+SKETCH_DEFAULT_RE = re.compile(r"/default/sketch_(weight$|threshold/)")  # a sketch store's, not the default's own
 SAMPLE_N = 20  # the tolerance-inheritance sample per family, plus every SENSITIVE timestep variant (PRD 7.4; D2)
 REASON_CHARS = 300
 
@@ -370,8 +371,10 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         previous = None
         if only is not None:
             previous = open_store(name, suite)
+            # a sketch store's weights are kept from it and its thresholds follow from them and the defaults
+            # (below), so they are not part of the defaults' check (AIUE-99)
             stored = {k: s for k, s in previous.manifest["datasets"].items() if "/default/" in k
-                      and "/diagnostics/" not in k}
+                      and "/diagnostics/" not in k and not SKETCH_DEFAULT_RE.search(k)}
             if default_shas(data, sig) != stored:
                 raise Stop(3, "{}: the stored default differs from this build's (--only needs the same defaults): "
                               "regenerate in full".format(name))

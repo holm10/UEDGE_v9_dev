@@ -474,6 +474,22 @@ def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
     assert e.value.code == 3 and "regenerate in full" in str(e.value)
 
 
+def test_only_on_a_sketch_store(tmp_path):
+    """AIUE-99: --only against an installed sketch store (large_dd2c, two variants) passes the defaults' check, whose
+    stored sketch weights and thresholds are kept or derived, and reproduces the file bit for bit."""
+    sweep = ["bbb.cfvisx", "bbb.fdtnixy"]
+    first = tmp_path / "first"
+    mr.child(["large_dd2c"], first / "references", build_record(tmp_path), sweep=sweep)
+    suite = tmp_suite(tmp_path, ("large_dd2c",))
+    mr.install(mr.assemble(SHA, ["large_dd2c"], first, TAG)[0], first, suite)
+    d = tmp_path / "only"
+    mr.child(["large_dd2c"], d / "references", build_record(tmp_path), sweep=sweep, only=["bbb.cfvisx"], suite=suite)
+    assert file_sha256(d / "references" / "large_dd2c.h5") == file_sha256(first / "references" / "large_dd2c.h5")
+    assert mr.SKETCH_DEFAULT_RE.search("/steady/default/sketch_weight")
+    assert mr.SKETCH_DEFAULT_RE.search("/timestep/default/sketch_threshold/cell_m")
+    assert not mr.SKETCH_DEFAULT_RE.search("/steady/default/yldot")
+
+
 def test_only_needs_every_other_entry(tmp_path, swept):
     suite = tmp_suite(tmp_path)
     mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
