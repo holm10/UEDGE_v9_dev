@@ -1107,9 +1107,16 @@ def test_release_renumbers_a_stale_tag(tmp_path):
     suite, lines = generated_suite(tmp_path, tag="yldot-data-v2"), []
     gh = FakeGh(existing=("yldot-data-v1",), remote_tags=("yldot-data-v1", "yldot-data-v2"))  # v2: a tag, no release
     assert release_data.release("yldot-data-v2", "HEAD", suite, run=gh, out=lines.append, generated=True,
-                                renumber=True) == 0
+                                renumber=True) == 0  # a dry run: reports the N, leaves the manifests as they are
+    assert lines[0] == "renumbered (dry run, manifests unchanged): yldot-data-v2 -> yldot-data-v3"
+    assert mf.load("fam", suite)["release"] == "yldot-data-v2" and lines[-1] == "tag={}".format(TAG)
+    assert "gh release create {}".format(TAG) in lines[1]
+    lines = []
+    assert release_data.release("yldot-data-v2", "HEAD", suite, publish=True, run=gh, download=FakeRelease(served()),
+                                out=lines.append, generated=True, renumber=True) == 0
     assert lines[0] == "renumbered: yldot-data-v2 -> yldot-data-v3 (fam)"
     assert mf.load("fam", suite)["release"] == TAG and lines[-1] == "tag={}".format(TAG)
+    assert creates(gh)[0][3] == TAG and "ref=refs/tags/{}".format(TAG) in tags(gh)[0]
 
 
 def test_release_renumber_needs_generated(tmp_path):

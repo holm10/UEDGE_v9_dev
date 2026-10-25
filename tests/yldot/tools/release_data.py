@@ -12,7 +12,8 @@ Without --generated it runs in a checkout of --target, whose committed manifests
 tree's tests/yldot outside references/ must be --target's, and every manifest naming the tag must record --target as
 its provenance commit; the PR commits the manifests afterwards. --renumber (with --generated) takes N = the highest
 existing yldot-data-v* (release or remote tag) + 1 instead of --tag, rewriting the release of the manifests that name
---tag, and on a tag collision at publish moves to N + 1 (at most ATTEMPTS tries). --gate only checks --target.
+--tag (a dry run only reports that N and leaves the manifests as they are), and on a tag collision at publish moves
+to N + 1 (at most ATTEMPTS tries). --gate only checks --target.
 
 It collects every external file of the manifests (tests/yldot/references/*.manifest.json) whose release is --tag,
 checks each file in the working tree (symlinks resolved) against its SHA-256 and size, and refuses (exit 1) if
@@ -20,6 +21,8 @@ checks each file in the working tree (symlinks resolved) against its SHA-256 and
   - the tag already exists (gh release view, or a git tag on the remote without a release: git ls-remote), or N is
     not the highest existing yldot-data-v* + 1;
   - --target is neither in origin/v9-develop's history nor the head of an open PR into v9-develop (fetch first);
+    PRD 7.3's "v9-develop itself" is read as any commit of v9-develop, its tip or an earlier one: each is reviewed
+    and merged code;
   - the working tree's tests/yldot/references differs from --target's (git diff <target> -- tests/yldot/references),
     or with --generated the checks above;
   - a file is missing or differs from its manifest.
@@ -199,16 +202,21 @@ def release(tag, target, suite=mf.SUITE, repo=fetch_data.REPO, publish=False, ru
         return 2
     root = Path(suite).resolve().parent.parent
     try:
+        label = tag  # the release the manifests name; a dry run never rewrites them
         if renumber:
             want = "yldot-data-v{}".format(max(existing(repo, run), default=0) + 1)
             if want != tag:
-                out("renumbered: {} -> {} ({})".format(tag, want, ", ".join(relabel(suite, tag, want))))
+                if publish:
+                    out("renumbered: {} -> {} ({})".format(tag, want, ", ".join(relabel(suite, tag, want))))
+                    label = want
+                else:
+                    out("renumbered (dry run, manifests unchanged): {} -> {}".format(tag, want))
                 tag = want
-        files = collect(suite, tag)
+        files = collect(suite, label)
         check_tag(tag, repo, run)
         sha = check_target(target, repo, run)
         if generated:
-            check_generated(sha, root, suite, tag, run)
+            check_generated(sha, root, suite, label, run)
         else:
             check_manifests(sha, root, run)
     except (Refused, mf.ManifestError) as e:
