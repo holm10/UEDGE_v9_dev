@@ -63,6 +63,16 @@ ueplot = [
     "scikit-image",
     "h5py",
 ]
+# The yldot suite (tests/yldot, epic AIUE-9): pip install ".[test]". setuptools because test_build_flags.py
+# runs setup.py's machinery and venvs of Python >= 3.12 lack it.
+test = [
+    "pytest",
+    "pytest-xdist",
+    "pytest-timeout",
+    "h5py",
+    "numpy",
+    "setuptools",
+]
 
 # TODO: rewrite scripts to be importable
 #[project.scripts]

@@ -8,6 +8,9 @@ impossible (offline, the release unreachable) or --yldot-no-fetch is given, a te
 files under families/<family>/ fails at setup, naming the cause, unless it is marked toml_only (it reads family.toml
 only); an absent reference file fails through open_store. Different files fail as before (test_smoke.py's
 test_external_files, open_store).
+
+--yldot-shard NAME (repeatable) keeps only the tests of that CI shard: a family's (by the test's "family" parameter)
+or "common" (the rest); tools/shards.py defines them and lists them for build-test-wheel.yml (AIUE-103).
 """
 import re
 import sys
@@ -24,6 +27,7 @@ FAMILY_NAMES = sorted(p.name for p in FAMILIES.iterdir() if (p / "input.py").is_
 sys.path.insert(0, str(SUITE / "tools"))
 
 import fetch_data  # noqa: E402
+import shards  # noqa: E402
 
 FETCH_ERRORS = pytest.StashKey[list]()
 FAMILY_ERROR = re.compile(r"^error: [A-Za-z0-9_]+: ")
@@ -45,12 +49,18 @@ def absent_files(family):
 def pytest_addoption(parser):
     parser.addoption("--yldot-no-fetch", action="store_true",
                      help="yldot: never download release assets; tests that need absent ones fail")
+    parser.addoption("--yldot-shard", action="append", metavar="NAME",
+                     help="yldot: run only this CI shard (a family or common; repeatable; tools/shards.py)")
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "toml_only: reads family.toml only, runs without the family's release assets")
     config.addinivalue_line("markers", "nightly: the nightly tier (PRD section 4), deselected in the PR tier with "
                                        "-m \"not nightly\"")
+    unknown = [n for n in config.getoption("yldot_shard") or [] if n not in shards.names()]
+    if unknown:
+        raise pytest.UsageError("--yldot-shard: unknown shard(s) {}; the shards are {}".format(
+            ", ".join(unknown), ", ".join(shards.names())))
 
 
 def pytest_sessionstart(session):
@@ -79,6 +89,16 @@ def pytest_collection_modifyitems(config, items):
     if outside:
         raise pytest.UsageError("tests/yldot collected tests outside its directory (run `pytest tests/yldot`, "
                                 "never `pytest tests/`): {}".format(outside[:5]))
+    wanted = config.getoption("yldot_shard")
+    if wanted:
+        known = shards.families()
+        keep, drop = [], []
+        for item in items:
+            params = getattr(getattr(item, "callspec", None), "params", {})
+            (keep if shards.shard_of(params, known) in wanted else drop).append(item)
+        if drop:
+            config.hook.pytest_deselected(items=drop)
+            items[:] = keep
 
 
 def pytest_runtest_setup(item):
