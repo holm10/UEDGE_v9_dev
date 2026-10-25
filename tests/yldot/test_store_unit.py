@@ -977,13 +977,16 @@ class FakeGh:
     """run() stand-in for git and gh."""
 
     def __init__(self, existing=("yldot-data-v2", "v8.1.0"), view=1, ancestor=0, pr_heads=(), create=0, remote_tag="",
-                 tree_diff=0):
+                 tree_diff=0, refs=(), remote_tags=()):
         self.existing, self.view, self.ancestor, self.pr_heads, self.create = existing, view, ancestor, pr_heads, create
-        self.remote_tag, self.tree_diff = remote_tag, tree_diff
+        self.remote_tag, self.tree_diff, self.remote_tags = remote_tag, tree_diff, remote_tags
+        self.refs = list(refs)  # (rc, stderr) of each tag creation in turn; then (0, "")
         self.calls = []
 
     def __call__(self, cmd):
         self.calls.append(cmd)
+        if cmd[:3] == ["git", "ls-remote", "--tags"] and cmd[-1].endswith("*"):  # release_data.existing
+            return 0, "".join("{}\trefs/tags/{}\n".format("a" * 40, t) for t in self.remote_tags), ""
         if cmd[:3] == ["git", "ls-remote", "--tags"]:
             return 0, self.remote_tag, ""
         if cmd[:2] == ["git", "-C"] and cmd[3:5] == ["diff", "--quiet"]:
@@ -1000,6 +1003,9 @@ class FakeGh:
             return 0, json.dumps([{"headRefOid": h} for h in self.pr_heads]), ""
         if cmd[:3] == ["gh", "release", "create"]:
             return self.create, "https://github.com/o/r/releases/tag/x", ""
+        if cmd[:4] == ["gh", "api", "-X", "POST"] and cmd[4].endswith("/git/refs"):
+            rc, err = self.refs.pop(0) if self.refs else (0, "")
+            return rc, "", err
         raise AssertionError(cmd)
 
 
@@ -1012,6 +1018,10 @@ def release_suite(tmp_path, tag=TAG):
 
 def creates(gh):
     return [c for c in gh.calls if c[:3] == ["gh", "release", "create"]]
+
+
+def tags(gh):
+    return [c for c in gh.calls if c[:2] == ["gh", "api"]]
 
 
 def test_release_dry_run_prints_and_publishes_nothing(tmp_path):
@@ -1052,10 +1062,94 @@ def test_release_publish_verifies_the_download(tmp_path):
     gh = FakeGh()
     assert release_data.release(TAG, "HEAD", suite, publish=True, run=gh, download=FakeRelease(served()),
                                 out=lambda s: None) == 0
-    assert len(creates(gh)) == 1 and "--latest=false" in creates(gh)[0]
+    assert len(creates(gh)) == 1 and "--latest=false" in creates(gh)[0] and "--verify-tag" in creates(gh)[0]
+    assert gh.calls.index(tags(gh)[0]) < gh.calls.index(creates(gh)[0])  # the tag first, atomically
+    assert "ref=refs/tags/{}".format(TAG) in tags(gh)[0] and "sha={}".format(SHA) in tags(gh)[0]
     bad = served()
     bad["references--fam.h5"] = b"other"
     lines = []
     assert release_data.release(TAG, "HEAD", suite, publish=True, run=FakeGh(), download=FakeRelease(bad),
                                 out=lines.append) == 1
     assert "do not verify" in lines[-1]
+
+
+def generated_suite(tmp_path, tag=TAG, commit=SHA):
+    """release_suite with a manifest as make_references writes it: provenance names the commit it was built from."""
+    suite = release_suite(tmp_path, tag)
+    m = mf.load("fam", suite)
+    m.update({"datasets": {"/default/yldot": "0" * 64}, "guarded": {}, "unguarded": {}, "variables": {},
+              "provenance": dict({k: "x" for k in mf.PROVENANCE}, commit=commit)})
+    mf.dump(m, mf.path("fam", suite))
+    return suite
+
+
+def test_release_generated_skips_the_committed_manifests_check(tmp_path):
+    gh, lines = FakeGh(tree_diff=1), []  # --generated compares tests/yldot outside references/, not the references
+    assert release_data.release(TAG, "HEAD", generated_suite(tmp_path), run=gh, out=lines.append, generated=True) == 1
+    assert "outside references/" in lines[-1]
+    gh, lines = FakeGh(), []
+    assert release_data.release(TAG, "HEAD", generated_suite(tmp_path / "b"), run=gh, out=lines.append,
+                                generated=True, note="AIUE-98 acceptance test") == 0
+    diff = [c for c in gh.calls if c[3:5] == ["diff", "--quiet"]][0]
+    assert diff[-2:] == ["tests/yldot", ":(exclude)tests/yldot/references"]
+    assert "AIUE-98 acceptance test" in lines[0] and "generated from {}".format(SHA) in lines[0]
+    assert lines[-1] == "tag={}".format(TAG) and creates(gh) == [] and tags(gh) == []
+
+
+def test_release_generated_refuses_another_provenance(tmp_path):
+    lines = []
+    assert release_data.release(TAG, "HEAD", generated_suite(tmp_path, commit="d" * 40), run=FakeGh(),
+                                out=lines.append, generated=True) == 1
+    assert "generated from {}".format("d" * 40) in lines[-1] and "not from --target" in lines[-1]
+
+
+def test_release_renumbers_a_stale_tag(tmp_path):
+    suite, lines = generated_suite(tmp_path, tag="yldot-data-v2"), []
+    gh = FakeGh(existing=("yldot-data-v1",), remote_tags=("yldot-data-v1", "yldot-data-v2"))  # v2: a tag, no release
+    assert release_data.release("yldot-data-v2", "HEAD", suite, run=gh, out=lines.append, generated=True,
+                                renumber=True) == 0
+    assert lines[0] == "renumbered: yldot-data-v2 -> yldot-data-v3 (fam)"
+    assert mf.load("fam", suite)["release"] == TAG and lines[-1] == "tag={}".format(TAG)
+
+
+def test_release_renumber_needs_generated(tmp_path):
+    assert release_data.release(TAG, "HEAD", release_suite(tmp_path), run=FakeGh(), out=lambda s: None,
+                                renumber=True) == 2
+
+
+def test_release_collision_moves_to_the_next_n(tmp_path):
+    suite, lines = generated_suite(tmp_path), []
+    gh = FakeGh(refs=[(1, "gh: Reference already exists (HTTP 422)")])
+    assert release_data.release(TAG, "HEAD", suite, publish=True, run=gh, download=FakeRelease(served()),
+                                out=lines.append, generated=True, renumber=True) == 0
+    assert [c[6] for c in tags(gh)] == ["ref=refs/tags/yldot-data-v3", "ref=refs/tags/yldot-data-v4"]
+    assert creates(gh)[0][3] == "yldot-data-v4" and mf.load("fam", suite)["release"] == "yldot-data-v4"
+    assert lines[-1] == "tag=yldot-data-v4"
+
+
+@pytest.mark.parametrize("renumber, attempts", [(True, release_data.ATTEMPTS), (False, 1)])
+def test_release_refuses_after_the_last_collision(tmp_path, renumber, attempts):
+    gh, lines = FakeGh(refs=[(1, "Reference already exists")] * 5), []
+    assert release_data.release(TAG, "HEAD", generated_suite(tmp_path), publish=True, run=gh, out=lines.append,
+                                generated=True, renumber=renumber) == 1
+    assert len(tags(gh)) == attempts and creates(gh) == [] and "created meanwhile" in lines[-1]
+
+
+def test_release_refuses_a_failed_tag_creation(tmp_path):
+    gh, lines = FakeGh(refs=[(1, "HTTP 403: Resource not accessible by integration")]), []
+    assert release_data.release(TAG, "HEAD", release_suite(tmp_path), publish=True, run=gh, out=lines.append) == 1
+    assert "creating tag" in lines[-1] and "403" in lines[-1] and creates(gh) == []
+
+
+def test_release_reports_a_used_up_tag(tmp_path):
+    lines = []
+    assert release_data.release(TAG, "HEAD", release_suite(tmp_path), publish=True, run=FakeGh(create=1),
+                                out=lines.append) == 1
+    assert "exists without a release" in lines[-1]
+
+
+@pytest.mark.parametrize("gh, rc", [(FakeGh(), 0), (FakeGh(ancestor=1, pr_heads=(SHA,)), 0), (FakeGh(ancestor=1), 1)])
+def test_gate(gh, rc):
+    lines = []
+    assert release_data.gate("HEAD", run=gh, out=lines.append) == rc
+    assert ("may publish" if rc == 0 else "neither") in lines[-1]
