@@ -2,8 +2,8 @@
 
 **The regression suite is not in this repository.** It lives on a `pytests` branch. **v9 work uses `origin/pytests`**
 (the holm10 fork): it holds v9's own references, regenerated for the v9 physics and listed with their reason in
-`V9_REFERENCE_CHANGES.md` on that branch, for a later merge into LLNL's `upstream/pytests`. CI still checks out
-LLNL's branch after building (`.github/workflows/build-test-wheel.yml:56-96`, quirks below).
+`V9_REFERENCE_CHANGES.md` on that branch, for a later merge into LLNL's `upstream/pytests`. CI no longer runs it:
+`build-test-wheel.yml` runs the yldot PR tier instead (AIUE-103, CI facts below).
 There are no unit tests of individual Fortran routines and no coverage measurement.
 
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
@@ -31,6 +31,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   family with absent `families/<f>/` assets fails at setup naming the cause, except those marked `toml_only`;
   different files fail (`test_smoke.py::test_external_files`). The marker `nightly` (AIUE-96) is the nightly tier
   (PRD §4): the PR tier runs `-m "not nightly"`; the owner families' variant tests (AIUE-99) carry it.
+  `--yldot-shard NAME` (repeatable; AIUE-103) keeps one CI shard: a family's tests (by their `family` parameter) or
+  `common` (the rest); `tests/yldot/tools/shards.py` defines the shards, so a test is in exactly one. A test that uses a family's
+  files takes the family as its `family` parameter, or it lands in `common` (`test_thresholds.py`'s comparator tests
+  were re-parametrised for this, AIUE-103). The test dependencies are the `test` extra (`pip install ".[test]"`).
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. Every family's holds the defaults and the
@@ -130,6 +134,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `fetch_data.py` (plain HTTPS download of a manifest's `yldot-data-v<N>` assets, the release being public, with
   `gh release download` as the fallback, into the gitignored `.data/<tag>/`,
   refusing any SHA-256 mismatch, then a relative symlink at each manifest path; `--check` verifies only);
+  `shards.py` (the CI shards, standard library only: no arguments prints them as JSON, `common` then the families,
+  for `build-test-wheel.yml`'s matrix; `shard_of` is the rule `--yldot-shard` applies; `--check NAME…`; AIUE-103);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
   only N = highest published + 1, so a ticket reserves its N on its ticket page once the owner agrees, and planning
@@ -252,7 +258,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   arm64, 2026-10-24 (AIUE-99); `-m nightly`, the owner families' variant tests: about 2,880, about 37 min on that build
   and 47 min on `--noopt`, one process; update these figures only when a ticket moves the count or the runtime by more than
   about 10 %, the exact count goes in the ticket's Validation record; about 7 min of the runtime are
-  `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
+  `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs;
+  with `-n 8`: 325 s wall on that machine, 2026-10-25, AIUE-103):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
   headline, and `test_timestep_exercised` (timestep − steady equals minus the stored timestep flag difference bit
@@ -283,7 +290,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `measure_history.py check` per family (about 3 s each) and the `[evaluation]` keys (measured, or the W = P = 2
   placeholders), `tests/yldot/test_store_unit.py` the store, manifest, `fetch_data.py` and `release_data.py` (sketch
   known-answer vector; fakes for `gh` and `git`), `tests/yldot/test_fetch_unit.py` `fetch_data.py`'s HTTPS download
-  and `gh` fallback (fakes, no network),
+  and `gh` fallback (fakes, no network), `tests/yldot/test_shards_unit.py` the shards (`shards.py`'s list and rule,
+  two `--collect-only` shards disjoint with every family test carrying its family, unknown names refused; ~5 s),
   `tests/yldot/test_build_flags.py` the build options' flags and build record (about 5 s, no build; needs a UEDGE built from AIUE-181 on),
   `tests/yldot/test_roundoff_unit.py` `measure_roundoff.py analyze` on synthetic collections,
   `tests/yldot/test_sketch_sensitivity_unit.py` `sketch_sensitivity.py`'s thresholds, bisection, cell multiple,
@@ -454,7 +462,15 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 
 ## CI facts / quirks
 
-- `build-test-wheel.yml` builds with `--serial`, Python 3.11, `numpy==1.26.4`; it does not exercise OpenMP.
+- `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
+  builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
+  AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
+  `common`, 4 vCPU each) install the wheel with the `test` extra, restore `tests/yldot/.data` from `actions/cache`
+  keyed by the manifests, run `tests/yldot/tools/fetch_data.py` (D2: it re-hashes every cached file) and
+  `pytest tests/yldot -n auto -m "not nightly" --yldot-shard <shard>` (D3). The references are built in the pinned Linux
+  image (`tests/yldot/linux/`), so the tier passes by tolerance, not bit for bit. It does not exercise
+  OpenMP. The wheel jobs need the tier and run only on pushes to `v9-develop`, `main` and tags (D5; their matrix
+  still names the retired `macos-13`); `gather_wheels` takes only the `cibw-*` artifacts.
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
   (`pip install -v .`, Python 3.11, `numpy==1.26.4`; no `LDFLAGS` since AIUE-64) and runs
   `tests/deterministic_omp/ci/run_omp_ci.sh`: harness and CI unit tests, a smoke test, the common-block check
@@ -470,9 +486,6 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   replays. Merges with or after `bugfix/v9-openmp-determinism-fix`, once its first native PR run is green within
   20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
-- In `build-test-wheel.yml` the "Install pip dependencies" step runs `pip install forthon>=0.10.7 ...` unquoted: the
-  shell redirects to a file named `=0.10.7`, so Forthon is installed unpinned. (`build-test-omp.yml` quotes it.)
-- Non-`master` branches check out `pytests-develop`, which upstream does not have (only `pytests`) → test step fails on checkout.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
   The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
   its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out

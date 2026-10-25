@@ -28,7 +28,7 @@ The physics is written in **MPPL Fortran** (`*/*.m`). `setup.py` converts it to 
 ```bash
 # Build and install (OpenMP by default; needs gfortran with -fopenmp; on macOS set CC to a libomp-capable clang)
 pip install -v .
-pip install . -C "--build-option=--serial"        # what CI builds (build-test-wheel.yml)
+pip install . -C "--build-option=--serial"        # what CI builds (build-test-wheel.yml: pip wheel, then tests)
 pip install . -C "--build-option=--debug"         # -fcheck=all, FPE traps, -Og (setup.py:91-98)
 pip install . -C "--build-option=--checkbounds"
 pip install . -C "--build-option=--noopt"         # -O0, no FPE traps (round-off measurement); not with --debug
@@ -37,9 +37,11 @@ pip install . -C "--build-option=--coverage"      # serial, -O0 --coverage (gcov
 # Smoke test
 python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 
-# Regression tests live on a separate branch: origin/pytests for v9 work (v9's references, see testing.md);
-# tests/deterministic_omp/ holds the OpenMP reproducer, tests/yldot/ the yldot suite (epic AIUE-9): families, harness,
-# smoke test; run `pytest tests/yldot`, never `pytest tests/`
+# tests/yldot/ is the yldot suite (epic AIUE-9; run `pytest tests/yldot`, never `pytest tests/`); CI runs its PR tier
+pip install ".[test]"                                # pytest, pytest-xdist, pytest-timeout, h5py, numpy, setuptools
+pytest tests/yldot -n auto -m "not nightly"         # the PR tier (one CI shard: add --yldot-shard <family|common>)
+# tests/deterministic_omp/ holds the OpenMP reproducer. The old regression suite lives on a separate branch:
+# origin/pytests for v9 work (v9's references, see testing.md)
 git worktree add --detach ../uedge-pytests origin/pytests
 pip install pytest pytest-isolate
 cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s
