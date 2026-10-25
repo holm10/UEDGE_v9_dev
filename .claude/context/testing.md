@@ -79,7 +79,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   2026-10-22, AIUE-94); `Writer.copy_variant` copies a stored variant verbatim. `tests/yldot/harness/manifest.py`
   is the schema of `references/<f>.manifest.json`, the only record of the external files' SHA-256s (owner,
   2026-10-21); `dumps` writes it indented and sorted, each encoded value's `data` list on one line (owner,
-  2026-10-22, AIUE-94). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
+  2026-10-22, AIUE-94), as `runs` (`[[value, count], ...]`) when they are fewer, and `loads` expands them, so read
+  manifest text with `load`/`loads`, never `json.loads` (owner, 2026-10-25, AIUE-190: `tests/yldot` 29.19 → 14.55 MB
+  in git). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
   `/steady/locality/{delta, column, row, mismatch, dfull}` (the entries with score > 1), guarded as `locality/steady`
@@ -272,7 +274,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
   (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family's too,
-  since AIUE-99 ended D6's "or none"), a reason on every EXCLUDED, MARGINAL and INVALID entry, every tagged input `tests/yldot/harness/state.py` assigns
+  since AIUE-99 ended D6's "or none"), a reason on every EXCLUDED, MARGINAL and INVALID entry, every manifest in
+  `dumps`'s canonical text (AIUE-190), every tagged input `tests/yldot/harness/state.py` assigns
   EXCLUDED, every `input.py` in normal form (no `restart`, `hdf5_restore`, `exmain`) and no skip or xfail under
   `tests/yldot/` (through import aliases too), each shown failing on a planted defect, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
