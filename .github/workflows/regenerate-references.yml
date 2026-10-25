@@ -1,10 +1,22 @@
-# Placeholder for the yldot reference regeneration workflow (epic AIUE-9, AIUE-98). GitHub dispatches a workflow only
-# if its file is on the default branch; the dispatch then runs the copy on the ref it names. This placeholder lets
-# AIUE-98's branch run its real workflow before that merges and replaces this file:
+# Regenerates the yldot suite's references and publishes them as a data release yldot-data-v<N> (epic AIUE-9, PRD
+# sections 7.3 and 7.6, decision 29; AIUE-98). Dispatched by hand on a PR branch (or v9-develop):
 #
-#   gh workflow run regenerate-references.yml --repo holm10/UEDGE_v9_dev --ref <branch> [-f ...]
+#   gh workflow run regenerate-references.yml --repo holm10/UEDGE_v9_dev --ref <branch> -f publish=true [-f ...]
 #
-# Dispatched on v9-develop itself it only fails. The inputs are the real workflow's.
+# gate      with publish: refuses unless the dispatched commit is the head of an open PR into v9-develop or in
+#           v9-develop (release_data.py --gate), and unless from_commit is empty or that commit.
+# generate  make_references.py generate in the pinned image yldot-linux:24.04, pulled from GHCR by digest (owner,
+#           2026-10-25, AIUE-98 D1: never rebuilt here, a rebuild drifts). With publish: --release <provisional tag>
+#           --write, and the references and manifests become an artifact. With expect_ref: each references/<f>.h5's
+#           SHA-256 must equal the one in <expect_ref>'s manifests (a reproduction check; nothing is published).
+# publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
+#           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
+#           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
+#           keeps one running and one pending run per group: a third queued publish cancels the pending one.
+#           The renumbered manifests are the artifact yldot-manifests-<tag>; the developer commits them as a
+#           data-only commit (owner, 2026-10-25, AIUE-98 D2: this workflow never pushes, a GITHUB_TOKEN push runs no CI).
+#
+# Inputs reach the shell only through env, never as ${{ }} inside run.
 name: Regenerate yldot references
 
 on:
@@ -37,12 +49,226 @@ on:
 
 permissions: {}
 
+defaults:
+  run:
+    shell: bash  # bash --noprofile --norc -eo pipefail (the implicit default has no pipefail)
+
+env:
+  IMAGE_REPO: ghcr.io/holm10/yldot-linux
+  IMAGE_DIGEST: sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51
+
 jobs:
-  placeholder:
+  gate:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - name: Not yet
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the inputs and the dispatched commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH: ${{ inputs.publish }}
+          FROM_COMMIT: ${{ inputs.from_commit }}
+          MODE: ${{ inputs.mode }}
+          ONLY: ${{ inputs.only }}
+          EXPECT_REF: ${{ inputs.expect_ref }}
         run: |
-          echo "regenerate-references.yml is a placeholder on this ref (AIUE-98): dispatch with --ref <branch> whose"
-          echo "copy is the real workflow"
-          exit 1
+          if [ "$MODE" = only ] && [ -z "$ONLY" ]; then echo "refused: mode only needs 'only'"; exit 1; fi
+          if [ "$MODE" != only ] && [ -n "$ONLY" ]; then echo "refused: 'only' needs mode only"; exit 1; fi
+          if [ "$PUBLISH" != true ]; then
+            echo "publish false: nothing is published, any commit may be generated"
+            exit 0
+          fi
+          if [ -n "$EXPECT_REF" ]; then echo "refused: expect_ref is a check, not a publish"; exit 1; fi
+          if [ "$MODE" = defaults-only ]; then
+            echo "refused: defaults-only drops the classified variants, it is never published"; exit 1
+          fi
+          if [ -n "$FROM_COMMIT" ] && [ "$(git rev-parse "$FROM_COMMIT^{commit}")" != "$GITHUB_SHA" ]; then
+            echo "refused: a release is generated from the dispatched commit $GITHUB_SHA, not $FROM_COMMIT"; exit 1
+          fi
+          pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
+          python tests/yldot/tools/release_data.py --gate --target "$GITHUB_SHA"
+
+  generate:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PUBLISH: ${{ inputs.publish }}
+      FAMILIES: ${{ inputs.families }}
+      MODE: ${{ inputs.mode }}
+      ONLY: ${{ inputs.only }}
+      EXPECT_REF: ${{ inputs.expect_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.from_commit || github.sha }}
+          fetch-depth: 0
+      - name: Use the containerd image store, so the image id is the index digest the manifests record
+        run: |
+          # the local image store of the Mac that built the image (AIUE-98 D1); the classic store reports the config
+          # digest instead
+          sudo mkdir -p /etc/docker
+          [ -s /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
+          jq '. + {features: ((.features // {}) + {"containerd-snapshotter": true})}' /etc/docker/daemon.json \
+            > "$RUNNER_TEMP/daemon.json"
+          sudo cp "$RUNNER_TEMP/daemon.json" /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info --format '{{.Driver}} {{json .DriverStatus}}'
+      - name: Pull the pinned image
+        run: |
+          docker pull --platform linux/amd64 "$IMAGE_REPO@$IMAGE_DIGEST"
+          docker tag "$IMAGE_REPO@$IMAGE_DIGEST" yldot-linux:24.04
+          id=$(docker image inspect --format '{{.Id}}' yldot-linux:24.04)
+          if [ "$id" != "$IMAGE_DIGEST" ]; then
+            echo "refused: yldot-linux:24.04 has id $id, not $IMAGE_DIGEST (the runner_image of the releases)"; exit 1
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the host-side packages
+        run: pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
+      - name: Fetch the released data (the owner families' assets; the installed references for mode only)
+        run: python tests/yldot/tools/fetch_data.py
+      - name: Take a provisional tag
+        id: tag
+        if: inputs.publish
+        run: |
+          tag=$(python -c 'import sys; sys.path.insert(0, "tests/yldot/tools"); import release_data as r
+          print("yldot-data-v{}".format(max(r.existing(r.fetch_data.REPO), default=0) + 1))')
+          echo "provisional tag $tag (publish takes the next free N again)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Generate
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          read -ra fams <<< "$FAMILIES"
+          read -ra only <<< "$ONLY"
+          opts=(--out "$RUNNER_TEMP/gen")
+          if [ "$MODE" = only ]; then opts+=(--only "${only[@]}"); fi
+          if [ "$MODE" = defaults-only ]; then opts+=(--defaults-only); fi
+          if [ "$PUBLISH" = true ]; then opts+=(--release "$TAG" --write); fi
+          python tests/yldot/tools/make_references.py generate --from-commit "$(git rev-parse HEAD)" "${opts[@]}" \
+            "${fams[@]}"
+      - name: Compare with the expected release
+        if: inputs.expect_ref != ''
+        run: |
+          bad=0
+          for h5 in "$RUNNER_TEMP"/gen/references/*.h5; do
+            f=$(basename "$h5" .h5)
+            want=$(git show "$EXPECT_REF:tests/yldot/references/$f.manifest.json" \
+              | jq -r --arg p "references/$f.h5" '.external[$p].sha256')
+            got=$(sha256sum "$h5" | cut -d' ' -f1)
+            if [ "$got" = "$want" ]; then verdict=same; else verdict=DIFFERENT; bad=1; fi
+            echo "$f  $got  $EXPECT_REF $want  $verdict" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          exit "$bad"
+      - name: Stage the references and manifests for publishing
+        if: inputs.publish
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          for h5 in "$RUNNER_TEMP"/gen/references/*.h5; do
+            f=$(basename "$h5" .h5)
+            cp "tests/yldot/references/$f.h5" "tests/yldot/references/$f.manifest.json" "$RUNNER_TEMP/release/"
+          done
+          ls -l "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@v4
+        if: inputs.publish
+        with:
+          name: yldot-generated
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yldot-generate-logs
+          path: |
+            ${{ runner.temp }}/gen/build.log
+            ${{ runner.temp }}/gen/build.json
+            ${{ runner.temp }}/gen/references/*.summary
+            ${{ runner.temp }}/gen/references/*.cost.json
+            ${{ runner.temp }}/gen/references/*.findings.json
+            ${{ runner.temp }}/gen/references/*.json
+          if-no-files-found: warn
+
+  publish:
+    needs: generate
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    environment: yldot-data
+    concurrency:
+      group: yldot-data-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the host-side packages
+        run: pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
+      - name: Fetch the released data (an owner family's new manifest carries its assets)
+        run: python tests/yldot/tools/fetch_data.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: yldot-generated
+          path: ${{ runner.temp }}/release
+      - name: Install the generated references and manifests
+        run: |
+          for f in "$RUNNER_TEMP"/release/*; do
+            rm -f "tests/yldot/references/$(basename "$f")"  # a fetched file is a link into .data/: never write through it
+            cp "$f" tests/yldot/references/
+          done
+      - name: Publish
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.generate.outputs.tag }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          python tests/yldot/tools/release_data.py --tag "$TAG" --target "$GITHUB_SHA" --generated --renumber \
+            --note "$NOTE" --publish | tee "$RUNNER_TEMP/publish.log"
+          grep '^tag=' "$RUNNER_TEMP/publish.log" | tail -1 >> "$GITHUB_OUTPUT"
+      - name: Stage the manifests
+        run: |
+          mkdir -p "$RUNNER_TEMP/manifests"
+          for f in "$RUNNER_TEMP"/release/*.manifest.json; do
+            cp "tests/yldot/references/$(basename "$f")" "$RUNNER_TEMP/manifests/"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yldot-manifests-${{ steps.publish.outputs.tag }}
+          path: ${{ runner.temp }}/manifests/
+          if-no-files-found: error
+      - name: Summary
+        env:
+          TAG: ${{ steps.publish.outputs.tag }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "Published $TAG at $GITHUB_SHA."
+            echo
+            echo "Commit the manifests on the PR branch as a data-only commit:"
+            echo
+            echo '```'
+            echo "gh run download $RUN_ID --repo $REPO -n yldot-manifests-$TAG -D tests/yldot/references"
+            echo "python tests/yldot/tools/fetch_data.py"
+            echo "git add tests/yldot/references/*.manifest.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
