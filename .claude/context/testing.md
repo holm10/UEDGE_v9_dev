@@ -512,7 +512,8 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   `references/<f>.h5`'s SHA-256 with that ref's manifests (a reproduction check). `publish` runs in the environment
   `yldot-data` (required reviewer the epic owner, self-review allowed, branches `v9-develop`, `feature/v9-*`,
   `bugfix/v9-*`) and the concurrency group `yldot-data-release` (one running and one pending: a third queued publish
-  cancels the pending one), runs `release_data.py --generated --renumber --publish` and uploads the renumbered
+  cancels the pending one; N follows the order in which publish jobs enter the group, not the dispatch order: in
+  AIUE-98's A4 the second dispatch generated first and got v11, the first was renumbered to v12), runs `release_data.py --generated --renumber --publish` and uploads the renumbered
   manifests as the artifact `yldot-manifests-<tag>`, which the developer commits as a data-only commit (owner D2: the
   workflow never pushes; a `GITHUB_TOKEN` push runs no CI). The only `contents: write` in `.github/workflows/`.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
