@@ -20,7 +20,8 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
           then open each through open_store as a check.
             --platform linux (default): a git archive of SHA, built and evaluated in the pinned image yldot-linux:24.04
                 (tests/yldot/linux/Dockerfile, AIUE-87) by linux/generate.sh; the manifest's runner_image names the
-                image id. The only release-grade references (owner, 2026-10-22, AIUE-88 D1).
+                image id. The only release-grade path (owner, 2026-10-22, AIUE-88 D1), run by
+                regenerate-references.yml on native amd64 (owner, 2026-10-25, AIUE-98; below).
             --platform host: a temporary worktree of SHA and a venv with the image's pins, built here. A preview:
                 the manifest's release is null, and --release is refused (owner, 2026-10-22, AIUE-88 D2).
           --release names the data release the manifests point to; the files are published with release_data.py.
@@ -62,8 +63,10 @@ its new manifest carries those assets and adds families/<f>/sigma.h5 (owner, 202
 the new release. Every evaluation runs
 in a fresh child process (harness/process.py). Writing the same results twice gives the same bytes
 (track_times=False, variants in plan order). Two Linux runs from one commit gave the same SHA-256s on one host
-(Docker Desktop, x86 emulation on Apple silicon, AIUE-88); whether a native amd64 host reproduces them bit for bit
-(glibc picks libm variants by CPU) is AIUE-98's check.
+(Docker Desktop, x86 emulation on Apple silicon, AIUE-88), and so did two native amd64 runs (AIUE-98). Native and
+emulated runs of one commit and image differ in three variant vectors (d_only:bbb.ineudif, d_c:bbb.ineudif,
+d_c:bbb.rtg2ti; cause not probed), so release-grade references come from .github/workflows/regenerate-references.yml
+on native amd64 only (owner, 2026-10-25, AIUE-98); a local --platform linux run is a preview of them.
 
 Exit codes: 0 done; 1 refused; 2 usage, a failed build or a failed evaluation; 3 findings for the epic owner.
 """
