@@ -23,7 +23,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
   The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5`, states and `sigma.h5` are
-  release assets of the release their manifest names (`yldot-data-v7` since AIUE-174; owner, 2026-10-22, D6),
+  release assets of the release their manifest names (`yldot-data-v9` since AIUE-99; owner, 2026-10-22, D6),
   gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner, 2026-10-21); a manifest naming
   release assets under `families/<f>/` is what makes an owner family (`manifest.owner_family`). `conftest.py` fetches every manifest's release assets at the start of the session
   (`fetch_data.fetch`: download if absent, SHA-256 check, link; decision 23, owner 2026-10-22, AIUE-156); nothing
@@ -33,10 +33,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (PRD §4): the PR tier runs `-m "not nightly"`; the owner families' variant tests (AIUE-99) carry it.
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
-  `references/<f>.manifest.json`; `fetch_data.py` fetches them. The small families' hold the defaults and the
-  SENSITIVE variants and their manifests classify every variant (`yldot-data-v8` since AIUE-161; AIUE-88, AIUE-94);
-  the owner families' (sketch stores) hold the defaults only (`yldot-data-v7`, AIUE-92, AIUE-174; their sweep is
-  AIUE-99).
+  `references/<f>.manifest.json`; `fetch_data.py` fetches them. Every family's holds the defaults and the
+  SENSITIVE variants and its manifest classifies every variant (`yldot-data-v9` since AIUE-99, which swept the owner
+  families' sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
@@ -63,8 +62,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
   through `Runner.evaluate(..., variant=, replay=)`); `tests/yldot/overrides.toml` holds the additions, exclusions,
   explicit values, bounds, phase and configuration, each with a reason. Switches that pick the geometry, the topology
-  or the species model (`isudsym`, `islimon`, `isfixlb`, `isnonog`, `mhdgeo`, `gengrid`, `ishymol`) are EXCLUDED as
-  family-level and are covered only by families of their own (owner, 2026-10-23, AIUE-159). `bbb.ziin` (the ion
+  or the species model (`isudsym`, `islimon`, `isfixlb`, `isnonog`, `mhdgeo`, `gengrid`, `ishymol`, and `isfixrb`
+  since AIUE-99) are EXCLUDED as family-level and are covered only by families of their own (owner, 2026-10-23,
+  AIUE-159). `isoutwall`, `isch_sput` and `ipsputt_s` are EXCLUDED until their build-dependent results are fixed
+  (bug AIUE-195; owner, 2026-10-24, AIUE-99). `bbb.ziin` (the ion
   charge, integers only: `chkziin` in `allocate` and `ueinit` refuses any other) takes the `charge` rule, d+1 on the
   hydrogenic ion slots (`ziin > 0` among the first `com.nhsp`, read live), atoms and impurity charge states
   unchanged (owner, 2026-10-23, AIUE-161).
@@ -142,8 +143,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
   null` (owner, 2026-10-22, AIUE-88); default families: the small ones
-  (with `sigma.h5`, not owner families); an owner family only when named and with `--defaults-only`, its
-  `families/<f>/` assets checked against its manifest and carried into the new one with its `sigma.h5` (AIUE-92);
+  (with `sigma.h5`, not owner families); an owner family only when named (swept like the others since AIUE-99, or
+  `--defaults-only`), its `families/<f>/` assets checked against its manifest and carried into the new one with its
+  `sigma.h5` (AIUE-92); `CAPS_MB` 13 MB for each owner family (owner, 2026-10-24, AIUE-99);
   a sketch store also gets the sketch thresholds; refuses a `tests/yldot` that differs from SHA (references/
   excepted; also an ignored file in the families' directories or `data/` other than those owner assets), a
   `sigma.h5` that differs from `tolerances.toml`, a family whose manifest names another family's release assets and
@@ -164,7 +166,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   commit gave the same SHA-256s on one host (x86 emulation on Apple silicon); bit-identity on a native amd64 host is
   AIUE-98's check. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
-  absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's).
+  absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
+  store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
+  run's `yldot` in the `rtol_eq` term, through the sketch comparator with the stored weights, ratio the largest
+  |dP| / bound (owner, 2026-10-24, AIUE-99 Q2); `run_mutations.py` refuses a `Variant` in a sketch-store family.
   `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
   own python and checks it under that rule (exit 3 = owner; `check_sensitive`, one variant's check, is also
   `test_variants.py`'s); on the yldot-data-v3 references mac-noopt passes every
@@ -239,8 +244,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: about 5,760 tests, none skipped, about 15 min, serial build, Darwin
-  arm64, 2026-10-23 (AIUE-96); update these figures only when a ticket moves the count or the runtime by more than
+- **Tests** (the whole suite, `-m "not nightly"`: about 5,750 tests, none skipped, about 17 min, serial build, Darwin
+  arm64, 2026-10-24 (AIUE-99); `-m nightly`, the owner families' variant tests: about 2,880, about 37 min on that build
+  and 47 min on `--noopt`, one process; update these figures only when a ticket moves the count or the runtime by more than
   about 10 %, the exact count goes in the ticket's Validation record; about 7 min of the runtime are
   `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
@@ -258,12 +264,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
   its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`); an owner
-  family's are `nightly`; plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests, about
-  7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`);
+  family's are `nightly`; plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
+  the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
+  in the nightly tier one, dnull_imp2 `bbb.thetar`; none on `--noopt`, AIUE-99);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
-  (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family all or
-  none, D6), a reason on every EXCLUDED, MARGINAL and INVALID entry, every tagged input `tests/yldot/harness/state.py` assigns
+  (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family's too,
+  since AIUE-99 ended D6's "or none"), a reason on every EXCLUDED, MARGINAL and INVALID entry, every tagged input `tests/yldot/harness/state.py` assigns
   EXCLUDED, every `input.py` in normal form (no `restart`, `hdf5_restore`, `exmain`) and no skip or xfail under
   `tests/yldot/` (through import aliases too), each shown failing on a planted defect, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
