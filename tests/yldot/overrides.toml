@@ -117,6 +117,10 @@ reason = "family-level: limiter topology; no family yet (AIUE-172); owner 2026-1
 exclude = true
 reason = "family-level: fixed left-boundary setup; no family yet (AIUE-173); owner 2026-10-23"
 
+["bbb.isfixrb"]
+exclude = true
+reason = "family-level: right-boundary symmetry point (isfixlb's twin); no family yet (AIUE-173); owner 2026-10-24 (AIUE-99)"
+
 ["com.isnonog"]
 exclude = true
 reason = "family-level: covered by ortho (0) against the non-orthogonal families (1); owner 2026-10-23"
