@@ -13,7 +13,7 @@ Review recently changed files for **real bugs and rule violations**, not style p
 - The `.claude/context/` modules that match what changed:
   `.m` → `mppl-fortran.md`; `.v` → `variables-forthon.md`; `bbb/pandf*`, `convert.m`, `ppp/` →
   `openmp-jacobian.md`; `src/uedge/` → `python-layer.md`; physics → `physics-workflow.md`; code that runs cases or
-  reads states (`tests/`, `src/uedge/`, tools) → `uedge-gotchas.md`.
+  reads states (`tests/`, `src/uedge/`, tools) → `uedge-gotchas.md`; `tests/` → `testing.md`.
 
 ## Gather the change
 
@@ -26,7 +26,8 @@ git diff HEAD
 git ls-files --others --exclude-standard
 ```
 
-On a PR, diff against the base branch instead (`git diff origin/<base>...HEAD`).
+On a PR, diff against the base branch instead (`git diff origin/<base>...HEAD`). List the yldot suite's changed
+files on their own (`git diff --name-only origin/<base>...HEAD -- tests/yldot/`): the defaults rule (5) needs them.
 Read every changed `.m`/`.F90`/`.py` file **in full** around the changed routines, not just the hunks.
 Classify the change as **refactor** or **physics** (from the PR description, plan, or spec) — it decides how
 the defaults rule applies.
@@ -63,6 +64,14 @@ the defaults rule applies.
 - **Refactor:** any change in default results is a bug (CRITICAL).
 - **Physics:** default changes must be intended and documented (which defaults, why, which cases move).
   New models/terms otherwise default off (`is*on = 0`, `cf* = 0.`).
+- **yldot reference data.** In a refactor, a change to `tests/yldot/references/*.manifest.json`,
+  `tests/yldot/families/*/sigma.h5`, `tests/yldot/tolerances.toml`, `tests/yldot/overrides.toml` or a
+  `tests/yldot/families/*/family.toml` is a finding: CRITICAL when the reference guard requires `Default results:
+  changed`, HIGH when it requires `Test criteria: loosened` (as it does for any harness or test code under
+  `tests/yldot/`, too), MEDIUM otherwise. Run the guard where you have a shell
+  (`validate` step 3b); in CI without one, list the paths. In a physics or bug-fix PR, the description must carry every
+  declaration the guard requires (`CLAUDE.md` → Hard rules), and its `<family>:<id>` list must match the cases the
+  plan, spec or RCA says move.
 
 ### 6. Python layer (`src/uedge/`)
 - Logic errors, exception handling, save/restore format compatibility (old flat, UETOOLS, `uedge.hdf5`).

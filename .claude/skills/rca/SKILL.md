@@ -98,7 +98,8 @@ added `ismolcrm` with `/0/`; 174ce09 set `/1./`).
   geometries)
 - Loop ranges in local (Jacobian) evaluation vs full RHS (`initialize_ranges`, `Selec`)
 - OpenMP: variables written in `pandf` that are not `+threadprivate`; chunk padding (compare serial vs parallel
-  with `ppp.CheckPandf1` / `ppp.CheckJac`)
+  with the AIUE-8 test flow, `validate` step 4, which localises a mismatch to equation and cell; `ppp.CheckPandf1` /
+  `ppp.CheckJac` only as diagnostics on the failing deck, `openmp-jacobian.md`)
 - Units (temperatures in J), species/indexing (`ifld`, `igsp`, `nisp` vs `nusp`)
 - MPPL conversion artefacts (`#`/`float`/`break` substitutions in `setup.py`)
 - Uninitialised or not-reallocated arrays after grid/species changes (`gchange`)

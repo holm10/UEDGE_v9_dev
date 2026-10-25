@@ -96,9 +96,11 @@ For EACH task in "Step by Step Tasks":
 After completing implementation tasks:
 
 - Run the case-level checks the plan lists (input decks, `bbb.exmain()` convergence, `checkbal()`)
-- Run the OpenMP serial-vs-parallel check if the plan calls for it
-- Add any test or example artefacts the plan specifies (the regression suite itself lives on the `pytests`
-  branch — do not invent a new test location)
+- Run the OpenMP check (the AIUE-8 test flow, `validate` step 4) if the plan calls for it
+- Add any test or example artefacts the plan specifies. Regression cases live on the `pytests` branch (the old
+  suite) and in `tests/yldot` (families and variants; a new `+input` switch gets its variant as
+  `.claude/context/physics-workflow.md` → A new switch in the yldot suite says). Do not invent a new test location,
+  and never edit a tolerance, override or manifest to make a test pass (AIUE-9 decision 23)
 
 ### 3b. Update the AI-layer facts
 
@@ -132,7 +134,7 @@ If any command fails:
 Before completing:
 
 - ✅ All tasks from plan completed
-- ✅ Validate gate green (refactor: suites unchanged; physics: only documented cases moved)
+- ✅ Validate gate green, the yldot suite included (refactor: suites unchanged; physics: only documented cases moved)
 - ✅ All validation commands pass
 - ✅ Code follows project conventions
 - ✅ Documentation added/updated as needed
@@ -166,8 +168,8 @@ Provide summary (and the ticket record's status: page URL or Jira comments, and 
 
 ### Checks Run
 - Case-level checks and results (convergence, balances)
-- OpenMP check result (if applicable)
-- Default-results status: unchanged / changed as documented (list moved cases)
+- OpenMP flow verdicts (if applicable; on macOS against the base's)
+- Default-results status: unchanged / changed as documented (list moved cases, with the yldot `<family>:<id>`s)
 
 ### Validation Results
 ```bash

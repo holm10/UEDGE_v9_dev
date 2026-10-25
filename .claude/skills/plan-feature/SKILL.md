@@ -194,7 +194,8 @@ Execute top to bottom; each task is atomic.
 ## Testing strategy
 - Regression suites to run and expected outcome (unchanged / named cases move).
 - Case-level checks: a specific input deck, `bbb.exmain()` convergence, `checkbal()` balances.
-- OpenMP check (`ppp.CheckPandf1` / `CheckJac`) if the `pandf` tree or threadprivate vars change.
+- Regression suites include the yldot suite (`validate` step 3b), and a new `+input` switch its variant (`physics-workflow.md`).
+- OpenMP check (the AIUE-8 test flow, `validate` step 4) if the `pandf` tree or threadprivate vars change.
 - Edge cases: <topologies, species counts, switches>.
 
 ## AI-layer facts affected
@@ -211,7 +212,7 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
 - [ ] Builds without new warnings in touched files
 - [ ] Refactor: all suites unchanged · Physics: only the documented cases move
 - [ ] New variables visible from Python with units/docs
-- [ ] OpenMP serial-vs-parallel identical (if applicable)
+- [ ] OpenMP test flow passes (if applicable; `validate` step 4)
 - [ ] AI-layer facts updated; drift check clean (`check_context_refs.py`)
 - [ ] <feature-specific criteria>
 

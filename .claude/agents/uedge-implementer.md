@@ -50,14 +50,14 @@ Write a brief implementation plan listing files and routines to change, new vari
 
 Run, in this order, and record results:
 
-1. **Regression**: the existing test suite and reference cases with the new switch OFF. Results must match the previous version.
+1. **Regression**: the existing test suites with the new switch OFF: the pytests suites and the yldot suite (`validate` steps 3 and 3b). Results must match the previous version. A new `+input` switch also gets its yldot variant (`.claude/context/physics-workflow.md` → A new switch in the yldot suite).
 2. **Unit checks**: isolated evaluation of new terms against values computed independently (e.g. a short Python script implementing the spec's formula).
 3. **Spec validation plan**: every test and acceptance criterion in the spec's validation section, with the switch ON.
 4. **Convergence behaviour**: the Newton solver still converges on the reference cases; report iteration counts and any time-step reduction compared to the switch-OFF case.
 5. **Conservation**: global particle/momentum/energy balances as requested by the spec.
-6. **Threading/parallel** (if applicable): identical results with different thread counts or in the parallel build.
+6. **Threading/parallel** (if applicable): the AIUE-8 OpenMP test flow (`validate` step 4), with the switch OFF and ON.
 
-Add the new tests and the input decks or Python scripts used to the repository's test/examples area so they can be rerun. If a test fails, investigate; never loosen tolerances or remove tests without reporting why.
+Add the new tests and the input decks or Python scripts used so they can be rerun: the yldot variant in `tests/yldot`, and decks or scripts in the repository's examples area. Never invent another test location. If a test fails, investigate; never loosen a tolerance, change an override or remove a test to make it pass: report it (AIUE-9 decision 23).
 
 ## 4b. Update the AI-layer facts
 
