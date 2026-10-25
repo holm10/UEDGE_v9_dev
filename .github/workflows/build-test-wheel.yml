@@ -1,7 +1,19 @@
 name: Build and test UEDGE - write wheel files if tests pass
 
+# The yldot PR tier (epic AIUE-9, PRD sections 4 and 7.9; AIUE-103). build-serial builds the serial wheel once
+# (Python 3.11, numpy==1.26.4, on the pinned ubuntu-24.04 image; owner D1, 2026-10-25) and lists the shards with
+# tests/yldot/tools/shards.py: one per family plus "common". Each yldot-pr-tier leg installs that wheel with the test
+# extra, restores tests/yldot/.data from the cache keyed by the manifests, runs tools/fetch_data.py (it checks the
+# SHA-256 of every cached file and downloads what is absent, owner D2) and runs
+# `pytest tests/yldot -n auto -m "not nightly" --yldot-shard <shard>`. A test is in exactly one shard (its "family"
+# parameter, else common; owner D3), so the legs together run the whole PR tier once. The wheel jobs need the tier and
+# run only on pushes to v9-develop, main and tags (owner D5). Locally: pip install ".[test]" and
+# pytest tests/yldot -n auto -m "not nightly" (.claude/context/testing.md).
 
 on: [push, pull_request]
+
+permissions:
+  contents: read
 
 jobs:
 
@@ -40,68 +52,131 @@ jobs:
 
 
 
-  run-all-tests:
-    name: Runs test ${{ matrix.tests }}
-    runs-on: ubuntu-latest
+  build-serial:
+    name: Builds the serial wheel once
+    runs-on: ubuntu-24.04
     needs: check-requests
-    if: needs.check-requests.outputs.test != 'TRUE'
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [3.11]
-        tests: [fulltests, unittests/D+C, unittests/D_mols, unittests/D_only, unittests/slab_D_only]
+    timeout-minutes: 30
+    outputs:
+      shards: ${{ steps.shards.outputs.shards }}
     steps:
     - uses: actions/checkout@v4
 
-    - name: Check branch and define test branch
-      env:
-        BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
-      run: |
-        echo "Branch is:", $BRANCH_NAME
-        if [[ ${BRANCH_NAME} == *"master"* ]]; then
-            echo "testbranch=pytests" >> $GITHUB_ENV
-            echo "Using pytests test branch"
-        else
-            echo "testbranch=pytests-develop" >> $GITHUB_ENV
-            echo "Using pytests-develop test branch"
-        fi
-
-    - name: Echo test branch name
-      run: |
-        echo ${{ env.testbranch }}
-
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.11"
 
     - name: Install pip dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install forthon>=0.10.7 numpy==1.26.4 h5py
-        python -m pip install flake8
-        python -m pip install pytest-isolate pytest-xdist
+        python -m pip install "forthon>=0.10.7" numpy==1.26.4 h5py setuptools wheel
 
-    - name: Build UEDGE
+    - name: Build the serial wheel
       run: |
-        python -m pip install . -C "--build-option=--serial"
+        gfortran --version | head -1
+        t0=$(date +%s)
+        python -m pip wheel -v --no-build-isolation --no-deps -w dist . -C "--build-option=--serial"
+        line="Serial wheel $(ls dist) built in $(( $(date +%s) - t0 )) s"
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Switch to pytests branch
-      uses: actions/checkout@v4
+    - name: List the yldot shards
+      id: shards
+      run: |
+        shards=$(python tests/yldot/tools/shards.py)
+        echo "Shards: $shards"
+        echo "shards=$shards" >> "$GITHUB_OUTPUT"
+
+    - name: Upload the wheel
+      uses: actions/upload-artifact@v4
       with:
-        ref: ${{ env.testbranch }}
-        repository: LLNL/UEDGE 
+        name: uedge-serial-wheel
+        path: dist/*.whl
+        if-no-files-found: error
+        retention-days: 7
+
+
+  yldot-pr-tier:
+    name: yldot PR tier (${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    needs: [check-requests, build-serial]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.build-serial.outputs.shards) }}
+    env:
+      SHARD: ${{ matrix.shard }}
+    steps:
+    - name: Record start time
+      run: echo "YLDOT_T0=$(date +%s)" >> "$GITHUB_ENV"
+
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Download the serial wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: uedge-serial-wheel
+        path: dist
+
+    - name: Install the wheel with the test extra
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "$(ls dist/*.whl)[test]" numpy==1.26.4
+        python -m pip list | grep -i -E "^(uedge|numpy|h5py|forthon|pytest)"
+
+    - name: Smoke test
+      run: |
+        cd /tmp && python -I -c "from uedge import bbb; print(bbb.uedge_ver)"
+
+    - name: Restore the release assets
+      uses: actions/cache@v4
+      with:
+        path: tests/yldot/.data
+        key: yldot-data-${{ hashFiles('tests/yldot/references/*.manifest.json') }}
+
+    - name: Fetch and verify the release assets
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python tests/yldot/tools/fetch_data.py
 
     - name: Test with pytest
       run: |
-        # Create a clean UEDGE instance for every test
-        pytest --isolate --tb=long pytests/${{ matrix.tests }} -s
+        echo "nproc $(nproc)"
+        python -m pytest tests/yldot -n auto -m "not nightly" --yldot-shard "$SHARD" --timeout 900 \
+            -p no:cacheprovider -ra --junitxml "junit-$SHARD.xml"
+
+    - name: Wall time
+      if: always()
+      run: |
+        line="yldot PR tier $SHARD: job wall time $(( $(date +%s) - YLDOT_T0 )) s"
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload the junit report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: yldot-junit-${{ matrix.shard }}
+        path: junit-${{ matrix.shard }}.xml
+        if-no-files-found: warn
+        retention-days: 30
 
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.pyver }}
-    needs: [run-all-tests, check-requests]
-    if: needs.check-requests.outputs.wheels != 'TRUE'
+    needs: [yldot-pr-tier, check-requests]
+    # Wheels only on pushes to v9-develop, main and tags (owner D5, AIUE-103); the matrix itself is a follow-up ticket
+    if: >-
+      needs.check-requests.outputs.wheels != 'TRUE' && github.event_name == 'push' &&
+      (github.ref == 'refs/heads/v9-develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
@@ -145,7 +220,7 @@ jobs:
     name: Build PyPy wheels on ${{ matrix.os }} 
     if: false
 #    if: github.event_name == 'pull_request'
-    needs: run-all-tests
+    needs: yldot-pr-tier
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
@@ -186,7 +261,7 @@ jobs:
   build_wheels_cross:
     name: Build Linux cross-wheels
     if: false
-    needs: run-all-tests
+    needs: yldot-pr-tier
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
@@ -219,7 +294,7 @@ jobs:
   build_wheels_cross_pypy:
     name: Build Linux PyPy cross-wheels
     if: false
-    needs: run-all-tests
+    needs: yldot-pr-tier
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
@@ -253,8 +328,9 @@ jobs:
     steps:
       - name: Download all Artifacts and merges them
         uses: actions/download-artifact@v4
-        with: 
+        with:
           path: wheels
+          pattern: cibw-*
           merge-multiple: true
 
       - name: Upload all Artifacts in a single Archive

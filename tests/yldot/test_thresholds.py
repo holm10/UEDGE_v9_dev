@@ -41,10 +41,10 @@ def tol():
         return tomllib.load(f)
 
 
-@pytest.fixture(params=[(f, c) for f in REFERENCED for c in CONFIGS], ids=lambda p: "{}-{}".format(*p))
-def case(request, tol):
-    """(store, config, ref, per-entry tol, sketch weights: a sketch store's stored ones, else None)."""
-    family, config = request.param
+@pytest.fixture
+def case(family, config, tol):
+    """(store, config, ref, per-entry tol, sketch weights: a sketch store's stored ones, else None). The tests that use
+    it are parametrised over family and config, so --yldot-shard puts each in its family's shard (AIUE-103)."""
     with open_store(family) as s:
         ref = np.array(s.default(config))
         t = compare.tolerances(ref, s.sigma(config), tol["rtol"], tol["rule"]["k"], s.imap).tol
@@ -73,6 +73,8 @@ def worst_ratio(chk):
     return float(m.group(1)) if m else float("nan")
 
 
+@pytest.mark.parametrize("config", CONFIGS)
+@pytest.mark.parametrize("family", REFERENCED)
 def test_full_comparator(case):
     s, config, ref, t, _ = case
     imap, problems = s.imap, []
@@ -99,6 +101,8 @@ def test_full_comparator(case):
     assert not problems, "\n".join(problems[:20])
 
 
+@pytest.mark.parametrize("config", CONFIGS)
+@pytest.mark.parametrize("family", REFERENCED)
 def test_flag_comparator(case):
     """The Jacobian-flag difference yldot_J - yldot against the stored one, through Store.check: yldot itself is the
     stored default, so only the flag part may fail."""
@@ -128,6 +132,8 @@ def test_flag_comparator(case):
     assert not problems, "\n".join(problems[:20])
 
 
+@pytest.mark.parametrize("config", CONFIGS)
+@pytest.mark.parametrize("family", REFERENCED)
 def test_sketch_comparator(case):
     """Per block, a perturbation along one weighted projection j of size M * c * sqrt(sum (tol_i w_i)^2) over the
     block (w the store's weights, 1 for a full store; its weighted projection on r_j is exactly that, on the others at
