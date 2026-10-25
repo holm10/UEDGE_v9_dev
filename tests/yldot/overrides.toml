@@ -121,6 +121,22 @@ reason = "family-level: fixed left-boundary setup; no family yet (AIUE-173); own
 exclude = true
 reason = "family-level: right-boundary symmetry point (isfixlb's twin); no family yet (AIUE-173); owner 2026-10-24 (AIUE-99)"
 
+# ---------------------------------------------------------------- build-dependent results (owner 2026-10-24, AIUE-99)
+# At -O0 these variants crash or give garbage in the owner families while the Linux references pass: excluded until
+# their bug is fixed, which removes these entries and regenerates them with make_references.py --only.
+
+["bbb.isoutwall"]
+exclude = true
+reason = "build-dependent: isoutwall=1 (outwallflux) crashes with SIGSEGV at -O0 in the owner families; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
+
+["bbb.isch_sput"]
+exclude = true
+reason = "build-dependent: isch_sput with a slot at 8 gives ng guard entries of 7.7e25 at -O0 in large_dd2c; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
+
+["bbb.ipsputt_s"]
+exclude = true
+reason = "build-dependent: ipsputt_s=0 (below its 1-based index) differs 638x the sketch bound at -O0 in imp7; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
+
 ["com.isnonog"]
 exclude = true
 reason = "family-level: covered by ortho (0) against the non-orthogonal families (1); owner 2026-10-23"

@@ -388,9 +388,8 @@ def test_main_exit_codes(capsys):
 
 
 def test_manifests_with_data():
-    """Every manifest in references/ that holds reference data: its store is family.toml's, a small family (one without
-    release assets under families/) classifies exactly the inventory's variants and an owner family none yet
-    (AIUE-99), a release names its
+    """Every manifest in references/ that holds reference data: its store is family.toml's, it classifies exactly the
+    inventory's variants (an owner family too, since AIUE-99), a release names its
     files (previews are never committed) and they were built in the pinned image (owner, AIUE-88 D1)."""
     from yldot.harness import variants
 
@@ -401,8 +400,7 @@ def test_manifests_with_data():
             continue
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
-        small = not mf.family_assets(m)
-        assert set(m["variables"]) == (ids if small else set()), p.name
+        assert set(m["variables"]) == ids, p.name
         assert m["provenance"]["flags"] == "--serial", p.name
         assert m["release"] is not None, p.name
         assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name
