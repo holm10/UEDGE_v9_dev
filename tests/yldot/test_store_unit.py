@@ -753,7 +753,7 @@ def test_writer_refuses_bad_input(tmp_path):
 def test_manifest_round_trip(tmp_path):
     m = build(tmp_path, "sketch")
     text = mf.path("fam", tmp_path).read_text()
-    assert text == mf.dumps(m) and text.endswith("}\n") and mf.load("fam", tmp_path) == json.loads(text)
+    assert text == mf.dumps(m) and text.endswith("}\n") and mf.load("fam", tmp_path) == mf.loads(text)
     assert set(m["guarded"]) == {"{}/{}".format(c, k) for c in mf.CONFIG_NAMES
                                  for k in ("default", "sigma", "sketch_threshold", "sketch_weight")}
     assert set(m["unguarded"]) == {"diagnostics"}
@@ -762,13 +762,13 @@ def test_manifest_round_trip(tmp_path):
 
 def test_manifest_puts_encoded_data_on_one_line(tmp_path):
     """Owner, 2026-10-22 (AIUE-94 D9): each encoded value's data list on one line, the rest indented and sorted;
-    json.loads gives the manifest back."""
+    mf.loads gives the manifest back."""
     m = build(tmp_path, "full")
     e = m["variables"]["bbb.cfvisx"]
     e["applied"] = {"dtype": "float64", "shape": [3, 100], "data": [0.1 * i for i in range(300)]}
     e["d"] = {"dtype": "int64", "shape": [], "data": [7]}
     text = mf.dumps(m)
-    assert json.loads(text) == m
+    assert mf.loads(text) == m and '"runs"' not in text  # no repeated neighbours: data lists as before
     plain = json.dumps(m, indent=2, sort_keys=True) + "\n"
     assert plain.count("\n") - text.count("\n") == (300 + 1) + (1 + 1)  # the line breaks inside both data lists
     lines = text.splitlines()
@@ -781,6 +781,53 @@ def test_manifest_puts_encoded_data_on_one_line(tmp_path):
     # without encoded values it is json.dumps(indent=2, sort_keys=True), empty containers and odd strings included
     other = {"b": [], "a": {}, "c": [{"z": None, "y": [1.5, True, "\x00é\"x"]}], "d": {"data": [1, 2]}}
     assert mf.dumps(other) == json.dumps(other, indent=2, sort_keys=True) + "\n"
+
+
+def test_manifest_writes_runs(tmp_path):
+    """Owner, 2026-10-25 (AIUE-190): an encoded value with repeated neighbours is written as [value, count] runs when
+    they are fewer than its data; mf.loads expands them bit for bit (-0.0 stays apart from 0.0, 1 from 1.0)."""
+    m = build(tmp_path, "full")
+    vs = m["variables"]
+    vs["bbb.cfvisx"].update(applied={"dtype": "float64", "shape": [2, 50], "data": [2.86] * 97 + [0.0, -0.0, 0.0]},
+                            d={"dtype": "int64", "shape": [6], "data": [1, 1, 1, 0, 0, 2]})
+    vs["bbb.other"] = dict(vs["bbb.cfvisx"], applied={"dtype": "float64", "shape": [3], "data": [1.0, 2.0, 1.0]},
+                           d={"dtype": "float64", "shape": [], "data": [1.0]})  # no repeats, one value: data lists
+    text = mf.dumps(m)
+    lines = [s.strip() for s in text.splitlines()]
+    assert '"runs": [[2.86, 97], [0.0, 1], [-0.0, 1], [0.0, 1]],' in lines
+    assert '"runs": [[1, 3], [0, 2], [2, 1]],' in lines
+    assert '"data": [1.0, 2.0, 1.0],' in lines and '"data": [1.0],' in lines and text.count('"runs"') == 2
+    back = mf.loads(text)
+    assert back == m and json.dumps(back, sort_keys=True) == json.dumps(m, sort_keys=True)  # types and -0.0 kept
+    assert mf.dumps(back) == text
+    mf.dump(m, mf.path("fam", tmp_path))
+    assert mf.load("fam", tmp_path) == m
+    assert mf.runs([]) == [] and mf.runs([1, 1.0, 1]) == [[1, 1], [1.0, 1], [1, 1]]
+
+
+@pytest.mark.parametrize("runs, shape, message", [
+    ([[2.0, 3]], [4], "runs hold 3 values, shape \\[4\\] needs 4"),
+    ([[0.0, 10 ** 12]], [10 ** 6, 10 ** 6], "more than 10000000"),
+    ([[2.0, 1.5]], [1], "int count"),
+    ([[2.0, 0]], [0], "int count"),
+    ([[2.0, True]], [1], "int count"),
+    ([2.0, 1], [2], "int count"),
+    ([[2.0, 2]], [-2], "shape must be")])
+def test_manifest_refuses_bad_runs(tmp_path, runs, shape, message):
+    m = build(tmp_path, "full")
+    m["variables"]["bbb.cfvisx"]["applied"] = {"dtype": "float64", "shape": [2], "data": [2.0, 2.0]}
+    raw = json.loads(mf.dumps(m))  # the text's own form: applied as runs
+    assert raw["variables"]["bbb.cfvisx"]["applied"] == {"dtype": "float64", "shape": [2], "runs": [[2.0, 2]]}
+    raw["variables"]["bbb.cfvisx"]["applied"].update(runs=runs, shape=shape)
+    with pytest.raises(mf.ManifestError, match=message):
+        mf.loads(json.dumps(raw))
+
+
+def test_validate_refuses_an_unexpanded_runs_form(tmp_path):
+    m = build(tmp_path, "full")
+    m["variables"]["bbb.cfvisx"]["applied"] = {"dtype": "float64", "shape": [2], "runs": [[2.0, 2]]}
+    with pytest.raises(mf.ManifestError, match="applied and d must be null or variants.encode values"):
+        mf.validate(m)
 
 
 def test_external_only_manifest_is_valid():

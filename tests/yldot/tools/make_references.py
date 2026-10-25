@@ -671,7 +671,7 @@ def assemble(sha, families, out, release, assets=None):
         h5, js = out / "references" / "{}.h5".format(name), out / "references" / "{}.json".format(name)
         if not (h5.is_file() and js.is_file()):
             raise Stop(2, "{}: the child wrote no {} and {}".format(name, h5.name, js.name))
-        m = json.loads(js.read_text())
+        m = mf.loads(js.read_text())
         if m["provenance"]["commit"] != sha:
             raise Stop(2, "{}: provenance commit {} is not {}".format(name, m["provenance"]["commit"], sha))
         m["release"] = release

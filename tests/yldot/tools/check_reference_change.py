@@ -174,7 +174,7 @@ def manifests_at(repo, rev):
 
 def load_manifest(data, family):
     try:
-        m = json.loads(data)
+        m = mf.loads(data)
         mf.validate(m)
     except (ValueError, mf.ManifestError) as e:
         return None, "{}: {}".format(family, e)

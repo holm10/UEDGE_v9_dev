@@ -1,8 +1,8 @@
 """The per-family reference manifest of the yldot suite (PRD sections 7.3 and 7.6; decisions 12, 27, 29).
 
-    m = load("d_only")                    # references/d_only.manifest.json, validated
+    m = load("d_only")                    # references/d_only.manifest.json, validated (loads: runs expanded)
     dump(m, path("d_only"))               # deterministic text: sorted keys, two-space indent, trailing newline,
-                                          # each encoded value's data list on one line (dumps)
+                                          # each encoded value's data (or runs) list on one line (dumps)
 
 The manifest is the reviewable text next to each family's one binary reference file. It holds:
     schema, family, store ("full" | "sketch"), release (the data release tag "yldot-data-v<N>", or null for a local
@@ -22,6 +22,11 @@ The manifest is the reviewable text next to each family's one binary reference f
                 variant's stored datasets, or null), block_l2, jflag_block_l2}}. block_l2 is the L2 norm of
                 yldot_variant - yldot_default per (equation, species, region) block, zero blocks omitted (owner,
                 2026-10-21, AIUE-84); jflag_block_l2 the same for the flag differences.
+
+In the text, an encoded value {dtype, shape, data} whose data has repeated neighbours is written as {dtype, shape,
+runs: [[value, count], ...]} when that has fewer entries (owner, 2026-10-25, AIUE-190: the manifests' bulk was the
+applied and d arrays); loads expands it, so in memory every encoded value has its data list. Read manifest text
+with load or loads, never json.loads.
 
 A manifest with only external files (an owner family before its references exist) is valid. Every problem found by
 validate raises one ManifestError listing all of them.
@@ -77,12 +82,37 @@ def owner_family(family, suite=SUITE):
     return path(family, suite).is_file() and bool(family_assets(load(family, suite)))
 
 
+ENCODED = {"dtype", "shape", "data"}
+RUNS = {"dtype", "shape", "runs"}
+MAX_RUN_VALUES = 10 ** 7  # an expanded runs form, at most (largest real value 25,344 at AIUE-190): the guard reads PR
+                          # manifests, and a few bytes of runs must not expand to gigabytes
+
+
+def runs(data):
+    """[[value, count], ...] of the consecutive equal values of data; equal means the same JSON text, so -0.0 and 0.0
+    (and 1 and 1.0) stay apart and expanding the runs gives data back bit for bit."""
+    out, last = [], None
+    for x in data:
+        text = json.dumps(x)
+        if out and text == last:
+            out[-1][1] += 1
+        else:
+            out.append([x, 1])
+            last = text
+    return out
+
+
 def _text(o, level):
-    """json.dumps(o, indent=2, sort_keys=True) at nesting level, but an encoded value's data list on one line."""
+    """json.dumps(o, indent=2, sort_keys=True) at nesting level, but an encoded value's data list on one line, written
+    as its runs when they are fewer."""
     pad, end = "  " * (level + 1), "  " * level
     if isinstance(o, dict) and o:
-        flat = set(o) == {"dtype", "shape", "data"}
-        return "{\n" + ",\n".join("{}{}: {}".format(pad, json.dumps(k), json.dumps(o[k]) if flat and k == "data"
+        flat = set(o) == ENCODED
+        if flat and isinstance(o["data"], list):
+            r = runs(o["data"])
+            if len(r) < len(o["data"]):
+                o = {"dtype": o["dtype"], "shape": o["shape"], "runs": r}
+        return "{\n" + ",\n".join("{}{}: {}".format(pad, json.dumps(k), json.dumps(o[k]) if flat and k != "shape"
                                                     else _text(o[k], level + 1)) for k in sorted(o)) + "\n" + end + "}"
     if isinstance(o, list) and o:
         return "[\n" + ",\n".join(pad + _text(v, level + 1) for v in o) + "\n" + end + "]"
@@ -92,8 +122,44 @@ def _text(o, level):
 def dumps(m):
     """The manifest's text: sorted keys, two-space indent, trailing newline (json.dumps(m, indent=2, sort_keys=True)),
     except that each encoded value's data list (variants.encode: an applied value or d) is on one line (owner,
-    2026-10-22, AIUE-94 D9); json.loads gives m back."""
+    2026-10-22, AIUE-94 D9), as runs when they are fewer (owner, 2026-10-25, AIUE-190); loads gives m back."""
     return _text(m, 0) + "\n"
+
+
+def _expand(o, where, errors):
+    if isinstance(o, dict):
+        if set(o) == RUNS:
+            r, shape = o["runs"], o["shape"]
+            if not (isinstance(r, list) and all(isinstance(e, list) and len(e) == 2 and _int(e[1]) and e[1] >= 1
+                                                for e in r)):
+                errors.append("{}: runs must be [[value, int count >= 1], ...]".format(where))
+                return o
+            if not (isinstance(shape, list) and all(_int(n) and n >= 0 for n in shape)):
+                errors.append("{}: shape must be a list of ints >= 0".format(where))
+                return o
+            total = sum(n for _, n in r)
+            if total > MAX_RUN_VALUES:
+                errors.append("{}: runs hold {} values, more than {}".format(where, total, MAX_RUN_VALUES))
+                return o
+            if total != math.prod(shape):
+                errors.append("{}: runs hold {} values, shape {} needs {}".format(where, total, shape,
+                                                                                    math.prod(shape)))
+                return o
+            return {"dtype": o["dtype"], "shape": shape, "data": [x for x, n in r for _ in range(n)]}
+        return {k: _expand(v, "{}.{}".format(where, k), errors) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_expand(v, "{}[{}]".format(where, i), errors) for i, v in enumerate(o)]
+    return o
+
+
+def loads(text):
+    """The manifest m of its text (dumps): json.loads with every runs form expanded to its data list. Raises
+    ManifestError on a malformed runs form; does not validate (load does)."""
+    errors = []
+    m = _expand(json.loads(text), "manifest", errors)
+    if errors:
+        raise ManifestError("; ".join(errors))
+    return m
 
 
 def dump(m, target):
@@ -105,8 +171,7 @@ def load(family_or_path, suite=SUITE):
     p = Path(family_or_path)
     if p.suffix != ".json":
         p = path(family_or_path, suite)
-    with open(p) as f:
-        m = json.load(f)
+    m = loads(p.read_text())
     validate(m)
     return m
 

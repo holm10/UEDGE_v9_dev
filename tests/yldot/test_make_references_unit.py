@@ -143,7 +143,7 @@ def args(**kw):
 def test_child_writes_the_same_bytes_twice(children):
     a, b = (d / "references" for d in children)
     assert file_sha256(a / "d_only.h5") == file_sha256(b / "d_only.h5")
-    ja, jb = (json.loads((d / "d_only.json").read_text()) for d in (a, b))
+    ja, jb = (mf.loads((d / "d_only.json").read_text()) for d in (a, b))
     for j in (ja, jb):
         j["provenance"].pop("date")
     assert ja == jb
@@ -411,7 +411,7 @@ def test_manifests_with_data():
 
 def test_sweep_classes_as_probed(swept):
     ref = swept[0] / "references"
-    m = json.loads((ref / "d_only.json").read_text())
+    m = mf.loads((ref / "d_only.json").read_text())
     assert {vid: e["class"] for vid, e in m["variables"].items()} == SWEEP
     v = m["variables"]
     assert v["bbb.isnion"]["reason"] == "neq 420 -> 300"
@@ -436,7 +436,7 @@ def test_sweep_classes_as_probed(swept):
 def test_sweep_writes_the_same_bytes_twice_and_opens(tmp_path, swept):
     a, b = (d / "references" for d in swept)
     assert file_sha256(a / "d_only.h5") == file_sha256(b / "d_only.h5")
-    ja, jb = (json.loads((d / "d_only.json").read_text()) for d in (a, b))
+    ja, jb = (mf.loads((d / "d_only.json").read_text()) for d in (a, b))
     for j in (ja, jb):
         j["provenance"].pop("date")
     assert ja == jb
@@ -456,7 +456,7 @@ def test_only_keeps_every_other_entry(tmp_path, swept):
     mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.cfvisx"],
              full=True, suite=suite)
     assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
-    new, old = (json.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
+    new, old = (mf.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
     assert new["variables"] == old["variables"]
     cost = json.loads((d / "references" / "d_only.cost.json").read_text())
     assert cost["evaluations"] == 2 + 2  # the defaults, cfvisx twice
@@ -515,7 +515,7 @@ def test_a_second_run_that_differs_is_nondeterministic(tmp_path, monkeypatch):
     monkeypatch.setattr(Runner, "evaluate", flaky)
     d = tmp_path / "flaky"
     mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.cfvisx"])
-    m = json.loads((d / "references" / "d_only.json").read_text())
+    m = mf.loads((d / "references" / "d_only.json").read_text())
     e = m["variables"]["bbb.cfvisx"]
     assert e["class"] == "INVALID" and e["reason"] == "nondeterministic: 1 rows differ between two processes"
     assert json.loads((d / "references" / "d_only.findings.json").read_text()) == [

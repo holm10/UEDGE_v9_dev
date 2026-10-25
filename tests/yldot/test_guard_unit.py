@@ -190,7 +190,7 @@ class Repo:
         return self.git("rev-parse", "HEAD").strip()
 
     def manifest(self, family):
-        return json.loads((self.root / G / "references" / "{}.manifest.json".format(family)).read_text())
+        return mf.loads((self.root / G / "references" / "{}.manifest.json".format(family)).read_text())
 
     def put_ref(self, family, variables, release=V2, serve=True, edit=None, **kw):
         """Build and commit-ready write a family's reference and manifest; serve its assets under release."""
@@ -558,6 +558,26 @@ def test_rename_refused_when_the_applied_value_differs(repo):
     repo.put_ref("fam", dict(variables, **{"bbb.renamed": ("SENSITIVE", 1)}), applied={"bbb.renamed": APPLIED})
     code, v, text = repo.check()
     assert code == 1 and v["items"] == ["fam:bbb.sens"]
+
+
+def test_runs_form_alone_is_no_change_and_a_changed_value_in_it_is_named(repo):
+    """AIUE-190: a base manifest with its applied values as data lists (written before the runs form) and the same
+    manifest through mf.dumps (runs) are the same manifest; a changed value inside a runs form names its variant."""
+    long = {"dtype": "float64", "shape": [2, 50], "data": [2.86] * 99 + [-0.0]}
+    m = repo.manifest("fam")
+    m["variables"]["bbb.inert"]["applied"] = m["variables"]["bbb.both"]["applied"] = long
+    repo.write(G + "references/fam.manifest.json", json.dumps(m, indent=2, sort_keys=True) + "\n")
+    repo.base = repo.commit("base with data lists")
+    text = mf.dumps(m)
+    assert text.count('"runs": [[2.86, 99], [-0.0, 1]]') == 2 and '"data": [2.86' not in text
+    repo.write(G + "references/fam.manifest.json", text)
+    code, v, out = repo.check()
+    assert code == 0 and v["required"] == [], out
+    m["variables"]["bbb.both"]["applied"] = dict(long, data=[2.86] * 98 + [3.0, -0.0])
+    repo.write(G + "references/fam.manifest.json", mf.dumps(m))
+    code, v, out = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:bbb.both"], out
+    assert "variant bbb.both changed: applied" in out
 
 
 LOC = (1e-5, {"column": np.array([0, 2]), "row": np.array([1, 3]), "mismatch": np.array([1e-6, -2e-6]),

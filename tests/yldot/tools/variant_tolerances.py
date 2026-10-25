@@ -80,6 +80,7 @@ def load(path):
 
 def collect(refs, label, out, build, families):
     from yldot.harness import Runner, load_evaluation, variants
+    from yldot.harness import manifest as mf
     from yldot.harness.process import family_dir
 
     rec = json.loads(Path(build).read_text())
@@ -88,7 +89,7 @@ def collect(refs, label, out, build, families):
     target.mkdir(parents=True, exist_ok=True)
     runner = Runner()
     for name in families_of(refs, families):
-        m = json.loads((Path(refs) / "{}.json".format(name)).read_text())
+        m = mf.loads((Path(refs) / "{}.json".format(name)).read_text())
         if m["provenance"]["commit"] != rec["commit"]:
             raise Stop(2, "{}: the references are of {}, this build of {}".format(name, m["provenance"]["commit"],
                                                                                   rec["commit"]))
@@ -161,7 +162,7 @@ def reference_stores(refs, families):
         for name in list(families) or found:
             if refs != INSTALLED:
                 h5 = src / "{}.h5".format(name)
-                m = json.loads((src / "{}.json".format(name)).read_text())
+                m = mf.loads((src / "{}.json".format(name)).read_text())
                 m["release"] = None
                 m["external"] = {mf.reference_path(name): {"sha256": file_sha256(h5), "bytes": h5.stat().st_size}}
                 (suite / mf.reference_path(name)).symlink_to(h5)
