@@ -158,7 +158,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   in the family: value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94). Results that fit no class
   and a file over its PRD §7.3 cap (`CAPS_MB`) are findings: exit 3, nothing written. `--defaults-only` (the AIUE-88
   run), `--only VAR…` (the rest copied verbatim from the installed reference, whose defaults must be reproduced bit
-  for bit) and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
+  for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
+  not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
+  full after one, AIUE-99 review) and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
   `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
