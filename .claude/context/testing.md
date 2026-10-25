@@ -154,7 +154,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `make_references.py` (`generate --from-commit SHA`: builds SHA `--serial` and writes each family's steady and
   `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance, and for a family
   with `[locality]` the steady locality pattern (AIUE-100); `--platform
-  linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, `--platform host` a
+  linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, run by
+  `regenerate-references.yml` on native amd64 (owner, 2026-10-25, AIUE-98; locally a preview), `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
   null` (owner, 2026-10-22, AIUE-88); default families: the small ones
   (with `sigma.h5`, not owner families); an owner family only when named (swept like the others since AIUE-99, or
@@ -179,8 +180,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
   `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
   nondeterminism only, not build or memory-layout dependence. Two Linux runs from one
-  commit gave the same SHA-256s on one host (x86 emulation on Apple silicon); bit-identity on a native amd64 host is
-  AIUE-98's check. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  commit gave the same SHA-256s on one host (x86 emulation on Apple silicon), and so did two native amd64 runs
+  (`regenerate-references.yml` on `ubuntu-24.04`, runs 40220476594 and 40234117547, full sweep at `bfca6180`). Native
+  and emulated runs of one commit and image differ in three variant vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif`
+  and `d_c:bbb.rtg2ti`, with everything else bit-identical and every class the same; the cause (libm's CPU dispatch?)
+  is not probed. References up to `yldot-data-v9` were made emulated. Native CI is the reference platform (owner,
+  2026-10-25, AIUE-98): references come only from the workflow, local runs are previews, and the first native
+  regeneration moves those three entries (`Default results: changed`). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
