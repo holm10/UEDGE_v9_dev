@@ -139,7 +139,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
   only N = highest published + 1, so a ticket reserves its N on its ticket page once the owner agrees, and planning
-  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6);
+  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6. Every publish first creates the tag
+  through the git refs API (an existing tag fails the call) and then runs `gh release create --verify-tag`; a tag whose
+  release then fails has used up its N. `--generated`: the manifests naming the tag come from a generation of
+  `--target` and are not committed (`tests/yldot` outside `references/` must be `--target`'s, and each manifest's
+  provenance commit `--target`); `--renumber` (with it) takes the highest release or remote tag + 1, rewriting the
+  manifests' `release`, and moves on after a collision, at most `ATTEMPTS` = 3; `--note`; `--gate` checks only
+  `--target`; a successful run ends with `tag=<tag>`. `regenerate-references.yml` runs it, below, AIUE-98);
   `measure_roundoff.py` (`collect`, run with each build's own python or in the Linux image: per family and
   configuration two fresh processes, pickled `yldot`/`yldot_J` and index arrays with the build record; `--omp N` adds
   the `ffun` RHS with the `ppp` OpenMP flags set in the `post` hook; `analyze`: the pairs `same_build:<label>`,
@@ -486,6 +492,20 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   replays. Merges with or after `bugfix/v9-openmp-determinism-fix`, once its first native PR run is green within
   20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
+- `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
+  (inputs `from_commit`, `families`, `mode` sweep/only/defaults-only, `only`, `publish`, `expect_ref`, `note`), three
+  jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
+  `v9-develop` or in it (`release_data.py --gate`) and `from_commit` is empty or that commit. `generate` (350 min) runs
+  `make_references.py generate` in `yldot-linux:24.04`, pulled from `ghcr.io/holm10/yldot-linux` by its digest
+  `sha256:2f833938…` with Docker's containerd image store, so `.Id` is the digest the manifests' `runner_image`
+  records, and fails on any other id (owner D1: never rebuilt in CI, a rebuild on 2026-10-25 gave another id and a
+  drifted unpinned `zlib1g`); with publish `--release <provisional> --write`, with `expect_ref` it compares each
+  `references/<f>.h5`'s SHA-256 with that ref's manifests (a reproduction check). `publish` runs in the environment
+  `yldot-data` (required reviewer the epic owner, self-review allowed, branches `v9-develop`, `feature/v9-*`,
+  `bugfix/v9-*`) and the concurrency group `yldot-data-release` (one running and one pending: a third queued publish
+  cancels the pending one), runs `release_data.py --generated --renumber --publish` and uploads the renumbered
+  manifests as the artifact `yldot-manifests-<tag>`, which the developer commits as a data-only commit (owner D2: the
+  workflow never pushes; a `GITHUB_TOKEN` push runs no CI). The only `contents: write` in `.github/workflows/`.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
   The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
   its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out
