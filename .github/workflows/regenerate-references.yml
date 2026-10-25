@@ -159,8 +159,9 @@ jobs:
           if [ "$MODE" = only ]; then opts+=(--only "${only[@]}"); fi
           if [ "$MODE" = defaults-only ]; then opts+=(--defaults-only); fi
           if [ "$PUBLISH" = true ]; then opts+=(--release "$TAG" --write); fi
-          python tests/yldot/tools/make_references.py generate --from-commit "$(git rev-parse HEAD)" "${opts[@]}" \
-            "${fams[@]}"
+          # the families come before the options: --only is nargs="+" and would take them as variant ids
+          python tests/yldot/tools/make_references.py generate --from-commit "$(git rev-parse HEAD)" "${fams[@]}" \
+            "${opts[@]}"
       - name: Compare with the expected release
         if: inputs.expect_ref != ''
         run: |
