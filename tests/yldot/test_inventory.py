@@ -8,12 +8,14 @@ a deliberately permuted map is rejected. Every diagnostic array is placed for th
 From the git-tracked files alone (PRD sections 6, 7.2 and 7.6): every manifest holds exactly the variants of the
 inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones as EXCLUDED, an owner family's too
 since its sweep (AIUE-99; owner, 2026-10-24, Q1: D6's "or none" is gone); every EXCLUDED, MARGINAL
-and INVALID entry has a reason; every tagged input the harness itself sets (harness/state.py) is EXCLUDED; every
-input.py is in normal form (it never sets restart, restores a state or runs exmain); and no file under tests/yldot
-skips or xfails a test. Each check is shown failing on a planted defect.
+and INVALID entry has a reason; every manifest is mf.dumps's canonical text (AIUE-190); every tagged input the
+harness itself sets (harness/state.py) is EXCLUDED; every input.py is in normal form (it never sets restart,
+restores a state or runs exmain); and no file under tests/yldot skips or xfails a test. Each check is shown failing
+on a planted defect.
 """
 import ast
 import copy
+import json
 
 import numpy as np
 import pytest
@@ -129,6 +131,24 @@ def test_manifest_inventory(plan, family):
 def test_reasons(family):
     problems = reason_problems(mf.load(family))
     assert not problems, "{}: {}".format(family, problems[:20])
+
+
+@pytest.mark.toml_only
+@pytest.mark.parametrize("family", FAMILY_NAMES)
+def test_manifest_is_canonical(family):
+    """AIUE-190: every manifest is the text mf.dumps writes (runs where they are fewer), so one written by an older
+    writer or edited by hand fails here, not first at the in-git size cap (owner, 2026-10-25)."""
+    p = mf.path(family)
+    assert p.read_text() == mf.dumps(mf.load(family)), "{}: not canonical (rewrite with mf.dump(mf.load(f), f))".format(
+        p.name)
+
+
+@pytest.mark.toml_only
+def test_canonical_detects():
+    """The same manifest written as plain json.dumps (every data list in full, one value per line) is not canonical."""
+    m = mf.load("d_only")
+    plain = json.dumps(m, indent=2, sort_keys=True) + "\n"
+    assert mf.loads(plain) == m and plain != mf.dumps(m)
 
 
 def test_inventory_detects_removed_entry(plan):
