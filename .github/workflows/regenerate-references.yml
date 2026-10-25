@@ -1,0 +1,48 @@
+# Placeholder for the yldot reference regeneration workflow (epic AIUE-9, AIUE-98). GitHub dispatches a workflow only
+# if its file is on the default branch; the dispatch then runs the copy on the ref it names. This placeholder lets
+# AIUE-98's branch run its real workflow before that merges and replaces this file:
+#
+#   gh workflow run regenerate-references.yml --repo holm10/UEDGE_v9_dev --ref <branch> [-f ...]
+#
+# Dispatched on v9-develop itself it only fails. The inputs are the real workflow's.
+name: Regenerate yldot references
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_commit:
+        description: "Commit to generate from (default: the dispatched commit; another one only with publish false)"
+        default: ""
+      families:
+        description: "Families, space-separated (default: make_references.py's, the small ones)"
+        default: ""
+      mode:
+        description: "sweep: the defaults and every variant; only: the variants in 'only'; defaults-only: no sweep, never published"
+        type: choice
+        options: [sweep, only, defaults-only]
+        default: sweep
+      only:
+        description: "With mode only: variant ids or keys, space-separated"
+        default: ""
+      publish:
+        description: "Publish a data release (after the owner's approval in the yldot-data environment)"
+        type: boolean
+        default: false
+      expect_ref:
+        description: "With publish false: a ref (e.g. yldot-data-v8) whose manifests the generated SHA-256s must equal"
+        default: ""
+      note:
+        description: "First paragraph of the release notes"
+        default: ""
+
+permissions: {}
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Not yet
+        run: |
+          echo "regenerate-references.yml is a placeholder on this ref (AIUE-98): dispatch with --ref <branch> whose"
+          echo "copy is the real workflow"
+          exit 1
