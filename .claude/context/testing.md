@@ -301,8 +301,9 @@ python tests/deterministic_omp/harness/serial_check.py \
 ```
 
 Four venvs: base and change, each built `--serial` and default, from clean committed trees (the tool does not
-build). It runs reproducer presets and pytests cases (D_only, D+C, D_mols, a 16x8 fulltest, drifts, slab and 20
-one-switch unit variants; `--list`) once per build in fresh processes. Cases ending in `-itN` run N Newton iterations,
+build). It runs reproducer presets and yldot family cases (`d_only`, `d_c`, `d_mols`, `ortho`, `slab_phi` and 21
+settings variants of `d_only`/`d_mols`, the two drift decks among them; `--list`; AIUE-106) once per build in fresh
+processes. Cases ending in `-itN` run N Newton iterations,
 so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It compares every Jacobian, `sfscal`,
 `suscal`, `yldot` and the `fnrm` sequence bit for bit.
 - Exit 0: identical over the complete gate (both pairs, two different builds from clean committed trees with
@@ -311,14 +312,15 @@ so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It 
 - Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path; an
   `-itN` case that did not iterate) or an incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
 
-Needs the pytests checkout (below). Paste the build lines and the `RESULT` line into the PR. Details:
+Needs no pytests checkout; the owner families (`large_dd2c`, `dnull_imp2`, `imp7`) run by name only, after
+`fetch_data.py`. Paste the build lines and the `RESULT` line into the PR. Details:
 `tests/deterministic_omp/README.md`.
 
 ## Fast iteration: subset while working, full matrix once
 
 Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h, a cost study 2.1 h). While working:
 
-- **Iterate on a subset**: one case (the reproducer preset or the one pytests case the change touches) at **two
+- **Iterate on a subset**: one case (the reproducer preset or the one family case the change touches) at **two
   thread counts** (e.g. 1 and 4 for OpenMP work), and the one suite the change can affect.
 - **Run the full matrix once**, at the end (`validate`, the serial bitwise check, the OpenMP flow), not after every
   edit. A failure there sends you back to the subset with the failing case added.

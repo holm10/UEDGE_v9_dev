@@ -1,30 +1,32 @@
-"""Run one upstream pytests case the way its test_reference does, serially, and record it.
+"""Run one yldot family (epic AIUE-9) serially, with an optional settings file, and record it (AIUE-106).
 
-Executed by serial_check.py as   python -I pytests_worker.py <spec.json>   in a run directory
-that holds a copy of the case directory (input.py, gridue, solution.h5, ...). Never import this
-module in a process that should keep running: it imports uedge, whose state is global.
+Executed by serial_check.py as   python -I family_worker.py <spec.json>   in an empty run directory
+(the working directory when uedge is imported, so no .uedgerc.py of a family is read). Never import
+this module in a process that should keep running: it imports uedge, whose state is global.
 
-The sequence is the one of pytests/*/test_*.py (TestClass.test_reference and matches()):
-  exec input.py; issfon=1; ftol=1e20; exmain();
-  equation switches from solution.h5:pytests/default; nis..phis from solution.h5:bbb; exmain().
-Differences from the test, none of which changes a number:
-  - com.iprint is left at 1 (the test sets 0) so that nksol prints the fnrm sequence;
-  - the serial arm (ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0, Nthreads = 1) is set
-    explicitly after input.py, before the first exmain (these are the defaults);
-  - perturb_solution is never called. The test does not call it either: it is used only by
-    write_data, when the reference solution.h5 is made, so the stored solution is used as it is.
+The sequence:
+  import uedge; chdir to the family directory (its input.py reads ../../data by relative paths);
+  exec input.py; exec the settings file, if any (tests/deterministic_omp/settings/: the lines an
+  upstream regression-suite variant deck added to its default deck, owner 2026-10-24); serial arm;
+  allocate; restore spec "state" (reference_state.h5, owner 2026-10-24); restart = 1; issfon = 1;
+  ftol = 1e20; exmain(); exmain().
+Differences from the upstream-suite worker this replaces (AIUE-53): the state is restored before the
+first exmain, from the family's own file, and the equation switches are the deck's (no reset from the
+suite's stored switches). com.iprint is left as the deck sets it, so that nksol prints the fnrm
+sequence. Nothing under tests/yldot/ is imported: that would pin OMP_NUM_THREADS (uedge-gotchas.md).
 
-With spec "itermx": N (an iterating case, not part of the test), the final exmain instead runs
-exactly N Newton iterations, with ftol and stptol forced far below the noise floor
-(config.force_newton, AIUE-169), so that psetnk, the preconditioner, the Krylov solve and the line
-search run too, however converged the stored solution is.
+With spec "itermx": N (an iterating case), the final exmain instead runs exactly N Newton iterations,
+with ftol and stptol forced far below the noise floor (config.force_newton, AIUE-169), so that psetnk,
+the preconditioner, the Krylov solve and the line search run too, however converged the state is.
 
-Writes record.npz / record.json in the format of worker.py, so that compare.compare_records
-works on them (spec carries preset "pytests:<case>", arm "serial", threads 1). With the AIUE-47 hook in the build, every raw Jacobian of the final exmain
-(sfsetnk and psetnk) is recorded as capjac_k (worker.collect_capture; spec "capture" slots).
+Writes record.npz / record.json in the run directory, in the format of worker.py, so that
+compare.compare_records works on them (spec carries preset "yldot:<label>", arm "serial", threads 1).
+With the AIUE-47 hook in the build, every raw Jacobian of the final exmain (sfsetnk and psetnk) is
+recorded as capjac_k (worker.collect_capture; spec "capture" slots). meta "inputs" holds the SHA-256
+of input.py, the settings file and the state file read.
 Exit status: 0 on success, 2 on any error (record.json then holds "error").
 """
-import importlib.util
+import hashlib
 import json
 import os
 import platform
@@ -33,55 +35,55 @@ import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))  # tests/deterministic_omp, for "harness"
-sys.path.insert(0, os.getcwd())  # the run directory, as conftest.py's chdir gives the test
 
 from harness.config import ARMS, DIAGNOSTIC_SWITCHES, force_newton  # noqa: E402
 from harness.worker import (build_identity, collect_capture, equation_map, git_state, has_capture_hook,  # noqa: E402
                             start_capture)
 
-EQUATION_SWITCHES = ["isnion", "isupon", "isteon", "istion", "isngon", "istgon", "isphion"]
-STATE = ["nis", "ups", "tes", "tis", "ngs", "tgs", "phis"]
+
+def _sha256(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 
-def _setdata(var, value):
-    """Set var in every Forthon package that holds it, as test_reference's setdata does."""
-    from Forthon import package, packageobject
-
-    found = False
-    for pkg in package():
-        obj = packageobject(pkg)
-        if var in obj.varlist():
-            obj.__setattr__(var, value)
-            found = True
-    if not found:
-        raise KeyError("no package holds {}".format(var))
+def _exec(path, name):
+    """Run a deck file in its own namespace, as tests/yldot/harness/state.py runs input.py."""
+    with open(path) as f:
+        source = f.read()
+    exec(compile(source, path, "exec"), {"__name__": name})
 
 
-def run(spec):
+def run(spec, rundir):
     import numpy as np
-    from h5py import File
+    import uedge  # noqa: F401  cwd is the empty run directory here
     from uedge import bbb, com, ppp
+    from uedge.hdf5 import hdf5_restore
 
-    deck = spec.get("deck", "input.py")
-    inputspec = importlib.util.spec_from_file_location("input", deck)
-    inputspec.loader.exec_module(importlib.util.module_from_spec(inputspec))
+    family = spec["family"]
+    if os.path.exists(os.path.join(family, ".uedgerc.py")):
+        raise RuntimeError("{} holds .uedgerc.py, which import uedge would execute".format(family))
+    os.chdir(family)
+    deck = os.path.join(family, "input.py")
+    _exec(deck, "__family_input__")
+    inputs = {"input.py": _sha256(deck)}
+    if spec.get("settings"):
+        _exec(spec["settings"], "__family_settings__")
+        inputs["settings"] = _sha256(spec["settings"])
 
     for name in DIAGNOSTIC_SWITCHES:  # never on in a measured run
         setattr(ppp, name, 0)
     for name, value in ARMS["serial"].items():
         setattr(ppp, name, value)
     ppp.Nthreads = 1
+    state = os.path.realpath(os.path.join(family, spec["state"]))
+    inputs["state"] = _sha256(state)
+    bbb.allocate()
+    hdf5_restore(state)
+    bbb.restart = 1
     bbb.issfon = 1
     bbb.ftol = 1e20
-    bbb.exmain()  # the test's first exmain ("fnrm still changes after 1 exmain, but not after 2")
+    bbb.exmain()
 
-    with File("solution.h5", "r") as f:
-        defref = f["pytests"]["default"]
-        for eq in EQUATION_SWITCHES:
-            _setdata(eq, defref[eq][()])
-        group = f["bbb"] if "bbb" in f else f["restore/bbb"]
-        for var in STATE:
-            _setdata(var, group[var][()])
     itermx = spec.get("itermx")
     if itermx:
         force_newton(bbb, int(itermx))
@@ -121,6 +123,7 @@ def run(spec):
         "iterm": int(bbb.iterm),  # as worker.run: why nksol stopped; informational
         "post_exmain_from": last,
         "post_exmain_permuted": last == "psetnk" and int(bbb.ireorder) == 1,
+        "inputs": inputs,
     }
     if spec.get("rhs_probe", True):
         # as worker.run: before get_fnrm, with the whole neq+2 yl (pandf reads yl(neq+1))
@@ -149,18 +152,19 @@ def run(spec):
     for name in DIAGNOSTIC_SWITCHES:
         meta["provenance"][name] = int(getattr(ppp, name))
     meta["provenance"]["openmp_build"] = meta["provenance"]["build"]["openmp_build"]
-    np.savez("record.npz", **arrays)
+    np.savez(os.path.join(rundir, "record.npz"), **arrays)
     return meta
 
 
 def main():
+    rundir = os.getcwd()
     with open(sys.argv[1]) as f:
         spec = json.load(f)
     try:
-        meta, status = run(spec), 0
+        meta, status = run(spec, rundir), 0
     except BaseException:  # noqa: B902  (SystemExit from the deck counts as a harness error too)
         meta, status = {"error": traceback.format_exc()}, 2
-    with open("record.json", "w") as f:
+    with open(os.path.join(rundir, "record.json"), "w") as f:
         json.dump(meta, f, indent=1, sort_keys=True)
     sys.exit(status)
 
