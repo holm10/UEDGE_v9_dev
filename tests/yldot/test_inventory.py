@@ -6,8 +6,8 @@ with igyl, the owner-confirmed [regions] of family.toml fit the live grid and gi
 a deliberately permuted map is rejected. Every diagnostic array is placed for the first-difference report.
 
 From the git-tracked files alone (PRD sections 6, 7.2 and 7.6): every manifest holds exactly the variants of the
-inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones as EXCLUDED; an owner family's
-manifest holds all of them or none until its sweep (AIUE-99; owner, 2026-10-23, AIUE-96 D6); every EXCLUDED, MARGINAL
+inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones as EXCLUDED, an owner family's too
+since its sweep (AIUE-99; owner, 2026-10-24, Q1: D6's "or none" is gone); every EXCLUDED, MARGINAL
 and INVALID entry has a reason; every tagged input the harness itself sets (harness/state.py) is EXCLUDED; every
 input.py is in normal form (it never sets restart, restores a state or runs exmain); and no file under tests/yldot
 skips or xfails a test. Each check is shown failing on a planted defect.
@@ -96,12 +96,10 @@ def plan():
     return variants.plan()
 
 
-def inventory_problems(manifest, plan, owner):
+def inventory_problems(manifest, plan):
     """What keeps a manifest's variables from being the inventory: missing and stale ids, and inventory-EXCLUDED
-    variants stored in another class or with another reason. An owner family may hold none yet (D6)."""
+    variants stored in another class or with another reason. Every family, owner families included (AIUE-99)."""
     stored = manifest.get("variables") or {}
-    if owner and not stored:
-        return []
     ids = {v.id: v for v in plan}
     out = ["missing: {}".format(vid) for vid in ids if vid not in stored]
     out += ["stale: {}".format(vid) for vid in stored if vid not in ids]
@@ -121,7 +119,7 @@ def reason_problems(manifest):
 @pytest.mark.toml_only
 @pytest.mark.parametrize("family", FAMILY_NAMES)
 def test_manifest_inventory(plan, family):
-    problems = inventory_problems(mf.load(family), plan, mf.owner_family(family))
+    problems = inventory_problems(mf.load(family), plan)
     assert not problems, "{}: the manifest is not the inventory (regenerate with make_references.py): {}".format(
         family, problems[:20])
 
@@ -136,28 +134,30 @@ def test_reasons(family):
 def test_inventory_detects_removed_entry(plan):
     """Acceptance (AIUE-96): d_only's manifest without one entry, or with one id the inventory lacks, fails."""
     m = mf.load("d_only")
-    assert not inventory_problems(m, plan, False)
+    assert not inventory_problems(m, plan)
     vid = next(iter(m["variables"]))
     cut = copy.deepcopy(m)
     del cut["variables"][vid]
-    assert inventory_problems(cut, plan, False) == ["missing: {}".format(vid)]
+    assert inventory_problems(cut, plan) == ["missing: {}".format(vid)]
     extra = copy.deepcopy(m)
     extra["variables"]["bbb.no_such_input"] = m["variables"][vid]
-    assert inventory_problems(extra, plan, False) == ["stale: bbb.no_such_input"]
+    assert inventory_problems(extra, plan) == ["stale: bbb.no_such_input"]
     excluded = next(v for v in plan if v.excluded)
     moved = copy.deepcopy(m)
     moved["variables"][excluded.id] = dict(m["variables"][excluded.id], **{"class": "INERT", "reason": ""})
-    assert inventory_problems(moved, plan, False)[0].startswith(excluded.id + ": EXCLUDED in the inventory")
+    assert inventory_problems(moved, plan)[0].startswith(excluded.id + ": EXCLUDED in the inventory")
     assert reason_problems(dict(moved, variables={vid: dict(m["variables"][vid], **{"class": "MARGINAL",
                                                                                      "reason": " "})}))
 
 
-def test_owner_family_empty_or_complete(plan):
-    """D6: an owner family's manifest holds every variant or none; a partial one fails like a small family's."""
-    m = mf.load("d_only")
-    assert inventory_problems(dict(m, variables={}), plan, True) == []
-    partial = dict(m, variables=dict(list(m["variables"].items())[:5]))
-    assert any(p.startswith("missing: ") for p in inventory_problems(partial, plan, True))
+def test_owner_family_must_be_complete(plan):
+    """AIUE-99: every owner family's manifest classifies the inventory; an empty one fails like a partial one (D6's
+    "or none" ended with the owner sweep)."""
+    owners = [f for f in FAMILY_NAMES if mf.owner_family(f)]
+    assert owners and all(not inventory_problems(mf.load(f), plan) for f in owners)
+    m = mf.load(owners[0])
+    for cut in ({}, dict(list(m["variables"].items())[:5])):
+        assert any(p.startswith("missing: ") for p in inventory_problems(dict(m, variables=cut), plan))
 
 
 # ---------------------------------------------------------------- what the harness sets itself

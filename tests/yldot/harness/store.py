@@ -214,6 +214,7 @@ def block_l2(x, labels, rows):
 class Check:
     ok: bool
     lines: list = field(default_factory=list)
+    ratio: float = None  # a sketch check's largest |dP| / bound (inf if not finite); None for a full-vector check
 
     @property
     def report(self):
@@ -224,23 +225,26 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot", w=None)
     """|P_new[b, j] - P_ref[b, j]| <= c * sqrt(fsum((tol_i * w_i)^2 over block b)) for every block and projection (PRD
     section 7.4; w_i = 1 if w is None); a non-finite projection fails. ref, new: sketch() dicts made with the same w;
     tol: the per-entry tolerances. With w_i = 1/tol_i (a sketch store's weights, AIUE-174) one entry moved by m * tol_i
-    moves every projection of its block by +-m, so every entry is seen at the same m = c * sqrt(N_block)."""
+    moves every projection of its block by +-m, so every entry is seen at the same m = c * sqrt(N_block). The Check's
+    ratio is the largest |dP| / bound over every block and projection, passing or not (AIUE-99)."""
     tw = per_entry("tol", tol, imap.neq)
     if w is not None:
         tw = tw * per_entry("w", w, imap.neq)
-    fails = []
+    fails, worst = [], 0.0
     for b, label in enumerate(labels):
         bound = c * math.sqrt(fsum(tw[rows[b]] ** 2))
-        with np.errstate(invalid="ignore"):
+        with np.errstate(invalid="ignore", divide="ignore"):
             d = np.abs(np.asarray(new["proj"][b]) - np.asarray(ref["proj"][b]))
             bad = ~(d <= bound)
-        if bad.any():
             ratio = d / bound
-            ratio[~np.isfinite(ratio)] = np.inf
+        ratio[~np.isfinite(ratio)] = np.inf
+        if ratio.size:
+            worst = max(worst, float(ratio.max()))
+        if bad.any():
             fails.append((float(ratio.max()), b))
     if not fails:
         return Check(True, ["{} PASS: all {} blocks within c*sqrt(sum {}^2), c = {}".format(
-            what, len(labels), "tol" if w is None else "(w*tol)", c)])
+            what, len(labels), "tol" if w is None else "(w*tol)", c)], worst)
     lines = ["{} FAIL: {} of {} blocks out of tolerance (c = {})".format(what, len(fails), len(labels), c)]
     for ratio, b in sorted(fails, reverse=True):
         lines.append("  {:24s} worst |dP|/bound {:.3g}; largest |entry| stored {} ({:.6e}), new {} ({:.6e}); "
@@ -248,7 +252,7 @@ def sketch_compare(ref, new, tol, labels, rows, imap, c=C, what="yldot", w=None)
                          labels[b], ratio, imap.label(int(ref["argmax"][b])), float(ref["maxabs"][b]),
                          imap.label(int(new["argmax"][b])), float(new["maxabs"][b]), float(ref["l2"][b]),
                          float(new["l2"][b])))
-    return Check(False, lines)
+    return Check(False, lines, worst)
 
 
 def sketch_thresholds(tol, labels, rows, imap, c=C, seed=SEED, k=K, w=None):
@@ -602,7 +606,8 @@ class Store:
     def check(self, config, vid, yldot, yldot_J, tol, imap, diagnostics=None):
         """Compare a new run with the default (vid None) or a stored variant: yldot and the Jacobian-flag difference,
         both under the per-entry tolerance tol of the default (decision 27). diagnostics: the new run's, to name the
-        first differing intermediate of a failing default."""
+        first differing intermediate of a failing default. The Check's ratio: the largest of its parts' when each
+        part has one (a sketch store's variant), else None."""
         self._same_index(imap)
         n = imap.neq
         yldot, yldot_J = _f64("yldot", yldot, n, False), _f64("yldot_J", yldot_J, n, False)
@@ -614,7 +619,8 @@ class Store:
             if vid not in self.variants(config):
                 raise StoreError("{}: no stored variant {} in {}".format(self.path, vid, config))
             parts = self._check_variant(config, vid, yldot, yldot_J, tol, imap)
-        return Check(all(p.ok for p in parts), [line for p in parts for line in p.lines])
+        ratio = max(p.ratio for p in parts) if all(p.ratio is not None for p in parts) else None
+        return Check(all(p.ok for p in parts), [line for p in parts for line in p.lines], ratio)
 
 
 class FullVectorStore(Store):

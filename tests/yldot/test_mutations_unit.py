@@ -388,6 +388,14 @@ def test_variant_problems(tmp_path, plan_ids, entry, over, match):
     assert any(re.search(match, p) for p in found), found
 
 
+def test_variant_needs_a_full_store(tmp_path):
+    """AIUE-99: variant_child compares dense vectors, so a Variant in a sketch-store family is refused."""
+    m = mut(tmp_path, **VARIANT)
+    assert rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": ENTRY}}, {"d_only": "full"}) == []
+    found = rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": ENTRY}}, {"d_only": "sketch"})
+    assert found == ["Variant bbb.v: d_only is a sketch store; a Variant mutation needs a full store"]
+
+
 def test_ishosor_through_its_variant():
     """The committed ishosor mutation is checked through d_only's stored bbb.ishosor variant (AIUE-96 D7)."""
     m = rm.load(rm.MUTATIONS / "ishosor_flag_gating.patch")

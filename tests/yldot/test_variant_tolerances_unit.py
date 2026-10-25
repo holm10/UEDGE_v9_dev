@@ -2,7 +2,8 @@
 1, a NaN in one term, index arrays that differ, a missing side), and collect on d_only, whose replay on the same
 build reproduces the sample bit for bit (every ratio 0); replay of every SENSITIVE variant under
 make_references.variant_tolerance (a pass, an entry off by 2 x tol_i(variant), a NaN, a failed evaluation, another
-commit) and the installed references. collect and replay need the built uedge (in the Runner's children).
+commit) and the installed references; replay of a sketch store (large_dd2c, two variants) through the sketch
+comparator under the new run's tol_i (AIUE-99 Q2). collect and replay need the built uedge (in the Runner's children).
 """
 import json
 import sys
@@ -12,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from yldot.harness import compare
+from yldot.harness import compare, variants
 from yldot.harness.process import family_dir
 from yldot.harness.state import INDEX_ARRAYS
 
@@ -181,6 +182,62 @@ def test_replay_refuses_another_commit_and_missing_families(tmp_path, sampled):
         vt.replay(sampled / "references", [], tmp_path / "other.json")
     with pytest.raises(vt.Stop, match="no references with classified variants for"):
         vt.replay(sampled / "references", ["ortho"])
+
+
+@pytest.fixture(scope="module")
+def sketched(tmp_path_factory):
+    """A two-variant sweep of the owner family large_dd2c (a sketch store; one steady, one timestep variant)."""
+    d = tmp_path_factory.mktemp("sketched")
+    (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)", "runner_image": "t"}))
+    mr.child(["large_dd2c"], d / "references", d / "build.json", sweep=["bbb.cfvisx", "bbb.fdtnixy"])
+    return d
+
+
+def test_replay_of_a_sketch_store(tmp_path, sketched, capsys):
+    """AIUE-99 Q2: a sketch store's SENSITIVE variants replay through the sketch comparator, ratio |dP| / bound."""
+    out = tmp_path / "replay.json"
+    assert vt.main(["vt", "replay", str(sketched / "references"), "--build", str(sketched / "build.json"),
+                    "--json", str(out)]) == 0
+    assert "large_dd2c: 2 SENSITIVE replayed, 0 fail, largest ratio 0 (" in capsys.readouterr().out
+    rows = json.loads(out.read_text())["families"]["large_dd2c"]
+    assert rows == {"bbb.cfvisx": {"ok": True, "ratio": 0.0}, "bbb.fdtnixy": {"ok": True, "ratio": 0.0}}
+
+
+@pytest.mark.parametrize("kind", ["offset", "nan", "error"])
+def test_replay_of_a_sketch_store_fails_what_does_not_reproduce(tmp_path, sketched, monkeypatch, capsys, kind):
+    """In a sketch store: a flag-difference entry 1e6 x its tol_i off fails with a finite ratio above 1 and the
+    failing block in the report; a NaN fails with inf; a failed evaluation keeps its status."""
+    from yldot.harness import Result
+    from yldot.harness.process import Runner
+
+    real = Runner.evaluate
+
+    def changed(self, family, **kw):
+        r = real(self, family, **kw)
+        if kw["variant"].id != "bbb.cfvisx":
+            return r
+        if kind == "error":
+            return Result(status="error", family=family, config="steady", mode="spawn",
+                          message="Traceback\nRuntimeError\n", log_tail="*** boom")
+        fdir = family_dir(family)
+        tol = mr.tolerance(fdir, r.data["yldot"], "steady", compare.index_map(r.data, compare.load_regions(fdir)))
+        r.data["yldot_J"][5] += 1e6 * tol[5] if kind == "offset" else np.nan
+        return r
+
+    monkeypatch.setattr(Runner, "evaluate", changed)
+    with vt.reference_stores(sketched / "references", []) as stores:
+        s = stores["large_dd2c"]
+        plan = {v.id: v for v in variants.plan()}
+        row = vt.check_sensitive("large_dd2c", s, Runner(), plan["bbb.cfvisx"],
+                                 s.manifest["variables"]["bbb.cfvisx"], None)
+    assert not row["ok"]
+    if kind == "offset":
+        assert 1 < row["ratio"] < float("inf") and "flag difference FAIL" in row["report"]
+        assert "yldot PASS" in row["report"]
+    elif kind == "nan":
+        assert row["ratio"] == float("inf") and "flag difference FAIL" in row["report"]
+    else:
+        assert row["ratio"] == float("inf") and row["status"] == "error"
 
 
 def test_replay_opens_the_installed_references():

@@ -293,14 +293,15 @@ def make_owner(suite, content=GRID):
 OWNER_IGNORED = "!! tests/yldot/families/d_only/gridue\n!! tests/yldot/families/d_only/sigma.h5\n"
 
 
-def test_owner_families_are_not_default_and_need_defaults_only(tmp_path, children):
+def test_owner_families_are_not_default_but_sweep_when_named(tmp_path, children):
+    """AIUE-99: an owner family is generated only when named, and then swept like the others (no --defaults-only)."""
     suite = tmp_suite(tmp_path)
     make_owner(suite)
     assert mr.select([], suite) == []
     stream = FakeStream(children[0])
-    with pytest.raises(mr.Stop, match="--defaults-only") as e:
-        mr.generate(args(family=["d_only"], out=str(tmp_path / "gen")), suite, FakeRun(status=OWNER_IGNORED), stream)
-    assert e.value.code == 1 and not stream.calls
+    mr.generate(args(family=["d_only"], out=str(tmp_path / "gen")), suite, FakeRun(status=OWNER_IGNORED), stream)
+    (cmd, _, _), = [c for c in stream.calls if c[0][0] == "docker"]
+    assert "--sweep" not in cmd and "d_only" in cmd
 
 
 def test_owner_family_carries_its_assets_and_sigma(tmp_path, children):
@@ -387,9 +388,8 @@ def test_main_exit_codes(capsys):
 
 
 def test_manifests_with_data():
-    """Every manifest in references/ that holds reference data: its store is family.toml's, a small family (one without
-    release assets under families/) classifies exactly the inventory's variants and an owner family none yet
-    (AIUE-99), a release names its
+    """Every manifest in references/ that holds reference data: its store is family.toml's, it classifies exactly the
+    inventory's variants (an owner family too, since AIUE-99), a release names its
     files (previews are never committed) and they were built in the pinned image (owner, AIUE-88 D1)."""
     from yldot.harness import variants
 
@@ -400,8 +400,7 @@ def test_manifests_with_data():
             continue
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
-        small = not mf.family_assets(m)
-        assert set(m["variables"]) == (ids if small else set()), p.name
+        assert set(m["variables"]) == ids, p.name
         assert m["provenance"]["flags"] == "--serial", p.name
         assert m["release"] is not None, p.name
         assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name
@@ -473,6 +472,22 @@ def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
         mr.child(["d_only"], tmp_path / "only", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.cfvisx"],
                  suite=suite)
     assert e.value.code == 3 and "regenerate in full" in str(e.value)
+
+
+def test_only_on_a_sketch_store(tmp_path):
+    """AIUE-99: --only against an installed sketch store (large_dd2c, two variants) passes the defaults' check, whose
+    stored sketch weights and thresholds are kept or derived, and reproduces the file bit for bit."""
+    sweep = ["bbb.cfvisx", "bbb.fdtnixy"]
+    first = tmp_path / "first"
+    mr.child(["large_dd2c"], first / "references", build_record(tmp_path), sweep=sweep)
+    suite = tmp_suite(tmp_path, ("large_dd2c",))
+    mr.install(mr.assemble(SHA, ["large_dd2c"], first, TAG)[0], first, suite)
+    d = tmp_path / "only"
+    mr.child(["large_dd2c"], d / "references", build_record(tmp_path), sweep=sweep, only=["bbb.cfvisx"], suite=suite)
+    assert file_sha256(d / "references" / "large_dd2c.h5") == file_sha256(first / "references" / "large_dd2c.h5")
+    assert mr.SKETCH_DEFAULT_RE.search("/steady/default/sketch_weight")
+    assert mr.SKETCH_DEFAULT_RE.search("/timestep/default/sketch_threshold/cell_m")
+    assert not mr.SKETCH_DEFAULT_RE.search("/steady/default/yldot")
 
 
 def test_only_needs_every_other_entry(tmp_path, swept):
