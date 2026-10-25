@@ -827,10 +827,6 @@
     "/steady/variants/bbb.isfeixpl0/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isfeixpl0/yldot/index": "fc0305f1916a08b14dccbd6286620ebd054d9489b49fb8ef617e07b4ff7a2173",
     "/steady/variants/bbb.isfeixpl0/yldot/value": "0e3df0e974939443d45c95f71eebd7238869aadd5592718059126f78922a51ca",
-    "/steady/variants/bbb.isfixrb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/bbb.isfixrb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/bbb.isfixrb/yldot/index": "5020176f774e5580f9a70dca5cd39e0070bfd9e8f35997a1975656bbfeb6627b",
-    "/steady/variants/bbb.isfixrb/yldot/value": "86e5d2ede0930015b3518269cf4e8b98f42c013342c95fa6d06573391549f141",
     "/steady/variants/bbb.isflxlde/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.isflxlde/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.isflxlde/yldot/index": "06cbd1c813fc53dfe0aa13874a2559b68f00e81be1f3f36f37ee71893945e057",
@@ -1479,8 +1475,8 @@
   },
   "external": {
     "references/slab_phi.h5": {
-      "bytes": 6127464,
-      "sha256": "cecbf318c3fb1335639870c13afc5671621eaa9b3017204ffcf37e0dcca95eab"
+      "bytes": 6124061,
+      "sha256": "d06b382d9700c9023a80b7fd55f578aa91cdbde91d4609979d5000d125cd91d5"
     }
   },
   "family": "slab_phi",
@@ -1492,15 +1488,15 @@
     "timestep/sigma": "9c53b56377c1377a06adcae30b06b74e6246e7ec560e890baa9b145b8f27b6a9"
   },
   "provenance": {
-    "commit": "bfca6180bcf7687a836b224a00a7df8f23a9db89",
+    "commit": "cb879c49d379c92aa1b80632835d649be74d84ed",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-23T23:15:16+00:00",
+    "date": "2026-10-25T04:17:46+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v8",
+  "release": "yldot-data-v9",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -12614,22 +12610,14 @@
       "sha256": null
     },
     "bbb.ipsputt_s": {
-      "applied": {
-        "data": [0],
-        "dtype": "int64",
-        "shape": []
-      },
+      "applied": null,
       "block_l2": {},
-      "class": "INERT",
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [1],
-        "dtype": "int64",
-        "shape": []
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "",
+      "reason": "build-dependent: ipsputt_s=0 (below its 1-based index) differs 638x the sketch bound at -O0 in imp7; bug AIUE-195; owner 2026-10-24 (AIUE-99)",
       "sha256": null
     },
     "bbb.is1D_gbx": {
@@ -12810,26 +12798,14 @@
       "sha256": "e8a1ec38c5cfc578f92d7c80f3805fd78fa0551da1287d761d379dd3c4e20c1f"
     },
     "bbb.isch_sput": {
-      "applied": {
-        "data": [1, 1, 1, 1, 1, 1],
-        "dtype": "int64",
-        "shape": [
-          6
-        ]
-      },
+      "applied": null,
       "block_l2": {},
-      "class": "INERT",
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0, 0, 0, 0, 0, 0],
-        "dtype": "int64",
-        "shape": [
-          6
-        ]
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "",
+      "reason": "build-dependent: isch_sput with a slot at 8 gives ng guard entries of 7.7e25 at -O0 in large_dd2c; bug AIUE-195; owner 2026-10-24 (AIUE-99)",
       "sha256": null
     },
     "bbb.iscpli": {
@@ -13282,37 +13258,15 @@
       "sha256": null
     },
     "bbb.isfixrb": {
-      "applied": {
-        "data": [1, 1],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
-      "block_l2": {
-        "ni[1] guard": 678156744.2333891,
-        "ni[2] guard": 261523956.38457614,
-        "phi[1] guard": 21562548.383787803,
-        "te[1] guard": 247573014.83725774,
-        "ti[1] guard": 260721319.91786623,
-        "up[1] outer_leg": 113669762819.64471,
-        "up[1] pf": 10462573795.850456,
-        "up[2] outer_leg": 2429726754923.0044,
-        "up[2] pf": 1072329289865.8662
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0, 0],
-        "dtype": "int64",
-        "shape": [
-          2
-        ]
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 2.76e+16",
-      "sha256": "327c57e311f91a8ba955591cd7b4bddacb49467de2024adafb4035b78bfe66b2"
+      "reason": "family-level: right-boundary symmetry point (isfixlb's twin); no family yet (AIUE-173); owner 2026-10-24 (AIUE-99)",
+      "sha256": null
     },
     "bbb.isflxlde": {
       "applied": {
@@ -14575,22 +14529,14 @@
       "sha256": null
     },
     "bbb.isoutwall": {
-      "applied": {
-        "data": [1],
-        "dtype": "int64",
-        "shape": []
-      },
+      "applied": null,
       "block_l2": {},
-      "class": "INERT",
+      "class": "EXCLUDED",
       "config": "steady",
-      "d": {
-        "data": [0],
-        "dtype": "int64",
-        "shape": []
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "",
+      "reason": "build-dependent: isoutwall=1 (outwallflux) crashes with SIGSEGV at -O0 in the owner families; bug AIUE-195; owner 2026-10-24 (AIUE-99)",
       "sha256": null
     },
     "bbb.ispfbcvsix": {
