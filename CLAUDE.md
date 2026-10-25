@@ -48,7 +48,7 @@ cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s
 #   suites: fulltests, unittests/{D+C, D_mols, D_only, slab_D_only}
 ```
 
-There is no linter, formatter, or type checker. CI installs flake8 but never runs it. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:80-87`).
+There is no linter, formatter, or type checker, and CI runs none. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:80-87`).
 
 ## On-demand context
 
