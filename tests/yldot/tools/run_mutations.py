@@ -623,7 +623,7 @@ def locality_part(runner, family, regions, tol):
     cfg = L.load_config(FAMILIES / family)
     if cfg is None:
         return None, None
-    r = runner.evaluate(family, locality=cfg["delta_loc"])
+    r = runner.evaluate(family, locality=cfg["delta_loc"], columns=mr.locality_columns(cfg))  # AIUE-101: column sets
     if not r.ok:
         return {"status": r.status, "message": r.message, "log_tail": r.log_tail}, None
     with open_store(family) as s:

@@ -352,9 +352,14 @@ def test_gate_flag_fails_g2():
     assert failing(m) == ["G2"]
 
 
-def test_locality_part_not_run_without_locality():
-    """AIUE-92: a family without [locality] (an owner family) has no locality part; it never stops the run."""
-    assert rm.has_locality("d_only") and not rm.has_locality("large_dd2c")
+def test_locality_part_not_run_without_locality(monkeypatch):
+    """AIUE-92: a family without [locality] has no locality part; it never stops the run. Every family has one
+    since AIUE-101, so a family without is faked here."""
+    from yldot.harness import locality as L
+
+    assert rm.has_locality("d_only") and rm.has_locality("large_dd2c")
+    monkeypatch.setattr(L, "load_config", lambda fdir: None)
+    assert not rm.has_locality("large_dd2c")
     assert rm.locality_part(None, "large_dd2c", None, None) == (None, None)
 
 

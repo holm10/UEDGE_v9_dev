@@ -9,8 +9,11 @@ Blocks: d_only: primary te[1]
  d_mols: primary te[1]
  d_c: primary te[1]
  slab_phi: primary te[1]
+ large_dd2c: primary te[1]
+ dnull_imp2: primary te[1]
+ imp7: primary te[1]
 Intermediate: none
-Families: d_only, ortho, d_mols, d_c, slab_phi
+Families: d_only, ortho, d_mols, d_c, slab_phi, large_dd2c, dnull_imp2, imp7
 Source: bbb/pandf_plasma_energy.m:646 (at 6ccd347)
 Description: a single weak coupling removed from the evaluation window: the point-wise copy of the electron energy
  source vsoree = vsoreec (iseesorave = 0) stops one row short. A local (Jacobian) evaluation's point range is the
