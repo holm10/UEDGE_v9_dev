@@ -30,7 +30,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   under `tests/yldot/` skips. If the fetch is impossible or `--yldot-no-fetch` is given, a test parametrised over a
   family with absent `families/<f>/` assets fails at setup naming the cause, except those marked `toml_only`;
   different files fail (`test_smoke.py::test_external_files`). The marker `nightly` (AIUE-96) is the nightly tier
-  (PRD §4): the PR tier runs `-m "not nightly"`; the owner families' variant tests (AIUE-99) carry it.
+  (PRD §4): the PR tier runs `-m "not nightly"`; the owner families' variant tests (AIUE-99), their default
+  locality tests and every variant locality test (`test_locality_variant`, about 2,900 with the small families';
+  AIUE-101) carry it.
   `--yldot-shard NAME` (repeatable; AIUE-103) keeps one CI shard: a family's tests (by their `family` parameter) or
   `common` (the rest); `tests/yldot/tools/shards.py` defines the shards, so a test is in exactly one. A test that uses a family's
   files takes the family as its `family` parameter, or it lands in `common` (`test_thresholds.py`'s comparator tests
@@ -291,8 +293,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
-- **Tests** (the whole suite, `-m "not nightly"`: about 5,750 tests, none skipped, about 17 min, serial build, Darwin
-  arm64, 2026-10-24 (AIUE-99); `-m nightly`, the owner families' variant tests: about 2,880, about 37 min on that build
+- **Tests** (the whole suite, `-m "not nightly"`: about 5,840 tests, none skipped once the data release stores the
+  variant locality patterns (before it, `test_locality_variant` has no parameters), about 17 min, serial build, Darwin
+  arm64, 2026-10-24 (AIUE-99; AIUE-101); `-m nightly`: the owner families' variant tests, about 2,880, about 37 min on
+  that build, plus since AIUE-101 the owner families' default locality and about 2,900 variant locality tests
+  (runtime per shard: the ticket's Validation record)
   and 47 min on `--noopt`, one process; update these figures only when a ticket moves the count or the runtime by more than
   about 10 %, the exact count goes in the ticket's Validation record; about 7 min of the runtime are
   `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs;
@@ -315,7 +320,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
   its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`); an owner
-  family's are `nightly`; plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
+  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
   the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
   in the nightly tier one, dnull_imp2 `bbb.thetar`; none on `--noopt`, AIUE-99);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
