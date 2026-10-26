@@ -538,7 +538,7 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
   (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
-  `note`, `cpu`: a `grep -E` pattern; `generate`'s first step stops unless the runner's CPU model matches it), three
+  `note`, `cpu`: a case-insensitive `grep -E` pattern; `generate`'s first step stops unless the runner's CPU model matches it), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
