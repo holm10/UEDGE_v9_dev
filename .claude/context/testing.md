@@ -294,9 +294,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
   on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
   before AIUE-181 fails it, naming the cause. `test_installed_no_vector_math` counts the `_ZGV` (libmvec)
-  symbols of the installed extensions with `nm -D --undefined-only` and requires none (AIUE-211; Forthon names
-  `-lmvec` on every link, so the symbols are counted, not the libraries); it skips off Linux and fails on Linux
-  without `nm`. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
+  symbols of the installed extensions with `nm -D --undefined-only` (`nm -u` off Linux, where the count is 0 by
+  construction) and requires none (AIUE-211; Forthon names `-lmvec` on every link, so the symbols are counted, not
+  the libraries); it runs on every platform (no skips, `test_inventory.py::test_no_skips`) and fails without `nm`. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
   `mppl2f90` on two scratch trees with the working directory and `$PWD` differing; the test requires it to convert
   in and stay in the working directory, and a copy with the pre-AIUE-163 `getenv("PWD")` lines to fail (AIUE-163).
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
