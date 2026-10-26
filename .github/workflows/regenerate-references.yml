@@ -50,7 +50,7 @@ on:
         description: "First paragraph of the release notes"
         default: ""
       cpu:
-        description: "A grep -E pattern (e.g. Intel): generate stops at once unless the runner's CPU model matches it; the pool mixes Intel and AMD CPUs, whose owner-family defaults differ by round-off (AIUE-101)"
+        description: "A case-insensitive grep -E pattern (e.g. intel): generate stops at once unless the runner's CPU model matches it; the pool mixes Intel and AMD CPUs, whose owner-family defaults differ by round-off (AIUE-101)"
         default: ""
 
 permissions: {}
@@ -122,7 +122,7 @@ jobs:
         run: |
           model=$(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')
           echo "cpu: $model" | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ -n "$CPU" ] && ! grep -qE -- "$CPU" <<< "$model"; then
+          if [ -n "$CPU" ] && ! grep -qiE -- "$CPU" <<< "$model"; then
             echo "refused: the CPU '$model' does not match '$CPU'; dispatch again for another runner"; exit 1
           fi
       - uses: actions/checkout@v4
