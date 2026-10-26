@@ -306,6 +306,9 @@ def test_select_columns_sample():
     assert not np.array_equal(cols, L.select_columns(dict(cfg, seed=8), data))
     assert np.array_equal(L.select_columns(cfg, data, sample=False), special)
     assert L.select_columns({"columns": "all"}, data) is None
+    # golden: the PCG64 raw stream is numpy's stable contract, so the stored column sets never move with numpy
+    five = L.select_columns(dict(cfg, sample=5), data)
+    assert sorted(set(five.tolist()) - set(special.tolist())) == [614, 1520, 1585, 1592, 1793]
 
 
 def test_variant_scope():

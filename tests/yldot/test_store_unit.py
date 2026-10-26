@@ -754,6 +754,28 @@ def test_locality_variants_round_trip(tmp_path, kind):
             s.locality_variant("timestep", "bbb.xlinc")
 
 
+def test_locality_pattern_with_a_column_set_uses_the_special_columns(tmp_path, monkeypatch):
+    """With stored columns (a column-set family) a variant's pattern is applied to the default's entries in the
+    special cells' columns only (locality.variant_base), as generation diffs it (make_references.child)."""
+    from yldot.harness import locality as L
+
+    build(tmp_path, "full", locality=(1e-4, LOC), columns=[0, 3, 7], loc_variants=(("steady", "bbb.a", EMPTY, NONE),))
+    monkeypatch.setattr(L, "special_columns", lambda data: np.array([3]))
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        got = s.locality_pattern("steady", "bbb.a")
+        _, default = s.locality("steady")
+    want = L.variant_base(default, np.array([3]))
+    assert got.column.tolist() == [3, 3] and all(getattr(got, k).tobytes() == getattr(want, k).tobytes()
+                                                  for k in L.FIELDS)
+
+
+def test_locality_pattern_without_a_steady_pattern_refused(tmp_path):
+    build(tmp_path, "full")
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        with pytest.raises(store.StoreError, match="no steady locality pattern"):
+            s.locality_pattern("steady", "bbb.cfvisx")
+
+
 def test_tampered_locality_variant_slice_refused(tmp_path):
     """A consistent tamper of the file and its dataset SHAs (guarded re-summarized too) still fails: the slice SHA in
     locality_variants no longer matches."""

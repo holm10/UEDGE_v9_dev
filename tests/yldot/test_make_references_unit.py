@@ -826,11 +826,25 @@ def test_child_options_pass_locality_only_and_jobs():
 
 
 class FakeProc:
-    def __init__(self, rc):
-        self.rc = rc
+    """A child that finishes after `polls` polls with exit code rc."""
 
-    def wait(self):
+    def __init__(self, rc, polls=0):
+        self.rc, self.polls, self.returncode, self.killed = rc, polls, None, False
+
+    def poll(self):
+        if self.polls > 0:
+            self.polls -= 1
+            return None
+        self.returncode = self.rc
         return self.rc
+
+    def kill(self):
+        self.killed = True
+
+
+def parallel_args(families, jobs=2):
+    return Namespace(family=families, jobs=jobs, out="o", build="b.json", sweep="all", only=None, full=False,
+                     repo=None, locality_only=True)
 
 
 def test_parallel_children_largest_first_and_exit_code(monkeypatch):
@@ -838,13 +852,36 @@ def test_parallel_children_largest_first_and_exit_code(monkeypatch):
     monkeypatch.setattr(mr, "family_weight", lambda f: weights[f])
     started = []
 
-    def popen(cmd, rc={"a": 0, "b": 0, "c": 3}):
+    def popen(cmd, rc={"a": 0, "b": 0, "c": 3}, polls={"b": 5, "c": 0, "a": 0}):
         started.append(cmd[cmd.index("_child") + 1])
         assert cmd[cmd.index("--jobs") + 1] == "1" and "--locality-only" in cmd
-        return FakeProc(rc[started[-1]])
+        return FakeProc(rc[started[-1]], polls[started[-1]])
 
-    a = Namespace(family=["a", "b", "c"], jobs=2, out="o", build="b.json", sweep="all", only=None, full=False,
-                  repo=None, locality_only=True)
     with pytest.raises(mr.Stop) as e:
-        mr.parallel_children(a, popen)
+        mr.parallel_children(parallel_args(["a", "b", "c"]), popen, poll_s=0)
+    # c finishes first, so a starts while b still runs (a freed slot is used at once)
     assert started == ["b", "c", "a"] and e.value.code == 3 and "c (exit 3)" in str(e.value)
+
+
+def test_parallel_children_an_error_outranks_findings(monkeypatch):
+    monkeypatch.setattr(mr, "family_weight", lambda f: 0)
+    rc = {"a": 3, "b": 2}
+    with pytest.raises(mr.Stop) as e:
+        mr.parallel_children(parallel_args(["a", "b"]), lambda cmd: FakeProc(rc[cmd[cmd.index("_child") + 1]]),
+                             poll_s=0)
+    assert e.value.code == 2 and "a (exit 3)" in str(e.value) and "b (exit 2)" in str(e.value)
+
+
+def test_parallel_children_kills_the_running_on_an_exception(monkeypatch):
+    monkeypatch.setattr(mr, "family_weight", lambda f: 0)
+    procs = []
+
+    def popen(cmd):
+        if procs:
+            raise OSError("no more processes")
+        procs.append(FakeProc(0, polls=10 ** 6))
+        return procs[-1]
+
+    with pytest.raises(OSError):
+        mr.parallel_children(parallel_args(["a", "b"]), popen, poll_s=0)
+    assert procs[0].killed

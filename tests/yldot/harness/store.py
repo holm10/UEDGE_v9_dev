@@ -722,7 +722,10 @@ class Store:
         special cells' columns when the default perturbs a column set (locality.variant_base)."""
         from .locality import apply, special_columns, variant_base
 
-        _, default = self.locality("steady")
+        stored = self.locality("steady")
+        if stored is None:
+            raise StoreError("{}: no steady locality pattern stored, so no variant pattern applies".format(self.path))
+        default = stored[1]
         special = None if self.locality_columns("steady") is None else special_columns(self.index_data())
         return apply(variant_base(default, special), *self.locality_variant(config, vid))
 

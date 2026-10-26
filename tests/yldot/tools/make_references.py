@@ -604,22 +604,34 @@ def child_argv(args, family):
     return cmd
 
 
-def parallel_children(args, popen=subprocess.Popen):
+def parallel_children(args, popen=subprocess.Popen, poll_s=1.0):
     """_child --jobs N: one process per family, at most N at a time, largest first (each family's files are its
-    own); Stop with the first failing family's exit code."""
+    own); a freed slot starts the next family at once. Stop with exit 2 if any family failed with an error (2 or
+    another code), else 3 if any reported findings for the owner, listing every family; on an exception the running
+    children are killed."""
+    import time
+
     queue = sorted(args.family, key=lambda f: (-family_weight(f), f))
     running, failed = [], []
-    while queue or running:
-        while queue and len(running) < args.jobs:
-            name = queue.pop(0)
-            running.append((name, popen(child_argv(args, name))))
-        name, proc = running.pop(0)
-        rc = proc.wait()
-        if rc != 0:
-            failed.append((name, rc))
+    try:
+        while queue or running:
+            while queue and len(running) < args.jobs:
+                name = queue.pop(0)
+                running.append((name, popen(child_argv(args, name))))
+            done = [(n, p) for n, p in running if p.poll() is not None]
+            if not done:
+                time.sleep(poll_s)
+                continue
+            for n, p in done:
+                running.remove((n, p))
+                if p.returncode != 0:
+                    failed.append((n, p.returncode))
+    finally:
+        for _, p in running:
+            p.kill()
     if failed:
-        raise Stop(failed[0][1], "families failed: {}".format(", ".join("{} (exit {})".format(n, c)
-                                                                        for n, c in failed)))
+        code = 3 if all(c == 3 for _, c in failed) else 2
+        raise Stop(code, "families failed: {}".format(", ".join("{} (exit {})".format(n, c) for n, c in failed)))
 
 
 # ---------------------------------------------------------------- host side: checks
