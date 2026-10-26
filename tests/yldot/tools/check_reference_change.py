@@ -86,7 +86,8 @@ PYTEST_INI = ("pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.i
 PYTEST_CONFIG = PYTEST_INI + ("setup.cfg", "pyproject.toml")
 MAX_EXTERNAL_BYTES = 200 * 10**6  # per external file (AIUE-104 adds runner-side caps)
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/|sketch_threshold/|sketch_weight$)|locality/)")
+GUARDED_DEFAULT_RE = re.compile(r"^/[^/]+/(default/(yldot|sigma|jflag/|sketch_threshold/|sketch_weight$)|locality/|"
+                                r"locality_variants/)")
 
 # tolerances.toml (PRD 7.4, 7.6): a larger value loosens, a smaller one tightens; the rule texts and floor_limit
 # only loosen; the record sections are measurements and owner bookkeeping
@@ -101,6 +102,9 @@ FAMILY_RECORDS = ("source", "reference_state", "perturbation", "limiter_report",
 LOCALITY_MONOTONE = ("m_loc",)
 LOCALITY_LOOSE = ("delta_loc",)
 LOCALITY_RECORDS = ("calibration", "causes")
+# the column set and the variant scope (AIUE-101): a narrower one loosens, a wider one is a new criterion; absent
+# columns meant every column, absent variants none; sample (interior columns) the larger the tighter, seed a new sample
+LOCALITY_SCOPE = {"columns": {None: 2, "all": 2, "special": 1}, "variants": {None: 0, "meth": 1, "listed": 2, "all": 3}}
 
 
 class GuardError(Exception):
@@ -327,6 +331,25 @@ def diff_locality(a, b):
         what = "[locality].{}: {!r} -> {!r}".format(key, va, vb)
         if key in LOCALITY_MONOTONE:
             out.append((monotone(va, vb), what))
+        elif key in LOCALITY_SCOPE:
+            rank = LOCALITY_SCOPE[key]
+            wider = isinstance(vb, str) and vb in rank and (va is None or isinstance(va, str) and va in rank) \
+                and rank[vb] >= rank[va]
+            out.append((CHANGED if wider else LOOSENED, what + (" (wider or equal)" if wider else " (narrower)")))
+        elif key in ("sample", "seed") and a.get("columns", "all") != b.get("columns", "all"):
+            continue  # part of the change of columns, judged there
+        elif key == "sample":
+            more = all(isinstance(v, int) and not isinstance(v, bool) for v in (va or 0, vb)) and vb >= (va or 0)
+            out.append((CHANGED if more else LOOSENED, what + (" (more columns)" if more else " (fewer columns)")))
+        elif key == "seed":
+            out.append((CHANGED if vb is not None else LOOSENED, what + " (another sample)"))
+        elif key == "excluded" and isinstance(va or {}, dict) and isinstance(vb or {}, dict):
+            va, vb = va or {}, vb or {}
+            more = sorted(k for k in vb if k not in va)
+            if more:
+                out.append((LOOSENED, "[locality].excluded adds {} (fewer variant patterns)".format(more)))
+            if any(k in va and va[k] != vb[k] for k in vb) or any(k not in vb for k in va):
+                out.append((CHANGED, "[locality].excluded reasons changed or entries removed (record)"))
         elif key in LOCALITY_LOOSE:
             out.append((LOOSENED, what + " (non-monotone parameter)"))
         elif key in LOCALITY_RECORDS:
@@ -371,6 +394,8 @@ def diff_manifest(family, m0, m1, base_classes):
     g0, g1 = m0.get("guarded", {}), m1.get("guarded", {})
     for key in sorted(g0):
         if g1.get(key) != g0[key]:
+            if key.startswith("locality_variants/"):
+                continue  # judged per variant below, through locality_variants
             if key.endswith("/sigma"):
                 add(LOOSENED, "stored sigma {} {}".format(key, "removed" if key not in g1 else "changed"))
             elif key.endswith("/sketch_threshold"):  # the manifest cannot show the thresholds smaller (AIUE-92)
@@ -382,6 +407,17 @@ def diff_manifest(family, m0, m1, base_classes):
         add(None, "addition: guarded {}".format(sorted(set(g1) - set(g0))))
     if m0.get("unguarded", {}) != m1.get("unguarded", {}):
         add(None, "diagnostics changed (unguarded)")
+    # the variants' locality patterns (AIUE-101): a new one is a new criterion, a changed one a default change of
+    # that variant, a removed one a loosening
+    l0, l1 = m0.get("locality_variants", {}), m1.get("locality_variants", {})
+    new_loc = sorted(set(l1) - set(l0))
+    if new_loc:
+        add(CHANGED, "new locality patterns of variants {}".format(new_loc))
+    for vid in sorted(set(l0) - set(l1)):
+        add(LOOSENED, "locality pattern of variant {} removed".format(vid))
+    for vid in sorted(set(l0) & set(l1)):
+        if l0[vid] != l1[vid]:
+            add(DEFAULT, "locality pattern of variant {} changed".format(vid), "{}:{}".format(family, vid))
     d0, d1 = m0.get("datasets", {}), m1.get("datasets", {})
     for name in sorted(d0):
         if d1.get(name) == d0[name] or "/diagnostics/" in name or store.STORED_VARIANT.match(name):
@@ -548,6 +584,17 @@ def check_h5(path, m):
         problems.append("root attributes {} do not match the manifest".format(attrs))
     if m["store"] == "sketch" and sketch != m.get("sketch"):
         problems.append("k/seed {} differ from the manifest's sketch {}".format(sketch, m.get("sketch")))
+    with h5py.File(path, "r") as f:
+        try:
+            slices = store.locality_slices(f)
+        except (ValueError, KeyError) as e:
+            slices = None
+            problems.append("locality_variants unreadable: {}".format(e))
+    if slices is not None:
+        want = {vid: (e["config"], e["sha256"]) for vid, e in m.get("locality_variants", {}).items()}
+        bad = sorted(vid for vid in set(want) | set(slices) if want.get(vid) != slices.get(vid))
+        if bad:
+            problems.append("locality_variants slices differ from the manifest: {}".format(bad))
     return problems
 
 

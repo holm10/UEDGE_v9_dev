@@ -169,9 +169,14 @@ def test_compare_pattern_refuses_bad_m_loc():
 @pytest.mark.parametrize("edit, error", [
     ({"delta_loc": 0}, "delta_loc"), ({"m_loc": 1}, "m_loc"), ({"m_loc": True}, "m_loc"),
     ({"extra": 1}, "exactly the keys"), ({"causes": "none"}, "causes"),
+    ({"columns": "some"}, "columns"), ({"variants": "few"}, "variants"),
+    ({"sample": 3}, "exactly the keys"),  # sample and seed only with columns = "special"
+    ({"columns": "special"}, "exactly the keys"),
+    ({"columns": "special", "sample": -1, "seed": 0}, "sample"),
+    ({"columns": "special", "sample": 3, "seed": True}, "seed"),
 ])
 def test_load_config_refuses(tmp_path, edit, error):
-    t = {"delta_loc": 1e-5, "m_loc": 100.0, "calibration": "x", "causes": {}}
+    t = {"delta_loc": 1e-5, "m_loc": 100.0, "calibration": "x", "causes": {}, "columns": "all", "variants": "all"}
     t.update(edit)
     lines = ["[locality]"] + ["{} = {}".format(k, "{}" if v == {} else repr(v) if isinstance(v, str)
                                                else str(v).lower() if isinstance(v, bool) else v)
@@ -179,3 +184,82 @@ def test_load_config_refuses(tmp_path, edit, error):
     (tmp_path / "family.toml").write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError, match=error):
         L.load_config(tmp_path)
+
+
+# ---------------------------------------------------------------- columns, variants and pattern differences (AIUE-101)
+
+
+def index_data(family):
+    with open_store(family) as s:
+        return s.index_data()
+
+
+@pytest.mark.parametrize("family, n", [("d_only", 378), ("large_dd2c", 7936)])
+def test_special_columns_count(family, n):
+    """The owner's rule (AIUE-101 Q1) on the stored grids; the counts are the planning probe's (live com arrays)."""
+    cols = L.special_columns(index_data(family))
+    assert cols.size == n and (np.diff(cols) > 0).all()
+
+
+def test_special_columns_double_null():
+    """dnull_imp2 (nxpt = 2): the inner plates ixrb(1), ixrb(1)+1, ixlb(2), ixlb(2)+1 = 36..39 and both separatrix
+    rows (iysptrx 16 and 30) are special; each cut stops at its own separatrix."""
+    data = index_data("dnull_imp2")
+    cols = L.special_columns(data)
+    ix, iy = (data["igyl"][cols, k] for k in (0, 1))
+    assert set(range(36, 40)) <= set(ix.tolist())
+    assert {16, 17, 30, 31} <= set(iy.tolist())
+    special = set(zip(ix.tolist(), iy.tolist()))
+    assert (50, 16) in special and (50, 20) not in special  # ixpt1(2) = 50 pairs with iysptrx1(2) = 16
+    assert (10, 25) in special  # ixpt1(1) = 10 pairs with iysptrx1(1) = 30
+
+
+def test_select_columns_sample():
+    data = index_data("d_c")
+    special = L.special_columns(data)
+    cfg = {"columns": "special", "sample": 50, "seed": 7}
+    cols = L.select_columns(cfg, data)
+    assert cols.size == special.size + 50 and set(special.tolist()) <= set(cols.tolist())
+    assert np.array_equal(cols, L.select_columns(cfg, data))  # deterministic
+    assert not np.array_equal(cols, L.select_columns(dict(cfg, seed=8), data))
+    assert np.array_equal(L.select_columns(cfg, data, sample=False), special)
+    assert L.select_columns({"columns": "all"}, data) is None
+
+
+def test_variant_scope():
+    v = {"bbb.methe=22": {"class": "SENSITIVE"}, "bbb.methe=33": {"class": "EXCLUDED"},
+         "bbb.methp=44": {"class": "INERT"}, "bbb.xrinc": {"class": "INERT"}, "bbb.isnewpot": {"class": "SENSITIVE"},
+         "bbb.yinc": {"class": "INVALID"}, "bbb.ncore": {"class": "MARGINAL"}, "api.methimp": {"class": "INERT"}}
+    assert L.variant_scope({"variants": "all"}, v) == ["api.methimp", "bbb.isnewpot", "bbb.methe=22", "bbb.methp=44",
+                                                       "bbb.ncore", "bbb.xrinc"]
+    assert L.variant_scope({"variants": "listed"}, v) == ["bbb.methe=22", "bbb.methp=44", "bbb.xrinc"]
+    assert L.variant_scope({"variants": "meth"}, v) == ["bbb.methe=22", "bbb.methp=44"]
+    assert L.variant_scope({"variants": "listed", "excluded": {"bbb.xrinc": "why"}}, v) == ["bbb.methe=22",
+                                                                                              "bbb.methp=44"]
+
+
+def test_excluded_needs_reasons(tmp_path):
+    (tmp_path / "family.toml").write_text('[locality]\ndelta_loc = 1e-6\nm_loc = 100.0\ncalibration = "x"\n'
+                                          'columns = "all"\nvariants = "all"\n[locality.causes]\n'
+                                          '[locality.excluded]\n"bbb.a" = ""\n')
+    with pytest.raises(ValueError, match="excluded"):
+        L.load_config(tmp_path)
+    assert L.load_config(FAMILIES / "d_only")["excluded"].keys() == {"bbb.isupgon"}
+
+
+def test_diff_apply_round_trip():
+    a = raw((0, 2, 5e-8, 0.0), (1, 3, 5e-9, 1.0), (4, 5, 1e-9, 0.0))
+    b = raw((0, 2, 5e-8, 0.0), (1, 3, 6e-9, 1.0), (2, 1, 1e-9, 0.0))  # same, changed, new; (4, 5) dropped
+    added, dropped = L.diff(a, b)
+    assert sorted(zip(added.column.tolist(), added.row.tolist())) == [(1, 3), (2, 1)]
+    assert dropped["column"].tolist() == [4] and dropped["row"].tolist() == [5]
+    back = L.apply(a, added, dropped)
+    assert all(getattr(back, k).tobytes() == getattr(b.sorted(), k).tobytes() for k in L.FIELDS)
+    added, dropped = L.diff(a, a)  # an unchanged variant stores nothing
+    assert len(added) == 0 and dropped["column"].size == 0
+    assert all(getattr(L.apply(a, added, dropped), k).tobytes() == getattr(a, k).tobytes() for k in L.FIELDS)
+
+
+def test_diff_detects_dfull_only_change():
+    added, _ = L.diff(raw((0, 2, 5e-8, 0.0)), raw((0, 2, 5e-8, 1e-300)))
+    assert len(added) == 1

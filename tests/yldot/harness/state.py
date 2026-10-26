@@ -246,7 +246,12 @@ def evaluate(job):
     # 8c
     loc = None
     if job.get("locality") is not None:
-        loc = locality.run(bbb, neq, job["locality"])
+        columns = job.get("columns")
+        if isinstance(columns, dict):  # a [locality] selection, resolved on the live grid (locality.select_columns)
+            data = index_data(bbb, com)
+            data["neq"] = neq
+            columns = locality.select_columns(columns, data)
+        loc = locality.run(bbb, neq, job["locality"], columns)
         if not np.array_equal(loc["f00"], yldot_j):
             raise Stop("owner", "{}: the locality f00 differs from yldot_J at rows {}; irregular: ask the epic owner "
                        "(decision 23)".format(family.name, np.flatnonzero(loc["f00"] != yldot_j)[:20] + 1))

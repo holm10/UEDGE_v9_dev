@@ -1,8 +1,10 @@
 """The locality check of the yldot suite (epic AIUE-9, PRD section 7.5; AIUE-100): how the local evaluation
 pandf(xc, yc, ...) that jac_calc builds the Jacobian from differs from the full evaluation, column by column.
 
-Child side (state.py step 8c calls it after the default evaluation, uedge loaded):
-    run(bbb, neq, delta)  -> {"delta", "del", "dylconst", "f00", "stale", "entries": {column, row, mismatch, dfull}}
+Child side (state.py step 8c calls it after the evaluation of every non-intake config, uedge loaded):
+    run(bbb, neq, delta, columns=None)
+        -> {"delta", "del", "dylconst", "f00", "stale", "entries": {column, row, mismatch, dfull}, "columns"}
+    columns: the 0-based columns to perturb (select_columns), None for every column (returned as given).
 
 The protocol follows jac_calc (bbb/oderhs.m:1095-1226) with the Jacobian flag yl(neq+1) = 1 (Python yl[neq]) for every
 call, as psetnk sets it (bbb/oderhs.m:1939-1952):
@@ -21,6 +23,11 @@ entries with score > 1; its pattern P is those with score > M_loc. At test time 
     a P entry must still score > 1 and match its stored d: |d_new - d_ref| <= tol_r + rtol_eq*|Delta_full,new|;
     an entry outside P must score <= M_loc;
     entries in the band (1, M_loc] are recorded but not asserted.
+
+Columns and variants (PRD 7.5 "Columns and tiers"; AIUE-101, owner 2026-10-25): [locality].columns = "all" perturbs
+every column; "special" the columns of the special cells (special_columns) plus `sample` seeded interior columns for the
+default (variants: the special cells only). [locality].variants picks the variants with a stored pattern
+(variant_scope); each is stored as its difference from the default pattern (diff, apply).
 uedge is never imported here.
 """
 import math
@@ -30,7 +37,14 @@ import numpy as np
 
 FIELDS = ("column", "row", "mismatch", "dfull")
 DTYPES = {"column": np.int64, "row": np.int64, "mismatch": np.float64, "dfull": np.float64}
-KEYS = ("delta_loc", "m_loc", "calibration", "causes")  # family.toml [locality]
+KEYS = ("delta_loc", "m_loc", "calibration", "causes", "columns", "variants")  # family.toml [locality]
+SAMPLE_KEYS = ("sample", "seed")  # with columns = "special" only
+OPTIONAL = ("excluded",)  # {variant id: reason}: owner-decided exclusions from the variant scope (decision 23)
+COLUMNS = ("all", "special")
+VARIANTS = ("all", "listed", "meth")
+# the inputs that move the local evaluation's window (owner, 2026-10-25, AIUE-101 Q3)
+WINDOW_INPUTS = ("xlinc", "xrinc", "yinc", "isjaccorall", "isturbnloc", "isturbcons", "diffuslimit")
+VALID = ("SENSITIVE", "INERT", "MARGINAL")  # the classes with a usable stored result (manifest.CLASSES)
 
 
 def load_config(fdir):
@@ -42,9 +56,18 @@ def load_config(fdir):
         t = tomllib.load(f).get("locality")
     if t is None:
         return None
-    bad = sorted(set(t) ^ set(KEYS))
+    want = KEYS + (SAMPLE_KEYS if t.get("columns") == "special" else ())
+    bad = sorted((set(t) - set(OPTIONAL)) ^ set(want))
     if bad:
-        raise ValueError("{}: [locality] needs exactly the keys {}, differs in {}".format(fdir, list(KEYS), bad))
+        raise ValueError("{}: [locality] needs exactly the keys {}, differs in {}".format(fdir, list(want), bad))
+    if t["columns"] not in COLUMNS:
+        raise ValueError("{}: [locality].columns = {!r}, need one of {}".format(fdir, t["columns"], COLUMNS))
+    if t["variants"] not in VARIANTS:
+        raise ValueError("{}: [locality].variants = {!r}, need one of {}".format(fdir, t["variants"], VARIANTS))
+    for key in SAMPLE_KEYS if t["columns"] == "special" else ():
+        v = t[key]
+        if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+            raise ValueError("{}: [locality].{} = {!r}, need an integer >= 0".format(fdir, key, v))
     for key in ("delta_loc", "m_loc"):
         v = t[key]
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
@@ -53,17 +76,94 @@ def load_config(fdir):
         raise ValueError("{}: [locality].m_loc = {}, need > 1".format(fdir, t["m_loc"]))
     if not isinstance(t["causes"], dict):
         raise ValueError("{}: [locality].causes must be a table".format(fdir))
+    ex = t.get("excluded", {})
+    if not (isinstance(ex, dict) and all(isinstance(v, str) and v.strip() for v in ex.values())):
+        raise ValueError("{}: [locality].excluded must map variant ids to a reason".format(fdir))
     return t
+
+
+# ---------------------------------------------------------------- columns and variants
+
+
+def special_columns(data):
+    """The sorted 0-based columns of the special cells (owner, 2026-10-25, AIUE-101 Q1), every variable of each cell.
+
+    data: index data as state.index_data or Store.index_data return it (igyl and the grid read live from com), with
+    jx < nxpt:
+        plates      ix in {ixlb(jx), ixlb(jx)+1, ixrb(jx), ixrb(jx)+1}
+        radial      iy in {0, 1, ny, ny+1}
+        separatrix  iy in {s, s+1} for every distinct s of iysptrx1(jx), iysptrx2(jx)
+        cuts        ix in {ixptK(jx), ixptK(jx)+1} for iy <= iysptrxK(jx), K = 1, 2
+    iysptrxK(jx) pairs with ixptK(jx) (the gridue header, doc/pdf/Snowflake_mapping_rpt_Rensink_Rognlien.pdf; the
+    xccuts test, bbb/pandf.m:113-119). The X-point cells and the corners fall inside."""
+    g = data["grid"]
+    neq = int(data["neq"])
+    igyl = np.asarray(data["igyl"])[:neq]
+    ix, iy = igyl[:, 0], igyl[:, 1]
+    nxpt, ny = int(g["nxpt"]), int(g["ny"])
+    arr = lambda name: np.atleast_1d(np.asarray(g[name], dtype=np.int64))[:nxpt]  # noqa: E731
+    lb, rb, sp1, sp2 = arr("ixlb"), arr("ixrb"), arr("iysptrx1"), arr("iysptrx2")
+    plates = np.concatenate([lb, lb + 1, rb, rb + 1])
+    seps = np.unique(np.concatenate([sp1, sp2]))
+    mask = np.isin(ix, plates) | np.isin(iy, [0, 1, ny, ny + 1]) | np.isin(iy, np.concatenate([seps, seps + 1]))
+    for xpt, sep in ((arr("ixpt1"), sp1), (arr("ixpt2"), sp2)):
+        for a, s in zip(xpt, sep):
+            mask |= np.isin(ix, [a, a + 1]) & (iy <= s)
+    return np.flatnonzero(mask).astype(np.int64)
+
+
+def select_columns(cfg, data, sample=True):
+    """The columns a run perturbs: None for columns = "all"; else the special cells' columns and, with sample, the
+    [locality].sample interior columns of smallest key, the keys PCG64(seed).random_raw(neq) (one per column, stable
+    across numpy versions as store.signs)."""
+    if cfg["columns"] == "all":
+        return None
+    special = special_columns(data)
+    n = int(cfg["sample"]) if sample else 0
+    if n == 0:
+        return special
+    neq = int(data["neq"])
+    keys = np.asarray(np.random.PCG64(int(cfg["seed"])).random_raw(neq), dtype=np.uint64)
+    interior = np.setdiff1d(np.arange(neq, dtype=np.int64), special)
+    if n > interior.size:
+        raise ValueError("[locality].sample = {} exceeds the {} interior columns".format(n, interior.size))
+    picked = interior[np.argsort(keys[interior], kind="stable")[:n]]
+    return np.union1d(special, picked).astype(np.int64)
+
+
+def variant_scope(cfg, variables):
+    """The sorted variant ids with a stored locality pattern (owner, 2026-10-25, AIUE-101 Q2-Q3), from the manifest's
+    variables ({id: {"class", ...}}): "all" every SENSITIVE, INERT and MARGINAL variant; "listed" the bbb.meth* variants
+    and the WINDOW_INPUTS, "meth" the bbb.meth* variants, both of those classes only. The ids in [locality].excluded
+    (owner decisions with their reasons) are left out."""
+    excluded = cfg.get("excluded", {})
+    def name(vid):
+        return vid.split("=", 1)[0]
+
+    def listed(vid):
+        n = name(vid)
+        return n.startswith("bbb.meth") or (cfg["variants"] == "listed" and n in ["bbb." + w for w in WINDOW_INPUTS])
+
+    return sorted(vid for vid, v in variables.items()
+                  if v["class"] in VALID and vid not in excluded and (cfg["variants"] == "all" or listed(vid)))
 
 
 # ---------------------------------------------------------------- child side
 
 
-def run(bbb, neq, delta):
-    """The PRD 7.5 protocol over every column, in the child after the default evaluation."""
+def run(bbb, neq, delta, columns=None):
+    """The PRD 7.5 protocol over the given columns (every column for None), in the child after an evaluation."""
     delta = float(delta)
     if not (math.isfinite(delta) and delta > 0):
         raise ValueError("delta = {}, need a finite delta > 0".format(delta))
+    if columns is None:
+        columns = range(neq)
+    else:
+        columns = np.asarray(columns, dtype=np.int64)
+        if columns.ndim != 1 or (columns.size and (columns.min() < 0 or columns.max() >= neq)) or \
+                (np.diff(columns) <= 0).any():
+            raise ValueError("columns must be increasing 0-based columns below neq = {}".format(neq))
+        columns = columns.tolist()
     yl = bbb.yl
     yl[neq] = 1.0
     yl[neq + 1] = 0.0
@@ -75,7 +175,7 @@ def run(bbb, neq, delta):
     dylconst = float(bbb.dylconst)
     base = f00[:neq]
     cols, rows, mism, dfull, stale = [], [], [], [], []
-    for iv in range(neq):
+    for iv in columns:
         xc, yc = int(igyl[iv, 0]), int(igyl[iv, 1])
         wk[:] = f00
         y0 = float(yl[iv])
@@ -99,7 +199,8 @@ def run(bbb, neq, delta):
     entries = {"column": cat(cols, np.int64), "row": cat(rows, np.int64), "mismatch": cat(mism, np.float64),
                "dfull": cat(dfull, np.float64)}
     return {"delta": delta, "del": float(getattr(bbb, "del")), "dylconst": dylconst, "f00": base.copy(),
-            "stale": np.asarray(stale, dtype=np.int64), "entries": entries}
+            "stale": np.asarray(stale, dtype=np.int64), "entries": entries,
+            "columns": None if isinstance(columns, range) else np.asarray(columns, dtype=np.int64)}
 
 
 # ---------------------------------------------------------------- parent side
@@ -132,6 +233,37 @@ class Entries:
 
     def __len__(self):
         return int(self.column.size)
+
+    def sorted(self):
+        """The entries ordered by (column, row), as run writes them."""
+        return self.select(np.lexsort((self.row, self.column)))
+
+
+def _keys(column, row):
+    return [(int(c), int(r)) for c, r in zip(column, row)]
+
+
+def diff(default, variant):
+    """A variant's pattern as its difference from the default pattern (both Entries): (added, dropped). added holds
+    the variant's entries that are new or differ bitwise from the default's in mismatch or dfull; dropped
+    {"column", "row"} the default's keys the variant lacks. apply(default, added, dropped) restores the variant."""
+    ref = {k: (m.tobytes(), f.tobytes()) for k, m, f in zip(_keys(default.column, default.row), default.mismatch,
+                                                            default.dfull)}
+    keys = _keys(variant.column, variant.row)
+    new = np.array([ref.get(k) != (m.tobytes(), f.tobytes()) for k, m, f in zip(keys, variant.mismatch,
+                                                                                 variant.dfull)], dtype=bool)
+    gone = sorted(set(ref) - set(keys))
+    dropped = {"column": np.array([c for c, _ in gone], dtype=np.int64),
+               "row": np.array([r for _, r in gone], dtype=np.int64)}
+    return variant.select(new.reshape(-1)).sorted(), dropped
+
+
+def apply(default, added, dropped):
+    """The variant's Entries from the default pattern and its difference (diff), ordered by (column, row)."""
+    out = set(_keys(dropped["column"], dropped["row"])) | set(_keys(added.column, added.row))
+    keep = np.array([k not in out for k in _keys(default.column, default.row)], dtype=bool).reshape(-1)
+    kept = default.select(keep)
+    return Entries.of({k: np.concatenate([getattr(kept, k), getattr(added, k)]) for k in FIELDS}).sorted()
 
 
 def rtol_rows(rtol, imap):

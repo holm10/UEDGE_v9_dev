@@ -21,7 +21,11 @@ The manifest is the reviewable text next to each family's one binary reference f
     variables   {variant id: {class, reason, applied, d (variants.encode form), phase, config, sha256 (of the
                 variant's stored datasets, or null), block_l2, jflag_block_l2}}. block_l2 is the L2 norm of
                 yldot_variant - yldot_default per (equation, species, region) block, zero blocks omitted (owner,
-                2026-10-21, AIUE-84); jflag_block_l2 the same for the flag differences.
+                2026-10-21, AIUE-84); jflag_block_l2 the same for the flag differences;
+    locality_variants (optional) {variant id: {config, sha256, added, dropped}}: the variants whose locality pattern
+                the reference stores as a difference from the default pattern (store.py, /<config>/locality_variants;
+                AIUE-101), with the SHA-256 of the variant's slice (store.locality_slice_sha) and its entry counts;
+                guarded as locality_variants/<config> over the packed datasets.
 
 In the text, an encoded value {dtype, shape, data} whose data has repeated neighbours is written as {dtype, shape,
 runs: [[value, count], ...]} when that has fewer entries (owner, 2026-10-25, AIUE-190: the manifests' bulk was the
@@ -205,6 +209,9 @@ def summarize(datasets):
         loc = {n: s for n, s in datasets.items() if n.startswith("/{}/locality/".format(config))}
         if loc:
             guarded["locality/{}".format(config)] = combined_sha(loc)
+        lv = {n: s for n, s in datasets.items() if n.startswith("/{}/locality_variants/".format(config))}
+        if lv:
+            guarded["locality_variants/{}".format(config)] = combined_sha(lv)
     diag = {n: s for n, s in datasets.items() if "/diagnostics/" in n}
     if diag:
         unguarded["diagnostics"] = combined_sha(diag)
@@ -242,6 +249,26 @@ def _norms(where, d, errors):
         errors.append("{}: need {{block label: finite positive float}}".format(where))
 
 
+def _locality_variants(m, variables, errors):
+    loc = m.get("locality_variants", {})
+    if not isinstance(loc, dict):
+        errors.append("locality_variants must be an object")
+        return
+    for vid, e in loc.items():
+        where = "locality_variants[{!r}]".format(vid)
+        if not (isinstance(e, dict) and set(e) == {"config", "sha256", "added", "dropped"}):
+            errors.append("{}: need exactly the keys config, sha256, added, dropped".format(where))
+            continue
+        v = variables.get(vid)
+        if not (isinstance(v, dict) and v.get("config") == e["config"]
+                and v.get("class") in ("SENSITIVE", "INERT", "MARGINAL")):
+            errors.append("{}: not a SENSITIVE, INERT or MARGINAL variable of config {!r}".format(where, e["config"]))
+        if not (isinstance(e["sha256"], str) and SHA_RE.match(e["sha256"])):
+            errors.append("{}: sha256 must be 64 hex".format(where))
+        if not (_int(e["added"]) and _int(e["dropped"]) and e["added"] >= 0 and e["dropped"] >= 0):
+            errors.append("{}: added and dropped must be integers >= 0".format(where))
+
+
 def validate(m):
     errors = []
     if not isinstance(m, dict):
@@ -249,7 +276,7 @@ def validate(m):
     missing = [k for k in REQUIRED if k not in m]
     if missing:
         errors.append("missing keys {}".format(missing))
-    unknown = sorted(set(m) - set(REQUIRED) - set(WITH_DATA) - {"sketch"})
+    unknown = sorted(set(m) - set(REQUIRED) - set(WITH_DATA) - {"sketch", "locality_variants"})
     if unknown:
         errors.append("unknown keys {}".format(unknown))
     if m.get("schema") != SCHEMA:
@@ -328,5 +355,8 @@ def validate(m):
                 errors.append("{}: only a SENSITIVE variant stores data (sha256 must be null)".format(where))
             _norms(where + ".block_l2", v["block_l2"], errors)
             _norms(where + ".jflag_block_l2", v["jflag_block_l2"], errors)
+        _locality_variants(m, variables, errors)
+    elif "locality_variants" in m:
+        errors.append("locality_variants without the reference data")
     if errors:
         raise ManifestError("manifest {}: {}".format(m.get("family", "?"), "; ".join(errors)))

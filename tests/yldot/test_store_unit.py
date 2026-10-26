@@ -46,9 +46,11 @@ LOC = {"column": np.array([3, 0, 3]), "row": np.array([5, 2, 1]), "mismatch": np
        "dfull": np.array([1e-3, 4e-4, 2e-2])}
 
 
-def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None, tol=TOL):
+def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None, tol=TOL,
+          columns=None, loc_variants=()):
     """A reference file and its manifest in a scratch suite; returns the manifest. locality: (delta, entries); tol:
-    the tolerance a sketch store's weights are 1 / of."""
+    the tolerance a sketch store's weights are 1 / of; columns: the locality's perturbed columns; loc_variants:
+    (config, id, added, dropped) locality differences (an id not in variants is an INERT variable)."""
     ref = Path(suite) / "references"
     ref.mkdir(parents=True, exist_ok=True)
     w = store.create(ref / "{}.h5".format(family), kind, family, DATA, IMAP)
@@ -57,9 +59,11 @@ def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", releas
         if kind == "sketch":  # weights 1/tol, required (AIUE-174)
             w.write_sketch_thresholds(config, tol)
     if locality is not None:
-        w.write_locality("steady", *locality)
+        w.write_locality("steady", *locality, columns=columns)
     for vid, yv, yjv in variants:
         w.write_variant("steady", vid, yv, yjv)
+    for config, vid, added, dropped in loc_variants:
+        w.write_locality_variant(config, vid, added, dropped)
     out = w.finish()
     guarded, unguarded = mf.summarize(out["datasets"])
     variables = {vid: {"class": "SENSITIVE", "reason": "", "applied": None, "d": None, "phase": "PRE",
@@ -67,12 +71,17 @@ def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", releas
                        "block_l2": store.block_l2(yv - Y, LABELS, ROWS),
                        "jflag_block_l2": store.block_l2((yjv - yv) - (YJ - Y), LABELS, ROWS)}
                  for vid, yv, yjv in variants}
+    for config, vid, _, _ in loc_variants:
+        variables.setdefault(vid, {"class": "INERT", "reason": "", "applied": None, "d": None, "phase": "PRE",
+                                   "config": config, "sha256": None, "block_l2": {}, "jflag_block_l2": {}})
     m = {"schema": 1, "family": family, "store": kind, "release": release,
          "external": {mf.reference_path(family): {"sha256": out["sha256"], "bytes": out["bytes"]}},
          "datasets": out["datasets"], "guarded": guarded, "unguarded": unguarded,
          "provenance": mf.provenance("0" * 40, "gfortran 15", "-O3", "local"), "variables": variables}
     if kind == "sketch":
         m["sketch"] = {"k": store.K, "seed": store.SEED}
+    if out["locality_variants"]:
+        m["locality_variants"] = out["locality_variants"]
     mf.dump(m, mf.path(family, suite))
     return m
 
@@ -677,6 +686,128 @@ def test_write_locality_needs_the_default_and_runs_once(tmp_path):
     w.write_locality("steady", 1e-4, LOC)
     with pytest.raises(store.StoreError, match="already written"):
         w.write_locality("steady", 1e-4, LOC)
+    w.finish()
+
+
+# ---------------------------------------------------------------- column sets and variant patterns (AIUE-101)
+
+ADDED = {"column": np.array([3, 7]), "row": np.array([1, 4]), "mismatch": np.array([4e-5, 1e-6]),
+         "dfull": np.array([2e-2, 0.0])}  # (3, 1) changed, (7, 4) new
+DROPPED = {"column": np.array([0]), "row": np.array([2])}
+EMPTY = {k: np.zeros(0, dtype=np.int64 if k in ("column", "row") else float) for k in LOC}
+NONE = {"column": np.zeros(0, int), "row": np.zeros(0, int)}
+LOC_VARIANTS = (("steady", "bbb.methe=22", ADDED, DROPPED), ("steady", "bbb.xlinc", EMPTY, NONE),
+                ("timestep", "bbb.isbcwdt", ADDED, NONE))
+
+
+def test_locality_columns_round_trip(tmp_path):
+    m = build(tmp_path, "full", locality=(1e-4, LOC), columns=[0, 3, 8])
+    assert "/steady/locality/columns" in m["datasets"]
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.locality_columns("steady").tolist() == [0, 3, 8]
+    build(tmp_path, "full", locality=(1e-4, LOC))
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.locality_columns("steady") is None
+
+
+def test_locality_columns_without_columns_keep_the_sha(tmp_path):
+    """A family perturbing every column stores no columns dataset: its locality/steady SHA stays the AIUE-100 one."""
+    a = build(tmp_path / "a", "full", locality=(1e-4, LOC))
+    b = build(tmp_path / "b", "full", locality=(1e-4, LOC), columns=[0, 3])
+    assert a["guarded"]["locality/steady"] != b["guarded"]["locality/steady"]
+    assert a["guarded"]["locality/steady"] == mf.combined_sha(
+        {n: s for n, s in a["datasets"].items() if n.startswith("/steady/locality/")})
+
+
+@pytest.mark.parametrize("columns, error", [([3, 0], "increasing"), ([0, N], "below"), ([0], "not perturbed")])
+def test_write_locality_columns_refused(tmp_path, columns, error):
+    w = store.create(tmp_path / "x.h5", "full", "fam", DATA, IMAP)
+    w.write_default("steady", Y, YJ, SIGMA)
+    with pytest.raises(ValueError, match=error):
+        w.write_locality("steady", 1e-4, LOC, columns=columns)
+    w.finish()
+
+
+@pytest.mark.parametrize("kind", ["full", "sketch"])
+def test_locality_variants_round_trip(tmp_path, kind):
+    from yldot.harness import locality as L
+
+    m = build(tmp_path, kind, locality=(1e-4, LOC), loc_variants=LOC_VARIANTS)
+    assert set(m["locality_variants"]) == {"bbb.methe=22", "bbb.xlinc", "bbb.isbcwdt"}
+    assert m["locality_variants"]["bbb.methe=22"]["added"] == 2 and m["locality_variants"]["bbb.xlinc"] == {
+        "config": "steady", "sha256": m["locality_variants"]["bbb.xlinc"]["sha256"], "added": 0, "dropped": 0}
+    assert {"locality_variants/steady", "locality_variants/timestep"} <= set(m["guarded"])
+    assert m["guarded"]["locality/steady"] == build(tmp_path / "plain", kind, locality=(1e-4, LOC))["guarded"][
+        "locality/steady"]  # the packed group is not folded into the default's pattern
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.locality_variants("steady") == ["bbb.methe=22", "bbb.xlinc"]
+        assert s.locality_variants("timestep") == ["bbb.isbcwdt"]
+        added, dropped = s.locality_variant("steady", "bbb.methe=22")
+        assert added.column.tolist() == [3, 7] and dropped["column"].tolist() == [0]
+        _, default = s.locality("steady")
+        want = L.apply(default, L.Entries.of(ADDED), DROPPED)
+        got = s.locality_pattern("steady", "bbb.methe=22")
+        assert all(getattr(got, k).tobytes() == getattr(want, k).tobytes() for k in L.FIELDS)
+        empty = s.locality_pattern("steady", "bbb.xlinc")
+        assert all(getattr(empty, k).tobytes() == getattr(default, k).tobytes() for k in L.FIELDS)
+        with pytest.raises(store.StoreError, match="no stored locality"):
+            s.locality_variant("timestep", "bbb.xlinc")
+
+
+def test_tampered_locality_variant_slice_refused(tmp_path):
+    """A consistent tamper of the file and its dataset SHAs (guarded re-summarized too) still fails: the slice SHA in
+    locality_variants no longer matches."""
+    build(tmp_path, "full", locality=(1e-4, LOC), loc_variants=LOC_VARIANTS)
+    p = tmp_path / mf.reference_path("fam")
+    with h5py.File(p, "r+") as f:
+        f["steady/locality_variants/mismatch"][0] *= 2
+    m = reseal(tmp_path)
+    with h5py.File(p, "r") as f:
+        m["datasets"]["/steady/locality_variants/mismatch"] = store.dataset_sha256(
+            f["steady/locality_variants/mismatch"][()])
+    m["guarded"], m["unguarded"] = mf.summarize(m["datasets"])
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="bbb.methe=22.*locality_variants"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+def test_locality_variants_must_match_the_manifest(tmp_path):
+    m = build(tmp_path, "full", locality=(1e-4, LOC), loc_variants=LOC_VARIANTS)
+    del m["locality_variants"]["bbb.isbcwdt"]
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="locality_variants groups"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+    m["locality_variants"]["bbb.isbcwdt"] = dict(m["locality_variants"]["bbb.xlinc"], config="timestep")
+    del m["locality_variants"]["bbb.xlinc"]
+    mf.dump(m, mf.path("fam", tmp_path))
+    with pytest.raises(store.StoreIntegrityError, match="differ from the manifest"):
+        store.open_store("fam", tmp_path, regions=SPEC)
+
+
+@pytest.mark.parametrize("edit, error", [
+    ({"config": "intake"}, "not a SENSITIVE"), ({"sha256": "x"}, "64 hex"), ({"added": -1}, "integers"),
+    ({"extra": 1}, "exactly the keys"),
+])
+def test_manifest_locality_variants_validated(tmp_path, edit, error):
+    m = build(tmp_path, "full", locality=(1e-4, LOC), loc_variants=LOC_VARIANTS)
+    m["locality_variants"]["bbb.xlinc"].update(edit)
+    with pytest.raises(mf.ManifestError, match=error):
+        mf.validate(m)
+
+
+def test_write_locality_variant_refuses(tmp_path):
+    w = store.create(tmp_path / "x.h5", "full", "fam", DATA, IMAP)
+    w.write_default("steady", Y, YJ, SIGMA)
+    with pytest.raises(store.StoreError, match="steady locality pattern before"):
+        w.write_locality_variant("steady", "bbb.a", ADDED, NONE)
+    w.write_locality("steady", 1e-4, LOC)
+    w.write_locality_variant("steady", "bbb.a", ADDED, NONE)
+    with pytest.raises(store.StoreError, match="already written"):
+        w.write_locality_variant("steady", "bbb.a", ADDED, NONE)
+    with pytest.raises(store.StoreError, match="another configuration"):
+        w.write_locality_variant("timestep", "bbb.a", ADDED, NONE)
+    with pytest.raises(ValueError, match="finite"):
+        w.write_locality_variant("steady", "bbb.b", {**ADDED, "dfull": np.array([np.inf, 0.0])}, NONE)
     w.finish()
 
 

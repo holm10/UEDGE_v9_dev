@@ -180,12 +180,20 @@ def check_sensitive(name, s, runner, v, e, timeout):
     ratio the sketch's largest |dP| / bound (Store.check). inf for a non-finite entry. A row: ok, ratio, for a failed
     evaluation status and message, for a failed Store.check its report (test_variants.py, AIUE-96)."""
     import make_references as mr
-    from yldot.harness import compare
-    from yldot.harness.process import family_dir
 
     r = runner.evaluate(name, variant=v, replay=e["applied"], timeout=timeout)
     if not r.ok:
         return {"ok": False, "ratio": float("inf"), "status": r.status, "message": mr.error_reason(r)}
+    return check_result(name, s, v, e, r)
+
+
+def check_result(name, s, v, e, r):
+    """check_sensitive's row for an evaluation r already made (ok) of the SENSITIVE variant v (its manifest entry e):
+    the same rules, so a run made for another purpose (the locality check, AIUE-101) is checked as the replay is."""
+    import make_references as mr
+    from yldot.harness import compare
+    from yldot.harness.process import family_dir
+
     fdir = family_dir(name)
     config = e["config"]
     y, yj = r.data["yldot"], r.data["yldot_J"]
