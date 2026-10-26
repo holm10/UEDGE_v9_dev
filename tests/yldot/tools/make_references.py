@@ -333,6 +333,18 @@ def default_shas(data, sig):
     return out
 
 
+def locality_tolerance(fdir, kind, e, run_yldot, base_yldot, stored_variant=None, suite=SUITE, imap=None):
+    """The per-entry tolerance a variant's locality pattern is scored with (generation and test_locality alike): a
+    sketch store's, tolerance() of the run's yldot (AIUE-99 Q2); a full store's SENSITIVE variant, variant_tolerance
+    of its stored yldot (stored_variant); INERT and MARGINAL, the default's of the variant's configuration
+    (base_yldot)."""
+    if kind == "sketch":
+        return tolerance(fdir, run_yldot, e["config"], imap, suite)
+    if e["class"] == "SENSITIVE":
+        return variant_tolerance(fdir, stored_variant, e["config"], imap, suite)
+    return tolerance(fdir, base_yldot, e["config"], imap, suite)
+
+
 def locality_columns(loc, variant=False):
     """The columns option of Runner.evaluate for a family's [locality] table: None (every column) or the table,
     which the child resolves on the live grid; a variant perturbs the special cells only (owner, 2026-10-25,
@@ -520,13 +532,10 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     findings.append({"id": vid, "finding": "owner: {} stale locality columns".format(
                         lrun["stale"].size)})
                     continue
-                if kind == "sketch":
-                    tv = tolerance(fdir, r.data["yldot"], e["config"], imap, suite)
-                elif e["class"] == "SENSITIVE":
+                ref = None
+                if kind == "full" and e["class"] == "SENSITIVE":
                     ref = kept[vid]["yldot"] if vid in kept else previous.variant(e["config"], vid)[0]
-                    tv = variant_tolerance(fdir, ref, e["config"], imap, suite)
-                else:
-                    tv = tol[e["config"]]
+                tv = locality_tolerance(fdir, kind, e, r.data["yldot"], data[e["config"]]["yldot"], ref, suite, imap)
                 pv = locality.pattern(locality.Entries.of(lrun["entries"]), tv, rteq)
                 near = locality.near_margin(pv, tv, rteq, float(loc["m_loc"]))
                 if len(near):

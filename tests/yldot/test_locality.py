@@ -9,22 +9,37 @@ Each live run must also reproduce, besides the pattern:
     the reference's delta, which must be family.toml's [locality].delta_loc.
 The pure-Python cases below pin compare_pattern's band rules on synthetic entries.
 """
+import math
+import sys
 import tomllib
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from yldot.harness import FAMILIES, compare, open_store
+from yldot.harness import FAMILIES, build, compare, open_store, variants
 from yldot.harness import locality as L
 from yldot.harness import manifest as mf
 from yldot.harness.compare import listed
+from yldot.harness.process import family_dir
 
 SUITE = Path(__file__).resolve().parent
+sys.path.insert(0, str(SUITE / "tools"))
+
+import make_references as mr  # noqa: E402
+import variant_tolerances as vt  # noqa: E402
+
 FAMILY_NAMES = sorted(p.name for p in FAMILIES.iterdir() if (p / "input.py").is_file())
 CONFIGURED = [f for f in FAMILY_NAMES if L.load_config(FAMILIES / f) is not None]
 # the five small families (AIUE-88): with sigma.h5 and not owner families, whose sigma.h5 is a release asset (AIUE-92)
 SMALL = sorted(p.parent.name for p in FAMILIES.glob("*/sigma.h5") if not mf.owner_family(p.parent.name))
+# the owner families' default locality runs in the nightly tier (PRD 7.5 "Columns and tiers"; AIUE-101)
+FAMILY_PARAMS = [pytest.param(f, marks=[pytest.mark.nightly] if mf.owner_family(f) else []) for f in CONFIGURED]
+# every stored variant pattern (manifest locality_variants), nightly (AIUE-101)
+VARIANT_PARAMS = [pytest.param(f, vid, id="{}-{}".format(f, vid), marks=[pytest.mark.nightly])
+                  for f in CONFIGURED if mf.path(f).is_file()
+                  for vid in sorted(mf.load(f).get("locality_variants", {}))]
 
 
 @pytest.fixture(scope="module")
@@ -42,10 +57,23 @@ def test_locality_configured():
     assert not unguarded, "small families whose reference stores no locality pattern: {}".format(unguarded)
 
 
-@pytest.mark.parametrize("family", CONFIGURED)
+def test_locality_everywhere():
+    """AIUE-101: every family runs the locality check (the owner families in the nightly tier), and each stores the
+    patterns of exactly its variant_scope (family.toml [locality].variants and .excluded)."""
+    missing = [f for f in FAMILY_NAMES if f not in CONFIGURED]
+    assert not missing, "families without [locality] in family.toml: {}".format(missing)
+    for f in CONFIGURED:
+        m = mf.load(f)
+        want = set(L.variant_scope(L.load_config(FAMILIES / f), m["variables"]))
+        got = set(m.get("locality_variants", {}))
+        assert got == want, "{}: variant patterns not in scope {}, in scope without a pattern {}".format(
+            f, listed(sorted(got - want)), listed(sorted(want - got)))
+
+
+@pytest.mark.parametrize("family", FAMILY_PARAMS)
 def test_locality(tol, runner, family):
     cfg = L.load_config(FAMILIES / family)
-    r = runner.evaluate(family, locality=cfg["delta_loc"])
+    r = runner.evaluate(family, locality=cfg["delta_loc"], columns=mr.locality_columns(cfg))
     assert r.ok, (r.status, r.message, r.log_tail)
     run = r.data["locality"]
     with open_store(family) as s:
@@ -55,6 +83,10 @@ def test_locality(tol, runner, family):
         assert delta == cfg["delta_loc"] == run["delta"], (
             "{}: the reference's delta {} differs from family.toml delta_loc {}: regenerate".format(
                 family, delta, cfg["delta_loc"]))
+        cols = s.locality_columns("steady")
+        assert (cols is None and run["columns"] is None) or (
+            cols is not None and run["columns"] is not None and np.array_equal(cols, run["columns"])), (
+            "{}: the stored locality columns differ from family.toml's selection: regenerate".format(family))
         imap = compare.index_map(r.data, compare.load_regions(family))
         t = compare.tolerances(s.default("steady"), s.sigma("steady"), tol["rtol"], tol["rule"]["k"], imap).tol
         c = compare.compare(run["f00"], s.default("steady") + s.jflag("steady"), t, imap, worst=3)
@@ -64,6 +96,56 @@ def test_locality(tol, runner, family):
             family, run["stale"].size, listed(run["stale"] + 1))
         new = L.Entries.of(run["entries"])
         cmp = L.compare_pattern(ref, new, t, L.rtol_rows(tol["rtol"], imap), float(cfg["m_loc"]), imap, family)
+        if not cmp.ok:
+            pytest.fail(cmp.report(), pytrace=False)
+
+
+@pytest.fixture(scope="module")
+def plan():
+    return {v.id: v for v in variants.plan()}
+
+
+@pytest.mark.parametrize("family, vid", VARIANT_PARAMS)
+def test_locality_variant(tol, runner, plan, family, vid):
+    """AIUE-101: a variant's locality pattern (stored as its difference from the default's, Store.locality_pattern),
+    with its applied value replayed, over the family's columns (a column set: the special cells only). The run's
+    f00 = yldot_J is checked in the child; besides: a SENSITIVE variant's result through variant_tolerances.check_result
+    (macOS FMA builds report, AIUE-96 D1), an INERT one's f00 against the stored default + Jacobian-flag difference
+    of its configuration, a MARGINAL one's by the child's check only. The pattern is scored with the tolerance
+    generation used (make_references.locality_tolerance)."""
+    cfg = L.load_config(FAMILIES / family)
+    with open_store(family) as s:
+        e = s.manifest["variables"][vid]
+        config = e["config"]
+        r = runner.evaluate(family, variant=plan[vid], replay=e["applied"], locality=cfg["delta_loc"],
+                            columns=mr.locality_columns(cfg, variant=True))
+        assert r.ok, (r.status, r.message, r.log_tail)
+        run = r.data["locality"]
+        assert not run["stale"].size, "{}-{} locality: {} stale columns, rows {}".format(
+            family, vid, run["stale"].size, listed(run["stale"] + 1))
+        fdir = family_dir(family)
+        imap = compare.index_map(r.data, compare.load_regions(fdir))
+        if e["class"] == "SENSITIVE":
+            row = vt.check_result(family, s, plan[vid], e, r)
+            if not row["ok"]:
+                what = "{}-{} locality: the run differs from the stored variant, largest ratio {:.3g}\n{}".format(
+                    family, vid, row["ratio"], row.get("report", ""))
+                record = build.info()
+                if record is not None and build.fma_contraction(record) and math.isfinite(row["ratio"]):
+                    warnings.warn(build.BuildLimitWarning("{}, on a macOS FMA-contracting build (owner D1, AIUE-96): "
+                                                          "{}".format(build.REPORTED, what.splitlines()[0])))
+                else:
+                    pytest.fail(what, pytrace=False)
+        elif e["class"] == "INERT":
+            t = compare.tolerances(s.default(config), s.sigma(config), tol["rtol"], tol["rule"]["k"], imap).tol
+            c = compare.compare(run["f00"], s.default(config) + s.jflag(config), t, imap, worst=3)
+            assert c.ok, "{}-{} locality: f00 differs from the stored default + Jacobian-flag difference\n{}".format(
+                family, vid, c.report())
+        ref_v = s.variant(config, vid)[0] if s.kind == "full" and e["class"] == "SENSITIVE" else None
+        tv = mr.locality_tolerance(fdir, s.kind, e, r.data["yldot"], s.default(config), ref_v, imap=imap)
+        ref = s.locality_pattern(config, vid)
+        cmp = L.compare_pattern(ref, L.Entries.of(run["entries"]), tv, L.rtol_rows(tol["rtol"], imap),
+                                float(cfg["m_loc"]), imap, "{}-{}".format(family, vid))
         if not cmp.ok:
             pytest.fail(cmp.report(), pytrace=False)
 
