@@ -321,6 +321,32 @@ def locality_labels(e, imap, n=3):
     return "; ".join("{} -> {}".format(short(imap, c), short(imap, r)) for c, r in zip(e.column[:n], e.row[:n]))
 
 
+def default_differences(fresh, stored, previous, data, sig):
+    """Which of a stored default's datasets differ from this build's, and how (the --only refusal's detail)."""
+    out = ["only stored: {}".format(sorted(set(stored) - set(fresh))) if set(stored) - set(fresh) else "",
+           "only this build's: {}".format(sorted(set(fresh) - set(stored))) if set(fresh) - set(stored) else ""]
+    for k in sorted(set(fresh) & set(stored)):
+        if fresh[k] == stored[k]:
+            continue
+        config, what = k.split("/")[1], k.split("/")[3]  # /<config>/default/<yldot|sigma|jflag>[/...]
+        d = data[config]
+        if what == "jflag":
+            i, v = jflag_sparse(d["yldot"], d["yldot_J"])
+            new, old = np.zeros(len(d["yldot"])), previous.jflag(config)
+            new[i] = v
+        else:
+            new = d["yldot"] if what == "yldot" else sig[config]
+            old = previous.default(config) if what == "yldot" else previous.sigma(config)
+        new, old = np.asarray(new, np.float64), np.asarray(old, np.float64)
+        if new.shape != old.shape:
+            out.append("{}: shape {}, stored {}".format(k, new.shape, old.shape))
+            continue
+        rows = np.flatnonzero(differs(new, old))
+        out.append("{}: {} rows differ (first {}), max |diff| {:.3g}".format(
+            k, rows.size, listed((rows[:5] + 1).tolist()), float(np.max(np.abs(new - old), initial=0.0))))
+    return "; ".join(x for x in out if x)
+
+
 def default_shas(data, sig):
     """The dataset SHA-256s a default writes (store.Writer.write_default), to check a stored default against."""
     out = {}
@@ -426,9 +452,11 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             # (below), so they are not part of the defaults' check (AIUE-99)
             stored = {k: s for k, s in previous.manifest["datasets"].items() if "/default/" in k
                       and "/diagnostics/" not in k and not SKETCH_DEFAULT_RE.search(k)}
-            if default_shas(data, sig) != stored:
+            fresh = default_shas(data, sig)
+            if fresh != stored:
                 raise Stop(3, "{}: the stored default differs from this build's (--only needs the same defaults): "
-                              "regenerate in full".format(name))
+                              "regenerate in full; {}".format(name, default_differences(fresh, stored, previous,
+                                                                                         data, sig)))
             stale = sorted(set(previous.manifest["variables"]) - inventory)
             if stale:
                 raise Stop(1, "{}: the manifest has entries no longer in the inventory, {}: prune them first "
