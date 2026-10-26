@@ -3,10 +3,10 @@ PRD sections 7.2, 7.3 and 7.6; AIUE-88, AIUE-94).
 
 Usage (from a checkout whose tests/yldot is the commit's, references/ aside):
     python make_references.py generate --from-commit SHA [--platform linux|host] [--release yldot-data-v<N>]
-                                       [--out DIR] [--write] [--defaults-only | --only VAR ... [--full]]
-                                       [family ...]
+                                       [--out DIR] [--write] [--jobs N]
+                                       [--defaults-only | --locality-only | --only VAR ... [--full]] [family ...]
     <built python> make_references.py _child family ... [--sweep all|none] [--only VAR ...] [--full]
-                                       --out DIR --build FILE
+                                       [--locality-only] [--jobs N] --out DIR --build FILE
 
 generate  builds SHA --serial and, per family (default: every family with sigma.h5 that is not an owner family, the
           five small ones), evaluates the steady and timestep defaults with both Jacobian flags (harness/state.py, PRD
@@ -31,6 +31,10 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
                 reproduce bit for bit (exit 3 otherwise), so their SHA-256s stay identical (PRD 7.6).
           --full (with --only): also DIR/references/full/<family>.<id>.npz, the dense default and variant vectors
                 with the row labels, for localization; never with --write.
+          --locality-only: as --only with no variant named: every entry is copied and only the locality data (the
+                default's pattern and the variants', PRD 7.5) is computed; every guarded SHA-256 of the installed
+                reference must come out the same (exit 3 otherwise; AIUE-101).
+          --jobs N: the child evaluates N families at once, one process each, largest first (default: its CPU count).
 _child    runs inside the built environment and writes, from the build record FILE (JSON: commit, compiler,
           runner_image), DIR/<family>.h5, DIR/<family>.json (the manifest without release and external),
           <family>.findings.json, .summary, .cost.json and samples/<family>.npz (the tolerance-inheritance sample of
@@ -304,11 +308,17 @@ def summary(name, variables, findings):
     """The per-family line (PRD section 5, story 3, with MARGINAL)."""
     n = {c: sum(e["class"] == c for e in variables.values()) for c in mf.CLASSES}
     nondet = sum(f["finding"].startswith("nondeterministic") for f in findings)
+    open_ = sum(f["id"] not in variables and not f["id"].startswith("locality:") for f in findings)
     line = "{}: {} variants: {} sensitive, {} inert, {} marginal, {} invalid, {} excluded; {} nondeterministic".format(
-        name, len(variables) + sum(f["id"] not in variables for f in findings), n["SENSITIVE"], n["INERT"],
-        n["MARGINAL"], n["INVALID"], n["EXCLUDED"], nondet)
-    open_ = sum(f["id"] not in variables for f in findings)
+        name, len(variables) + open_, n["SENSITIVE"], n["INERT"], n["MARGINAL"], n["INVALID"], n["EXCLUDED"], nondet)
     return line + ("; {} unclassified (owner)".format(open_) if open_ else "")
+
+
+def locality_labels(e, imap, n=3):
+    """'column -> row' labels of the first n entries of locality Entries e, for a finding."""
+    from yldot.harness.locality import short
+
+    return "; ".join("{} -> {}".format(short(imap, c), short(imap, r)) for c, r in zip(e.column[:n], e.row[:n]))
 
 
 def default_shas(data, sig):
@@ -323,7 +333,16 @@ def default_shas(data, sig):
     return out
 
 
-def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None):
+def locality_columns(loc, variant=False):
+    """The columns option of Runner.evaluate for a family's [locality] table: None (every column) or the table,
+    which the child resolves on the live grid; a variant perturbs the special cells only (owner, 2026-10-25,
+    AIUE-101 Q2)."""
+    if loc is None or loc["columns"] == "all":
+        return None
+    return dict(loc, sample=0) if variant else loc
+
+
+def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None, locality_only=False):
     """Evaluate and write each family's reference file and manifest fields into out.
 
     repo: the source tree of the built commit, whose */*.v files are the variant inventory (variants.plan; the
@@ -333,13 +352,27 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     processes; "none": the defaults only (AIUE-88); a list of ids or keys: those only (tests). only: --only, a list of
     ids or keys: those are classified again, every other entry is copied from the installed reference of suite (its
     stored default must be reproduced bit for bit). full: with only, the dense vectors of the selected variants in
-    out/full/. Besides <family>.h5 and <family>.json, writes <family>.findings.json (results for the epic owner),
-    .summary, .cost.json and samples/<family>.npz (the tolerance-inheritance sample, variant_tolerances.py)."""
+    out/full/. locality_only: --only with no variant selected, so every entry is copied and only the locality data
+    is computed; every guarded SHA-256 of the installed reference must come out the same (AIUE-101). Besides
+    <family>.h5 and <family>.json, writes <family>.findings.json (results for the epic owner), .summary, .cost.json
+    and samples/<family>.npz (the tolerance-inheritance sample, variant_tolerances.py).
+
+    Locality (PRD 7.5; AIUE-100, AIUE-101), for a family with [locality]: the steady default over its columns
+    (locality_columns), the entries with score > 1 stored; then, after the sweep, every variant of
+    locality.variant_scope evaluated once more with its applied value replayed, its pattern scored with the
+    tolerance it is checked with (a full store's SENSITIVE variant: variant_tolerance of its stored yldot; INERT and
+    MARGINAL: the default's; a sketch store: tolerance() of the run's yldot, AIUE-99 Q2) and stored as its difference
+    from the default pattern. Findings for the owner: stale columns, a failed run, and any stored entry within 3x of
+    M_loc (rule D3)."""
     import statistics
 
     from yldot.harness import FamilyError, Runner, compare, load_evaluation, locality, open_store, store, variants
     from yldot.harness.state import INDEX_ARRAYS
 
+    if locality_only:
+        if only is not None or sweep == "none" or full:
+            raise Stop(2, "--locality-only takes no --only, --sweep none or --full")
+        only = []
     rec = json.loads(Path(build).read_text())
     with open(suite / "tolerances.toml", "rb") as f:
         rtol = tomllib.load(f)["rtol"]
@@ -348,6 +381,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     runner = Runner()
     plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
     inventory = {v.id for v in plan}
+    by_id = {v.id: v for v in plan}
     scope = set(select_ids(plan, sweep)) if isinstance(sweep, (list, tuple)) else None
     selected = set(select_ids(plan, only)) if only is not None else None
     if scope is not None:
@@ -362,7 +396,8 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         data = {}
         for config in mf.CONFIG_NAMES:
             delta = loc["delta_loc"] if loc is not None and config == "steady" else None
-            r = runner.evaluate(name, config=config, diagnostics=True, timeout=timeout, locality=delta)
+            r = runner.evaluate(name, config=config, diagnostics=True, timeout=timeout, locality=delta,
+                                columns=locality_columns(loc) if delta is not None else None)
             if not r.ok:
                 raise Stop(2, "{} {}: {} {}\n{}".format(name, config, r.status, r.message, r.log_tail))
             walls.append(r.wall_s)
@@ -398,9 +433,15 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                 raise Stop(2, "{}: {} stale locality columns (first rows {}): ask the epic owner (decision 23)".format(
                     name, run["stale"].size, run["stale"][:10] + 1))
             t = tolerance(fdir, data["steady"]["yldot"], "steady", imap, suite)
-            entries = locality.Entries.of(run["entries"])
-            w.write_locality("steady", run["delta"], locality.pattern(entries, t, locality.rtol_rows(rtol, imap)))
+            rteq = locality.rtol_rows(rtol, imap)
+            default_p = locality.pattern(locality.Entries.of(run["entries"]), t, rteq)
+            w.write_locality("steady", run["delta"], default_p, columns=run["columns"])
         variables, findings, kept = {}, [], {}
+        if loc is not None:
+            near = locality.near_margin(default_p, t, rteq, float(loc["m_loc"]))
+            if len(near):
+                findings.append({"id": "locality:default", "finding": "owner: {} default locality entries within 3x "
+                                 "of M_loc (rule D3), first {}".format(len(near), locality_labels(near, imap))})
         if sweep != "none":
             tol = {config: tolerance(fdir, d["yldot"], config, imap) for config, d in data.items()}
             for v in plan:
@@ -456,18 +497,62 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     np.savez(out / "full" / "{}.{}.npz".format(name, v.id), default=base["yldot"],
                              default_J=base["yldot_J"], yldot=r.data["yldot"], yldot_J=r.data["yldot_J"],
                              labels=np.array([imap.label(i) for i in range(imap.neq)]))
+        if loc is not None and sweep != "none":
+            special = None
+            if loc["columns"] != "all":
+                special = locality.special_columns(dict(data["steady"], neq=imap.neq))
+            base_p = locality.variant_base(default_p, special)
+            for vid in locality.variant_scope(loc, variables):
+                e = variables[vid]
+                try:
+                    r = runner.evaluate(name, variant=by_id[vid], replay=e["applied"], timeout=timeout,
+                                        locality=loc["delta_loc"], columns=locality_columns(loc, variant=True))
+                except FamilyError as ex:
+                    findings.append({"id": vid, "finding": "owner: locality: {}".format(last_line(ex))})
+                    continue
+                walls.append(r.wall_s)
+                if not r.ok:
+                    findings.append({"id": vid, "finding": "owner: locality run {}: {}".format(r.status,
+                                                                                               error_reason(r))})
+                    continue
+                lrun = r.data["locality"]
+                if lrun["stale"].size:
+                    findings.append({"id": vid, "finding": "owner: {} stale locality columns".format(
+                        lrun["stale"].size)})
+                    continue
+                if kind == "sketch":
+                    tv = tolerance(fdir, r.data["yldot"], e["config"], imap, suite)
+                elif e["class"] == "SENSITIVE":
+                    ref = kept[vid]["yldot"] if vid in kept else previous.variant(e["config"], vid)[0]
+                    tv = variant_tolerance(fdir, ref, e["config"], imap, suite)
+                else:
+                    tv = tol[e["config"]]
+                pv = locality.pattern(locality.Entries.of(lrun["entries"]), tv, rteq)
+                near = locality.near_margin(pv, tv, rteq, float(loc["m_loc"]))
+                if len(near):
+                    findings.append({"id": vid, "finding": "owner: {} locality entries within 3x of M_loc (rule "
+                                     "D3), first {}".format(len(near), locality_labels(near, imap))})
+                w.write_locality_variant(e["config"], vid, *locality.diff(base_p, pv))
         written = w.finish()
+        prev_guarded = previous.manifest["guarded"] if previous is not None else None
         if previous is not None:
             previous.close()
         for vid, e in variables.items():
             if e["class"] == "SENSITIVE":
                 e["sha256"] = mf.variant_sha(written["datasets"], e["config"], vid)
         guarded, unguarded = mf.summarize(written["datasets"])
+        if locality_only:  # only locality data may be new (AIUE-101): every installed guarded SHA-256 stays
+            moved = sorted(k for k, s in prev_guarded.items() if guarded.get(k) != s)
+            if moved:
+                raise Stop(3, "{}: --locality-only moved the guarded {} of the installed reference: regenerate in "
+                              "full".format(name, moved))
         fields = {"schema": mf.SCHEMA, "family": name, "store": kind, "datasets": written["datasets"],
                   "guarded": guarded, "unguarded": unguarded, "variables": variables,
                   "provenance": mf.provenance(rec["commit"], rec["compiler"], FLAGS, rec["runner_image"])}
         if kind == "sketch":
             fields["sketch"] = {"k": store.K, "seed": store.SEED}
+        if written["locality_variants"]:
+            fields["locality_variants"] = written["locality_variants"]
         (out / "{}.json".format(name)).write_text(mf.dumps(fields))
         (out / "{}.findings.json".format(name)).write_text(json.dumps(findings, indent=1) + "\n")
         line = summary(name, variables, findings)
@@ -487,6 +572,40 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                      **{n: np.asarray(data["steady"][n]) for n in INDEX_ARRAYS})
         print("{}: {} {} bytes".format(name, written["sha256"], written["bytes"]), flush=True)
         print(line, flush=True)
+
+
+def family_weight(name):
+    """The size of a family's reference_state.h5, a proxy for its neq (0 if absent): parallel_children starts the
+    largest first, so the longest family bounds the wall time."""
+    p = family_dir(name) / "reference_state.h5"
+    return p.stat().st_size if p.exists() else 0
+
+
+def child_argv(args, family):
+    """The _child command line for one family of a parallel run (args: the parsed _child options)."""
+    cmd = [sys.executable, str(Path(__file__).resolve()), "_child", family, "--out", args.out, "--build", args.build,
+           "--sweep", args.sweep, "--jobs", "1"]
+    cmd += (["--only"] + list(args.only) if args.only else []) + (["--full"] if args.full else [])
+    cmd += (["--repo", args.repo] if args.repo else []) + (["--locality-only"] if args.locality_only else [])
+    return cmd
+
+
+def parallel_children(args, popen=subprocess.Popen):
+    """_child --jobs N: one process per family, at most N at a time, largest first (each family's files are its
+    own); Stop with the first failing family's exit code."""
+    queue = sorted(args.family, key=lambda f: (-family_weight(f), f))
+    running, failed = [], []
+    while queue or running:
+        while queue and len(running) < args.jobs:
+            name = queue.pop(0)
+            running.append((name, popen(child_argv(args, name))))
+        name, proc = running.pop(0)
+        rc = proc.wait()
+        if rc != 0:
+            failed.append((name, rc))
+    if failed:
+        raise Stop(failed[0][1], "families failed: {}".format(", ".join("{} (exit {})".format(n, c)
+                                                                        for n, c in failed)))
 
 
 # ---------------------------------------------------------------- host side: checks
@@ -606,9 +725,12 @@ def base_image(suite):
 
 def child_options(args):
     """The _child options of a generate run: the sweep, --only and --full."""
+    jobs = ["--jobs", str(args.jobs)] if args.jobs else []
     if args.defaults_only:
-        return ["--sweep", "none"]
-    return (["--only"] + list(args.only) if args.only else []) + (["--full"] if args.full else [])
+        return ["--sweep", "none"] + jobs
+    if args.locality_only:
+        return ["--locality-only"] + jobs
+    return (["--only"] + list(args.only) if args.only else []) + (["--full"] if args.full else []) + jobs
 
 
 def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=()):
@@ -683,7 +805,7 @@ def assemble(sha, families, out, release, assets=None):
         mf.validate(m)
         manifests[name] = m
         ref = out / "references"
-        for f in json.loads((ref / "{}.findings.json".format(name)).read_text()) if m["variables"] else []:
+        for f in json.loads((ref / "{}.findings.json".format(name)).read_text()):  # with --sweep none: locality's
             findings.append("{} {}: {}".format(name, f["id"], f["finding"]))
         cap = CAPS_MB.get(name)
         size = h5.stat().st_size
@@ -722,8 +844,8 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         raise Stop(2, "--full needs --only")
     if args.full and args.write:
         raise Stop(2, "--full writes localization vectors, never references: drop --write")
-    if args.only and args.defaults_only:
-        raise Stop(2, "--only and --defaults-only together")
+    if sum(bool(x) for x in (args.only, args.defaults_only, args.locality_only)) > 1:
+        raise Stop(2, "two of --only, --defaults-only and --locality-only together: pick one")
     sha = resolve(args.from_commit, root, run)
     families = select(args.family, suite)
     assets = owner_assets(families, suite)
@@ -732,7 +854,7 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         swept = [f for f in families if mf.path(f, suite).is_file() and mf.load(f, suite).get("variables")]
         if swept:
             raise Stop(1, "--defaults-only --write would drop the classified variants of {}".format(", ".join(swept)))
-    if args.only:
+    if args.only or args.locality_only:
         from yldot.harness import StoreError, open_store
 
         for f in families:
@@ -782,6 +904,9 @@ def main(argv):
     p.add_argument("--defaults-only", action="store_true", help="the defaults only, no variant sweep (AIUE-88)")
     p.add_argument("--only", nargs="+", metavar="VAR", help="regenerate these variant ids or keys only")
     p.add_argument("--full", action="store_true", help="with --only: the dense vectors in --out/references/full")
+    p.add_argument("--locality-only", action="store_true",
+                   help="copy the installed references and compute only the locality data (AIUE-101)")
+    p.add_argument("--jobs", type=int, help="families evaluated in parallel by the child (default: the CPU count)")
     p = sub.add_parser("_child", help="inside the built environment: evaluate and write")
     p.add_argument("family", nargs="+")
     p.add_argument("--out", required=True)
@@ -790,11 +915,16 @@ def main(argv):
     p.add_argument("--only", nargs="+")
     p.add_argument("--full", action="store_true")
     p.add_argument("--repo", help="the built commit's source tree: its .v files are the inventory")
+    p.add_argument("--locality-only", action="store_true")
+    p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
+                   help="families in parallel, one process each, largest first (default: the CPU count)")
     args = parser.parse_args(argv[1:])
     try:
-        if args.cmd == "_child":
+        if args.cmd == "_child" and args.jobs > 1 and len(args.family) > 1:
+            parallel_children(args)
+        elif args.cmd == "_child":
             child(args.family, args.out, args.build, sweep=args.sweep, only=args.only, full=args.full,
-                  repo=args.repo)
+                  repo=args.repo, locality_only=args.locality_only)
         else:
             generate(args)
     except (Stop, mf.ManifestError) as e:

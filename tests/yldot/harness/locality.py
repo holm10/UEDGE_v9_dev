@@ -281,6 +281,20 @@ def pattern(e, tol, rteq):
     return e.select(scores(e, tol, rteq) > 1.0)
 
 
+def near_margin(e, tol, rteq, m_loc, factor=3.0):
+    """The entries within factor x of M_loc (score in [M_loc/factor, factor*M_loc]): rule D3 (AIUE-100) keeps a
+    stored pattern clear of them, so generation reports each to the epic owner."""
+    s = scores(e, tol, rteq)
+    return e.select((s >= m_loc / factor) & (s <= m_loc * factor))
+
+
+def variant_base(default, special=None):
+    """The default pattern a variant's difference is taken from (diff, apply): with a column set the variants perturb
+    the special cells only (owner, 2026-10-25, AIUE-101 Q2), so the default's entries in those columns (special, from
+    special_columns); else all of it."""
+    return default if special is None else default.select(np.isin(default.column, special))
+
+
 def short(imap, i):
     """'ti[1](2,4)': equation, Fortran species and cell of row i."""
     return "{}[{}]({},{})".format(imap.eq[i], imap.species[i], imap.ix[i], imap.iy[i])

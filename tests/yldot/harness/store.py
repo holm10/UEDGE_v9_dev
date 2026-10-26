@@ -29,7 +29,8 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
                                                                        column ([locality].columns, AIUE-101)
     /<config>/locality_variants/{ids, offsets, column, row, mismatch, dfull, dropped_offsets, dropped_column,
                                  dropped_row}                          each variant's pattern as its difference from
-        the /steady/locality pattern (locality.diff), packed: variant i (ids[i], sorted) owns the entries
+        the /steady/locality pattern (locality.diff; with a column set, its entries in the special cells' columns,
+        which the variants perturb: locality.variant_base), packed: variant i (ids[i], sorted) owns the entries
         offsets[i]:offsets[i+1] and the dropped keys dropped_offsets[i]:dropped_offsets[i+1] (one group per
         variant would exceed the 8x4 families' size caps; AIUE-101). The manifest's locality_variants holds each
         slice's SHA-256 (locality_slice_sha), checked at open
@@ -717,11 +718,13 @@ class Store:
         return added, dropped
 
     def locality_pattern(self, config, vid):
-        """A variant's full locality pattern: the stored steady pattern with its difference applied."""
-        from .locality import apply
+        """A variant's full locality pattern: its difference applied to the stored steady pattern, restricted to the
+        special cells' columns when the default perturbs a column set (locality.variant_base)."""
+        from .locality import apply, special_columns, variant_base
 
         _, default = self.locality("steady")
-        return apply(default, *self.locality_variant(config, vid))
+        special = None if self.locality_columns("steady") is None else special_columns(self.index_data())
+        return apply(variant_base(default, special), *self.locality_variant(config, vid))
 
     def diagnostics(self, config):
         g = "{}/default/diagnostics".format(config)

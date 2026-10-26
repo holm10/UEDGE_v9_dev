@@ -135,7 +135,7 @@ class FakeStream:
 
 def args(**kw):
     a = {"from_commit": "HEAD", "platform": "linux", "release": TAG, "out": None, "write": False, "family": [],
-         "defaults_only": False, "only": None, "full": False}
+         "defaults_only": False, "only": None, "full": False, "locality_only": False, "jobs": None}
     a.update(kw)
     return Namespace(**a)
 
@@ -426,7 +426,9 @@ def test_sweep_classes_as_probed(swept):
     assert (ref / "d_only.summary").read_text() == (
         "d_only: 10 variants: 2 sensitive, 1 inert, 1 marginal, 2 invalid, 4 excluded; 0 nondeterministic\n")
     cost = json.loads((ref / "d_only.cost.json").read_text())
-    assert cost["evaluations"] == 2 + 9 + 2  # the defaults, all but com.geometry, the SENSITIVE ones again
+    # the defaults, all but com.geometry, the SENSITIVE ones again, and one locality run per SENSITIVE, INERT and
+    # MARGINAL variant (AIUE-101: d_only has variants = "all")
+    assert cost["evaluations"] == 2 + 9 + 2 + 4
     with np.load(ref / "samples" / "d_only.npz") as z:
         # plan (inventory) order: bbb.isbcwdt is at bbb/bbb.v:179, bbb.cfvisx at :331
         assert z["ids"].tolist() == ["bbb.isbcwdt", "bbb.cfvisx"] and z["configs"].tolist() == ["timestep", "steady"]
@@ -459,7 +461,7 @@ def test_only_keeps_every_other_entry(tmp_path, swept):
     new, old = (mf.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
     assert new["variables"] == old["variables"]
     cost = json.loads((d / "references" / "d_only.cost.json").read_text())
-    assert cost["evaluations"] == 2 + 2  # the defaults, cfvisx twice
+    assert cost["evaluations"] == 2 + 2 + 4  # the defaults, cfvisx twice, the four locality runs (AIUE-101)
     with np.load(d / "references" / "full" / "d_only.bbb.cfvisx.npz") as z:
         assert z["yldot"].shape == z["default"].shape == (420,) and len(z["labels"]) == 420
 
@@ -732,3 +734,101 @@ def test_over_its_cap_is_a_finding_and_nothing_is_written(tmp_path, swept, monke
         mr.generate(args(out=str(tmp_path / "gen"), write=True), suite, FakeRun(), FakeStream(swept[0]))
     assert e.value.code == 3 and "over its 0.1 MB cap" in str(e.value)
     assert list((suite / "references").iterdir()) == []
+
+
+# ---------------------------------------------------------------- locality in generation (AIUE-101)
+
+
+def test_sweep_stores_the_variants_locality_patterns(tmp_path, swept):
+    """d_only (variants = "all"): one pattern per SENSITIVE, INERT and MARGINAL variant, each a difference from the
+    default pattern that restores, through the store, the pattern the variant's own run gives."""
+    m = mf.loads((swept[0] / "references" / "d_only.json").read_text())
+    assert {vid: e["config"] for vid, e in m["locality_variants"].items()} == {
+        "bbb.cfvisx": "steady", "bbb.isbcwdt": "timestep", "bbb.xlinc": "steady", "bbb.lgvmax": "steady"}
+    assert {"locality_variants/steady", "locality_variants/timestep"} <= set(m["guarded"])
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    with open_store("d_only", suite) as s:
+        assert s.locality_columns("steady") is None  # columns = "all": nothing stored, the AIUE-100 SHA kept
+        cfg = locality.load_config(FAMILIES / "d_only")
+        from yldot.harness.process import Runner
+        from yldot.harness import variants
+
+        v = {x.id: x for x in variants.plan()}["bbb.xlinc"]
+        r = Runner().evaluate("d_only", variant=v, replay=m["variables"]["bbb.xlinc"]["applied"],
+                              locality=cfg["delta_loc"])
+        tol = tomllib.loads((SUITE / "tolerances.toml").read_text())
+        t = compare.tolerances(s.default("steady"), s.sigma("steady"), tol["rtol"], tol["rule"]["k"], s.imap).tol
+        want = locality.pattern(locality.Entries.of(r.data["locality"]["entries"]), t,
+                                locality.rtol_rows(tol["rtol"], s.imap))
+        got = s.locality_pattern("steady", "bbb.xlinc")
+        assert all(getattr(got, k).tobytes() == getattr(want, k).tobytes() for k in locality.FIELDS)
+
+
+def test_locality_only_reproduces_the_file(tmp_path, swept):
+    """--locality-only against the installed sweep: every entry copied, the locality data computed again, the same
+    file bit for bit and no guarded SHA-256 moved."""
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    d = tmp_path / "loc"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), suite=suite, locality_only=True)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
+    cost = json.loads((d / "references" / "d_only.cost.json").read_text())
+    assert cost["evaluations"] == 2 + 4  # the defaults and the four locality runs, no classification
+
+
+def test_locality_only_refuses_a_moved_guarded_sha(tmp_path, swept, monkeypatch):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    real = locality.pattern
+    monkeypatch.setattr(locality, "pattern", lambda e, tol, rteq: real(e, tol * 2, rteq))  # another default pattern
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "loc", build_record(tmp_path), sweep=list(SWEEP), suite=suite,
+                 locality_only=True)
+    assert e.value.code == 3 and "locality/steady" in str(e.value)
+
+
+def test_locality_only_refusals():
+    with pytest.raises(mr.Stop, match="--locality-only takes no"):
+        mr.child(["d_only"], "x", "y", only=["bbb.cfvisx"], locality_only=True)
+
+
+def test_locality_findings_and_summary():
+    """An entry within 3x of M_loc is a finding; a 'locality:' finding is no unclassified variant."""
+    e = locality.Entries.of({"column": [0, 1, 2], "row": [0, 1, 2], "mismatch": [20.0, 50.0, 400.0],
+                             "dfull": [0.0, 0.0, 0.0]})
+    near = locality.near_margin(e, np.ones(3), np.zeros(3), 100.0)
+    assert near.row.tolist() == [1]
+    line = mr.summary("fam", {}, [{"id": "locality:default", "finding": "owner: x"}])
+    assert line.endswith("0 nondeterministic")
+
+
+def test_child_options_pass_locality_only_and_jobs():
+    assert mr.child_options(args(locality_only=True, jobs=3)) == ["--locality-only", "--jobs", "3"]
+    assert mr.child_options(args(defaults_only=True)) == ["--sweep", "none"]
+    assert mr.child_options(args(only=["bbb.a"], jobs=2)) == ["--only", "bbb.a", "--jobs", "2"]
+
+
+class FakeProc:
+    def __init__(self, rc):
+        self.rc = rc
+
+    def wait(self):
+        return self.rc
+
+
+def test_parallel_children_largest_first_and_exit_code(monkeypatch):
+    weights = {"a": 1, "b": 30, "c": 20}
+    monkeypatch.setattr(mr, "family_weight", lambda f: weights[f])
+    started = []
+
+    def popen(cmd, rc={"a": 0, "b": 0, "c": 3}):
+        started.append(cmd[cmd.index("_child") + 1])
+        assert cmd[cmd.index("--jobs") + 1] == "1" and "--locality-only" in cmd
+        return FakeProc(rc[started[-1]])
+
+    a = Namespace(family=["a", "b", "c"], jobs=2, out="o", build="b.json", sweep="all", only=None, full=False,
+                  repo=None, locality_only=True)
+    with pytest.raises(mr.Stop) as e:
+        mr.parallel_children(a, popen)
+    assert started == ["b", "c", "a"] and e.value.code == 3 and "c (exit 3)" in str(e.value)
