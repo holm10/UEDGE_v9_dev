@@ -89,7 +89,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
   `/steady/locality/{delta, column, row, mismatch, dfull}` (the entries with score > 1), guarded as `locality/steady`
-  and derived from the datasets like the defaults (AIUE-100). A sketch store also stores, per configuration, its
+  and derived from the datasets like the defaults (AIUE-100), plus `/steady/locality/columns` only for a column set,
+  and its variants' patterns packed in `/<config>/locality_variants/{ids, offsets, column, row, mismatch, dfull,
+  dropped_offsets, dropped_column, dropped_row}` as differences from the default pattern (`locality.diff`/`apply`),
+  guarded as `locality_variants/<config>`, each slice's SHA-256 in the manifest's `locality_variants` and checked at
+  open (`Store.locality_variant`, `locality_pattern`; one HDF5 group per variant would break the 8x4 caps; AIUE-101). A sketch store also stores, per configuration, its
   weights `/<config>/default/sketch_weight` (w_i = 1/tol_i of the default at generation; required in every sketch
   store, `open_store` and `Writer.finish` refuse one without and a full store with any; owner, 2026-10-23, AIUE-174),
   guarded as `<config>/sketch_weight`, and
@@ -101,7 +105,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   1e13), within the owner's R_max = 2·c·sqrt(N_block) (AIUE-92 D3). `make_references.py --only` keeps the stored
   weights, so the copied variant sketches stay valid.
 - **Locality** (PRD §7.5; AIUE-100) `tests/yldot/harness/locality.py`: `jac_calc`'s protocol (`bbb/oderhs.m:1095-1226`)
-  in the child after step 8b (`Runner.evaluate(family, locality=delta)`, steady, no variant): flag +1, `f00` (must
+  in the child after step 8b (`Runner.evaluate(family, locality=delta)`; the PR tier: steady, no variant): flag +1, `f00` (must
   equal `yldot_J` bitwise), then per column reset to `f00`, perturb by `delta·(|y|+dylconst/suscal)`, local `pandf`,
   full evaluation, restore, local again, full again (must equal `f00`: no stale column). Score per entry
   `|Δ_full−Δ_local| / (tol_r + rtol_eq·|Δ_full|)`; the pattern P is the stored entries above `M_loc`, (1, M_loc] is the
@@ -110,6 +114,17 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (d_only, d_mols, d_c) have a by-design default pattern, all in the band at 1e-6: the neutral-conductivity
   4-point average in `feixy` (`bbb/pandf_plasma_energy.m:458-459,476-477`) reaches ix−1, one cell beyond `xrinc`
   (owner, D2); ortho and slab_phi are bit-identical on every column. Every column of the five takes about 12 s.
+  Nightly tier (PRD §7.5 "Columns and tiers"; AIUE-101): `Runner.evaluate(..., locality=δ, columns=...)` also runs
+  with a variant and in the timestep configuration. `[locality]` adds `columns` (`"all"`, or `"special"` with
+  `sample` and `seed`: `special_columns`, the owner's rule for any `nxpt` from the live grid, plates
+  `ixlb/ixrb(jx)` and +1, radial rows 0, 1, ny, ny+1, separatrix rows `s, s+1` of every `iysptrx1/2(jx)`, cuts
+  `ixptK(jx)`, +1 for iy ≤ `iysptrxK(jx)`, plus `sample` interior columns by `PCG64(seed).random_raw`; variants use
+  the special cells only), `variants` (`"all"` SENSITIVE/INERT/MARGINAL, `"listed"` `bbb.meth*` and
+  `WINDOW_INPUTS`, `"meth"`), optional `excluded` (owner exclusions with their cause: `bbb.isupgon` in the 8x4
+  families, `pandf` not repeatable after it, AIUE-208) and `near_margin` (the owner's acceptance of default entries
+  within 3× of M_loc). The owner families run δ = 1e-6 on the special cells plus 300 seeded columns (8236 / 8252 /
+  9036): D3 qualified no δ, their near-margin entries are the nonog signature (owner, 2026-10-25); the 3× rule
+  calibrates δ on the default pattern only, variant patterns are stored and asserted as they are.
 - **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: 27 patches (AIUE-89, AIUE-90), a sign
   flip, a factor 2 and a dropped term per equation, the X-point off-by-one, a wrong `cf*` multiplier, two range and
   two flag-gating mutations. A `Key: value` header (`Mutation`, `Kind`, `Equation`, `Fault`, `Check`, `Configs`,
@@ -153,7 +168,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   floor report, the AIUE-81 re-check; `--write` writes the files below; exit 4 = a nonzero same-build spread, 3 = owner);
   `make_references.py` (`generate --from-commit SHA`: builds SHA `--serial` and writes each family's steady and
   `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance, and for a family
-  with `[locality]` the steady locality pattern (AIUE-100); `--platform
+  with `[locality]` the steady locality pattern (AIUE-100) over its column set and, after the sweep, every
+  `variant_scope` variant's pattern replayed and scored with the tolerance its test uses (`locality_tolerance`;
+  stale columns, failed runs and default entries within 3× of M_loc without `near_margin` are findings, the
+  near-margin counts go to `<family>.locality.json`; AIUE-101); `--locality-only` copies every entry of the
+  installed reference and computes only the locality data, every guarded SHA-256 kept (exit 3 otherwise; a macOS
+  build cannot reproduce Linux defaults, so preview it in the Linux image); `_child --jobs N` runs one process per
+  family, largest first (default the CPU count); `--platform
   linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, run by
   `regenerate-references.yml` on native amd64 (owner, 2026-10-25, AIUE-98; locally a preview), `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
@@ -214,7 +235,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `build.REPORTED`: pytest's `-W` cannot import `yldot`);
   a range mutation (Check `locality`) also gets the steady part `locality` (`_child --locality`) and
   `test_locality.py` as its cross-check, the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
-  with `[locality]` (owner, 2026-10-23, AIUE-92); writes the coverage matrix `matrix.json`/`matrix.md` (a working
+  with `[locality]` (owner, 2026-10-23, AIUE-92), over the family's column set; every family has one since AIUE-101,
+  and both range mutations list the owner families; writes the coverage matrix `matrix.json`/`matrix.md` (a working
   document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
   `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation).
   `sketch_sensitivity.py` (PRD §7.11 d, AIUE-92): `run <family>... --from-collection DIR | --from-store` per
@@ -262,7 +284,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   removed `locality/steady` key `Default results: changed`; a changed or removed `<config>/sketch_threshold` key is a
   loosening, as a changed σ, since a manifest cannot show it smaller, AIUE-92; a changed or removed
   `<config>/sketch_weight` key is `Default results: changed`, since it changes what every stored variant sketch
-  means, AIUE-174); it downloads the release assets a
+  means, AIUE-174; AIUE-101: a narrower `columns`/`variants`, a smaller `sample`, an added `excluded` entry or a
+  set `near_margin` loosens, a wider scope or another `seed` is a change; a variant's new locality pattern is a
+  change, a changed one `Default results: changed` as `<family>:<id>`, a removed one a loosening); it downloads the
+  release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. The workflow that runs it is AIUE-104's.
@@ -282,7 +307,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (decision 23, AIUE-156); `tests/yldot/test_locality.py` the locality check of every family with `[locality]` (one
   steady child each, every column: the `f00` cross-check, no stale column, the stored delta, the pattern with its
   band; story 6 headline), `test_locality_configured` (every small family) and `compare_pattern`'s band rules on
-  synthetic entries (AIUE-100);
+  synthetic entries (AIUE-100); the owner families' `test_locality` over their column set and
+  `test_locality_variant[<family>-<id>]` for every stored variant pattern are `nightly`, and
+  `test_locality_everywhere` requires `[locality]` in every family and a pattern for exactly its `variant_scope`
+  (AIUE-101);
   `tests/yldot/test_variants.py` every stored SENSITIVE, INERT and INVALID variant of every family whose manifest
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
   its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
