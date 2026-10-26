@@ -812,6 +812,16 @@ class uedgeBuild(build):
             FLAGS['FARGS'] = FLAGS['FARGS'] + FLAGS['FARGSDEBUG']
         else:
             FLAGS['FARGS'] = FLAGS['FARGS'] + FLAGS['FARGSOPT']
+        # Linux: keep exp, log, pow, sin and cos scalar (AIUE-211). On glibc the gfortran driver pre-includes
+        # math-vector-fortran.h, and -O3 -ftree-vectorize then calls libmvec's 2-lane kernels, whose log uses rcpps:
+        # its bits differ between Intel and AMD, and so did the results (AIUE-210). -nostdinc drops the pre-include,
+        # and with it the intrinsic module path (omp_lib, iso_c_binding), which is passed back
+        if platform.startswith('linux'):
+            finclude = check_output([fcompiler.fcompexec, '-print-file-name=finclude'], text=True).strip()
+            if not os.path.isabs(finclude) or not os.path.isdir(finclude) or ' ' in finclude:
+                raise SystemExit("{} gives no usable intrinsic module directory (-print-file-name=finclude: '{}'), "
+                                 "needed with -nostdinc (AIUE-211)".format(fcompiler.fcompexec, finclude))
+            FLAGS['FARGS'] = FLAGS['FARGS'] + ['-nostdinc', '-fintrinsic-modules-path ' + finclude]
         # Clean build directory unless flagged not to
         if arglist['noclean'] is False:
             print("Cleaning UEDGE build directory")

@@ -27,6 +27,15 @@ tar -xf /out/src.tar -C /work/src
 cd /work/src
 PATH=/opt/venv/bin:$PATH pip install -v --no-build-isolation --no-deps . -C "--build-option=--serial" \
   > /out/build.log 2>&1
+# No reference from a build that calls glibc's vector math library: libmvec's log gives different bits on Intel and
+# AMD (AIUE-210), and setup.py keeps the math calls scalar on Linux (AIUE-211). Counted by symbol, since Forthon
+# names -lmvec on every link and only --as-needed drops it
+undefined=$(nm -D --undefined-only /opt/venv/lib/python3.12/site-packages/uedge/*.so)
+mvec=$(grep -c '_ZGV' <<< "$undefined" || true)  # grep -c prints 0 and exits 1 when nothing matches
+if [ "$mvec" != 0 ]; then
+  echo "refused: the build calls libmvec ($mvec _ZGV symbols; AIUE-211)" >&2
+  exit 2
+fi
 cd /tmp
 python3 - "$COMMIT" "$RUNNER_IMAGE" > /out/build.json <<'EOF'
 import json, subprocess, sys

@@ -4,16 +4,19 @@ build records them (AIUE-181).
 --noopt and --coverage are results-neutral and opt-in: neither may change the flags of the default, --serial,
 --debug or --checkbounds builds, and --coverage changes only its own build. tools/build_flags.py evaluates
 setup.py's flag assembly per option set on Linux and macOS without building; EXPECTED is that table on v9-develop
-(7c02d8d), checked against setup.py and, for darwin:serial, against a real pip install -v log. An intended flag
-change updates EXPECTED, with the reason in the PR. Each case also holds the build record setup.py writes into
+(7c02d8d), checked against setup.py and, for darwin:serial, against a real pip install -v log, plus AIUE-211's
+Linux flags. An intended flag change updates EXPECTED, with the reason in the PR. Each case also holds the build record setup.py writes into
 the installed package (uedge/_build_info.json, AIUE-181): its options, the same flags, and the tool's fixed compiler
-and git answers. The negative control edits a copy of setup.py nine ways (seven flag changes, the record dropped,
+and git answers. The negative control edits a copy of setup.py ten ways (eight flag changes, the record dropped,
 the record without its platform) and requires the check to see each edit; an unedited copy must show none, and a
 source tree without .git records no commit. test_installed_record checks the record of the UEDGE installed in this
-interpreter against its own options.
+interpreter against its own options, and test_installed_no_vector_math its Linux extensions for libmvec calls
+(AIUE-211).
 """
+import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +30,10 @@ BASE = "-g -fmax-errors=15 -DFORTHON -cpp -Wconversion -fimplicit-none"
 DEBUG = ("-fbacktrace -ffree-line-length-0 -fcheck=all -fbounds-check -ffpe-trap=invalid,overflow,underflow "
          "-finit-real=snan -Og")
 BOUNDS = "-fbounds-check -fcheck=all"
+# Every Linux build keeps exp, log, pow, sin and cos scalar: no glibc math-vector-fortran.h pre-include, so no
+# libmvec calls, whose results depend on the CPU vendor (AIUE-211). <finclude>: the tool's stand-in for the
+# compiler's intrinsic module directory
+LINUX = " -nostdinc -fintrinsic-modules-path <finclude>"
 # The same in every build: make's environment otherwise differs from the caller's only in NOCLEAN, and setup.py
 # adds nothing to the compiler's own uedgeC compile arguments (no readline macro: the tool's readline probe fails).
 COMMON = {"make_env": {"NOCLEAN": "FALSE"}, "uedgec_compile": ["<fcompiler>"],
@@ -75,17 +82,18 @@ def with_info(name, record):
 
 
 def platform_table(platform, omp_ldflags, coverage_ldflags):
+    tail = LINUX if platform == "linux" else ""
     cases = {
-        "default": omp(BASE + " -fopenmp -O3", omp_ldflags),
-        "serial": serial(BASE + " -O3"),
-        "debug": omp(BASE + " -fopenmp " + DEBUG, omp_ldflags),
-        "checkbounds": omp(BASE + " -fopenmp -O3 " + BOUNDS, omp_ldflags),
-        "noopt": omp(BASE + " -fopenmp -O0", omp_ldflags),
-        "coverage": serial(BASE + " -O0 --coverage", coverage_ldflags),
-        "serial+debug": serial(BASE + " " + DEBUG),
-        "serial+checkbounds": serial(BASE + " -O3 " + BOUNDS),
-        "serial+noopt": serial(BASE + " -O0"),
-        "noopt+checkbounds": omp(BASE + " -fopenmp -O0 " + BOUNDS, omp_ldflags),
+        "default": omp(BASE + " -fopenmp -O3" + tail, omp_ldflags),
+        "serial": serial(BASE + " -O3" + tail),
+        "debug": omp(BASE + " -fopenmp " + DEBUG + tail, omp_ldflags),
+        "checkbounds": omp(BASE + " -fopenmp -O3 " + BOUNDS + tail, omp_ldflags),
+        "noopt": omp(BASE + " -fopenmp -O0" + tail, omp_ldflags),
+        "coverage": serial(BASE + " -O0 --coverage" + tail, coverage_ldflags),
+        "serial+debug": serial(BASE + " " + DEBUG + tail),
+        "serial+checkbounds": serial(BASE + " -O3 " + BOUNDS + tail),
+        "serial+noopt": serial(BASE + " -O0" + tail),
+        "noopt+checkbounds": omp(BASE + " -fopenmp -O0 " + BOUNDS + tail, omp_ldflags),
         **REFUSED,
     }
     return {"{}:{}".format(platform, name): record for name, record in cases.items()}
@@ -96,9 +104,9 @@ def platform_table(platform, omp_ldflags, coverage_ldflags):
 EXPECTED = {name: with_info(name, record) for name, record in {
     **platform_table("linux", "-fopenmp", "--coverage"),
     **platform_table("darwin", None, "<libgcov.a>"),
-    "linux:default@-L/preset": omp(BASE + " -fopenmp -O3", "-L/preset -fopenmp"),
-    "linux:default@-fopenmp -L/preset": omp(BASE + " -fopenmp -O3", "-fopenmp -L/preset"),
-    "linux:coverage@-L/preset": serial(BASE + " -O0 --coverage", "-L/preset --coverage"),
+    "linux:default@-L/preset": omp(BASE + " -fopenmp -O3" + LINUX, "-L/preset -fopenmp"),
+    "linux:default@-fopenmp -L/preset": omp(BASE + " -fopenmp -O3" + LINUX, "-fopenmp -L/preset"),
+    "linux:coverage@-L/preset": serial(BASE + " -O0 --coverage" + LINUX, "-L/preset --coverage"),
 }.items()}
 
 
@@ -167,6 +175,9 @@ EDITS = {
         "        with open(infopath, 'w') as f:\n"
         "            json.dump(build_info(makeenv), f, indent=1, sort_keys=True)\n", "", "linux:default"),
     "record drops platform": ("        'platform': platform,\n", "", "darwin:serial"),
+    "Linux math calls vectorized again": (
+        "            FLAGS['FARGS'] = FLAGS['FARGS'] + ['-nostdinc', '-fintrinsic-modules-path ' + finclude]\n", "",
+        "linux:serial"),
 }
 
 
@@ -265,6 +276,32 @@ def test_installed_record(tmp_path):
     assert record["platform"] == sys.platform
     assert record["machine"] == os.uname().machine
     assert out["git_commit"] == record["git_sha"]
+    # Linux only: the math calls stay scalar (AIUE-211)
+    assert ("-nostdinc" in fargs) == record["platform"].startswith("linux"), (record["platform"], record["fargs"])
+
+
+def test_installed_no_vector_math():
+    """No extension of the installed UEDGE calls glibc's vector math library libmvec (_ZGV* symbols): its 2-lane log
+    uses rcpps, whose bits differ between Intel and AMD, so the results would follow the CPU vendor (AIUE-210,
+    AIUE-211). Forthon still names -lmvec on the link line, and only --as-needed drops it, so the symbols are
+    counted, not the libraries. macOS has no libmvec; on Linux a missing nm fails, it never skips."""
+    if not sys.platform.startswith("linux"):
+        pytest.skip("libmvec is glibc's: nothing to check on {}".format(sys.platform))
+    nm = shutil.which("nm")
+    assert nm, "nm (binutils) is needed to check the installed UEDGE for libmvec calls"
+    spec = importlib.util.find_spec("uedge")  # found without importing uedge
+    assert spec is not None and spec.submodule_search_locations, "uedge is not installed"
+    pkg = Path(spec.submodule_search_locations[0])
+    extensions = sorted(set(pkg.glob("*.so")) | set(pkg.parent.glob("uedge*.so")))
+    assert extensions, "no extension modules next to {}".format(pkg)
+    found = {}
+    for so in extensions:
+        proc = subprocess.run([nm, "-D", "--undefined-only", str(so)], capture_output=True, text=True, timeout=60)
+        assert proc.returncode == 0, proc.stderr
+        symbols = sorted({line.split()[-1] for line in proc.stdout.splitlines() if "_ZGV" in line})
+        if symbols:
+            found[so.name] = symbols
+    assert not found, "the installed UEDGE calls libmvec (rebuild with AIUE-211's setup.py): {}".format(found)
 
 
 @pytest.mark.parametrize("edit", list(EDITS))

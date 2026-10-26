@@ -13,8 +13,8 @@ the default flags. This tool runs setup.py (default: the one in this checkout) o
 build's side effects stubbed: Forthon's FCompiler is a fixed fake (the real Forthon is never imported: its import
 parses sys.argv), setuptools.setup only records its arguments, os.system (the readline probe) returns 1, and in
 uedgeBuild.run the make calls, mppl2f90, check_output and build.run are replaced. check_output answers only the
-commands setup.py is known to run (the macOS libgcov lookup, the compiler's --version, the git probes of the build
-record; anything else raises), and SRCDIR, where setup.py runs them, is a scratch directory with an empty .git file
+commands setup.py is known to run (the macOS libgcov lookup, the Linux finclude lookup (AIUE-211), the compiler's
+--version, the git probes of the build record; anything else raises), and SRCDIR, where setup.py runs them, is a scratch directory with an empty .git file
 (--no-git: without it), so a record does not depend on where the evaluated setup.py lies.
 sys.argv has the shape pip gives setup.py for -C "--build-option=--<opt>": [setup.py, bdist_wheel, --dist-dir,
 <dir>, --<opt>...]. platform, read by uedgeBuild.run at call time, is set per case, so both the Linux and the macOS
@@ -26,7 +26,8 @@ variable of make's environment that differs from the caller's (PATH excepted: se
 user-site bin directory), the uedgeC link and compile arguments (the compiler's own shown as <fcompiler>) and
 macros, the number of make calls (clean, then the build), and the build record uedgeBuild.run writes into
 <build_lib>/uedge/_build_info.json (AIUE-181; build_lib is a scratch directory): the parsed JSON, its machine shown as
-<machine> and the libgcov path in its ldflags as <libgcov.a>; None if no record was written, "<unreadable: ...>" if
+<machine> and the libgcov path in its ldflags as <libgcov.a>; the finclude directory is shown as <finclude> in
+both fargs; None if no record was written, "<unreadable: ...>" if
 it does not parse. A refused combination records the SystemExit message instead. The comparison with the flags on
 v9-develop lives in tests/yldot/test_build_flags.py.
 
@@ -68,6 +69,7 @@ PRESET = "-L/preset"
 CASES = ([(p, o, None) for p in PLATFORMS for o in OPTION_SETS]
          + [("linux", (), PRESET), ("linux", (), "-fopenmp " + PRESET), ("linux", ("coverage",), PRESET)])
 LIBGCOV = "<libgcov.a>"  # stands for the path check_output returns on macOS
+FINCLUDE = "<finclude>"  # stands for the intrinsic module directory check_output returns on Linux (AIUE-211)
 FCOMPILER = "<fcompiler>"  # stands for an argument of the compiler's own (FakeFCompiler's) in the uedgeC lists
 MACHINE = "<machine>"  # stands for the host's os.uname().machine in the build record
 FAKE_VERSION = "fake-gfortran 1.0\nCopyright\n"  # what the fake compiler's --version prints
@@ -119,11 +121,13 @@ def stubs():
                 sys.modules[k] = v
 
 
-def fake_check_output(libgcov):
+def fake_check_output(libgcov, finclude):
     """subprocess.check_output for setup.py: the answers to the commands it is known to run, else RuntimeError."""
     def check_output(command, **kw):
         if command == [FakeFCompiler.fcompexec, "-print-file-name=libgcov.a"]:
             return libgcov + "\n"
+        if command == [FakeFCompiler.fcompexec, "-print-file-name=finclude"]:
+            return finclude + "\n"
         if command == [FakeFCompiler.fcompexec, "--version"]:
             return FAKE_VERSION
         if command[0] == "git" and tuple(command[1:]) in GIT:
@@ -132,7 +136,7 @@ def fake_check_output(libgcov):
     return check_output
 
 
-def read_record(path, libgcov):
+def read_record(path, libgcov, finclude):
     """The build record at path as the case records it (see the module docstring)."""
     if not path.exists():
         return None
@@ -145,10 +149,12 @@ def read_record(path, libgcov):
             record["machine"] = MACHINE
         if isinstance(record.get("ldflags"), str):
             record["ldflags"] = record["ldflags"].replace(libgcov, LIBGCOV)
+        if isinstance(record.get("fargs"), str):
+            record["fargs"] = record["fargs"].replace(finclude, FINCLUDE)
     return record
 
 
-def evaluate(setup_path, options, platform, ldflags, libgcov, git=True):
+def evaluate(setup_path, options, platform, ldflags, libgcov, finclude, git=True):
     """Run setup_path for one case and return its record (see the module docstring)."""
     saved_argv, saved_env = list(sys.argv), dict(os.environ)
     calls = []
@@ -178,13 +184,13 @@ def evaluate(setup_path, options, platform, ldflags, libgcov, git=True):
                 try:
                     exec(compile(Path(setup_path).read_text(), str(setup_path), "exec"), ns)
                     ns.update(platform=platform, call=fake_call, mppl2f90=lambda *a, **k: None,
-                              check_output=fake_check_output(libgcov), SRCDIR=str(srcdir),
+                              check_output=fake_check_output(libgcov, finclude), SRCDIR=str(srcdir),
                               build=types.SimpleNamespace(run=lambda self: None))
                     captured["cmdclass"]["build"].run(types.SimpleNamespace(build_lib=str(build_lib)))
                 except SystemExit as e:
                     return {"exit": str(e)}
             omp_env = os.environ.get("OMP")
-            build_info = read_record(build_lib / "uedge" / "_build_info.json", libgcov)
+            build_info = read_record(build_lib / "uedge" / "_build_info.json", libgcov, finclude)
     finally:
         sys.argv = saved_argv
         os.environ.clear()
@@ -203,7 +209,7 @@ def evaluate(setup_path, options, platform, ldflags, libgcov, git=True):
     fake_args = FakeFCompiler.extra_link_args + FakeFCompiler.extra_compile_args
     if make_ldflags is not None:
         make_ldflags = make_ldflags.replace(libgcov, LIBGCOV)
-    return {"fargs": fargs.group(1), "cargs": fargs.group(2), "ompflags": ompflags[len("OMPFLAGS = "):],
+    return {"fargs": fargs.group(1).replace(finclude, FINCLUDE), "cargs": fargs.group(2), "ompflags": ompflags[len("OMPFLAGS = "):],
             "ldflags": make_ldflags, "omp_env": omp_env, "make_env": dict(sorted(make_env.items())),
             "uedgec_link": [FCOMPILER if a in fake_args else a for a in uedgec.extra_link_args],
             "uedgec_compile": [FCOMPILER if a in fake_args else a for a in uedgec.extra_compile_args],
@@ -251,7 +257,9 @@ def table(setup_path=SETUP, git=True):
     with tempfile.TemporaryDirectory() as tmp:
         libgcov = os.path.join(tmp, "libgcov.a")  # setup.py checks that the path exists
         Path(libgcov).touch()
-        return {case_name(p, o, ld): evaluate(setup_path, o, p, ld, libgcov, git) for p, o, ld in CASES}
+        finclude = os.path.join(tmp, "finclude")  # and that this one is a directory (AIUE-211)
+        Path(finclude).mkdir()
+        return {case_name(p, o, ld): evaluate(setup_path, o, p, ld, libgcov, finclude, git) for p, o, ld in CASES}
 
 
 def main(argv):
