@@ -267,7 +267,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and the findings; `families/<f>/sigma.h5` (`/<config>/sigma`, `/<config>/source` = the serial pair that set σ_i, -1
   where σ_i = 0). The Linux side is `tests/yldot/linux/` (Ubuntu 24.04 amd64 by digest, exact apt and pip pins;
   `collect.sh` builds a `git archive` of one commit; `generate.sh`, run from the mounted `tests/`, does the same for
-  `make_references.py`). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
+  `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
   families: `tg` gets its first `rtol` (from large_dd2c) and `up` 1.589e-8 (dnull_imp2's atoms on its wall ring);
   imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
@@ -276,19 +276,24 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, the uedgeC link and compile
   arguments and macros, and the build record `uedgeBuild.run` writes into a scratch `build_lib`
   (`<build_lib>/uedge/_build_info.json`, AIUE-181; `machine` shown as `<machine>`). Its `check_output` answers only the known
-  commands (libgcov lookup, the compiler's `--version`, the record's git probes; anything else raises), and `SRCDIR`
+  commands (libgcov lookup, the Linux `finclude` lookup (AIUE-211; the directory shown as `<finclude>`), the
+  compiler's `--version`, the record's git probes; anything else raises), and `SRCDIR`
   is a scratch tree with an empty `.git` (`--no-git`: without), so a record does not depend on where the evaluated
   `setup.py` lies. It needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
   reaches Forthon's real `FCompiler` and its own flags (the record's `forthon_fopt` is the fake's fixed value),
   `-g`/`-t`/`-F`, `--noclean`, `--parallel`, PETSc.
   `tests/yldot/test_build_flags.py` pins that table (27 cases: the default, `--serial`, `--debug`, `--checkbounds`,
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`), each with its build record, to
-  `v9-develop`'s, checks that `--coverage` changes only its own build, and edits a copy of `setup.py` nine ways
-  (seven flag changes, the record dropped, the record without `platform`) to show each is caught; an unedited copy
+  `v9-develop`'s plus AIUE-211's Linux `-nostdinc -fintrinsic-modules-path <finclude>`, checks that `--coverage`
+  changes only its own build, and edits a copy of `setup.py` ten ways (eight flag changes, among them the Linux
+  flags dropped, the record dropped, the record without `platform`) to show each is caught; an unedited copy
   must show no difference and `--no-git` must null only the git fields. `test_installed_record` checks the record of
-  the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, platform, the commit
-  `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built before AIUE-181 fails it, naming
-  the cause. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
+  the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
+  on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
+  before AIUE-181 fails it, naming the cause. `test_installed_no_vector_math` counts the `_ZGV` (libmvec)
+  symbols of the installed extensions with `nm -D --undefined-only` and requires none (AIUE-211; Forthon names
+  `-lmvec` on every link, so the symbols are counted, not the libraries); it skips off Linux and fails on Linux
+  without `nm`. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
   `mppl2f90` on two scratch trees with the working directory and `$PWD` differing; the test requires it to convert
   in and stay in the working directory, and a copy with the pre-AIUE-163 `getenv("PWD")` lines to fail (AIUE-163).
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
