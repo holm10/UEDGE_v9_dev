@@ -20,6 +20,8 @@ if [ "$archived" != "$COMMIT" ]; then
   echo "refused: /out/src.tar is an archive of '$archived', not $COMMIT" >&2
   exit 2
 fi
+# the CPU, in the log: results can differ by round-off between runner CPUs with the same image (AIUE-101)
+echo "cpu: $(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2-) ($(grep -m1 '^flags' /proc/cpuinfo | grep -o 'avx512f' || echo 'no avx512f'))" >&2
 mkdir -p /work/src
 tar -xf /out/src.tar -C /work/src
 cd /work/src
