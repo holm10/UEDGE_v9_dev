@@ -32,13 +32,16 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
   `pow`, `sin` or `cos` into libmvec's 2-lane `_ZGVbN2v_*` functions (glibc 2.39, the yldot image). An example is
   `fd2tra`'s log interpolation (`bbb/oderhs.m:468-484`, used with `methg = 66`). libmvec's SSE4.1 `log` kernel uses
   `rcpps`, an approximate reciprocal whose bits differ between Intel and AMD. Probed on dnull_imp2, large_dd2c and
-  imp7 (the five small families agree):
-  - Intel 8573C and 8370C agree with x86 emulation on Apple silicon. AMD EPYC 7763, 9V45 and 9V74 agree with each
+  imp7:
+  - Intel 8573C and 8370C agree with Rosetta (x86 emulation on Apple silicon), shown for dnull_imp2's base. AMD EPYC 7763, 9V45 and 9V74 agree with each
     other, and differ from Intel by round-off in 80-89 steady `yldot` rows.
-  - The same binary and inputs give the same result on every run of one vendor. The CPU's instruction set (AVX-512 or
-    not) doesn't matter.
+  - The same binary and inputs give the same result on every run of one vendor. The AVX-512 (present or not) does not
+    matter.
   - `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1` makes libmvec fall back to scalar libm, and Intel and AMD then agree
     bit for bit, at other values.
+  - The five small families' defaults reproduce on both vendors (AIUE-101, run 40268809315). Three of their variant
+    vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif` and `d_c:bbb.rtg2ti`, differed between native and emulated runs
+    whose CPU was not logged. Those are presumed to be AMD runs with the same cause, which is not probed.
   - So a bitwise comparison of two Linux runs holds only on one CPU vendor. AIUE-211 is to make the build
     vendor-independent.
 
