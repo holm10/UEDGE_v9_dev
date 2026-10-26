@@ -817,7 +817,10 @@ class uedgeBuild(build):
         # its bits differ between Intel and AMD, and so did the results (AIUE-210). -nostdinc drops the pre-include,
         # and with it the intrinsic module path (omp_lib, iso_c_binding), which is passed back
         if platform.startswith('linux'):
-            finclude = check_output([fcompiler.fcompexec, '-print-file-name=finclude'], text=True).strip()
+            try:
+                finclude = check_output([fcompiler.fcompexec, '-print-file-name=finclude'], text=True).strip()
+            except (OSError, CalledProcessError):  # not GCC's driver
+                finclude = ''
             if not os.path.isabs(finclude) or not os.path.isdir(finclude) or ' ' in finclude:
                 raise SystemExit("{} gives no usable intrinsic module directory (-print-file-name=finclude: '{}'), "
                                  "needed with -nostdinc (AIUE-211)".format(fcompiler.fcompexec, finclude))

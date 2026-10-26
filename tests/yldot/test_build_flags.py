@@ -220,6 +220,25 @@ def test_copy_location_does_not_matter(tmp_path):
     assert differences(flag_table(copy, tmp_path)) == []
 
 
+@pytest.mark.parametrize("answer", ["finclude", "/no/such/finclude", "with space", None])
+def test_finclude_refusal(answer, tmp_path):
+    """A Linux build stops with AIUE-211's message when the compiler gives no usable intrinsic module directory (a
+    relative path, a missing directory, a path with a space, or a failing lookup: a compiler that is not GCC's
+    driver); macOS builds don't ask and are unchanged."""
+    if answer == "with space":
+        answer = str(tmp_path / "a b")
+        Path(answer).mkdir()
+    extra = ("--finclude-fails",) if answer is None else ("--finclude", answer)
+    table = flag_table(SETUP, tmp_path, *extra)
+    for name, record in table.items():
+        if name.startswith("darwin:"):
+            assert record == EXPECTED[name], name
+        elif name.split(":", 1)[1] in REFUSED:
+            assert record == EXPECTED[name], name
+        else:
+            assert "AIUE-211" in record.get("exit", ""), (name, record)
+
+
 def test_record_without_git(tmp_path):
     """A source tree without .git (a git archive) records no commit, and nothing else changes (AIUE-181)."""
     table = flag_table(SETUP, tmp_path, "--no-git")
