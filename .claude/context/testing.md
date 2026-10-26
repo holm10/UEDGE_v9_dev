@@ -208,8 +208,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and emulated runs of one commit and image differ in three variant vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif`
   and `d_c:bbb.rtg2ti`, with everything else bit-identical and every class the same; the cause (libm's CPU dispatch?)
   is not probed. References up to `yldot-data-v9` were made emulated. Native CI is the reference platform (owner,
-  2026-10-25, AIUE-98): references come only from the workflow, local runs are previews, and the first native
-  regeneration moves those three entries (`Default results: changed`). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  2026-10-25, AIUE-98): references come only from the workflow, local runs are previews. The `ubuntu-24.04` pool
+  mixes CPUs, and results follow the CPU, not the run (AIUE-101): the full sweep at `333af1e` (run 40273278698)
+  reproduced every v9 dataset of all eight families, those three entries included. dnull_imp2's defaults reproduce
+  v9 on an Intel Xeon 8573C but differ on AMD EPYC 7763, 9V45 and 9V74 (80 `yldot` rows, max |diff| 1.2e-7), the
+  same rows on every AMD run. The build is generic x86-64, so the CPU must act at run time. A bitwise check
+  (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU; the workflow's `cpu` input refuses any
+  other runner. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -532,7 +537,8 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
-  (inputs `from_commit`, `families`, `mode` sweep/only/defaults-only, `only`, `publish`, `expect_ref`, `note`), three
+  (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
+  `note`, `cpu`: a `grep -E` pattern; `generate`'s first step stops unless the runner's CPU model matches it), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
