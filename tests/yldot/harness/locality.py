@@ -39,7 +39,8 @@ FIELDS = ("column", "row", "mismatch", "dfull")
 DTYPES = {"column": np.int64, "row": np.int64, "mismatch": np.float64, "dfull": np.float64}
 KEYS = ("delta_loc", "m_loc", "calibration", "causes", "columns", "variants")  # family.toml [locality]
 SAMPLE_KEYS = ("sample", "seed")  # with columns = "special" only
-OPTIONAL = ("excluded",)  # {variant id: reason}: owner-decided exclusions from the variant scope (decision 23)
+OPTIONAL = ("excluded",  # {variant id: reason}: owner-decided exclusions from the variant scope (decision 23)
+            "near_margin")  # the owner's acceptance of default entries within 3x of M_loc (rule D3), with the cause
 COLUMNS = ("all", "special")
 VARIANTS = ("all", "listed", "meth")
 # the inputs that move the local evaluation's window (owner, 2026-10-25, AIUE-101 Q3)
@@ -79,6 +80,8 @@ def load_config(fdir):
     ex = t.get("excluded", {})
     if not (isinstance(ex, dict) and all(isinstance(v, str) and v.strip() for v in ex.values())):
         raise ValueError("{}: [locality].excluded must map variant ids to a reason".format(fdir))
+    if "near_margin" in t and not (isinstance(t["near_margin"], str) and t["near_margin"].strip()):
+        raise ValueError("{}: [locality].near_margin must be the owner's reason (a string)".format(fdir))
     return t
 
 
@@ -283,7 +286,9 @@ def pattern(e, tol, rteq):
 
 def near_margin(e, tol, rteq, m_loc, factor=3.0):
     """The entries within factor x of M_loc (score in [M_loc/factor, factor*M_loc]): rule D3 (AIUE-100) keeps a
-    stored pattern clear of them, so generation reports each to the epic owner."""
+    family's default pattern clear of them, so generation reports them to the epic owner unless [locality].near_margin
+    records the owner's acceptance; a variant's are counted only (owner, 2026-10-25, AIUE-101: the 3x rule calibrates
+    delta on the default pattern)."""
     s = scores(e, tol, rteq)
     return e.select((s >= m_loc / factor) & (s <= m_loc * factor))
 

@@ -803,6 +803,22 @@ def test_locality_findings_and_summary():
     assert line.endswith("0 nondeterministic")
 
 
+@pytest.mark.parametrize("accepted", [False, True])
+def test_default_near_margin_is_a_finding_unless_accepted(tmp_path, monkeypatch, accepted):
+    """Owner, 2026-10-25 (AIUE-101): a default entry within 3x of M_loc is a finding unless [locality].near_margin
+    records the owner's acceptance; the count goes to <family>.locality.json either way."""
+    real_near, real_load = locality.near_margin, locality.load_config
+    monkeypatch.setattr(locality, "near_margin", lambda e, *a, **k: e.select(np.arange(len(e)) < 1))
+    if accepted:
+        monkeypatch.setattr(locality, "load_config", lambda fdir: dict(real_load(fdir), near_margin="by design"))
+    d = tmp_path / "near"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep="none")
+    findings = json.loads((d / "references" / "d_only.findings.json").read_text())
+    assert [f["id"] for f in findings] == ([] if accepted else ["locality:default"])
+    assert json.loads((d / "references" / "d_only.locality.json").read_text()) == {"near_margin": {"default": 1}}
+    assert real_near is not locality.near_margin
+
+
 def test_child_options_pass_locality_only_and_jobs():
     assert mr.child_options(args(locality_only=True, jobs=3)) == ["--locality-only", "--jobs", "3"]
     assert mr.child_options(args(defaults_only=True)) == ["--sweep", "none"]

@@ -343,6 +343,9 @@ def diff_locality(a, b):
             out.append((CHANGED if more else LOOSENED, what + (" (more columns)" if more else " (fewer columns)")))
         elif key == "seed":
             out.append((CHANGED if vb is not None else LOOSENED, what + " (another sample)"))
+        elif key == "near_margin":  # the owner's acceptance of default entries near M_loc (rule D3; AIUE-101)
+            out.append((CHANGED if vb is None else LOOSENED, "[locality].near_margin {}".format(
+                "removed" if vb is None else "set or changed (default entries within 3x of M_loc accepted)")))
         elif key == "excluded" and isinstance(va or {}, dict) and isinstance(vb or {}, dict):
             va, vb = va or {}, vb or {}
             more = sorted(k for k in vb if k not in va)

@@ -522,6 +522,8 @@ ALL = dict(LOCALITY, columns="all", variants="all")
     (SPECIAL, dict(SPECIAL, sample=True), {"loosened"}),
     (SPECIAL, dict(SPECIAL, seed=2), {"changed"}),
     (ALL, dict(ALL, excluded={"bbb.a": "why"}), {"loosened"}),  # an owner exclusion: CODEOWNER approval
+    (ALL, dict(ALL, near_margin="nonog"), {"loosened"}),  # the owner accepts default entries near M_loc
+    (dict(ALL, near_margin="nonog"), ALL, {"changed"}),
     (dict(ALL, excluded={"bbb.a": "why"}), dict(ALL, excluded={"bbb.a": "better why"}), {"changed"}),
     (dict(ALL, excluded={"bbb.a": "why"}), ALL, {"changed"}),  # back in scope
 ])

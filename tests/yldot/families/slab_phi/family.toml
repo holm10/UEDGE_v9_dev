@@ -96,7 +96,7 @@ delta_loc = 1e-6
 m_loc = 100.0
 columns = "all"  # every column (AIUE-101 Q1: the small families)
 variants = "listed"  # the bbb.meth* variants and the window inputs store a pattern (AIUE-101 Q3, owner 2026-10-25)
-calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 2.48e+06, range_window_coupling 1.59e+04; largest default entry 0."
+calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 2.48e+06, range_window_coupling 1.59e+04; largest default entry 0. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the Linux-image preview of f6122cb: bbb.xrinc 4090, bbb.isjaccorall 4; none in the other variants."
 
 [locality.causes]  # the by-design causes of the default pattern
 none = "every column bit-identical at delta 1e-8, 1e-6 and 1e-4 (planning probes, AIUE-100)"

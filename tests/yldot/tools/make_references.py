@@ -374,8 +374,9 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     locality.variant_scope evaluated once more with its applied value replayed, its pattern scored with the
     tolerance it is checked with (a full store's SENSITIVE variant: variant_tolerance of its stored yldot; INERT and
     MARGINAL: the default's; a sketch store: tolerance() of the run's yldot, AIUE-99 Q2) and stored as its difference
-    from the default pattern. Findings for the owner: stale columns, a failed run, and any stored entry within 3x of
-    M_loc (rule D3)."""
+    from the default pattern. Findings for the owner: stale columns, a failed run, and a default entry within 3x of
+    M_loc (rule D3) unless [locality].near_margin records the owner's acceptance; the counts of such entries, the
+    variants' included, go to <family>.locality.json (owner, 2026-10-25, AIUE-101: the 3x rule is the default's)."""
     import statistics
 
     from yldot.harness import FamilyError, Runner, compare, load_evaluation, locality, open_store, store, variants
@@ -449,9 +450,11 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             default_p = locality.pattern(locality.Entries.of(run["entries"]), t, rteq)
             w.write_locality("steady", run["delta"], default_p, columns=run["columns"])
         variables, findings, kept = {}, [], {}
+        near_counts = {}  # entries within 3x of M_loc: "default" and per variant (written to <family>.locality.json)
         if loc is not None:
             near = locality.near_margin(default_p, t, rteq, float(loc["m_loc"]))
-            if len(near):
+            near_counts["default"] = len(near)
+            if len(near) and "near_margin" not in loc:
                 findings.append({"id": "locality:default", "finding": "owner: {} default locality entries within 3x "
                                  "of M_loc (rule D3), first {}".format(len(near), locality_labels(near, imap))})
         if sweep != "none":
@@ -538,9 +541,8 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                 tv = locality_tolerance(fdir, kind, e, r.data["yldot"], data[e["config"]]["yldot"], ref, suite, imap)
                 pv = locality.pattern(locality.Entries.of(lrun["entries"]), tv, rteq)
                 near = locality.near_margin(pv, tv, rteq, float(loc["m_loc"]))
-                if len(near):
-                    findings.append({"id": vid, "finding": "owner: {} locality entries within 3x of M_loc (rule "
-                                     "D3), first {}".format(len(near), locality_labels(near, imap))})
+                if len(near):  # counted only: the 3x rule calibrates delta on the default (owner, AIUE-101)
+                    near_counts[vid] = len(near)
                 w.write_locality_variant(e["config"], vid, *locality.diff(base_p, pv))
         written = w.finish()
         prev_guarded = previous.manifest["guarded"] if previous is not None else None
@@ -564,6 +566,9 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             fields["locality_variants"] = written["locality_variants"]
         (out / "{}.json".format(name)).write_text(mf.dumps(fields))
         (out / "{}.findings.json".format(name)).write_text(json.dumps(findings, indent=1) + "\n")
+        if near_counts:
+            (out / "{}.locality.json".format(name)).write_text(json.dumps({"near_margin": near_counts}, indent=1,
+                                                                          sort_keys=True) + "\n")
         line = summary(name, variables, findings)
         (out / "{}.summary".format(name)).write_text(line + "\n")
         cost = {"evaluations": len(walls), "child_wall_s": round(sum(walls), 3),
@@ -828,6 +833,10 @@ def assemble(sha, families, out, release, assets=None):
             cost = json.loads((ref / "{}.cost.json".format(name)).read_text())
             print("  {} bytes of {} MB; {} evaluations, {} s in children (median {} s, max {} s)".format(
                 size, cap, cost["evaluations"], cost["child_wall_s"], cost["median_s"], cost["max_s"]))
+        if (ref / "{}.locality.json".format(name)).is_file():
+            near = json.loads((ref / "{}.locality.json".format(name)).read_text())["near_margin"]
+            print("  locality entries within 3x of M_loc: {}".format(
+                ", ".join("{} {}".format(k, v) for k, v in sorted(near.items(), key=lambda kv: kv[0] != "default"))))
     return manifests, findings
 
 

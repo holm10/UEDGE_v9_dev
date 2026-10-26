@@ -95,7 +95,7 @@ delta_loc = 1e-6
 m_loc = 100.0
 columns = "all"  # every column (AIUE-101 Q1: the small families)
 variants = "listed"  # the bbb.meth* variants and the window inputs store a pattern (AIUE-101 Q3, owner 2026-10-25)
-calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 3.91e+05, range_window_coupling 2.56e+04; largest default entry 3.92."
+calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 3.91e+05, range_window_coupling 2.56e+04; largest default entry 3.92. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the Linux-image preview of f6122cb: bbb.xrinc 993, bbb.isjaccorall 2; none in the other variants."
 
 [locality.causes]  # the by-design causes of the default pattern
 nonog = "isnonog = 1: the neutral heat-conductivity 4-point average in feixy (cftiexclg*cfneut*cfneutsor_ei*0.25*(hcyn(ix,iy)+hcyn(ix,iy1)+hcyn(ix2,iy)+hcyn(ix4,iy1)), bbb/pandf_plasma_energy.m:476-477, noted at :458-459) reaches cell ix-1, so ti at ix+2 (and iy-1) responds to ni[1], ni[2] and ti at ix, one cell beyond xrinc = 1; vanishes with cfneutsor_ei = 0 or cftiexclg = 0. By design (owner, 2026-10-22, AIUE-100 D2)."

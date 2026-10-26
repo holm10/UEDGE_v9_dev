@@ -101,3 +101,16 @@ iy_between = [17, 30]  # between the separatrices; lower legs: lower private flu
 iy_open = [31, 44]  # SOL and legs: iysptrx1(1)+1..ny
 source = { ixlb = [0, 38], ixrb = [36, 82], ixpt1 = [10, 50], ixpt2 = [26, 70], iysptrx1 = [30, 16], iysptrx2 = [16, 30] }  # mhdgeo = 1, nxpt = 2: com.*, per mesh half
 cells = { guard = 344, core = 576, pf_upper = 352, pf_lower = 660, sol_between = 812, sol = 504, lower_inner_leg = 140, upper_inner_leg = 140, upper_outer_leg = 168, lower_outer_leg = 168 }
+
+[locality]  # PRD 7.5 nightly tier (AIUE-101); owner, 2026-10-25: delta_loc 1e-6 with the entries near M_loc accepted (Q5)
+delta_loc = 1e-6
+m_loc = 100.0
+columns = "special"  # the special cells (AIUE-101 Q1) and the seeded interior sample, for the default
+sample = 300
+seed = 20261025
+variants = "meth"  # the bbb.meth* variants, on the special cells (AIUE-101 Q2)
+calibration = "D3 over 1e-6, 1e-5, 1e-4, 1e-3 on the special cells' columns plus 300 seeded interior ones (serial -O3 macOS build of f6122cb): both range mutations score far above 10*M_loc outside the default pattern at every delta, but no delta leaves the stored pattern clear of 3x of M_loc (the entries within it grow with delta), so D3 qualifies none; the owner chose 1e-6, the smallest, and accepted the near-margin entries (2026-10-25, AIUE-101 Q5). 8252 columns. At 1e-6: 963 stored entries, 136 above M_loc (largest 5.54e+03), 178 within 3x of M_loc, all the nonog signature; range_loop_bound 3.25e+06, range_window_coupling 1.90e+04 outside the pattern. 1e-5: 413 within 3x; 1e-4: 622; 1e-3: 804."
+near_margin = "the default entries within 3x of M_loc are the by-design nonog signature (causes); owner, 2026-10-25 (AIUE-101 Q5)"
+
+[locality.causes]  # the by-design causes of the default pattern
+nonog = "isnonog = 1: the neutral heat-conductivity 4-point average in feixy (bbb/pandf_plasma_energy.m:476-477, noted at :458-459) reaches cell ix-1, so ti two cells away in ix (and iy +-1) responds to ni and ti at the perturbed cell, one cell beyond xrinc = 1. By design (owner, 2026-10-22, AIUE-100 D2); every entry above M_loc here has this signature (AIUE-101 calibration)."
