@@ -139,7 +139,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
   only N = highest published + 1, so a ticket reserves its N on its ticket page once the owner agrees, and planning
-  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6);
+  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6. Every publish first creates the tag
+  through the git refs API (an existing tag fails the call) and then runs `gh release create --verify-tag`; a tag whose
+  release then fails has used up its N. `--generated`: the manifests naming the tag come from a generation of
+  `--target` and are not committed (`tests/yldot` outside `references/` must be `--target`'s, and each manifest's
+  provenance commit `--target`); `--renumber` (with it) takes the highest release or remote tag + 1, rewriting the
+  manifests' `release` (a dry run only reports the N), and moves on after a collision, at most `ATTEMPTS` = 3;
+  `--note`; `--gate` checks only `--target`; a successful run ends with `tag=<tag>`. `regenerate-references.yml` runs it, below, AIUE-98);
   `measure_roundoff.py` (`collect`, run with each build's own python or in the Linux image: per family and
   configuration two fresh processes, pickled `yldot`/`yldot_J` and index arrays with the build record; `--omp N` adds
   the `ffun` RHS with the `ppp` OpenMP flags set in the `post` hook; `analyze`: the pairs `same_build:<label>`,
@@ -148,7 +154,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `make_references.py` (`generate --from-commit SHA`: builds SHA `--serial` and writes each family's steady and
   `timestep` defaults, Jacobian-flag difference, diagnostics and σ_i with the manifest's provenance, and for a family
   with `[locality]` the steady locality pattern (AIUE-100); `--platform
-  linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, `--platform host` a
+  linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, run by
+  `regenerate-references.yml` on native amd64 (owner, 2026-10-25, AIUE-98; locally a preview), `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
   null` (owner, 2026-10-22, AIUE-88); default families: the small ones
   (with `sigma.h5`, not owner families); an owner family only when named (swept like the others since AIUE-99, or
@@ -173,8 +180,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
   `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
   nondeterminism only, not build or memory-layout dependence. Two Linux runs from one
-  commit gave the same SHA-256s on one host (x86 emulation on Apple silicon); bit-identity on a native amd64 host is
-  AIUE-98's check. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  commit gave the same SHA-256s on one host (x86 emulation on Apple silicon), and so did two native amd64 runs
+  (`regenerate-references.yml` on `ubuntu-24.04`, runs 40220476594 and 40234117547, full sweep at `bfca6180`). Native
+  and emulated runs of one commit and image differ in three variant vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif`
+  and `d_c:bbb.rtg2ti`, with everything else bit-identical and every class the same; the cause (libm's CPU dispatch?)
+  is not probed. References up to `yldot-data-v9` were made emulated. Native CI is the reference platform (owner,
+  2026-10-25, AIUE-98): references come only from the workflow, local runs are previews, and the first native
+  regeneration moves those three entries (`Default results: changed`). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -486,6 +498,24 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   replays. Merges with or after `bugfix/v9-openmp-determinism-fix`, once its first native PR run is green within
   20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
+- `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
+  (inputs `from_commit`, `families`, `mode` sweep/only/defaults-only, `only`, `publish`, `expect_ref`, `note`), three
+  jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
+  `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
+  history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
+  workflow and of `release_data.py`, so the gate catches mistakes, not a branch that edits it: the owner's approval in
+  `yldot-data` is the control, and the approver reads the run's diff of `.github/` and `tests/yldot/tools/` first. `generate` (350 min) runs
+  `make_references.py generate` in `yldot-linux:24.04`, pulled from `ghcr.io/holm10/yldot-linux` by its digest
+  `sha256:2f833938…` with Docker's containerd image store, so `.Id` is the digest the manifests' `runner_image`
+  records, and fails on any other id (owner D1: never rebuilt in CI, a rebuild on 2026-10-25 gave another id and a
+  drifted unpinned `zlib1g`); with publish `--release <provisional> --write`, with `expect_ref` it compares each
+  `references/<f>.h5`'s SHA-256 with that ref's manifests (a reproduction check). `publish` runs in the environment
+  `yldot-data` (required reviewer the epic owner, self-review allowed, branches `v9-develop`, `feature/v9-*`,
+  `bugfix/v9-*`) and the concurrency group `yldot-data-release` (one running and one pending: a third queued publish
+  cancels the pending one; N follows the order in which publish jobs enter the group, not the dispatch order: in
+  AIUE-98's A4 the second dispatch generated first and got v11, the first was renumbered to v12), runs `release_data.py --generated --renumber --publish` and uploads the renumbered
+  manifests as the artifact `yldot-manifests-<tag>`, which the developer commits as a data-only commit (owner D2: the
+  workflow never pushes; a `GITHUB_TOKEN` push runs no CI). The only `contents: write` in `.github/workflows/`.
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
   The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
   its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out
