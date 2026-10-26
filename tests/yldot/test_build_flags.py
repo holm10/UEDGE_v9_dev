@@ -303,11 +303,12 @@ def test_installed_no_vector_math():
     """No extension of the installed UEDGE calls glibc's vector math library libmvec (_ZGV* symbols): its 2-lane log
     uses rcpps, whose bits differ between Intel and AMD, so the results would follow the CPU vendor (AIUE-210,
     AIUE-211). Forthon still names -lmvec on the link line, and only --as-needed drops it, so the symbols are
-    counted, not the libraries. macOS has no libmvec; on Linux a missing nm fails, it never skips."""
-    if not sys.platform.startswith("linux"):
-        pytest.skip("libmvec is glibc's: nothing to check on {}".format(sys.platform))
+    counted, not the libraries. Runs on every platform, as the suite never skips (PRD section 7.6): libmvec is glibc's,
+    so off Linux the count is 0 by construction, read with that platform's nm (-u: Mach-O has no dynamic table to
+    ask for); a missing nm fails."""
     nm = shutil.which("nm")
-    assert nm, "nm (binutils) is needed to check the installed UEDGE for libmvec calls"
+    assert nm, "nm is needed to check the installed UEDGE for libmvec calls"
+    undefined = ["-D", "--undefined-only"] if sys.platform.startswith("linux") else ["-u"]
     spec = importlib.util.find_spec("uedge")  # found without importing uedge
     assert spec is not None and spec.submodule_search_locations, "uedge is not installed"
     pkg = Path(spec.submodule_search_locations[0])
@@ -315,7 +316,7 @@ def test_installed_no_vector_math():
     assert extensions, "no extension modules next to {}".format(pkg)
     found = {}
     for so in extensions:
-        proc = subprocess.run([nm, "-D", "--undefined-only", str(so)], capture_output=True, text=True, timeout=60)
+        proc = subprocess.run([nm, *undefined, str(so)], capture_output=True, text=True, timeout=60)
         assert proc.returncode == 0, proc.stderr
         symbols = sorted({line.split()[-1] for line in proc.stdout.splitlines() if "_ZGV" in line})
         if symbols:
