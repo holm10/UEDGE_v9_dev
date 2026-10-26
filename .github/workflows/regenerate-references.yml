@@ -29,9 +29,9 @@ on:
         description: "Families, space-separated (default: make_references.py's, the small ones)"
         default: ""
       mode:
-        description: "sweep: the defaults and every variant; only: the variants in 'only'; defaults-only: no sweep, never published"
+        description: "sweep: the defaults and every variant; only: the variants in 'only'; locality-only: the installed references with their locality data computed again (AIUE-101); defaults-only: no sweep, never published"
         type: choice
-        options: [sweep, only, defaults-only]
+        options: [sweep, only, locality-only, defaults-only]
         default: sweep
       only:
         description: "With mode only: variant ids or keys, space-separated"
@@ -139,7 +139,7 @@ jobs:
           python-version: "3.12"
       - name: Install the host-side packages
         run: pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
-      - name: Fetch the released data (the owner families' assets; the installed references for mode only)
+      - name: Fetch the released data (the owner families' assets; the installed references for modes only and locality-only)
         run: python tests/yldot/tools/fetch_data.py
       - name: Take a provisional tag
         id: tag
@@ -158,6 +158,7 @@ jobs:
           opts=(--out "$RUNNER_TEMP/gen")
           if [ "$MODE" = only ]; then opts+=(--only "${only[@]}"); fi
           if [ "$MODE" = defaults-only ]; then opts+=(--defaults-only); fi
+          if [ "$MODE" = locality-only ]; then opts+=(--locality-only); fi
           if [ "$PUBLISH" = true ]; then opts+=(--release "$TAG" --write); fi
           # the families come before the options: --only is nargs="+" and would take them as variant ids
           python tests/yldot/tools/make_references.py generate --from-commit "$(git rev-parse HEAD)" "${fams[@]}" \
