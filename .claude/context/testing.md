@@ -213,8 +213,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   reproduced every v9 dataset of all eight families, those three entries included. dnull_imp2's defaults reproduce
   v9 on an Intel Xeon 8573C but differ on AMD EPYC 7763, 9V45 and 9V74 (80 `yldot` rows, max |diff| 1.2e-7), the
   same rows on every AMD run. The build is generic x86-64, so the CPU must act at run time. A bitwise check
-  (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU; the workflow's `cpu` input refuses any
-  other runner. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU. Intel is the reference CPU (owner,
+  2026-10-26, AIUE-101): the workflow's `cpu` input defaults to `intel` and refuses any other runner. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -538,7 +538,8 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
   (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
-  `note`, `cpu`: a case-insensitive `grep -E` pattern; `generate`'s first step stops unless the runner's CPU model matches it), three
+  `note`, `cpu`: a case-insensitive `grep -E` pattern, default `intel`; `generate`'s first step stops unless the runner's CPU
+  model matches it, and `gate` refuses a publish with it empty), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
