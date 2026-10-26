@@ -276,8 +276,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, the uedgeC link and compile
   arguments and macros, and the build record `uedgeBuild.run` writes into a scratch `build_lib`
   (`<build_lib>/uedge/_build_info.json`, AIUE-181; `machine` shown as `<machine>`). Its `check_output` answers only the known
-  commands (libgcov lookup, the Linux `finclude` lookup (AIUE-211; the directory shown as `<finclude>`), the
-  compiler's `--version`, the record's git probes; anything else raises), and `SRCDIR`
+  commands (libgcov lookup, the Linux `finclude` lookup (AIUE-211; the directory shown as `<finclude>`;
+  `--finclude ANSWER` / `--finclude-fails` give a bad answer), the compiler's `--version`, the record's git
+  probes; anything else raises), and `SRCDIR`
   is a scratch tree with an empty `.git` (`--no-git`: without), so a record does not depend on where the evaluated
   `setup.py` lies. It needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
   reaches Forthon's real `FCompiler` and its own flags (the record's `forthon_fopt` is the fake's fixed value),
@@ -286,7 +287,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`), each with its build record, to
   `v9-develop`'s plus AIUE-211's Linux `-nostdinc -fintrinsic-modules-path <finclude>`, checks that `--coverage`
   changes only its own build, and edits a copy of `setup.py` ten ways (eight flag changes, among them the Linux
-  flags dropped, the record dropped, the record without `platform`) to show each is caught; an unedited copy
+  flags dropped, the record dropped, the record without `platform`) to show each is caught;
+  `test_finclude_refusal` gives setup.py a relative, missing, spaced and failing `finclude` and requires every
+  Linux build to stop with AIUE-211's message and every macOS one to be unchanged; an unedited copy
   must show no difference and `--no-git` must null only the git fields. `test_installed_record` checks the record of
   the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
   on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
