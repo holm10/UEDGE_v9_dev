@@ -207,8 +207,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   commit gave the same SHA-256s on one host (x86 emulation on Apple silicon), and so did two native amd64 runs
   (`regenerate-references.yml` on `ubuntu-24.04`, runs 40220476594 and 40234117547, full sweep at `bfca6180`). Native
   and emulated runs of one commit and image differ in three variant vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif`
-  and `d_c:bbb.rtg2ti`, with everything else bit-identical and every class the same; those native runs presumably
-  landed on AMD runners (their CPU was not logged; the cause is below). References up to `yldot-data-v9` were made emulated. Native CI is the reference platform (owner,
+  and `d_c:bbb.rtg2ti`, with everything else bit-identical and every class the same; those native runs are presumed
+  to have landed on AMD runners (their CPU was not logged), with the cause below; neither the AMD attribution nor the
+  shared cause is probed. References up to `yldot-data-v9` were made emulated. Native CI is the reference platform (owner,
   2026-10-25, AIUE-98): references come only from the workflow, local runs are previews. The `ubuntu-24.04` pool
   mixes CPUs, and results follow the CPU, not the run (AIUE-101): the full sweep at `333af1e` (run 40273278698)
   reproduced every v9 dataset of all eight families, those three entries included. dnull_imp2's defaults reproduce
@@ -216,7 +217,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   same rows on every AMD run. The cause is glibc's vector math library (AIUE-210): gfortran `-O3` vectorizes loops
   that call `exp`, `log`, `pow`, `sin` or `cos` into libmvec's 2-lane `_ZGVbN2v_*` (e.g. `fd2tra`'s log interpolation,
   `bbb/oderhs.m:468-484`, used with `methg = 66`), and libmvec's SSE4.1 `log` kernel uses `rcpps`, whose bits differ
-  between Intel and AMD; x86 emulation on Apple silicon gives Intel's. With `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1`
+  between Intel and AMD; Rosetta (x86 emulation on Apple silicon) gives Intel's, shown for dnull_imp2's base. With `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1`
   libmvec falls back to scalar libm and Intel and AMD agree bit for bit, but every owner family then moves by thousands
   of rows from v9. Making the build vendor-independent is AIUE-211. A bitwise check
   (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU. Intel is the reference CPU (owner,
