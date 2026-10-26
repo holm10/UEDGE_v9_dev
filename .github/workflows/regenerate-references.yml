@@ -9,6 +9,9 @@
 #           2026-10-25, AIUE-98 D1: never rebuilt here, a rebuild drifts). With publish: --release <provisional tag>
 #           --write, and the references and manifests become an artifact. With expect_ref: each references/<f>.h5's
 #           SHA-256 must equal the one in <expect_ref>'s manifests (a reproduction check; nothing is published).
+#           With cpu: stops at once unless the runner's CPU model matches the pattern. The ubuntu-24.04 pool mixes
+#           Intel and AMD CPUs, and the owner families' defaults differ by round-off between them (AIUE-101: dnull_imp2
+#           on an Intel Xeon 8573C reproduces yldot-data-v9 bit for bit, on AMD EPYC 7763/9V45/9V74 it does not).
 # publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
 #           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
 #           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
@@ -45,6 +48,9 @@ on:
         default: ""
       note:
         description: "First paragraph of the release notes"
+        default: ""
+      cpu:
+        description: "A grep -E pattern (e.g. Intel): generate stops at once unless the runner's CPU model matches it; the pool mixes Intel and AMD CPUs, whose owner-family defaults differ by round-off (AIUE-101)"
         default: ""
 
 permissions: {}
@@ -110,7 +116,15 @@ jobs:
       MODE: ${{ inputs.mode }}
       ONLY: ${{ inputs.only }}
       EXPECT_REF: ${{ inputs.expect_ref }}
+      CPU: ${{ inputs.cpu }}
     steps:
+      - name: Check the runner's CPU
+        run: |
+          model=$(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')
+          echo "cpu: $model" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$CPU" ] && ! grep -qE -- "$CPU" <<< "$model"; then
+            echo "refused: the CPU '$model' does not match '$CPU'; dispatch again for another runner"; exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.from_commit || github.sha }}
