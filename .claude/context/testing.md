@@ -249,7 +249,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and both range mutations list the owner families; writes the coverage matrix `matrix.json`/`matrix.md` (a working
   document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
   `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation; a range mutation about
-  30 min, its locality runs on the owner families' column sets, macOS arm64, 2026-10-27, AIUE-101).
+  30 min, its locality runs on the owner families' column sets, macOS arm64, 2026-10-26, AIUE-101).
   `sketch_sensitivity.py` (PRD §7.11 d, AIUE-92): `run <family>... --from-collection DIR | --from-store` per
   sketch-store block the weighted single-entry threshold δ_b/w_i (bisection-checked), R_i = δ_b/(tol_i·w_i) against
   R_max = 2·c·sqrt(N) (a block over it is an owner finding), the worst cell's multiple per region and, with
