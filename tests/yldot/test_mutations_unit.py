@@ -341,6 +341,18 @@ def test_parse_junit_locality(tmp_path):
         rm.parse_junit_locality(p, ["d_only", "ortho"])
 
 
+def test_locality_cases_collect_only_test_locality():
+    """The range mutations' cross-check runs each family's test_locality case and nothing else (AIUE-101: a -k
+    expression also collected every test_locality_variant case)."""
+    root = Path(__file__).resolve().parents[2]
+    out = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
+                         + rm.locality_cases(["d_only", "large_dd2c"]), cwd=root, capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    ids = [line for line in out.stdout.splitlines() if "::" in line]
+    assert ids == ["tests/yldot/test_locality.py::test_locality[d_only]",
+                   "tests/yldot/test_locality.py::test_locality[large_dd2c]"], ids
+
+
 def test_skipped_test_default_is_flagged(tmp_path):
     v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
     assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v
