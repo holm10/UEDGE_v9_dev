@@ -23,7 +23,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
   The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5`, states and `sigma.h5` are
-  release assets of the release their manifest names (`yldot-data-v9` since AIUE-99; owner, 2026-10-22, D6),
+  release assets of the release their manifest names (`yldot-data-v13` since AIUE-101; owner, 2026-10-22, D6),
   gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner, 2026-10-21); a manifest naming
   release assets under `families/<f>/` is what makes an owner family (`manifest.owner_family`). `conftest.py` fetches every manifest's release assets at the start of the session
   (`fetch_data.fetch`: download if absent, SHA-256 check, link; decision 23, owner 2026-10-22, AIUE-156); nothing
@@ -40,8 +40,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. Every family's holds the defaults and the
-  SENSITIVE variants and its manifest classifies every variant (`yldot-data-v9` since AIUE-99, which swept the owner
-  families' sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94).
+  SENSITIVE variants and its manifest classifies every variant (since AIUE-99, which swept the owner families'
+  sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94); `yldot-data-v13` (AIUE-101, `locality-only`
+  on Intel) keeps every v9 default and variant bit for bit and adds the locality data.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
@@ -214,7 +215,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   v9 on an Intel Xeon 8573C but differ on AMD EPYC 7763, 9V45 and 9V74 (80 `yldot` rows, max |diff| 1.2e-7), the
   same rows on every AMD run. The build is generic x86-64, so the CPU must act at run time. A bitwise check
   (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU. Intel is the reference CPU (owner,
-  2026-10-26, AIUE-101): the workflow's `cpu` input defaults to `intel` and refuses any other runner. A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  2026-10-26, AIUE-101): the workflow's `cpu` input defaults to `intel` and refuses any other runner. Xeon 8573C,
+  Platinum 8370C and 6973P-C all reproduce v9 (v13 came from a 6973P-C). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -241,11 +243,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `test_sensitive` as the cross-check there, a `BuildLimitWarning` counting as a failure (selected by its message,
   `build.REPORTED`: pytest's `-W` cannot import `yldot`);
   a range mutation (Check `locality`) also gets the steady part `locality` (`_child --locality`) and
-  `test_locality.py` as its cross-check, the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
+  `test_locality.py`'s `test_locality[<family>]` cases as its cross-check (by node id, `locality_cases`: a `-k`
+  expression also selects every `test_locality_variant`, AIUE-101), the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
   with `[locality]` (owner, 2026-10-23, AIUE-92), over the family's column set; every family has one since AIUE-101,
   and both range mutations list the owner families; writes the coverage matrix `matrix.json`/`matrix.md` (a working
   document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
-  `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation).
+  `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation; a range mutation about
+  30 min, its locality runs on the owner families' column sets, macOS arm64, 2026-10-27, AIUE-101).
   `sketch_sensitivity.py` (PRD §7.11 d, AIUE-92): `run <family>... --from-collection DIR | --from-store` per
   sketch-store block the weighted single-entry threshold δ_b/w_i (bisection-checked), R_i = δ_b/(tol_i·w_i) against
   R_max = 2·c·sqrt(N) (a block over it is an owner finding), the worst cell's multiple per region and, with
