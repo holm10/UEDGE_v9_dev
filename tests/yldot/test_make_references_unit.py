@@ -476,9 +476,11 @@ def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
     assert e.value.code == 3 and "regenerate in full" in str(e.value)
 
 
-def test_only_on_a_sketch_store(tmp_path):
+def test_only_on_a_sketch_store(tmp_path, monkeypatch):
     """AIUE-99: --only against an installed sketch store (large_dd2c, two variants) passes the defaults' check, whose
-    stored sketch weights and thresholds are kept or derived, and reproduces the file bit for bit."""
+    stored sketch weights and thresholds are kept or derived, and reproduces the file bit for bit. The locality runs
+    take the first 64 columns: large_dd2c's own set (8236) ran past the 900 s timeout on CI (AIUE-101)."""
+    monkeypatch.setattr(mr, "locality_columns", lambda loc, variant=False: None if loc is None else list(range(64)))
     sweep = ["bbb.cfvisx", "bbb.fdtnixy"]
     first = tmp_path / "first"
     mr.child(["large_dd2c"], first / "references", build_record(tmp_path), sweep=sweep)
@@ -487,6 +489,8 @@ def test_only_on_a_sketch_store(tmp_path):
     d = tmp_path / "only"
     mr.child(["large_dd2c"], d / "references", build_record(tmp_path), sweep=sweep, only=["bbb.cfvisx"], suite=suite)
     assert file_sha256(d / "references" / "large_dd2c.h5") == file_sha256(first / "references" / "large_dd2c.h5")
+    with h5py.File(d / "references" / "large_dd2c.h5", "r") as h:  # the locality path ran on the sketch store
+        assert h["/steady/locality/columns"][()].tolist() == list(range(64))
     assert mr.SKETCH_DEFAULT_RE.search("/steady/default/sketch_weight")
     assert mr.SKETCH_DEFAULT_RE.search("/timestep/default/sketch_threshold/cell_m")
     assert not mr.SKETCH_DEFAULT_RE.search("/steady/default/yldot")
