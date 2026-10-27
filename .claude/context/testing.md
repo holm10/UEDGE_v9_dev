@@ -219,10 +219,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `bbb/oderhs.m:468-484`, used with `methg = 66`), and libmvec's SSE4.1 `log` kernel uses `rcpps`, whose bits differ
   between Intel and AMD; Rosetta (x86 emulation on Apple silicon) gives Intel's, shown for dnull_imp2's base. With `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1`
   libmvec falls back to scalar libm and Intel and AMD agree bit for bit, but every owner family then moves by thousands
-  of rows from v9. Making the build vendor-independent is AIUE-211. A bitwise check
-  (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU. Intel is the reference CPU (owner,
-  2026-10-26, AIUE-101): the workflow's `cpu` input defaults to `intel` and refuses any other runner. Xeon 8573C,
-  Platinum 8370C and 6973P-C all reproduce v9 (v13 came from a 6973P-C). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  of rows from v9. A bitwise check (`--only`, `--locality-only`, `expect_ref`) of references made before AIUE-211
+  passes only on a matching CPU (Intel, owner 2026-10-26, AIUE-101; Xeon 8573C, Platinum 8370C and 6973P-C all
+  reproduce v9, and v13 came from a 6973P-C). Since AIUE-211 the Linux build keeps those math calls scalar, and Intel
+  and AMD runners and x86 emulation give bit-identical full sweeps of all eight families (probe runs 40412437619,
+  40450670163), so the workflow's `cpu` input defaults to empty, any runner (owner, 2026-10-27). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -556,8 +557,8 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
   (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
-  `note`, `cpu`: a case-insensitive `grep -E` pattern, default `intel`; `generate`'s first step stops unless the runner's CPU
-  model matches it, and `gate` refuses a publish with it empty), three
+  `note`, `cpu`: a case-insensitive `grep -E` pattern, default empty, any CPU (`intel` before AIUE-211); `generate`'s first
+  step logs the runner's CPU model and stops unless it matches), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
