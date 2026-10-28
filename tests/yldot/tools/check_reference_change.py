@@ -16,7 +16,9 @@ declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ti
 
     Default results: changed     a manifest change that is not an addition, a prune of an entry not SENSITIVE in any
                                  family, a rename with identical data or a diagnostics-only change; followed, anywhere
-                                 below, by every changed item as <family>:<id> (the guard prints the list)
+                                 below, by every changed item as <family>:<id> (the guard prints the list). A
+                                 variant's locality pattern goes with its prune or rename (identical slice) and needs
+                                 no declaration of its own (owner, 2026-10-28, AIUE-95)
     Test criteria: changed       any change to the guarded set (tests/yldot/** and the four workflows) other than
                                  manifests and new files under mutations/; with a justification
     Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma or stored sketch thresholds,
@@ -368,12 +370,25 @@ def stored(m, config, vid):
     return {n[len(prefix):]: s for n, s in m.get("datasets", {}).items() if n.startswith(prefix)}
 
 
+RENAME_FIELDS = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2")
+
+
+def rename_differences(m0, a, va, m1, b, vb):
+    """What keeps entry b of m1 from being entry a of m0 renamed: the fields that differ (all but the reason and the
+    variant SHA, which hashes the id), "stored datasets" if the stored data differ under the new id, and "locality
+    pattern" if their locality slices differ (one stored and not the other, or another slice; AIUE-95). [] for a
+    rename."""
+    out = [k for k in RENAME_FIELDS if va[k] != vb[k]]
+    if stored(m0, va["config"], a) != stored(m1, vb["config"], b):
+        out.append("stored datasets")
+    if m0.get("locality_variants", {}).get(a) != m1.get("locality_variants", {}).get(b):
+        out.append("locality pattern")
+    return out
+
+
 def same_entry(m0, a, va, m1, b, vb):
-    """A rename: the entries agree in every field but the reason and the variant SHA (which hashes the id), and the
-    stored datasets are the same SHA-256s under the new id."""
-    keep = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2")
-    return (all(va[k] == vb[k] for k in keep)
-            and stored(m0, va["config"], a) == stored(m1, vb["config"], b))
+    """A rename: rename_differences finds nothing."""
+    return not rename_differences(m0, a, va, m1, b, vb)
 
 
 def diff_manifest(family, m0, m1, base_classes):
@@ -410,17 +425,6 @@ def diff_manifest(family, m0, m1, base_classes):
         add(None, "addition: guarded {}".format(sorted(set(g1) - set(g0))))
     if m0.get("unguarded", {}) != m1.get("unguarded", {}):
         add(None, "diagnostics changed (unguarded)")
-    # the variants' locality patterns (AIUE-101): a new one is a new criterion, a changed one a default change of
-    # that variant, a removed one a loosening
-    l0, l1 = m0.get("locality_variants", {}), m1.get("locality_variants", {})
-    new_loc = sorted(set(l1) - set(l0))
-    if new_loc:
-        add(CHANGED, "new locality patterns of variants {}".format(new_loc))
-    for vid in sorted(set(l0) - set(l1)):
-        add(LOOSENED, "locality pattern of variant {} removed".format(vid))
-    for vid in sorted(set(l0) & set(l1)):
-        if l0[vid] != l1[vid]:
-            add(DEFAULT, "locality pattern of variant {} changed".format(vid), "{}:{}".format(family, vid))
     d0, d1 = m0.get("datasets", {}), m1.get("datasets", {})
     for name in sorted(d0):
         if d1.get(name) == d0[name] or "/diagnostics/" in name or store.STORED_VARIANT.match(name):
@@ -430,18 +434,35 @@ def diff_manifest(family, m0, m1, base_classes):
         add(DEFAULT, "dataset {} {}".format(name, "removed" if name not in d1 else "changed"),
             "{}:index".format(family) if name.startswith("/index/") else "{}:{}".format(family, name))
     v0, v1 = m0.get("variables", {}), m1.get("variables", {})
+    l0, l1 = m0.get("locality_variants", {}), m1.get("locality_variants", {})
     added = sorted(set(v1) - set(v0))
+    carried = set()  # locality patterns that go with a prune or a rename (owner, 2026-10-28, AIUE-95 D1)
     for vid in sorted(set(v0) - set(v1)):
         twin = next((b for b in added if same_entry(m0, vid, v0[vid], m1, b, v1[b])), None)
         if twin:
             added.remove(twin)
-            add(None, "rename {} -> {} (identical data)".format(vid, twin))
+            carried |= {("old", vid), ("new", twin)}
+            add(None, "rename {} -> {} (identical data{})".format(vid, twin, "; its locality pattern" if vid in l0
+                                                                    else ""))
         elif "SENSITIVE" in base_classes.get(vid, set()):
             add(DEFAULT, "variant {} removed, SENSITIVE in a base manifest".format(vid), "{}:{}".format(family, vid))
         else:
-            add(None, "prune {} ({} in every family)".format(vid, "/".join(sorted(base_classes.get(vid, set())))))
+            carried.add(("old", vid))
+            add(None, "prune {} ({} in every family{})".format(vid, "/".join(sorted(base_classes.get(vid, set()))),
+                                                              "; with its locality pattern" if vid in l0 else ""))
     if added:
         add(None, "addition: variants {}".format(added))
+    # the variants' locality patterns (AIUE-101): a new one is a new criterion, a changed one a default change of
+    # that variant, a removed one a loosening; except one that goes with its variant's prune or rename (AIUE-95)
+    new_loc = sorted(vid for vid in set(l1) - set(l0) if ("new", vid) not in carried)
+    if new_loc:
+        add(CHANGED, "new locality patterns of variants {}".format(new_loc))
+    for vid in sorted(set(l0) - set(l1)):
+        if ("old", vid) not in carried:
+            add(LOOSENED, "locality pattern of variant {} removed".format(vid))
+    for vid in sorted(set(l0) & set(l1)):
+        if l0[vid] != l1[vid]:
+            add(DEFAULT, "locality pattern of variant {} changed".format(vid), "{}:{}".format(family, vid))
     for vid in sorted(set(v0) & set(v1)):
         diff = sorted(k for k in v0[vid] if k != "reason" and v0[vid][k] != v1[vid][k])
         if diff:
