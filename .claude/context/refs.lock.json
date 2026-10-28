@@ -194,6 +194,8 @@
  "setup.py:742": "return info",
  "setup.py:755": "class uedgeBuild(build):",
  "setup.py:80": "'FARGS': [",
+ "setup.py:815": "# Linux: keep exp, log, pow, sin and cos scalar (AIUE-211). On glibc the gfortran driver pre-includes",
+ "setup.py:827": "FLAGS['FARGS'] = FLAGS['FARGS'] + ['-nostdinc', '-fintrinsic-modules-path ' + finclude]",
  "setup.py:845": "# Linux OpenMP build: link every Forthon extension with -fopenmp (AIUE-64). Forthon's --omp,",
  "setup.py:860": "# gfortran's --coverage objects need GCC's libgcov, but Forthon links each extension with the C compiler",
  "setup.py:87": "],",

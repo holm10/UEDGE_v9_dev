@@ -27,8 +27,14 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
 
 ## Platform
 
-- **On Linux x86-64, results follow the CPU vendor through glibc's vector math library** (owner, 2026-10-26,
-  AIUE-210; also on the Confluence page `UEDGE gotchas`). gfortran `-O3` vectorizes loops that call `exp`, `log`,
+- **On Linux x86-64, a build that calls glibc's vector math library gives results that follow the CPU vendor**
+  (owner, 2026-10-26, AIUE-210; fixed by AIUE-211; also on the Confluence page `UEDGE gotchas`). Since AIUE-211 the
+  Linux build adds `-nostdinc -fintrinsic-modules-path <finclude>` (`setup.py:815-827`), so gfortran no longer
+  pre-includes glibc's `math-vector-fortran.h` and the math calls stay scalar (libm): Intel and AMD runners and
+  Rosetta give bit-identical yldot references (`yldot-data-v14`, `v15`). `test_installed_no_vector_math` and
+  `tests/yldot/linux/generate.sh` refuse a build with `_ZGV` symbols. The trap remains for a build without those
+  flags (a commit before AIUE-211, or a custom flag set) and for references before v14, which came from Intel
+  runners. Without the flags, gfortran `-O3` vectorizes loops that call `exp`, `log`,
   `pow`, `sin` or `cos` into libmvec's 2-lane `_ZGVbN2v_*` functions (glibc 2.39, the yldot image). An example is
   `fd2tra`'s log interpolation (`bbb/oderhs.m:468-484`, used with `methg = 66`). libmvec's SSE4.1 `log` kernel uses
   `rcpps`, an approximate reciprocal whose bits differ between Intel and AMD. Probed on dnull_imp2, large_dd2c and
@@ -42,8 +48,9 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
   - The five small families' defaults reproduce on both vendors (AIUE-101, run 40268809315). Three of their variant
     vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif` and `d_c:bbb.rtg2ti`, differed between native and emulated runs
     whose CPU was not logged. Those are presumed to be AMD runs with the same cause, which is not probed.
-  - So a bitwise comparison of two Linux runs holds only on one CPU vendor. AIUE-211 is to make the build
-    vendor-independent.
+  - So, with such a build, a bitwise comparison of two Linux runs holds only on one CPU vendor. With the scalar
+    build every case that reached a vectorized call moved by round-off from v13 (1816 yldot entries, all eight
+    families; AIUE-211's PR #75), on every CPU.
 
 ## Test tooling
 
