@@ -87,6 +87,7 @@
  "bbb/odesetup.m:1175": "if(newgeo .eq. 1) then",
  "bbb/odesetup.m:1177": "newgeo = 0 # Disable re-reading of grid unless explicitly requested",
  "bbb/odesetup.m:203": "call remark('*** igspsori,o refers to igsp > ngsp *** ')",
+ "bbb/odesetup.m:315": "call setwallbcarrays",
  "bbb/odesetup.m:524": "if (ifexmain.eq.0 .or. iallcall.eq.0) then",
  "bbb/odesetup.m:529": "endif",
  "bbb/odesetup.m:6792": "c... Roadblockers for call to pandf through openmp structures (added by J.Guterl)",
@@ -227,7 +228,12 @@
  "svr/nksol.m:973": "if (itermx .eq. 0) itermx = 200",
  "tests/yldot/families/d_mols/input.py:134": "com.ngsp = 2",
  "tests/yldot/families/d_mols/input.py:30": "com.ngsp=1",
+ "tests/yldot/families/d_only/input.py:58": "bbb.allocate() #bbb.allocate() space of bbb.nwallo,i",
  "tests/yldot/harness/__init__.py:10": "os.environ[\"OMP_NUM_THREADS\"] = \"1\"",
+ "tests/yldot/harness/build.py:17": "# every BuildLimitWarning's message starts so: pytest -W \"error:<REPORTED>:UserWarning\" turns them into failures",
+ "tests/yldot/harness/build.py:19": "REPORTED = \"reported, not failed\"",
+ "tests/yldot/tools/make_references.py:963": "p.add_argument(\"--only\", nargs=\"+\", metavar=\"VAR\", help=\"regenerate these variant ids or keys only\")",
  "tests/yldot/tools/measure_roundoff.py:66": "if __name__ == \"__main__\" and sys.argv[1:2] == [\"_worker\"]:",
- "tests/yldot/tools/measure_roundoff.py:70": "import uedge # noqa: F401"
+ "tests/yldot/tools/measure_roundoff.py:70": "import uedge # noqa: F401",
+ "tests/yldot/tools/run_mutations.py:804": "\"no:cacheprovider\", \"-W\", \"error:{}:UserWarning\".format(hb.REPORTED), \"--junitxml\", str(out)]"
 }

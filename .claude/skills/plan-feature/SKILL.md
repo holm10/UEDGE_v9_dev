@@ -54,6 +54,9 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    git fetch origin
    git worktree add -b <branch> ../uedge-wt/<KEY-or-slug> <base>
    ```
+   The path is relative to the main checkout (the first line of `git worktree list`): run the command from there, or
+   give the absolute path. From inside a ticket worktree a bare `../uedge-wt` nests the new worktree under
+   `uedge-wt/uedge-wt/` (AIUE-217).
 3. Tell the user the worktree path and that it needs its own venv before building
    (`python -m venv .venv && . .venv/bin/activate`). Write the plan in the worktree's working folder
    `.claude/work/<KEY>/` (gitignored; `<slug>` for work without a ticket).
@@ -88,10 +91,12 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    commits or PR yet is not evidence of no overlap: its breakdown entry is. Without `gh`, use the worktrees and the
    breakdown, and say so in Notes. For each file this plan modifies that another ticket also touches, record the
    expected conflict and the merge order in Notes (the second to merge rebases and re-runs its tests).
-   A ticket that will publish a `yldot-data-vN` release reserves N as a Findings and decisions entry on its ticket
-   page once the owner agrees, and planning reads the in-flight tickets' pages for reservations: `release_data.py`
-   takes only highest + 1, and a branch shows its number only after generation (AIUE-161 planned v8 while AIUE-174
-   held v7 with no manifests yet; `testing.md` → Tools, `release_data.py`).
+   A ticket that publishes a `yldot-data-vN` release through `regenerate-references.yml` doesn't reserve a number:
+   its N is the next free one when the owner approves the publish job (`release_data.py --renumber`; in AIUE-98's A4
+   the second dispatch got v11), and it records the N it got on its ticket page. A hand publish with
+   `release_data.py` (no `--renumber`) still reserves N = highest + 1 as a Findings and decisions entry once the owner
+   agrees (AIUE-161 planned v8 while AIUE-174 held v7 with no manifests yet). Planning reads the in-flight tickets'
+   pages for both (`testing.md` → Tools, `release_data.py`; AIUE-207).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
@@ -106,8 +111,13 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    actually verifies (run it once on the current tree, or cite the contract in its docstring), else mark it
    *assumed* (AIUE-91: `fetch_data.py --check` verifies only cached files, not the files at their manifest paths).
    An estimate that decides a gate (a size cap, a budget, a runtime) is probed with the code that will produce it:
-   the real writer and serializer on one case. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
-   put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB).
+   the real writer and serializer on each case the gate applies to, from that case's own output (a sibling's pattern
+   is *assumed*), and the plan states the margin to the cap: a margin under about 10 % before a run of an hour or
+   more is an owner question at planning. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
+   put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB. AIUE-99, AIUE-196: d_c's pattern put
+   imp7 at 11.15 of 12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner
+   CPU it was measured on, and a job limit is checked against the slowest model the job accepts (AIUE-214: the fastest runner seen set
+   two wrong ETAs; `testing.md` → `regenerate-references.yml`).
    A claim about what a check reports on a fault (which blocks fire, what it localizes to, the message text) is
    probed with the fault applied, against the references the suite really uses (another platform's, if they are),
    even when a build takes minutes (AIUE-89: `rscalf` couples a continuity fault into the up/te/ti rows, and the
@@ -116,6 +126,21 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    prototype of the change through it before writing the per-task VALIDATE lines (AIUE-181: `build_flags.py` runs
    `uedgeBuild.run` with a fake `self` and a fake `FCompiler`, so task 1's check could only pass after task 2). A task
    whose check needs a later task is a plan defect: merge the tasks or move the check.
+   Specific probes:
+   - **A command the change writes into a skill, agent or doc is probed as written:** the same arguments, with only
+     the placeholders filled, run from the directory the text implies. For each path argument, say what it is
+     relative to (AIUE-102, AIUE-194: the probe used an absolute `--out`, the text a relative one, and the text's
+     form gave ERROR in every group).
+   - **A rule that selects or partitions tests** (a marker, a `-k`, a conftest option) is probed itself: a throwaway
+     conftest plugin applied to `--collect-only` on the real suite, with the per-group counts, not an approximation
+     from node ids (AIUE-103, AIUE-203).
+   - **A new `workflow_dispatch` workflow** can be dispatched only once its file is on the default branch. Plan that
+     step (a placeholder PR with the same inputs and no permissions, or merge first and test after), and probe `gh
+     workflow run <file> --ref <branch>` during planning (AIUE-98, AIUE-205).
+   - **Platform- or CPU-dependent results** (round-off between machines, emulated vs native): first list the math
+     symbols the build links (`nm -u` on the built objects, or `nm` of the extension), separating scalar libm (`exp`,
+     `log`, …) from glibc's vector library libmvec (`_ZGV*`). Vectorized calls do not go through scalar libm, so a
+     probe of `libm.so.6` alone can return a false negative (AIUE-210, AIUE-215).
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -138,6 +163,24 @@ literature belongs in the physics spec, not here.
   data-only commit), check that the plan's own tests pass at every commit in that order, and plan one regeneration
   after every later change to the generator and after every rebase, since the recorded commit must stay in the PR's
   history. Note the cost of one regeneration (AIUE-88 regenerated its manifests twice, unplanned).
+  Budget one targeted regeneration round (`--only` or the tool's equivalent) after the authoritative-build validation
+  and the owner's review of the classified lists, and prototype, at planning, every generator mode the plan may need
+  on each store kind it will write (AIUE-99, AIUE-197: `--only` on a sketch store always refused; -O0 found three
+  switches to exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff
+  <gen-commit> <rebased> -- <tool tree>` empty) needs no regeneration if the owner agrees; keep the generating commit as a local
+  tag until merge. A check that reproduces a data release reads the release's history first (`git log` of its
+  manifests, and the releases they were regenerated from): an `--only` release copies every other entry, and its
+  `reason` text, from the installed release, so the manifest's provenance commit is where only the regenerated
+  entries were computed (AIUE-98, AIUE-206).
+- **Outcomes cited from another run.** When a gate's expected result comes from another ticket's run (a matrix, a
+  measurement, a report), copy that run's entries into the plan, not its summary line, so execute can tell a known
+  entry from a new one (AIUE-188).
+- **Report-only paths.** When a test reports a condition instead of failing (a warning, a print), name every consumer
+  of that test (CI tiers, the mutation cross-check, tools that run it in a child) and say whether each one treats the
+  report as a pass or a failure (AIUE-188).
+- **CI gating.** A change that un-gates or re-gates CI jobs (removes a job they `needs`, changes an `if:`) checks
+  their run history (`gh run list --workflow <file>`) and states their expected first run; jobs that have never run
+  get an owner decision (AIUE-103, AIUE-203).
 - **Samples and populations.** When an acceptance criterion confirms a property on a sample (the criterion's ≥ N
   cases) and checking the whole population would take under about 10 minutes, or under about twice the sample's run,
   the plan checks the population too; otherwise it records that estimate in one line. A sample
@@ -243,6 +286,8 @@ Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any featu
    section, cited by publish date and sha256; the Ticket section and any earlier entries stay. Without an epic PRD
    page it posts a short `PIV record: plan` comment instead. A failure there is noted in the report and retried at
    the next flush (the plan and the queued entries stay local until then); it never stops planning.
+3. A Jira ticket still in To Do moves to In Progress (`getTransitionsForJiraIssue`, then `transitionJiraIssue`; not
+   with `--no-tracker` or `--tracker-dry-run`). Done follows the merge (`branching.md` → worktree removal; AIUE-201).
 
 ## Adversarial plan review (L tier only)
 

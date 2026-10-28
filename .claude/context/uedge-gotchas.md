@@ -4,7 +4,9 @@ Behaviour that is intended (or at least not a defect to ticket) but has cost a t
 assumed otherwise. The Confluence page `UEDGE gotchas` (SD space, page 9437185) is the copy for people. Add a new
 by-design trap of UEDGE itself to both, on a `feature/v9-ai-*` branch (owner, 2026-10-21); a trap of the repo's test
 tooling (Test tooling, below) is recorded here only (owner, 2026-10-22). Traps that can bite in any session (the MPPL
-converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
+converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas. Each entry cites its evidence (a probe, a run id or a
+`file:line`); a claim taken from a ticket or an earlier run and not re-checked says so (presumed, with its source;
+AIUE-216).
 
 ## Running UEDGE from Python
 
@@ -13,6 +15,11 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
   - A second deck's grid is read only if `bbb.newgeo = 1` is set before its `exmain`. `ueinit` sets `newgeo = 0` after reading a grid (`bbb/odesetup.m:1175-1177`) and the decks never set it, so without it the new state runs on the old mesh.
   - Settings the first deck sets and the second does not reset carry over. Example: nonog's `com.isnonog = 1` carried into orthogonal_unittest gives fnrm 1.35 vs 0.128 fresh, with the state copied exactly. When only the mesh should differ, use one deck for both cases.
   - With the default `isgindx = 1` (`bbb/bbb.v:3081`), the normalised mesh `xnrm`/`ynrm` is built from the indices only (`bbb/geometry.m:2775-2803`; `isgindx = 0` uses true distances). Two gridue files with the same nx, ny and X-point indices give identical `xnrm`/`ynrm`, however different their geometry. Interpolation onto a stretched mesh is not a supported path.
+  - To compare two decks' inputs, run `bbb.allocate()` on both first (owner, 2026-10-28, AIUE-191; also on the
+    Confluence page `UEDGE gotchas`). `allocate` runs `setwallbcarrays` (`bbb/odesetup.m:315`), which fills the
+    per-cell wall-BC arrays (`*ix`) from their scalars. A deck that allocates mid-way, such as d_only
+    (`tests/yldot/families/d_only/input.py:58`), leaves those arrays holding the scalars from that point, so a raw
+    comparison reports differences the run never sees (AIUE-106).
   - A deck that calls `bbb.allocate()` before it has set every species count can stop when it runs a second time in the same process, because the values its first run set later in the file are still there. d_mols (`tests/yldot/families/d_mols/input.py:30-134`) sets `com.ngsp = 1`, allocates, then sets `bbb.igspsori[1] = 2` and `com.ngsp = 2`. Run again, that `allocate` stops with `*** igspsori,o refers to igsp > ngsp ***` (`bbb/odesetup.m:203`). Run each evaluation in its own process (the yldot suite does: `child_reuse = false` in every measured `family.toml`, AIUE-86); don't reorder the deck.
 
 ## Model layout
@@ -55,3 +62,8 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
 ## Test tooling
 
 - **Importing the yldot harness pins OpenMP to one thread.** `tests/yldot/__init__.py` and `tests/yldot/harness/__init__.py` set `OMP_NUM_THREADS=1` at import (`tests/yldot/harness/__init__.py:10`), and libgomp reads it once, while `import uedge` runs (macOS links gcc's libgomp too; probed 2026-10-22: setting it after the import changes nothing). A process that imports anything under `tests/yldot/` before `uedge` is single-threaded whatever its caller set, and `ppp` quietly lowers a larger `ppp.Nthreads` to what is available (`ppp/omp_parallel.F90:299-302`). A multi-threaded run through the yldot tools starts a child with `OMP_NUM_THREADS` in its environment, imports `uedge` before `yldot.harness`, sets `ppp.Nthreads` itself, and checks the effective `ppp.Nthreads` after the run (`tests/yldot/tools/measure_roundoff.py:66-70`, AIUE-87).
+- **pytest's `-W` cannot name a warning class from `tests/yldot`.** `-W` (and `filterwarnings` in an ini) imports the
+  warning's class before `tests/` is on the path, so `-W error::yldot.<module>.<Class>` fails ("Failed to import
+  filter module 'yldot'"; AIUE-96, AIUE-189). Give such warnings a fixed message prefix and filter on it with a
+  builtin category: `-W "error:<prefix>:UserWarning"` (`tests/yldot/harness/build.py:17-19`, `REPORTED`;
+  `tests/yldot/tools/run_mutations.py:804`).

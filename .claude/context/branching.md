@@ -113,6 +113,11 @@ in the spec breakdown, and target the ticket PRs at it.
 
 **Stacked tickets.** A ticket that depends on an unmerged ticket branches from that ticket's branch, and its PR
 targets that branch. After the parent merges, rebase it onto `v9-develop` (`git rebase --onto v9-develop <parent>`).
+A rebase of a branch that is already pushed (a stacked PR after its parent changes or merges) needs `git push
+--force-with-lease=<branch>:<old sha> origin <branch>`. Auto mode refuses it ("Git Destructive"); don't retry it or
+work around it. As soon as the rebase is done and checked, give the owner that exact command with the old sha, then
+wait for their push. When planning a stacked ticket, budget one owner-run force-push per parent change (AIUE-218:
+refused for #73, #74 and #75 in AIUE-211).
 
 ## Worktrees — one per active ticket
 
@@ -123,6 +128,10 @@ cd ../uedge-wt/AIUE-12
 python -m venv .venv && . .venv/bin/activate      # own env: `pip install .` installs compiled modules
 pip install . -C "--build-option=--serial"
 ```
+
+Run `git worktree add` from the main checkout (the first line of `git worktree list`), or give the absolute path: the
+path is relative to the current directory, and from inside a ticket worktree `../uedge-wt/<KEY>` lands in
+`uedge-wt/uedge-wt/<KEY>` (AIUE-217).
 
 - **Give each worktree its own virtualenv.** Two worktrees that install into the same env overwrite each other's
   `uedge` build, and the tests then run the wrong code.
@@ -141,6 +150,10 @@ pip install . -C "--build-option=--serial"
   as `plan-feature` → `execute` (not `end-to-end-feature`) runs `execution-report` and `system-review` before its
   worktree is removed, while `.claude/work/<KEY>/` still holds the plan; for an S ticket only when the run diverged
   (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
+  For a Jira ticket, after the PR merges: `ticket-page <KEY> status Committed` with the merge sha, then transition
+  the ticket to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`), then flush and remove. The owner's
+  merge is the confirmation, so a ticket's Done needs no extra question, unlike `close-epic`'s for an epic, which
+  never transitions the children itself (AIUE-201; `plan-feature` Phase 6 moves it to In Progress).
 
 ## Improving the AI layer while doing ticket work
 
