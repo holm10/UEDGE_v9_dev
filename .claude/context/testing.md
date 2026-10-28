@@ -542,6 +542,13 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 
 ## CI facts / quirks
 
+- **An AI-layer-only change runs no tests** (owner, 2026-10-28): `build-test-wheel.yml` and `build-test-omp.yml` have
+  `paths-ignore` on `push` and `pull_request` with the process paths of `.claude/hooks/change_kind.py` (`PROCESS`:
+  `CLAUDE.md`, `.mcp.json`, `.claude/**`, `.githooks/**`, `.github/workflows/claude-*.yml`); keep the three lists in
+  step. One product file in the change runs everything; tag pushes, the nightly schedule and dispatches are
+  unaffected. Such a PR still gets `claude-context-drift.yml` and `claude-review.yml`. None of these checks is
+  required on `v9-develop` (no branch protection, 2026-10-28); a required check whose workflow a path filter skips
+  stays pending and blocks the merge, so a workflow made required (AIUE-104) needs no path filter.
 - `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
   builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
   AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
