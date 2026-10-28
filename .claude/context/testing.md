@@ -425,7 +425,7 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
 - **Run the full matrix once**, at the end (`validate`, the serial bitwise check, the OpenMP flow), not after every
   edit. A failure there sends you back to the subset with the failing case added.
 - **Prefer CI for heavy matrices**: push the branch and let `build-test-omp.yml` run its PR set (about 12 min on
-  native `ubuntu-latest`) instead of an emulated or many-thread local matrix; quote its result.
+  native `ubuntu-24.04`) instead of an emulated or many-thread local matrix; quote its result.
 - **Reuse builds**: one base venv per build kind (`--serial`, default OpenMP) per branch point, built once from a clean
   committed `origin/v9-develop` tree and shared by the tickets based on it (read-only: never reinstall into it); each
   ticket worktree keeps its own venv for its own build and rebuilds only when its sources changed. Name base venvs by
@@ -447,9 +447,9 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
     `Forthon3` from `PATH` (`Makefile.Forthon:8`), and otherwise picks up another Python's (seen: a pyenv 3.14 shim,
     `No module named 'setuptools'`);
   - the same `CC` (and `CFLAGS`) as the base venv was built with. On macOS the OpenMP build needs an OpenMP-capable
-    compiler: a libomp clang (`CC=$(brew --prefix llvm)/bin/clang`) or `CC=gcc-15 CFLAGS="-std=gnu17
-    -Wno-error=incompatible-pointer-types"`, which built `base-omp-0480272`. Record the one used next to the base
-    venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
+    compiler: a libomp clang (`CC=$(brew --prefix llvm)/bin/clang`) or `CC=gcc-15` (before AIUE-212 it also needs
+    `CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types"`, which built `base-omp-0480272`). Record the one used
+    next to the base venv. The serial build has not needed a `CC` since AIUE-109 (62ac2b1).
 - **Probing initialisation without a solve** (grid-change interpolation, `ueinit` checks): after the restore and the
   input changes, `bbb.ifexmain = 1; bbb.allocate(); bbb.ifexmain = 0; bbb.ueinit()`. A Python `allocate()`
   (`ifexmain = 0`) sets `nxold`/`nyold` to the current size, reallocates `Interp` and sets `isimesh = 1`
@@ -471,7 +471,7 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
 
 Every commit before AIUE-109 (62ac2b1) passes `-fopenmp` to the C compiler, even with `--serial` (which `setup.py` has
 had since d32c88b, 2025-01), so Apple clang fails the link. With `CC=gcc-15`, gcc 15's C23 default makes the pointer
-assignments in `bbb/exmain.c:71,117` hard errors. Build each bisect step with
+assignments in `bbb/exmain.c:71,117` hard errors on every commit before AIUE-212. Build each bisect step with
 
 ```bash
 CC=gcc-15 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" OMP_NUM_THREADS=1 \
