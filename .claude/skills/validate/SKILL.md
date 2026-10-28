@@ -20,6 +20,11 @@ Fast iteration).
 
 ## 0. Branch hygiene
 
+Immediately before the full run, `git fetch origin v9-develop`. If it moved past the branch's merge base (`git
+merge-base HEAD origin/v9-develop` is not `origin/v9-develop`'s sha), rebase first and re-run the drift check below,
+so the gate runs on the tree the PR will merge (AIUE-204: the base moved twice during AIUE-103, and one full run was
+repeated).
+
 ```bash
 uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD
 ```

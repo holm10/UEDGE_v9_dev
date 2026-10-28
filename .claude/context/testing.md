@@ -11,7 +11,9 @@ data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_o
 harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with the test flow `cli.py flow`, see
 `openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet.
 
-`tests/yldot/` is the yldot suite (epic AIUE-9). Run it as `pytest tests/yldot` (never `pytest tests/`). One bullet
+`tests/yldot/` is the yldot suite (epic AIUE-9). Run it as `pytest tests/yldot` (never `pytest tests/`). In a
+background or batch run whose log is read later, pass `-rf --tb=short`, so each failure's id and text survive the
+session's fetch summary (AIUE-198: with `-q` the summary hid the FAILURES section, AIUE-99). One bullet
 per component; a ticket that adds a component adds a bullet, one that changes a component edits only its bullet:
 
 - **Families** `tests/yldot/families/<f>/`: `input.py` in normal form (it never loads a state), the grid,
@@ -157,8 +159,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for `build-test-wheel.yml`'s matrix; `shard_of` is the rule `--yldot-shard` applies; `--check NAME…`; AIUE-103);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
-  only N = highest published + 1, so a ticket reserves its N on its ticket page once the owner agrees, and planning
-  reads the in-flight tickets' reservations, `plan-feature` Phase 2 step 6. Every publish first creates the tag
+  only N = highest published + 1, so a hand publish (no `--renumber`) reserves its N on its ticket page once the
+  owner agrees; a publish through `regenerate-references.yml` (`--renumber`, below) reserves none and records the N
+  it got; planning reads the in-flight tickets' pages for both, `plan-feature` Phase 2 step 6 (AIUE-207). Every publish first creates the tag
   through the git refs API (an existing tag fails the call) and then runs `gh release create --verify-tag`; a tag whose
   release then fails has used up its N. `--generated`: the manifests naming the tag come from a generation of
   `--target` and are not committed (`tests/yldot` outside `references/` must be `--target`'s, and each manifest's
@@ -200,7 +203,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   run), `--only VAR…` (the rest copied verbatim from the installed reference, whose defaults must be reproduced bit
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
-  full after one, AIUE-99 review) and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
+  full after one, AIUE-99 review; it takes every following word (`nargs="+"`, `tests/yldot/tools/make_references.py:963`), so name the
+  families first: `generate … d_only ortho --only bbb.isfixrb`, AIUE-198; the copied entries keep their `reason`
+  text, so an `--only` release's provenance commit is where only the regenerated entries were computed, AIUE-206)
+  and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
   `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run

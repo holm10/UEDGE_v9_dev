@@ -16,8 +16,10 @@ never committed).
 ### 1. Read and Understand
 
 - Check the branch first: you must be on the plan's **Branch / worktree** (`git branch --show-current`). If you
-  aren't, `cd` into that worktree. If it doesn't exist, create it as in `plan-feature` Phase 0b. Never execute on a protected
-  or AI-layer branch (`.claude/context/branching.md`)
+  aren't, `cd` into that worktree. If it doesn't exist, create it as in `plan-feature` Phase 0b. Never execute on a
+  protected branch, nor on a branch whose kind doesn't match the plan (product work on an AI-layer branch or the
+  reverse; `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` reports it,
+  `.claude/context/branching.md`; AIUE-193)
 - **No plan file?** In a fresh worktree or on another machine the working copy isn't there (it is never committed).
   For a Jira ticket, rebuild it from the ticket page: read the page with `fetch` (`ticket-page` step 3.1, saved; it
   returns the body and its `metadata.version` together), then `uv run .claude/skills/ticket-page/ticket_page.py
@@ -111,6 +113,12 @@ Before validating, bring the AI layer's description of the code up to date (`.cl
    `--update` only once each claim has been checked.
 3. New or changed model, switch or default → update the row in `.claude/context/physics-models.md`. New file,
    package or build step → update `.claude/context/architecture.md` (and `CLAUDE.md` if a rule or gotcha changed).
+   When the change removes a CI job, step or tool, also grep `CLAUDE.md` and `.claude/context/` for the names it
+   installed or ran (packages, tools, step names), not only for the file's path: the drift check sees cited
+   `file:line`s, not prose about a removed step (AIUE-204: "CI installs flake8" outlived its job).
+   Each run-time or result claim written into `CLAUDE.md` or `.claude/context/` cites its evidence: a probe, a run id
+   or a file:line. A claim taken from a ticket description or an earlier run that this ticket did not re-check says
+   so (presumed, with its source), as `plan-feature` step 7 requires of plans (AIUE-216).
 4. Commit these separately with the trailer `AI-layer: code-facts`. Only `CLAUDE.md` and `.claude/context/` may
    change this way. Skills, agents and hooks never change on a ticket branch.
    Commit the code-facts change before step 4's builds: `serial_check.py` refuses builds older than HEAD, so any
@@ -123,6 +131,10 @@ Run the `validate` skill with the suites the plan names, then any feature-specif
 ```bash
 # Run each command exactly as specified in plan
 ```
+
+A CI job that is red for an expected reason is still read in full: list every FAILED or ERROR line (`grep -E
+'FAILED|ERROR'` in the job log) and account for each one. An expected failure explains only its own test (AIUE-213:
+a 900 s timeout hid behind an expected `test_locality_everywhere` failure for three runs).
 
 If any command fails:
 - Fix the issue (never loosen tolerances or skip suites)
