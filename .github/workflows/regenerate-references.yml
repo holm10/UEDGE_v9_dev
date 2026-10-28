@@ -9,11 +9,11 @@
 #           2026-10-25, AIUE-98 D1: never rebuilt here, a rebuild drifts). With publish: --release <provisional tag>
 #           --write, and the references and manifests become an artifact. With expect_ref: each references/<f>.h5's
 #           SHA-256 must equal the one in <expect_ref>'s manifests (a reproduction check; nothing is published).
-#           With cpu: stops at once unless the runner's CPU model matches the pattern. The ubuntu-24.04 pool mixes
-#           Intel and AMD CPUs, and the owner families' defaults differ by round-off between them (AIUE-101: dnull_imp2
-#           on an Intel Xeon 8573C reproduces yldot-data-v9 bit for bit, on AMD EPYC 7763/9V45/9V74 it does not).
-#           Intel is the reference CPU (owner, 2026-10-26): cpu defaults to intel, and publish refuses it empty.
-#           Intel runners are rare in the pool: dispatch again after a refusal (it costs about a minute).
+#           With cpu: stops at once unless the runner's CPU model matches the pattern; empty (the default) takes any
+#           runner. The ubuntu-24.04 pool mixes Intel and AMD CPUs, whose results differed by round-off while the
+#           Linux build called libmvec (AIUE-101, AIUE-210). Since AIUE-211 the build keeps those math calls scalar,
+#           every Intel and AMD runner gives bit-identical references, and generate.sh refuses a build that calls
+#           libmvec, so any CPU is a reference CPU (owner, 2026-10-27). The first step still logs the CPU model.
 # publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
 #           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
 #           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
@@ -52,8 +52,8 @@ on:
         description: "First paragraph of the release notes"
         default: ""
       cpu:
-        description: "A case-insensitive grep -E pattern: generate stops at once unless the runner's CPU model matches it (default intel, the reference CPU; empty: any CPU, only with publish false); the pool mixes Intel and AMD CPUs, whose owner-family defaults differ by round-off (AIUE-101)"
-        default: "intel"
+        description: "A case-insensitive grep -E pattern: generate stops at once unless the runner's CPU model matches it (default empty: any CPU; since AIUE-211 Intel and AMD runners give bit-identical references)"
+        default: ""
 
 permissions: {}
 
@@ -86,7 +86,6 @@ jobs:
           MODE: ${{ inputs.mode }}
           ONLY: ${{ inputs.only }}
           EXPECT_REF: ${{ inputs.expect_ref }}
-          CPU: ${{ inputs.cpu }}
         run: |
           if [ "$MODE" = only ] && [ -z "$ONLY" ]; then echo "refused: mode only needs 'only'"; exit 1; fi
           if [ "$MODE" != only ] && [ -n "$ONLY" ]; then echo "refused: 'only' needs mode only"; exit 1; fi
@@ -95,7 +94,6 @@ jobs:
             exit 0
           fi
           if [ -n "$EXPECT_REF" ]; then echo "refused: expect_ref is a check, not a publish"; exit 1; fi
-          if [ -z "$CPU" ]; then echo "refused: a release is generated on the reference CPU, so cpu may not be empty"; exit 1; fi
           if [ "$MODE" = defaults-only ]; then
             echo "refused: defaults-only drops the classified variants, it is never published"; exit 1
           fi

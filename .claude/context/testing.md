@@ -42,7 +42,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. Every family's holds the defaults and the
   SENSITIVE variants and its manifest classifies every variant (since AIUE-99, which swept the owner families'
   sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94); `yldot-data-v13` (AIUE-101, `locality-only`
-  on Intel) keeps every v9 default and variant bit for bit and adds the locality data.
+  on Intel) keeps every v9 default and variant bit for bit and adds the locality data. `yldot-data-v14` (seven
+  families) and `v15` (imp7) are full sweeps with the scalar-math Linux build (AIUE-211), the same on any x86 CPU.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
@@ -219,10 +220,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `bbb/oderhs.m:468-484`, used with `methg = 66`), and libmvec's SSE4.1 `log` kernel uses `rcpps`, whose bits differ
   between Intel and AMD; Rosetta (x86 emulation on Apple silicon) gives Intel's, shown for dnull_imp2's base. With `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1`
   libmvec falls back to scalar libm and Intel and AMD agree bit for bit, but every owner family then moves by thousands
-  of rows from v9. Making the build vendor-independent is AIUE-211. A bitwise check
-  (`--only`, `--locality-only`, `expect_ref`) passes only on a matching CPU. Intel is the reference CPU (owner,
-  2026-10-26, AIUE-101): the workflow's `cpu` input defaults to `intel` and refuses any other runner. Xeon 8573C,
-  Platinum 8370C and 6973P-C all reproduce v9 (v13 came from a 6973P-C). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
+  of rows from v9. A bitwise check (`--only`, `--locality-only`, `expect_ref`) of references made before AIUE-211
+  passes only on a matching CPU (Intel, owner 2026-10-26, AIUE-101; Xeon 8573C, Platinum 8370C and 6973P-C all
+  reproduce v9, and v13 came from a 6973P-C). Since AIUE-211 the Linux build keeps those math calls scalar, and Intel
+  and AMD runners and x86 emulation give bit-identical full sweeps of all eight families (probe runs 40412437619,
+  40450670163), so the workflow's `cpu` input defaults to empty, any runner (owner, 2026-10-27); every case that
+  reached a vectorized call moved by round-off, and v14 and v15 replace the earlier references (1816 entries of all
+  eight families, PR #75). A variant is checked with `make_references.variant_tolerance`: the PRD §7.4 rule with the
   variant's own reference in the `rtol_eq` term and the default's σ_i (owner, 2026-10-22, AIUE-94: the default's
   absolute `tol_i` is too small for variants that scale `yldot`; classification still uses the default's). A sketch
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
@@ -267,7 +271,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and the findings; `families/<f>/sigma.h5` (`/<config>/sigma`, `/<config>/source` = the serial pair that set σ_i, -1
   where σ_i = 0). The Linux side is `tests/yldot/linux/` (Ubuntu 24.04 amd64 by digest, exact apt and pip pins;
   `collect.sh` builds a `git archive` of one commit; `generate.sh`, run from the mounted `tests/`, does the same for
-  `make_references.py`). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
+  `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
   families: `tg` gets its first `rtol` (from large_dd2c) and `up` 1.589e-8 (dnull_imp2's atoms on its wall ring);
   imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
@@ -276,19 +280,27 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `OMPFLAGS`, make's `LDFLAGS`, `OMP` and other changed environment variables, the uedgeC link and compile
   arguments and macros, and the build record `uedgeBuild.run` writes into a scratch `build_lib`
   (`<build_lib>/uedge/_build_info.json`, AIUE-181; `machine` shown as `<machine>`). Its `check_output` answers only the known
-  commands (libgcov lookup, the compiler's `--version`, the record's git probes; anything else raises), and `SRCDIR`
+  commands (libgcov lookup, the Linux `finclude` lookup (AIUE-211; the directory shown as `<finclude>`;
+  `--finclude ANSWER` / `--finclude-fails` give a bad answer), the compiler's `--version`, the record's git
+  probes; anything else raises), and `SRCDIR`
   is a scratch tree with an empty `.git` (`--no-git`: without), so a record does not depend on where the evaluated
   `setup.py` lies. It needs setuptools, which a venv of Python >= 3.12 lacks until installed. Not covered: what
   reaches Forthon's real `FCompiler` and its own flags (the record's `forthon_fopt` is the fake's fixed value),
   `-g`/`-t`/`-F`, `--noclean`, `--parallel`, PETSc.
   `tests/yldot/test_build_flags.py` pins that table (27 cases: the default, `--serial`, `--debug`, `--checkbounds`,
   `--noopt`, `--coverage`, combinations, the two refusals, a preset `LDFLAGS`), each with its build record, to
-  `v9-develop`'s, checks that `--coverage` changes only its own build, and edits a copy of `setup.py` nine ways
-  (seven flag changes, the record dropped, the record without `platform`) to show each is caught; an unedited copy
+  `v9-develop`'s plus AIUE-211's Linux `-nostdinc -fintrinsic-modules-path <finclude>`, checks that `--coverage`
+  changes only its own build, and edits a copy of `setup.py` ten ways (eight flag changes, among them the Linux
+  flags dropped, the record dropped, the record without `platform`) to show each is caught;
+  `test_finclude_refusal` gives setup.py a relative, missing, spaced and failing `finclude` and requires every
+  Linux build to stop with AIUE-211's message and every macOS one to be unchanged; an unedited copy
   must show no difference and `--no-git` must null only the git fields. `test_installed_record` checks the record of
-  the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, platform, the commit
-  `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built before AIUE-181 fails it, naming
-  the cause. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
+  the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
+  on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
+  before AIUE-181 fails it, naming the cause. `test_installed_no_vector_math` counts the `_ZGV` (libmvec)
+  symbols of the installed extensions with `nm -D --undefined-only` (`nm -u` off Linux, where the count is 0 by
+  construction) and requires none (AIUE-211; Forthon names `-lmvec` on every link, so the symbols are counted, not
+  the libraries); it runs on every platform (no skips, `test_inventory.py::test_no_skips`) and fails without `nm`. An intended flag change updates its `EXPECTED`, with the reason in the PR. `build_flags.py --conversion` runs the real
   `mppl2f90` on two scratch trees with the working directory and `$PWD` differing; the test requires it to convert
   in and stay in the working directory, and a copy with the pre-AIUE-163 `getenv("PWD")` lines to fail (AIUE-163).
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
@@ -548,8 +560,11 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
   (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
-  `note`, `cpu`: a case-insensitive `grep -E` pattern, default `intel`; `generate`'s first step stops unless the runner's CPU
-  model matches it, and `gate` refuses a publish with it empty), three
+  `note`, `cpu`: a case-insensitive `grep -E` pattern, default empty, any CPU (`intel` before AIUE-211); `generate`'s first
+  step logs the runner's CPU model and stops unless it matches; imp7's full sweep, a single process, takes about
+  3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
+  350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
+  AIUE-211), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
