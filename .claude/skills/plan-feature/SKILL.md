@@ -114,8 +114,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    the real writer and serializer on each case the gate applies to, from that case's own output (a sibling's pattern
    is *assumed*), and the plan states the margin to the cap: a margin under about 10 % before a run of an hour or
    more is an owner question at planning. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
-   put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB. AIUE-196: d_c's pattern put imp7 at 11.15 of
-   12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner CPU it was measured
+   put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB. AIUE-99, AIUE-196: d_c's pattern put
+   imp7 at 11.15 of 12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner CPU it was measured
    on, and a job limit is checked against the slowest model the job accepts (AIUE-214: the fastest runner seen set
    two wrong ETAs; `testing.md` → `regenerate-references.yml`).
    A claim about what a check reports on a fault (which blocks fire, what it localizes to, the message text) is
@@ -129,18 +129,18 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    Specific probes:
    - **A command the change writes into a skill, agent or doc is probed as written:** the same arguments, with only
      the placeholders filled, run from the directory the text implies. For each path argument, say what it is
-     relative to (AIUE-194: the probe used an absolute `--out`, the text a relative one, and the text's form gave
-     ERROR in every group).
+     relative to (AIUE-102, AIUE-194: the probe used an absolute `--out`, the text a relative one, and the text's
+     form gave ERROR in every group).
    - **A rule that selects or partitions tests** (a marker, a `-k`, a conftest option) is probed itself: a throwaway
      conftest plugin applied to `--collect-only` on the real suite, with the per-group counts, not an approximation
-     from node ids (AIUE-203).
+     from node ids (AIUE-103, AIUE-203).
    - **A new `workflow_dispatch` workflow** can be dispatched only once its file is on the default branch. Plan that
      step (a placeholder PR with the same inputs and no permissions, or merge first and test after), and probe `gh
-     workflow run <file> --ref <branch>` during planning (AIUE-205).
+     workflow run <file> --ref <branch>` during planning (AIUE-98, AIUE-205).
    - **Platform- or CPU-dependent results** (round-off between machines, emulated vs native): first list the math
      symbols the build links (`nm -u` on the built objects, or `nm` of the extension), separating scalar libm (`exp`,
      `log`, …) from glibc's vector library libmvec (`_ZGV*`). Vectorized calls do not go through scalar libm, so a
-     probe of `libm.so.6` alone can return a false negative (AIUE-215).
+     probe of `libm.so.6` alone can return a false negative (AIUE-210, AIUE-215).
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -165,13 +165,13 @@ literature belongs in the physics spec, not here.
   history. Note the cost of one regeneration (AIUE-88 regenerated its manifests twice, unplanned).
   Budget one targeted regeneration round (`--only` or the tool's equivalent) after the authoritative-build validation
   and the owner's review of the classified lists, and prototype, at planning, every generator mode the plan may need
-  on each store kind it will write (AIUE-197: `--only` on a sketch store always refused; -O0 found three switches to
-  exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff <gen-commit>
+  on each store kind it will write (AIUE-99, AIUE-197: `--only` on a sketch store always refused; -O0 found three
+  switches to exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff <gen-commit>
   <rebased> -- <tool tree>` empty) needs no regeneration if the owner agrees; keep the generating commit as a local
   tag until merge. A check that reproduces a data release reads the release's history first (`git log` of its
   manifests, and the releases they were regenerated from): an `--only` release copies every other entry, and its
   `reason` text, from the installed release, so the manifest's provenance commit is where only the regenerated
-  entries were computed (AIUE-206).
+  entries were computed (AIUE-98, AIUE-206).
 - **Outcomes cited from another run.** When a gate's expected result comes from another ticket's run (a matrix, a
   measurement, a report), copy that run's entries into the plan, not its summary line, so execute can tell a known
   entry from a new one (AIUE-188).
@@ -180,7 +180,7 @@ literature belongs in the physics spec, not here.
   report as a pass or a failure (AIUE-188).
 - **CI gating.** A change that un-gates or re-gates CI jobs (removes a job they `needs`, changes an `if:`) checks
   their run history (`gh run list --workflow <file>`) and states their expected first run; jobs that have never run
-  get an owner decision (AIUE-203).
+  get an owner decision (AIUE-103, AIUE-203).
 - **Samples and populations.** When an acceptance criterion confirms a property on a sample (the criterion's ≥ N
   cases) and checking the whole population would take under about 10 minutes, or under about twice the sample's run,
   the plan checks the population too; otherwise it records that estimate in one line. A sample

@@ -161,7 +161,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
   only N = highest published + 1, so a hand publish (no `--renumber`) reserves its N on its ticket page once the
   owner agrees; a publish through `regenerate-references.yml` (`--renumber`, below) reserves none and records the N
-  it got; planning reads the in-flight tickets' pages for both, `plan-feature` Phase 2 step 6 (AIUE-207). Every publish first creates the tag
+  it got; planning reads the in-flight tickets' pages for both, `plan-feature` Phase 2 step 6 (AIUE-207). Every
+  publish first creates the tag
   through the git refs API (an existing tag fails the call) and then runs `gh release create --verify-tag`; a tag whose
   release then fails has used up its N. `--generated`: the manifests naming the tag come from a generation of
   `--target` and are not committed (`tests/yldot` outside `references/` must be `--target`'s, and each manifest's
@@ -203,9 +204,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   run), `--only VAR…` (the rest copied verbatim from the installed reference, whose defaults must be reproduced bit
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
-  full after one, AIUE-99 review; it takes every following word (`nargs="+"`, `tests/yldot/tools/make_references.py:963`), so name the
-  families first: `generate … d_only ortho --only bbb.isfixrb`, AIUE-198; the copied entries keep their `reason`
-  text, so an `--only` release's provenance commit is where only the regenerated entries were computed, AIUE-206)
+  full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
+  `tests/yldot/tools/make_references.py:963`), so name the families first: `generate … d_only ortho --only
+  bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
+  where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last

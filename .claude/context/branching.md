@@ -152,8 +152,8 @@ path is relative to the current directory, and from inside a ticket worktree `..
   (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
   For a Jira ticket, after the PR merges: `ticket-page <KEY> status Committed` with the merge sha, then transition
   the ticket to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`), then flush and remove. The owner's
-  merge is the confirmation, so a ticket's Done needs no extra question, unlike `close-epic`'s for an epic
-  (AIUE-201; `plan-feature` Phase 6 moves it to In Progress).
+  merge is the confirmation, so a ticket's Done needs no extra question, unlike `close-epic`'s for an epic, which
+  never transitions the children itself (AIUE-201; `plan-feature` Phase 6 moves it to In Progress).
 
 ## Improving the AI layer while doing ticket work
 

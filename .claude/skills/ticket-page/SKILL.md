@@ -63,9 +63,10 @@ Everything else is convention in this file.
 | The final commit, execution report and system review | `end-to-end-feature` / `implement-fix` | Progress "Committed <sha>", `status Committed`, the two Findings and decisions entries: one flush, by `system-review` |
 | Before a worktree is removed, or a subagent doing ticket work returns | that agent | `flush`, then `queue --list` and `queue --epic --list` must print nothing; a failed flush is reported with the worktree path |
 
-Everything else is `log` without `--flush`; per-task entries are not logged. Epic progress lines go out with the end-of-ticket
-flush (or before a worktree is removed, a subagent returns or the session ends); a mid-ticket flush may carry them
-when the epic page needs to show progress sooner (each epic flush rewrites the whole epic progress page; AIUE-200).
+Everything else is `log` without `--flush`; per-task entries are not logged. Epic progress lines go out with the
+end-of-ticket flush (or before a worktree is removed, a subagent returns or the session ends); a mid-ticket flush may
+carry them when the epic page needs to show progress sooner (each epic flush rewrites the whole epic progress page;
+AIUE-200).
 
 **Milestones in one session share one flush.** When the next milestone follows in the same session, queue this one's
 entries and let the next flush send both. Nothing is lost meanwhile: the queue lives in the worktree. Two pairs
