@@ -115,8 +115,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    is *assumed*), and the plan states the margin to the cap: a margin under about 10 % before a run of an hour or
    more is an owner question at planning. An estimate from a hand-built subset is *assumed* (AIUE-94: a subset
    put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB. AIUE-99, AIUE-196: d_c's pattern put
-   imp7 at 11.15 of 12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner CPU it was measured
-   on, and a job limit is checked against the slowest model the job accepts (AIUE-214: the fastest runner seen set
+   imp7 at 11.15 of 12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner
+   CPU it was measured on, and a job limit is checked against the slowest model the job accepts (AIUE-214: the fastest runner seen set
    two wrong ETAs; `testing.md` → `regenerate-references.yml`).
    A claim about what a check reports on a fault (which blocks fire, what it localizes to, the message text) is
    probed with the fault applied, against the references the suite really uses (another platform's, if they are),
@@ -166,8 +166,8 @@ literature belongs in the physics spec, not here.
   Budget one targeted regeneration round (`--only` or the tool's equivalent) after the authoritative-build validation
   and the owner's review of the classified lists, and prototype, at planning, every generator mode the plan may need
   on each store kind it will write (AIUE-99, AIUE-197: `--only` on a sketch store always refused; -O0 found three
-  switches to exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff <gen-commit>
-  <rebased> -- <tool tree>` empty) needs no regeneration if the owner agrees; keep the generating commit as a local
+  switches to exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff
+  <gen-commit> <rebased> -- <tool tree>` empty) needs no regeneration if the owner agrees; keep the generating commit as a local
   tag until merge. A check that reproduces a data release reads the release's history first (`git log` of its
   manifests, and the releases they were regenerated from): an `--only` release copies every other entry, and its
   `reason` text, from the installed release, so the manifest's provenance commit is where only the regenerated
