@@ -570,6 +570,12 @@ class Writer:
             for key in keys:
                 _ds(gs, key, src.read("/{}/{}/{}".format(prefix, name, key)))
 
+    def copy_locality_variant(self, config, vid, src):
+        """Copy one variant's stored locality difference from the Store src (read SHA-checked against src's
+        manifest): make_references.py --prune and --rename keep the patterns they do not re-run, and the slice comes
+        out with the same SHA-256, since the stored entries are already in write order (AIUE-95)."""
+        self.write_locality_variant(config, vid, *src.locality_variant(config, vid))
+
     def finish(self):
         """Close the file; return {datasets: {path: sha}, sha256, bytes, locality_variants: {vid: {config, sha256,
         added, dropped}}} for the manifest."""

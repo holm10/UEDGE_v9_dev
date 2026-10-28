@@ -9,6 +9,10 @@
 #           2026-10-25, AIUE-98 D1: never rebuilt here, a rebuild drifts). With publish: --release <provisional tag>
 #           --write, and the references and manifests become an artifact. With expect_ref: each references/<f>.h5's
 #           SHA-256 must equal the one in <expect_ref>'s manifests (a reproduction check; nothing is published).
+#           Modes sweep, only and rename first run the --checkbounds audit (a second build in the container; owner,
+#           2026-10-28, AIUE-95): a variant whose audit run ends in a Fortran runtime error is INVALID. Modes prune
+#           and rename rewrite the installed references: prune drops the entries no longer in the inventory, rename
+#           re-keys OLD=NEW pairs (NEW evaluated again, it must reproduce OLD); every other entry is copied.
 #           With cpu: stops at once unless the runner's CPU model matches the pattern; empty (the default) takes any
 #           runner. The ubuntu-24.04 pool mixes Intel and AMD CPUs, whose results differed by round-off while the
 #           Linux build called libmvec (AIUE-101, AIUE-210). Since AIUE-211 the build keeps those math calls scalar,
@@ -34,12 +38,15 @@ on:
         description: "Families, space-separated (default: make_references.py's, the small ones)"
         default: ""
       mode:
-        description: "sweep: the defaults and every variant; only: the variants in 'only'; locality-only: the installed references with their locality data computed again (AIUE-101); defaults-only: no sweep, never published"
+        description: "sweep: the defaults and every variant; only: the variants in 'only'; locality-only: the installed references with their locality data computed again (AIUE-101); prune: drop the entries no longer in the inventory; rename: the pairs in 'rename' (AIUE-95); defaults-only: no sweep, never published"
         type: choice
-        options: [sweep, only, locality-only, defaults-only]
+        options: [sweep, only, locality-only, prune, rename, defaults-only]
         default: sweep
       only:
         description: "With mode only: variant ids or keys, space-separated"
+        default: ""
+      rename:
+        description: "With mode rename: OLD=NEW variant id pairs, space-separated"
         default: ""
       publish:
         description: "Publish a data release (after the owner's approval in the yldot-data environment)"
@@ -85,10 +92,13 @@ jobs:
           FROM_COMMIT: ${{ inputs.from_commit }}
           MODE: ${{ inputs.mode }}
           ONLY: ${{ inputs.only }}
+          RENAME: ${{ inputs.rename }}
           EXPECT_REF: ${{ inputs.expect_ref }}
         run: |
           if [ "$MODE" = only ] && [ -z "$ONLY" ]; then echo "refused: mode only needs 'only'"; exit 1; fi
           if [ "$MODE" != only ] && [ -n "$ONLY" ]; then echo "refused: 'only' needs mode only"; exit 1; fi
+          if [ "$MODE" = rename ] && [ -z "$RENAME" ]; then echo "refused: mode rename needs 'rename'"; exit 1; fi
+          if [ "$MODE" != rename ] && [ -n "$RENAME" ]; then echo "refused: 'rename' needs mode rename"; exit 1; fi
           if [ "$PUBLISH" != true ]; then
             echo "publish false: nothing is published, any commit may be generated"
             exit 0
@@ -117,6 +127,7 @@ jobs:
       FAMILIES: ${{ inputs.families }}
       MODE: ${{ inputs.mode }}
       ONLY: ${{ inputs.only }}
+      RENAME: ${{ inputs.rename }}
       EXPECT_REF: ${{ inputs.expect_ref }}
       CPU: ${{ inputs.cpu }}
     steps:
@@ -155,7 +166,7 @@ jobs:
           python-version: "3.12"
       - name: Install the host-side packages
         run: pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
-      - name: Fetch the released data (the owner families' assets; the installed references for modes only and locality-only)
+      - name: Fetch the released data (the owner families' assets; the installed references for modes only, locality-only, prune and rename)
         run: python tests/yldot/tools/fetch_data.py
       - name: Take a provisional tag
         id: tag
@@ -171,8 +182,11 @@ jobs:
         run: |
           read -ra fams <<< "$FAMILIES"
           read -ra only <<< "$ONLY"
+          read -ra pairs <<< "$RENAME"
           opts=(--out "$RUNNER_TEMP/gen")
           if [ "$MODE" = only ]; then opts+=(--only "${only[@]}"); fi
+          if [ "$MODE" = prune ]; then opts+=(--prune); fi
+          if [ "$MODE" = rename ]; then opts+=(--rename "${pairs[@]}"); fi
           if [ "$MODE" = defaults-only ]; then opts+=(--defaults-only); fi
           if [ "$MODE" = locality-only ]; then opts+=(--locality-only); fi
           if [ "$PUBLISH" = true ]; then opts+=(--release "$TAG" --write); fi
@@ -213,6 +227,8 @@ jobs:
           name: yldot-generate-logs
           path: |
             ${{ runner.temp }}/gen/build.log
+            ${{ runner.temp }}/gen/build-audit.log
+            ${{ runner.temp }}/gen/audit/*.audit.json
             ${{ runner.temp }}/gen/build.json
             ${{ runner.temp }}/gen/references/*.summary
             ${{ runner.temp }}/gen/references/*.cost.json

@@ -668,6 +668,59 @@ def test_locality_variant_rules(repo):
         "locality pattern of variant bbb.inert removed" in text, text
 
 
+def test_locality_pattern_goes_with_its_prune(repo):
+    """AIUE-95 D1: a pattern removed with its pruned non-SENSITIVE variant needs no declaration; removed from a variant
+    that stays (INERT -> INVALID, the audit) it is still a loosening; with a SENSITIVE prune a default change."""
+    for family, variables in BASE_VARIABLES.items():
+        repo.put_ref(family, variables, locality=LOC, loc_variants={"bbb.both": LV["bbb.inert"]} if family == "fam"
+                     else None, release=V1, serve=False)
+    repo.base = repo.commit("patterns")
+    for family, variables in BASE_VARIABLES.items():
+        repo.put_ref(family, {k: c for k, c in variables.items() if k != "bbb.both"}, locality=LOC)
+    code, v, text = repo.check()
+    assert code == 0 and v["required"] == [], text
+    assert "prune bbb.both (INERT in every family; with its locality pattern)" in text
+    repo.base = repo.commit("pruned")
+    repo.put_ref("fam", BASE_VARIABLES["fam"] | {"bbb.both": ("INERT", None)}, locality=LOC, loc_variants=LV,
+                 release=V1, serve=False)
+    repo.base = repo.commit("inert pattern")
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.inert": ("INVALID", None), "bbb.both": ("INERT", None)}),
+                 locality=LOC)
+    code, v, text = repo.check()
+    assert "loosened" in reqs(v) and "locality pattern of variant bbb.inert removed" in text, text
+
+
+def test_locality_pattern_goes_with_its_rename(repo):
+    """AIUE-95 D1: a rename moves the pattern with an identical slice and needs no declaration; another slice (or
+    none) makes it a prune and an addition, the new pattern a new criterion."""
+    variables = BASE_VARIABLES["fam"]
+    repo.put_ref("fam", variables, locality=LOC, loc_variants=LV, release=V1, serve=False)
+    repo.base = repo.commit("pattern")
+    renamed = dict({k: c for k, c in variables.items() if k != "bbb.inert"}, **{"bbb.renamed": ("INERT", None)})
+    repo.put_ref("fam", renamed, locality=LOC, loc_variants={"bbb.renamed": LV["bbb.inert"]})
+    code, v, text = repo.check()
+    assert code == 0 and v["required"] == [], text
+    assert "rename bbb.inert -> bbb.renamed (identical data; its locality pattern)" in text, text
+    moved = {"bbb.renamed": (dict(LV_ADDED, mismatch=np.array([6e-6])), LV_NONE)}
+    repo.put_ref("fam", renamed, locality=LOC, loc_variants=moved)
+    code, v, text = repo.check()
+    # bbb.inert is SENSITIVE in oth: not a rename, so its removal is a default change and its pattern a loosening
+    assert reqs(v) == {"default", "changed", "loosened"} and "rename bbb.inert" not in text, text
+    assert "new locality patterns of variants ['bbb.renamed']" in text, text
+
+
+def test_rename_differences_names_the_locality_pattern(tmp_path):
+    m0, _ = make_ref(tmp_path, "fam", {"bbb.inert": ("INERT", None)}, locality=LOC, loc_variants=LV)
+    m1, _ = make_ref(tmp_path, "fam", {"bbb.renamed": ("INERT", None)}, locality=LOC,
+                     loc_variants={"bbb.renamed": LV["bbb.inert"]})
+    va, vb = m0["variables"]["bbb.inert"], m1["variables"]["bbb.renamed"]
+    assert guard.rename_differences(m0, "bbb.inert", va, m1, "bbb.renamed", vb) == []
+    m2, _ = make_ref(tmp_path, "fam", {"bbb.renamed": ("INERT", None)}, locality=LOC)
+    assert guard.rename_differences(m0, "bbb.inert", va, m2, "bbb.renamed", vb) == ["locality pattern"]
+    assert guard.rename_differences(m0, "bbb.inert", va, m2, "bbb.renamed", dict(vb, applied=APPLIED)) == [
+        "applied", "locality pattern"]
+
+
 def test_check_h5_locality_slices(tmp_path):
     m, h5 = make_ref(tmp_path, "fam", BASE_VARIABLES["fam"], locality=LOC, loc_variants=LV)
     p = tmp_path / "x.h5"
