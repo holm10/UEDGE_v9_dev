@@ -66,7 +66,7 @@ review).
 | `OMP_NUM_THREADS=N` and `ppp.Nthreads` | `Nthreads` is clamped to `OMP_GET_MAX_THREADS()`. Record both. |
 | `HOME` set to an empty directory, `python -I` | `import uedge` runs `~/.uedgerc.py` or `./.uedgerc.py` if present, and `-I` also ignores `PYTHON*` variables. With `-I` the script's folder is not on `sys.path`, so add the case directory explicitly. |
 | A fresh process per run | Forthon module state is global. |
-| Build on macOS with gcc-15 | gcc-15's default C23 mode fails on `bbb/exmain.c`. Use `CC` set to Homebrew LLVM's clang (`/opt/homebrew/opt/llvm/bin/clang`, which also provides `libomp`), or `CFLAGS=-std=gnu17`. |
+| Build on macOS with gcc-15 | Before AIUE-212, gcc-15's default C23 mode fails on `bbb/exmain.c`. For such a commit use `CC` set to Homebrew LLVM's clang (`/opt/homebrew/opt/llvm/bin/clang`, which also provides `libomp`), or `CFLAGS=-std=gnu17`; later commits build with plain `CC=gcc-15`. |
 
 ## Running it
 
@@ -353,9 +353,9 @@ the same machine, never against this table.
 ## CI: `build-test-omp.yml` (AIUE-57)
 
 `.github/workflows/build-test-omp.yml` builds the **default OpenMP build** (`pip install -v .`; since AIUE-64 the
-Linux build links the extensions with `-fopenmp` itself, so no `LDFLAGS` is needed) on `ubuntu-latest` (4 vCPUs) with
-Python 3.11, `numpy==1.26.4` and `h5py`, and calls `tests/deterministic_omp/ci/run_omp_ci.sh`. The script holds every
-CI step, so the same steps run locally:
+Linux build links the extensions with `-fopenmp` itself, so no `LDFLAGS` is needed) on `ubuntu-24.04` (4 vCPUs;
+pinned since AIUE-212) with Python 3.11, `numpy==1.26.4` and `h5py`, and calls `tests/deterministic_omp/ci/run_omp_ci.sh`.
+The script holds every CI step, so the same steps run locally:
 
 ```bash
 PYTHON=/path/to/omp-venv/bin/python tests/deterministic_omp/ci/run_omp_ci.sh pr        # the PR set
@@ -447,7 +447,7 @@ The workflow has `permissions: contents: read`.
   `record.json`, `spec.json`. The compared arrays (`record.npz`, ~60 MB per full-problem run) are not uploaded;
   rerun locally.
 - **Budget.** The PR job is estimated at about 15–22 min (central ~18; the nightly set about 90–120 min within its
-  150-min timeout) on `ubuntu-latest` (derivation in the AIUE-57 validation record, kept in the tag
+  150-min timeout) on `ubuntu-24.04` (derivation in the AIUE-57 validation record, kept in the tag
   `archive/AIUE-8-docs`; all local timings are from a loaded Mac or emulated x86-64, so they are not a prediction); the `Wall time` step writes the measured job
   and build time to the step summary. If it runs over 20 min, cut the `pr` set in `run_omp_ci.sh` in this order:
   drop `up1`, then `tebox` K=5 → 3, then `full` at 4 threads only; the nightly set keeps the full matrix.

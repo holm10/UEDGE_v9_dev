@@ -6,7 +6,7 @@
 #      (`python -m pip install -v .`, in the clone; LDFLAGS only if the caller sets it), log /out/build_ci_NAME.log;
 #   3. resolve OMP_CI_GEN_DIR with ci/gen_dir.sh, as the workflow step does;
 #   4. run ci/run_omp_ci.sh SET (default pr) from the tree root with OMP_CI_OUT=/out/NAME and OMP_CI_CORES=4
-#      (ubuntu-latest has 4 vCPUs; `nproc` in a container reports the host's cores, --cpus only caps time).
+#      (ubuntu-24.04 has 4 vCPUs; `nproc` in a container reports the host's cores, --cpus only caps time).
 # RUN_TREE=DIR runs the CI scripts of another, existing clone (e.g. /work/ci-fix) against this build: the
 # negative control on a tree without tests/deterministic_omp/ci. OMP_CI_* variables are passed through.
 # Host side (one container at a time):
