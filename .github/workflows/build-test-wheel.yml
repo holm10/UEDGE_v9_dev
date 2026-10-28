@@ -10,7 +10,26 @@ name: Build and test UEDGE - write wheel files if tests pass
 # run only on pushes to v9-develop, main and tags (owner D5). Locally: pip install ".[test]" and
 # pytest tests/yldot -n auto -m "not nightly" (.claude/context/testing.md).
 
-on: [push, pull_request]
+# A push or PR that changes only AI-layer files (process paths) runs nothing here (owner, 2026-10-28). The list is
+# the PROCESS pattern of .claude/hooks/change_kind.py; keep the two in step. One product file in the change runs
+# everything. Path filters are not evaluated for tag pushes, so wheel builds on tags are unaffected.
+on:
+  push:
+    paths-ignore:
+      - "CLAUDE.md"
+      - ".mcp.json"
+      - ".claude/**"
+      - ".githooks/**"
+      - ".github/workflows/claude-*.yml"
+      - ".github/workflows/claude-*.yaml"
+  pull_request:
+    paths-ignore:
+      - "CLAUDE.md"
+      - ".mcp.json"
+      - ".claude/**"
+      - ".githooks/**"
+      - ".github/workflows/claude-*.yml"
+      - ".github/workflows/claude-*.yaml"
 
 permissions:
   contents: read

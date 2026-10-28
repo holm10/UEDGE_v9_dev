@@ -13,10 +13,27 @@ name: OpenMP determinism - OpenMP Jacobian vs serial
 # (all earlier Linux evidence ran emulated). If native x86-64 shows C2-like round-off entries, the
 # owner decides; OMP_CI_JAC_TOLERANCE cannot rescue the --itermx flows.
 
+# A push or PR that changes only AI-layer files (process paths) runs nothing here (owner, 2026-10-28). The list is
+# the PROCESS pattern of .claude/hooks/change_kind.py; keep the two in step. One product file in the change runs
+# everything; the nightly schedule and manual dispatch are unaffected.
 on:
   push:
     branches: [v9-develop, main]   # other branches are tested through their pull request
+    paths-ignore:
+      - "CLAUDE.md"
+      - ".mcp.json"
+      - ".claude/**"
+      - ".githooks/**"
+      - ".github/workflows/claude-*.yml"
+      - ".github/workflows/claude-*.yaml"
   pull_request:
+    paths-ignore:
+      - "CLAUDE.md"
+      - ".mcp.json"
+      - ".claude/**"
+      - ".githooks/**"
+      - ".github/workflows/claude-*.yml"
+      - ".github/workflows/claude-*.yaml"
   schedule:
     - cron: "17 3 * * *"   # nightly full matrix (runs only from the default branch)
   workflow_dispatch:
