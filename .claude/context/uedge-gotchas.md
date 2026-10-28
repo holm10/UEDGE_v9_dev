@@ -25,6 +25,26 @@ converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas.
   - Never infer a species slot's meaning from its position: read `ziin`, `znuclin`, `isupgon`, `istgon` from the run, and say which index convention (Fortran or Python) a label uses.
 - **A continuity fault shows in the up, te and ti rows of `yldot` too** (owner, 2026-10-23, AIUE-158; also on the Confluence page `UEDGE gotchas`). With the defaults `isflxvar = 0` and `isrscalf = 1` (`bbb/bbb.v:1298,1301`), `pandf` calls `rscalf` (`bbb/pandf.m:724`), which turns the conservative residuals d(nv)/dt and d(nT)/dt into dv/dt and dT/dt (`bbb/oderhs.m:537-692`): `yldot(up)` subtracts `up·nbvdot`, built from `yldot(ni)` and the neighbour's `resco` (`bbb/oderhs.m:612,633`), te subtracts `te·` the charge-weighted sum of the ion density derivatives, and ti `ti·` their sum over ions (the inertial atoms enter only through `cftiexclg` when `isupgon(1) = 1`, the gas through `cngtgx(1)` otherwise; `bbb/oderhs.m:642-656`). AIUE-89's continuity sign flip fired `ni[1]` 32, `up[1]` 28, `te[1]` 32 and `ti[1]` 32 rows on d_only. A per-block expectation (a mutation header, a coverage matrix, localization by block) includes the coupled blocks; "fires outside its block" is not by itself a defect.
 
+## Platform
+
+- **On Linux x86-64, results follow the CPU vendor through glibc's vector math library** (owner, 2026-10-26,
+  AIUE-210; also on the Confluence page `UEDGE gotchas`). gfortran `-O3` vectorizes loops that call `exp`, `log`,
+  `pow`, `sin` or `cos` into libmvec's 2-lane `_ZGVbN2v_*` functions (glibc 2.39, the yldot image). An example is
+  `fd2tra`'s log interpolation (`bbb/oderhs.m:468-484`, used with `methg = 66`). libmvec's SSE4.1 `log` kernel uses
+  `rcpps`, an approximate reciprocal whose bits differ between Intel and AMD. Probed on dnull_imp2, large_dd2c and
+  imp7:
+  - Intel 8573C and 8370C agree with Rosetta (x86 emulation on Apple silicon), shown for dnull_imp2's base. AMD EPYC 7763, 9V45 and 9V74 agree with each
+    other, and differ from Intel by round-off in 80-89 steady `yldot` rows.
+  - The same binary and inputs give the same result on every run of one vendor. The AVX-512 (present or not) does not
+    matter.
+  - `GLIBC_TUNABLES=glibc.cpu.hwcaps=-SSE4_1` makes libmvec fall back to scalar libm, and Intel and AMD then agree
+    bit for bit, at other values.
+  - The five small families' defaults reproduce on both vendors (AIUE-101, run 40268809315). Three of their variant
+    vectors, `d_only:bbb.ineudif`, `d_c:bbb.ineudif` and `d_c:bbb.rtg2ti`, differed between native and emulated runs
+    whose CPU was not logged. Those are presumed to be AMD runs with the same cause, which is not probed.
+  - So a bitwise comparison of two Linux runs holds only on one CPU vendor. AIUE-211 is to make the build
+    vendor-independent.
+
 ## Test tooling
 
 - **Importing the yldot harness pins OpenMP to one thread.** `tests/yldot/__init__.py` and `tests/yldot/harness/__init__.py` set `OMP_NUM_THREADS=1` at import (`tests/yldot/harness/__init__.py:10`), and libgomp reads it once, while `import uedge` runs (macOS links gcc's libgomp too; probed 2026-10-22: setting it after the import changes nothing). A process that imports anything under `tests/yldot/` before `uedge` is single-threaded whatever its caller set, and `ppp` quietly lowers a larger `ppp.Nthreads` to what is available (`ppp/omp_parallel.F90:299-302`). A multi-threaded run through the yldot tools starts a child with `OMP_NUM_THREADS` in its environment, imports `uedge` before `yldot.harness`, sets `ppp.Nthreads` itself, and checks the effective `ppp.Nthreads` after the run (`tests/yldot/tools/measure_roundoff.py:66-70`, AIUE-87).
