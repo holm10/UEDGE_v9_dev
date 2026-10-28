@@ -93,11 +93,11 @@ def variant(seed):
 
 
 def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None,
-             locality=None, kind="full", thresholds=None, weights=None):
+             locality=None, kind="full", thresholds=None, weights=None, loc_variants=None):
     """(manifest, .h5 bytes) of a reference (a full store unless kind); variables {id: (class, seed)}, the SENSITIVE
     ones stored; locality: (delta, entries) of a stored locality pattern; thresholds: the tol of a sketch store's
     stored sketch thresholds (default THR: a sketch store always has them and its weights, AIUE-174); weights: its
-    stored weights (default 1 / thresholds)."""
+    stored weights (default 1 / thresholds); loc_variants: {id: (added, dropped)} steady locality differences."""
     p = Path(where) / "{}-{}.h5".format(family, next(COUNTER))
     w = store.create(p, kind, family, DATA, IMAP)
     for config in mf.CONFIG_NAMES:
@@ -109,6 +109,8 @@ def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=
     for vid, (cls, seed) in sorted(variables.items()):
         if cls == "SENSITIVE":
             w.write_variant("steady", vid, variant(seed), variant(seed) + (YJ - Y))
+    for vid, (added, dropped) in sorted((loc_variants or {}).items()):
+        w.write_locality_variant("steady", vid, added, dropped)
     out = w.finish()
     guarded, unguarded = mf.summarize(out["datasets"])
     entries = {}
@@ -125,6 +127,8 @@ def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=
          "provenance": {k: "x" for k in mf.PROVENANCE}, "variables": entries}
     if kind == "sketch":
         m["sketch"] = {"k": store.K, "seed": store.SEED}
+    if out["locality_variants"]:
+        m["locality_variants"] = out["locality_variants"]
     mf.validate(m)
     return m, p.read_bytes()
 
@@ -502,6 +506,35 @@ def test_family_toml_locality_rules(a, b, want):
     assert {r for r, _ in guard.diff_family_toml(f0, f1)} == want
 
 
+SPECIAL = dict(LOCALITY, columns="special", variants="meth", sample=300, seed=1)
+ALL = dict(LOCALITY, columns="all", variants="all")
+
+
+@pytest.mark.parametrize("a, b, want", [
+    (LOCALITY, ALL, {"changed"}),  # the AIUE-101 keys added: every column (as before), variant patterns new
+    (ALL, dict(ALL, columns="special", sample=300, seed=1), {"loosened"}),  # fewer columns
+    (SPECIAL, dict(SPECIAL, columns="all", sample=None, seed=None), {"changed"}),  # every column: sample/seed go
+    (ALL, dict(ALL, variants="listed"), {"loosened"}),
+    (dict(ALL, variants="meth"), dict(ALL, variants="listed"), {"changed"}),
+    (ALL, dict(ALL, variants="some"), {"loosened"}),  # unknown value
+    (SPECIAL, dict(SPECIAL, sample=200), {"loosened"}),
+    (SPECIAL, dict(SPECIAL, sample=400), {"changed"}),
+    (SPECIAL, dict(SPECIAL, sample=True), {"loosened"}),
+    (SPECIAL, dict(SPECIAL, seed=2), {"changed"}),
+    (ALL, dict(ALL, excluded={"bbb.a": "why"}), {"loosened"}),  # an owner exclusion: CODEOWNER approval
+    (ALL, dict(ALL, near_margin="nonog"), {"loosened"}),  # the owner accepts default entries near M_loc
+    (dict(ALL, near_margin="nonog"), ALL, {"changed"}),
+    (dict(ALL, excluded={"bbb.a": "why"}), dict(ALL, excluded={"bbb.a": "better why"}), {"changed"}),
+    (dict(ALL, excluded={"bbb.a": "why"}), ALL, {"changed"}),  # back in scope
+])
+def test_family_toml_locality_scope_rules(a, b, want):
+    import tomllib
+
+    base = tomllib.loads(FAMILY)
+    strip = lambda t: {k: v for k, v in t.items() if v is not None}  # noqa: E731
+    assert {r for r, _ in guard.diff_family_toml(dict(base, locality=strip(a)), dict(base, locality=strip(b)))} == want
+
+
 def test_new_family_toml_is_a_change(repo):
     repo.write(G + "families/new/family.toml", FAMILY.replace("fam", "new"))
     repo.write(G + "families/new/sigma.h5", "sigma")
@@ -608,6 +641,40 @@ def test_removed_locality_pattern_is_a_default_change(repo):
     repo.put_ref("fam", BASE_VARIABLES["fam"])
     code, v, text = repo.check()
     assert code == 1 and v["items"] == ["fam:locality/steady"] and "guarded locality/steady removed" in text
+
+
+LV_ADDED = {"column": np.array([2]), "row": np.array([4]), "mismatch": np.array([3e-6]), "dfull": np.array([0.0])}
+LV_NONE = {"column": np.zeros(0, int), "row": np.zeros(0, int)}
+LV = {"bbb.inert": (LV_ADDED, LV_NONE)}  # an INERT variable of BASE_VARIABLES["fam"] with a locality pattern
+
+
+def test_locality_variant_rules(repo):
+    """AIUE-101: a new variant locality pattern is a new criterion, a changed one a default change of that variant
+    (not of the packed guarded key), a removed one a loosening."""
+    assert BASE_VARIABLES["fam"]["bbb.inert"][0] == "INERT"
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC, release=V1, serve=False)
+    repo.base = repo.commit("locality pattern")
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC, loc_variants=LV)
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed"} and "new locality patterns of variants ['bbb.inert']" in text, text
+    repo.base = repo.commit("variant pattern")
+    moved = {"bbb.inert": (dict(LV_ADDED, mismatch=np.array([6e-6])), LV_NONE)}
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC, loc_variants=moved)
+    code, v, text = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:bbb.inert"], text
+    repo.put_ref("fam", BASE_VARIABLES["fam"], locality=LOC)
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed", "loosened"} and "[loosened]" in text and \
+        "locality pattern of variant bbb.inert removed" in text, text
+
+
+def test_check_h5_locality_slices(tmp_path):
+    m, h5 = make_ref(tmp_path, "fam", BASE_VARIABLES["fam"], locality=LOC, loc_variants=LV)
+    p = tmp_path / "x.h5"
+    p.write_bytes(h5)
+    assert guard.check_h5(p, m) == []
+    other = dict(m, locality_variants={"bbb.inert": dict(m["locality_variants"]["bbb.inert"], sha256="0" * 64)})
+    assert any("slices differ" in x and "bbb.inert" in x for x in guard.check_h5(p, other))
 
 
 THR = np.linspace(1e-9, 1e-7, N)

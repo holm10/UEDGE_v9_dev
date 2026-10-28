@@ -37,6 +37,10 @@ START_METHODS = ("forkserver", "spawn")
 # family.toml [evaluation] fallbacks for a family not measured yet (placeholders, owner, 2026-10-19): AIUE-86
 # measured W and P of the five small families (tools/measure_history.py), AIUE-92 measures the owner families
 EVALUATION_DEFAULTS = {"w": 2, "p": 2, "timeout_s": 120.0, "dt_timestep_s": 1e-6}
+# the timeout of an evaluation with the locality protocol over a column set (the owner families), in units of the
+# family's timeout_s: 4 evaluations per column (AIUE-101: imp7's default over 9036 columns took 433 s on macOS arm64
+# and timed out at 600 s on CI amd64); a small family's every-column run fits its timeout_s
+LOCALITY_TIMEOUT_FACTOR = 30
 START_ENV = {"UEDGE_BANNER": "0", "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
              "GFORTRAN_UNBUFFERED_PRECONNECTED": "y"}  # the last one: Fortran output reaches the log before a crash
 EXIT_GRACE_S = 30.0
@@ -149,13 +153,16 @@ class Runner:
             self.ctx.set_forkserver_preload(["uedge", "numpy"])
 
     def evaluate(self, family, config=None, diagnostics=False, pre=None, post=None, timeout=None, variant=None,
-                 replay=None, locality=None):
+                 replay=None, locality=None, columns=None):
         """One evaluation of the family. config: steady, timestep or intake (the unperturbed reference_state.h5,
         never with a variant); None takes the variant's configuration, else steady. pre/post: 'module:function'
         hooks called as f(bbb, com) in the PRE and POST phases, before the variant. variant: a variants.Variant (or
         its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form)
-        used instead of the rules. timeout: seconds, default from family.toml. locality: delta_loc, which adds the
-        locality protocol (PRD 7.5, state.py step 8c) to a steady evaluation without a variant."""
+        used instead of the rules. timeout: seconds, default from family.toml, times LOCALITY_TIMEOUT_FACTOR for
+        locality over a column set. locality: delta_loc, which adds the
+        locality protocol (PRD 7.5, state.py step 8c) to the evaluation (steady or timestep, with or without a
+        variant); columns: the columns it perturbs, None for all, 0-based columns, or a [locality] table
+        (locality.select_columns, resolved in the child on the live grid)."""
         spec = None
         if variant is not None:
             v = variant if isinstance(variant, variants.Variant) else variants.Variant.from_dict(variant)
@@ -170,16 +177,22 @@ class Runner:
             raise ValueError("config {!r}, expected one of {}".format(config, CONFIGS + (INTAKE,)))
         if config == INTAKE and spec is not None:
             raise ValueError("the intake configuration takes no variant")
-        if locality is not None and (config != "steady" or spec is not None):
-            raise ValueError("the locality check runs in the steady configuration without a variant")
+        if locality is not None and config == INTAKE:
+            raise ValueError("the locality check does not run in the intake configuration")
+        if columns is not None and locality is None:
+            raise ValueError("columns without locality")
+        if columns is not None and not isinstance(columns, dict):
+            columns = [int(c) for c in columns]
         fdir = family_dir(family)
         ev = load_evaluation(fdir)
         timeout = float(ev["timeout_s"] if timeout is None else timeout)
+        if locality is not None and columns is not None:
+            timeout *= LOCALITY_TIMEOUT_FACTOR
         with tempfile.TemporaryDirectory(prefix="yldot-child-") as tmp:
             job = {"family": str(fdir), "config": config, "mode": self.mode, "w": int(ev["w"]), "p": int(ev["p"]),
                    "dt": float(ev["dt_timestep_s"]), "diagnostics": bool(diagnostics), "pre": pre, "post": post,
                    "variant": spec, "log": os.path.join(tmp, "child.log"),
-                   "locality": None if locality is None else float(locality)}
+                   "locality": None if locality is None else float(locality), "columns": columns}
             recv, send = self.ctx.Pipe(duplex=False)
             proc = self.ctx.Process(target=state.run, args=(send, job), name="yldot-{}-{}".format(fdir.name, config))
             t0 = time.monotonic()

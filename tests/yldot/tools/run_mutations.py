@@ -623,7 +623,7 @@ def locality_part(runner, family, regions, tol):
     cfg = L.load_config(FAMILIES / family)
     if cfg is None:
         return None, None
-    r = runner.evaluate(family, locality=cfg["delta_loc"])
+    r = runner.evaluate(family, locality=cfg["delta_loc"], columns=mr.locality_columns(cfg))  # AIUE-101: column sets
     if not r.ok:
         return {"status": r.status, "message": r.message, "log_tail": r.log_tail}, None
     with open_store(family) as s:
@@ -809,13 +809,18 @@ class Scratch:
 
     def test_locality(self, families, out):
         """{family: failed} from test_locality.py's test_locality cases, run with the built python."""
-        expr = "test_locality and ({})".format(" or ".join(families))
-        cmd = [str(self.python), "-m", "pytest", "tests/yldot/test_locality.py", "-k", expr, "-q", "-p",
-               "no:cacheprovider", "--junitxml", str(out)]
+        cmd = [str(self.python), "-m", "pytest"] + locality_cases(families) + ["-q", "-p", "no:cacheprovider",
+                                                                               "--junitxml", str(out)]
         rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
         if rc not in (0, 1):
             raise Stop(2, "test_locality.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
         return parse_junit_locality(out, families)
+
+
+def locality_cases(families):
+    """The node ids of the families' test_locality[<family>] cases. A -k expression would also select
+    test_locality_variant (every stored variant pattern, AIUE-101) and the unit tests that name a family."""
+    return ["tests/yldot/test_locality.py::test_locality[{}]".format(f) for f in families]
 
 
 def parse_junit_locality(path, families):

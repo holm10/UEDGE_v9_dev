@@ -341,6 +341,18 @@ def test_parse_junit_locality(tmp_path):
         rm.parse_junit_locality(p, ["d_only", "ortho"])
 
 
+def test_locality_cases_collect_only_test_locality():
+    """The range mutations' cross-check runs each family's test_locality case and nothing else (AIUE-101: a -k
+    expression also collected every test_locality_variant case)."""
+    root = Path(__file__).resolve().parents[2]
+    out = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
+                         + rm.locality_cases(["d_only", "large_dd2c"]), cwd=root, capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    ids = [line for line in out.stdout.splitlines() if "::" in line]
+    assert ids == ["tests/yldot/test_locality.py::test_locality[d_only]",
+                   "tests/yldot/test_locality.py::test_locality[large_dd2c]"], ids
+
+
 def test_skipped_test_default_is_flagged(tmp_path):
     v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
     assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v
@@ -352,9 +364,14 @@ def test_gate_flag_fails_g2():
     assert failing(m) == ["G2"]
 
 
-def test_locality_part_not_run_without_locality():
-    """AIUE-92: a family without [locality] (an owner family) has no locality part; it never stops the run."""
-    assert rm.has_locality("d_only") and not rm.has_locality("large_dd2c")
+def test_locality_part_not_run_without_locality(monkeypatch):
+    """AIUE-92: a family without [locality] has no locality part; it never stops the run. Every family has one
+    since AIUE-101, so a family without is faked here."""
+    from yldot.harness import locality as L
+
+    assert rm.has_locality("d_only") and rm.has_locality("large_dd2c")
+    monkeypatch.setattr(L, "load_config", lambda fdir: None)
+    assert not rm.has_locality("large_dd2c")
     assert rm.locality_part(None, "large_dd2c", None, None) == (None, None)
 
 

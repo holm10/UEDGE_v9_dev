@@ -25,6 +25,15 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
     sketch: /<config>/variants/<id>/{yldot, jflag}/{proj, l2, maxabs, argmax}
     /steady/locality/{delta, column, row, mismatch, dfull}             the locality entries with score > 1 at delta
                                                                        (locality.py, PRD 7.5; AIUE-100), both stores
+    /steady/locality/columns                                           the perturbed columns, only when not every
+                                                                       column ([locality].columns, AIUE-101)
+    /<config>/locality_variants/{ids, offsets, column, row, mismatch, dfull, dropped_offsets, dropped_column,
+                                 dropped_row}                          each variant's pattern as its difference from
+        the /steady/locality pattern (locality.diff; with a column set, its entries in the special cells' columns,
+        which the variants perturb: locality.variant_base), packed: variant i (ids[i], sorted) owns the entries
+        offsets[i]:offsets[i+1] and the dropped keys dropped_offsets[i]:dropped_offsets[i+1] (one group per
+        variant would exceed the 8x4 families' size caps; AIUE-101). The manifest's locality_variants holds each
+        slice's SHA-256 (locality_slice_sha), checked at open
 
 Blocks are (equation, species, region) from compare.IndexMap.groups() (index truth, decision 19). A sketch projects a
 block onto k Rademacher (+-1) vectors whose signs are the raw bits of numpy's PCG64 bit generator, which numpy keeps
@@ -84,6 +93,41 @@ def dataset_sha256(a):
     h = hashlib.sha256("{}|{}\n".format(a.dtype.str, tuple(a.shape)).encode())
     h.update(np.ascontiguousarray(a).tobytes())
     return h.hexdigest()
+
+
+SLICE_FIELDS = ("column", "row", "mismatch", "dfull", "dropped_column", "dropped_row")
+
+
+def locality_slice_sha(added, dropped):
+    """The SHA-256 of one variant's locality difference (locality.diff): mf.combined_sha over SLICE_FIELDS."""
+    parts = {name: getattr(added, name) for name in ("column", "row", "mismatch", "dfull")}
+    parts.update({"dropped_column": dropped["column"], "dropped_row": dropped["row"]})
+    dt = {"mismatch": np.float64, "dfull": np.float64}
+    return mf.combined_sha({name: dataset_sha256(np.asarray(parts[name], dtype=dt.get(name, np.int64)))
+                            for name in SLICE_FIELDS})
+
+
+def locality_slices(f):
+    """{variant id: (config, slice SHA-256)} of an open h5py file's packed locality differences (the guard reads a
+    downloaded file without a Store). ValueError or KeyError on an inconsistent group."""
+    from .locality import Entries
+
+    out = {}
+    for config in mf.CONFIG_NAMES:
+        g = "{}/locality_variants".format(config)
+        if g not in f:
+            continue
+        a = {name: f[g][name][()] for name in ("ids", "offsets", "dropped_offsets") + SLICE_FIELDS}
+        ids = [s.decode() for s in a["ids"]]
+        off, doff = a["offsets"], a["dropped_offsets"]
+        if off.shape != (len(ids) + 1,) or doff.shape != (len(ids) + 1,):
+            raise ValueError("{}: offsets of {} ids".format(g, len(ids)))
+        for i, vid in enumerate(ids):
+            added = Entries.of({k: a[k][off[i]:off[i + 1]] for k in ("column", "row", "mismatch", "dfull")})
+            dropped = {"column": a["dropped_column"][doff[i]:doff[i + 1]],
+                       "row": a["dropped_row"][doff[i]:doff[i + 1]]}
+            out[vid] = (config, locality_slice_sha(added, dropped))
+    return out
 
 
 def file_sha256(path):
@@ -321,7 +365,7 @@ class Writer:
             raise ValueError("neq = {} does not fit int32 indices".format(imap.neq))
         self.path, self.kind, self.imap, self.k, self.seed = Path(path), kind, imap, k, seed
         self.labels, self.rows, ids = blocks(imap)
-        self.defaults, self.weights = {}, {}
+        self.defaults, self.weights, self.loc_variants = {}, {}, {}
         self.f = h5py.File(self.path, "w", libver=LIBVER)
         self.f.attrs["schema"], self.f.attrs["family"], self.f.attrs["store"] = SCHEMA, family, kind
         if kind == "sketch":
@@ -385,9 +429,10 @@ class Writer:
             _ds(g, name, a)
         self.weights[config] = w
 
-    def write_locality(self, config, delta, entries):
-        """The locality entries the reference keeps (locality.pattern: score > 1) of a run at delta."""
-        from .locality import FIELDS, Entries
+    def write_locality(self, config, delta, entries, columns=None):
+        """The locality entries the reference keeps (locality.pattern: score > 1) of a run at delta over the given
+        0-based columns (None: every column, nothing stored, so a family without a column set keeps its SHAs)."""
+        from .locality import FIELDS
 
         if config != "steady":
             raise ValueError("locality is stored for the steady configuration only, not {!r}".format(config))
@@ -398,6 +443,28 @@ class Writer:
         delta = float(delta)
         if not (math.isfinite(delta) and delta > 0):
             raise ValueError("delta = {}, need a finite delta > 0".format(delta))
+        e = self._entries(entries)
+        if columns is not None:
+            columns = np.asarray(columns, dtype=np.int64)
+            n = self.imap.neq
+            if columns.ndim != 1 or (columns.size and (columns.min() < 0 or columns.max() >= n)) or \
+                    (np.diff(columns) <= 0).any():
+                raise ValueError("locality columns must be increasing 0-based columns below {}".format(n))
+            outside = ~np.isin(e.column, columns)
+            if outside.any():
+                raise ValueError("locality entries in columns not perturbed: {}".format(listed(
+                    np.unique(e.column[outside]) + 1)))
+        g = self.f.create_group("{}/locality".format(config))
+        _ds(g, "delta", np.float64(delta))
+        for name in FIELDS:
+            _ds(g, name, getattr(e, name))
+        if columns is not None:
+            _ds(g, "columns", columns)
+
+    def _entries(self, entries):
+        """Entries checked (in range, finite) and ordered by (column, row)."""
+        from .locality import Entries
+
         e = entries if isinstance(entries, Entries) else Entries.of(entries)
         n = self.imap.neq
         bad = (e.column < 0) | (e.column >= n) | (e.row < 0) | (e.row >= n)
@@ -405,11 +472,52 @@ class Writer:
             raise ValueError("locality entries outside 0..{}: {}".format(n - 1, listed(np.flatnonzero(bad) + 1)))
         if not (np.isfinite(e.mismatch).all() and np.isfinite(e.dfull).all()):
             raise ValueError("locality entries must be finite")
-        order = np.lexsort((e.row, e.column))
-        g = self.f.create_group("{}/locality".format(config))
-        _ds(g, "delta", np.float64(delta))
-        for name in FIELDS:
-            _ds(g, name, getattr(e, name)[order])
+        return e.sorted()
+
+    def write_locality_variant(self, config, vid, added, dropped):
+        """One variant's locality pattern as its difference (locality.diff) from the /steady/locality pattern,
+        buffered and written packed by finish (layout above)."""
+        _config(config)
+        if "steady/locality" not in self.f:
+            raise StoreError("write the steady locality pattern before the variants' differences from it")
+        if "/" in vid or not vid:
+            raise ValueError("variant id {!r}: non-empty, without '/'".format(vid))
+        if vid in self.loc_variants.get(config, {}):
+            raise StoreError("{}: locality of variant {} already written".format(config, vid))
+        if any(vid in d for d in self.loc_variants.values()):
+            raise StoreError("variant {}: locality already written in another configuration".format(vid))
+        dc, dr = (np.asarray(dropped[k], dtype=np.int64) for k in ("column", "row"))
+        if dc.shape != dr.shape or dc.ndim != 1:
+            raise ValueError("dropped column and row of unequal shapes {} {}".format(dc.shape, dr.shape))
+        order = np.lexsort((dr, dc))
+        self.loc_variants.setdefault(config, {})[vid] = (self._entries(added), {"column": dc[order],
+                                                                                "row": dr[order]})
+
+    def _write_locality_variants(self):
+        """The buffered locality differences, one packed group per configuration; {vid: manifest entry}."""
+        out = {}
+        for config, byvid in sorted(self.loc_variants.items()):
+            ids = sorted(byvid)
+            g = self.f.create_group("{}/locality_variants".format(config))
+            _ds(g, "ids", np.array([v.encode() for v in ids]))
+            cat = {name: [] for name in SLICE_FIELDS}
+            off, doff = [0], [0]
+            for vid in ids:
+                added, dropped = byvid[vid]
+                for name in ("column", "row", "mismatch", "dfull"):
+                    cat[name].append(getattr(added, name))
+                cat["dropped_column"].append(dropped["column"])
+                cat["dropped_row"].append(dropped["row"])
+                off.append(off[-1] + len(added))
+                doff.append(doff[-1] + dropped["column"].size)
+                out[vid] = {"config": config, "sha256": locality_slice_sha(added, dropped), "added": len(added),
+                            "dropped": int(dropped["column"].size)}
+            _ds(g, "offsets", np.asarray(off, dtype=np.int64))
+            _ds(g, "dropped_offsets", np.asarray(doff, dtype=np.int64))
+            for name in SLICE_FIELDS:
+                dt = np.float64 if name in ("mismatch", "dfull") else np.int64
+                _ds(g, name, np.concatenate(cat[name]).astype(dt))
+        return out
 
     def write_variant(self, config, vid, yldot, yldot_J):
         _config(config)
@@ -463,9 +571,11 @@ class Writer:
                 _ds(gs, key, src.read("/{}/{}/{}".format(prefix, name, key)))
 
     def finish(self):
-        """Close the file; return {datasets: {path: sha}, sha256, bytes} for the manifest."""
+        """Close the file; return {datasets: {path: sha}, sha256, bytes, locality_variants: {vid: {config, sha256,
+        added, dropped}}} for the manifest."""
         import h5py
 
+        loc_variants = self._write_locality_variants()
         self.f.close()
         missing = [config for config in self.defaults if self.kind == "sketch" and config not in self.weights]
         if missing:
@@ -473,7 +583,8 @@ class Writer:
                 self.path, missing))
         with h5py.File(self.path, "r") as f:
             shas = {name: dataset_sha256(a) for name, a in _datasets(f).items()}
-        return {"datasets": shas, "sha256": file_sha256(self.path), "bytes": self.path.stat().st_size}
+        return {"datasets": shas, "sha256": file_sha256(self.path), "bytes": self.path.stat().st_size,
+                "locality_variants": loc_variants}
 
 
 def create(path, kind, family, data, imap, k=K, seed=SEED):
@@ -514,6 +625,7 @@ class Store:
         if unknown:
             raise StoreIntegrityError("{}: block labels of the manifest's variables are not blocks of the store: "
                                       "{}".format(self.path, listed(unknown)))
+        check_locality_variants(self)
 
     def close(self):
         self.f.close()
@@ -574,6 +686,48 @@ class Store:
         if g[1:] not in self.f:
             return None
         return float(self.read(g + "/delta")), Entries.of({k: self.read("{}/{}".format(g, k)) for k in FIELDS})
+
+    def locality_columns(self, config):
+        """The perturbed columns of the stored locality pattern, or None for every column (or no pattern)."""
+        name = "/{}/locality/columns".format(config)
+        return self.read(name) if name[1:] in self.f else None
+
+    def locality_variants(self, config):
+        """The ids of the variants whose locality difference this file stores in config."""
+        g = "/{}/locality_variants".format(config)
+        return [s.decode() for s in self.read(g + "/ids")] if g[1:] in self.f else []
+
+    def locality_variant(self, config, vid):
+        """(added Entries, dropped {"column", "row"}) of one variant (locality.diff), its slice SHA-256 checked
+        against the manifest's locality_variants."""
+        from .locality import Entries
+
+        ids = self.locality_variants(config)
+        if vid not in ids:
+            raise StoreError("{}: no stored locality of variant {} in {}".format(self.path, vid, config))
+        i = ids.index(vid)
+        g = "/{}/locality_variants/".format(config)
+        a, b = (int(x) for x in self.read(g + "offsets")[i:i + 2])
+        c, d = (int(x) for x in self.read(g + "dropped_offsets")[i:i + 2])
+        added = Entries.of({k: self.read(g + k)[a:b] for k in ("column", "row", "mismatch", "dfull")})
+        dropped = {"column": self.read(g + "dropped_column")[c:d], "row": self.read(g + "dropped_row")[c:d]}
+        want = self.manifest.get("locality_variants", {}).get(vid, {})
+        if want.get("config") != config or locality_slice_sha(added, dropped) != want.get("sha256"):
+            raise StoreIntegrityError("{}: the stored locality of variant {} ({}) differs from the manifest's "
+                                      "locality_variants".format(self.path, vid, config))
+        return added, dropped
+
+    def locality_pattern(self, config, vid):
+        """A variant's full locality pattern: its difference applied to the stored steady pattern, restricted to the
+        special cells' columns when the default perturbs a column set (locality.variant_base)."""
+        from .locality import apply, special_columns, variant_base
+
+        stored = self.locality("steady")
+        if stored is None:
+            raise StoreError("{}: no steady locality pattern stored, so no variant pattern applies".format(self.path))
+        default = stored[1]
+        special = None if self.locality_columns("steady") is None else special_columns(self.index_data())
+        return apply(variant_base(default, special), *self.locality_variant(config, vid))
 
     def diagnostics(self, config):
         g = "{}/default/diagnostics".format(config)
@@ -683,6 +837,33 @@ class SketchStore(Store):
 
 
 STORED_VARIANT = re.compile(r"^/([^/]+)/variants/([^/]+)/")
+LOCALITY_VARIANTS = re.compile(r"^/([^/]+)/locality_variants/ids$")
+
+
+def check_locality_variants(s):
+    """The open store's packed locality differences against the manifest's locality_variants: the same ids per
+    configuration, consistent offsets, and every slice's SHA-256 (Store.locality_variant)."""
+    want = s.manifest.get("locality_variants", {})
+    got = {}
+    for config in mf.CONFIG_NAMES:
+        ids = s.locality_variants(config)
+        if not ids:
+            continue
+        g = "/{}/locality_variants/".format(config)
+        if ids != sorted(set(ids)):
+            raise StoreIntegrityError("{}: {}ids are not sorted and unique".format(s.path, g))
+        for off, names in (("offsets", ("column", "row", "mismatch", "dfull")),
+                           ("dropped_offsets", ("dropped_column", "dropped_row"))):
+            o = s.read(g + off)
+            if o.shape != (len(ids) + 1,) or o[0] != 0 or (np.diff(o) < 0).any() or \
+                    any(s.read(g + name).shape != (int(o[-1]),) for name in names):
+                raise StoreIntegrityError("{}: {}{} do not partition its datasets".format(s.path, g, off))
+        got.update({vid: config for vid in ids})
+    if got != {vid: e["config"] for vid, e in want.items()}:
+        raise StoreIntegrityError("{}: stored locality variants {} differ from the manifest's {}".format(
+            s.path, sorted(got), sorted(want)))
+    for vid, config in got.items():
+        s.locality_variant(config, vid)
 
 
 def check_derived(m, path):
@@ -707,6 +888,12 @@ def check_derived(m, path):
                  if v["class"] == "SENSITIVE" and mf.variant_sha(m["datasets"], v["config"], vid) != v["sha256"])
     if bad:
         problems.append("sha256 of the variables {} differs from their datasets".format(bad))
+    loc = m.get("locality_variants", {})
+    packed = {hit.group(1) for hit in map(LOCALITY_VARIANTS.match, m["datasets"]) if hit}
+    listed_configs = {e["config"] for e in loc.values()}
+    if packed != listed_configs:
+        problems.append("locality_variants groups {} but the manifest lists variants in {}".format(
+            sorted(packed), sorted(listed_configs)))
     if problems:
         raise StoreIntegrityError("{}: the manifest disagrees with its datasets: {}".format(path, "; ".join(problems)))
 

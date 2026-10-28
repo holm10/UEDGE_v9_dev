@@ -9,6 +9,11 @@
 #           2026-10-25, AIUE-98 D1: never rebuilt here, a rebuild drifts). With publish: --release <provisional tag>
 #           --write, and the references and manifests become an artifact. With expect_ref: each references/<f>.h5's
 #           SHA-256 must equal the one in <expect_ref>'s manifests (a reproduction check; nothing is published).
+#           With cpu: stops at once unless the runner's CPU model matches the pattern. The ubuntu-24.04 pool mixes
+#           Intel and AMD CPUs, and the owner families' defaults differ by round-off between them (AIUE-101: dnull_imp2
+#           on an Intel Xeon 8573C reproduces yldot-data-v9 bit for bit, on AMD EPYC 7763/9V45/9V74 it does not).
+#           Intel is the reference CPU (owner, 2026-10-26): cpu defaults to intel, and publish refuses it empty.
+#           Intel runners are rare in the pool: dispatch again after a refusal (it costs about a minute).
 # publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
 #           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
 #           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
@@ -29,9 +34,9 @@ on:
         description: "Families, space-separated (default: make_references.py's, the small ones)"
         default: ""
       mode:
-        description: "sweep: the defaults and every variant; only: the variants in 'only'; defaults-only: no sweep, never published"
+        description: "sweep: the defaults and every variant; only: the variants in 'only'; locality-only: the installed references with their locality data computed again (AIUE-101); defaults-only: no sweep, never published"
         type: choice
-        options: [sweep, only, defaults-only]
+        options: [sweep, only, locality-only, defaults-only]
         default: sweep
       only:
         description: "With mode only: variant ids or keys, space-separated"
@@ -46,6 +51,9 @@ on:
       note:
         description: "First paragraph of the release notes"
         default: ""
+      cpu:
+        description: "A case-insensitive grep -E pattern: generate stops at once unless the runner's CPU model matches it (default intel, the reference CPU; empty: any CPU, only with publish false); the pool mixes Intel and AMD CPUs, whose owner-family defaults differ by round-off (AIUE-101)"
+        default: "intel"
 
 permissions: {}
 
@@ -78,6 +86,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           ONLY: ${{ inputs.only }}
           EXPECT_REF: ${{ inputs.expect_ref }}
+          CPU: ${{ inputs.cpu }}
         run: |
           if [ "$MODE" = only ] && [ -z "$ONLY" ]; then echo "refused: mode only needs 'only'"; exit 1; fi
           if [ "$MODE" != only ] && [ -n "$ONLY" ]; then echo "refused: 'only' needs mode only"; exit 1; fi
@@ -86,6 +95,7 @@ jobs:
             exit 0
           fi
           if [ -n "$EXPECT_REF" ]; then echo "refused: expect_ref is a check, not a publish"; exit 1; fi
+          if [ -z "$CPU" ]; then echo "refused: a release is generated on the reference CPU, so cpu may not be empty"; exit 1; fi
           if [ "$MODE" = defaults-only ]; then
             echo "refused: defaults-only drops the classified variants, it is never published"; exit 1
           fi
@@ -110,7 +120,15 @@ jobs:
       MODE: ${{ inputs.mode }}
       ONLY: ${{ inputs.only }}
       EXPECT_REF: ${{ inputs.expect_ref }}
+      CPU: ${{ inputs.cpu }}
     steps:
+      - name: Check the runner's CPU
+        run: |
+          model=$(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')
+          echo "cpu: $model" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$CPU" ] && ! grep -qiE -- "$CPU" <<< "$model"; then
+            echo "refused: the CPU '$model' does not match '$CPU'; dispatch again for another runner"; exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.from_commit || github.sha }}
@@ -139,7 +157,7 @@ jobs:
           python-version: "3.12"
       - name: Install the host-side packages
         run: pip install -q numpy==2.5.4 h5py==3.16.0  # make_references.PINS, the image's
-      - name: Fetch the released data (the owner families' assets; the installed references for mode only)
+      - name: Fetch the released data (the owner families' assets; the installed references for modes only and locality-only)
         run: python tests/yldot/tools/fetch_data.py
       - name: Take a provisional tag
         id: tag
@@ -158,6 +176,7 @@ jobs:
           opts=(--out "$RUNNER_TEMP/gen")
           if [ "$MODE" = only ]; then opts+=(--only "${only[@]}"); fi
           if [ "$MODE" = defaults-only ]; then opts+=(--defaults-only); fi
+          if [ "$MODE" = locality-only ]; then opts+=(--locality-only); fi
           if [ "$PUBLISH" = true ]; then opts+=(--release "$TAG" --write); fi
           # the families come before the options: --only is nargs="+" and would take them as variant ids
           python tests/yldot/tools/make_references.py generate --from-commit "$(git rev-parse HEAD)" "${fams[@]}" \
