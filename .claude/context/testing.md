@@ -205,7 +205,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1260`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1300`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -218,8 +218,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   owner D2, D3): a sweep, `--only` and `--rename` first build SHA `--serial --checkbounds` (`-fbounds-check
   -fcheck=all`, `AUDIT_FLAGS`) and evaluate every variant they classify and both defaults there once (`_child
   --audit-only`, `--jobs` shards per family, merged into `<f>.audit.json`); a variant whose audit run ends in a
-  Fortran runtime error is INVALID with the reason `bounds-check: <dir/file.F:line>: <message>` (the generated
-  `.F`'s line; `runtime_error`), nothing stored; an audit run that fails otherwise while the serial build classifies
+  Fortran runtime error is INVALID with the reason `bounds-check: <dir/file.F:line>: <message> (serial build: <class or
+  serial reason>)` (the generated `.F`'s line; `runtime_error`; the serial build's own outcome appended by
+  `audit_invalid_reason`, owner D5), nothing stored; an audit run that fails otherwise while the serial build classifies
   the variant other than INVALID, a runtime error on a no-op variant and a default that fails there are findings
   (exit 3). A bounds abort reaches the harness as status `crash`, exit code 2, the message only in the log tail
   (probed, AIUE-95). `--no-audit` is for previews (refused with `--release`); `--defaults-only`, `--locality-only`
@@ -372,7 +373,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_variants.py` every stored SENSITIVE, INERT and INVALID variant of every family whose manifest
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
   its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
-  default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`); an owner
+  default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5); an owner
   family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
   the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
   in the nightly tier one, dnull_imp2 `bbb.thetar`; none on `--noopt`, AIUE-99);
