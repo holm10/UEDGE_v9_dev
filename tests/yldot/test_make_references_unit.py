@@ -113,8 +113,8 @@ class FakeRun:
 class FakeStream:
     """stream() stand-in: the container or the host child 'writes' the files of a real child run."""
 
-    def __init__(self, child_dir, fail=None):
-        self.child_dir, self.fail = child_dir, fail
+    def __init__(self, child_dir, fail=None, rc=1):
+        self.child_dir, self.fail, self.rc = child_dir, fail, rc  # rc: the exit code of the call matching fail
         self.calls = []
         self.envs = []  # the env of each call, in the order of calls
 
@@ -122,7 +122,7 @@ class FakeStream:
         self.calls.append((cmd, cwd, log))
         self.envs.append(env)
         if self.fail and self.fail in cmd:
-            return 1
+            return self.rc
         out = None
         if cmd[0] == "docker":
             out = Path(cmd[cmd.index("-v", 6) + 1].rsplit(":", 1)[0]) / "references"
@@ -956,6 +956,28 @@ def test_prune_drops_the_entries_no_longer_in_the_inventory(tmp_path, swept, mon
     assert "prune bbb.xlinc (INERT in every family; with its locality pattern)" in why
 
 
+def test_prune_drops_a_sensitive_entry_with_its_data_and_pattern(tmp_path, swept, monkeypatch):
+    """AIUE-95 review I1-m4: bbb.cfvisx (SENSITIVE) leaves the inventory; its variant datasets and locality pattern
+    go, every other dataset is the same, and the guard needs a Default results: changed declaration."""
+    suite = installed(tmp_path, swept[0])
+    old = mf.load("d_only", suite)
+    assert old["variables"]["bbb.cfvisx"]["class"] == "SENSITIVE"
+    plan_without(monkeypatch, ("bbb.cfvisx",))
+    d = tmp_path / "prune"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v != "bbb.cfvisx"], prune=True,
+             suite=suite)
+    new = mf.loads((d / "d_only.json").read_text())
+    assert "bbb.cfvisx" not in new["variables"] and "bbb.cfvisx" not in new.get("locality_variants", {})
+    assert not any("/variants/bbb.cfvisx/" in k for k in new["datasets"])
+    assert any("/variants/bbb.cfvisx/" in k for k in old["datasets"])
+    # the locality pattern tables (row, offsets, ids) are shared by all entries and shrink with the pruned one
+    assert {k: s for k, s in new["datasets"].items() if "/locality_variants/" not in k} == {
+        k: s for k, s in old["datasets"].items() if "/variants/bbb.cfvisx/" not in k
+        and "/locality_variants/" not in k}
+    required, _ = guard_requirements(old, dict(new, release=TAG, external=old["external"]))
+    assert any(req == "default" and "bbb.cfvisx" in why for req, why in required), required
+
+
 def test_prune_refusals(tmp_path, swept, monkeypatch):
     suite = installed(tmp_path, swept[0])
     with pytest.raises(mr.Stop) as e:  # every entry is in the inventory
@@ -1066,7 +1088,7 @@ def test_audit_runtime_error_makes_the_variant_invalid(tmp_path):
     mr.child(["d_only"], d, build_record(tmp_path), sweep=ids, audit=audit)
     m = mf.loads((d / "d_only.json").read_text())
     v = m["variables"]
-    assert v["bbb.cfvisx"]["class"] == "INVALID" and v["bbb.cfvisx"]["reason"] == reason
+    assert v["bbb.cfvisx"]["class"] == "INVALID" and v["bbb.cfvisx"]["reason"] == reason + " (serial build: SENSITIVE)"
     assert v["bbb.cfvisx"]["applied"] is not None and v["bbb.cfvisx"]["sha256"] is None
     assert not any("/variants/bbb.cfvisx/" in k for k in m["datasets"])
     assert "bbb.cfvisx" not in m.get("locality_variants", {})
@@ -1078,7 +1100,35 @@ def test_audit_runtime_error_replaces_an_invalid_reason(tmp_path):
     audit = write_audit(tmp_path / "audit", ["bbb.isnion"], {"bbb.isnion": {"status": "crash", "runtime": True,
                                                                              "reason": reason}})
     mr.child(["d_only"], tmp_path / "out", build_record(tmp_path), sweep=["bbb.isnion"], audit=audit)
-    assert mf.loads((tmp_path / "out" / "d_only.json").read_text())["variables"]["bbb.isnion"]["reason"] == reason
+    assert mf.loads((tmp_path / "out" / "d_only.json").read_text())["variables"]["bbb.isnion"]["reason"] == (
+        reason + " (serial build: neq 420 -> 300)")
+
+
+@pytest.mark.parametrize("cls, serial, outcome", [
+    ("SENSITIVE", "", ("SENSITIVE", None)), ("INERT", None, ("INERT", None)), ("MARGINAL", "", ("MARGINAL", None)),
+    ("INVALID", "neq 420 -> 360", ("INVALID", "neq")),
+    ("INVALID", "error: ValueError: bad (x: 1) (y)", ("INVALID", "error")),
+])
+def test_audit_invalid_reason_round_trips(cls, serial, outcome):
+    """AIUE-95 D5: the serial outcome appended to an audit reason is read back as (class, kind)."""
+    audit = "bounds-check: api/sputt.F:245: Index '0' of dimension 2 (cidata)"
+    reason = mr.audit_invalid_reason(audit, cls, serial)
+    assert reason.startswith(audit + " (serial build: ") and reason.endswith(")")
+    assert mr.serial_outcome(reason) == outcome
+    assert mr.serial_outcome(audit) is None and mr.serial_outcome("neq 420 -> 360") is None
+
+
+@pytest.mark.parametrize("rc, code", [(1, 1), (3, 3), (2, 2), (5, 2)])
+@pytest.mark.parametrize("platform, fail", [("linux", "docker"), ("host", "_child")])
+def test_a_child_refusal_keeps_its_exit_code(tmp_path, children, platform, fail, rc, code):
+    """AIUE-95 review I1-m1: a child's exit 1 (refusal) or 3 (findings) reaches the user as 1 or 3, any other
+    failure as 2."""
+    suite = tmp_suite(tmp_path)
+    kw = {"release": None} if platform == "host" else {}
+    with pytest.raises(mr.Stop) as e:
+        mr.generate(args(platform=platform, out=str(tmp_path / "gen"), **kw), suite, FakeRun(),
+                    FakeStream(children[0], fail=fail, rc=rc))
+    assert e.value.code == code
 
 
 def test_audit_failures_that_fit_no_rule_are_findings(tmp_path):
