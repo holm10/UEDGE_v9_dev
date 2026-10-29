@@ -56,7 +56,9 @@ concurrency:
 jobs:
   omp-determinism:
     name: OpenMP determinism (${{ github.event_name == 'schedule' && 'nightly' || inputs.set || 'pr' }})
-    runs-on: ubuntu-latest
+    # Pinned like the other build and test jobs: ubuntu-latest moved to 26.04 (GCC 15), off the platform this gate was
+    # validated on (AIUE-212).
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.set == 'nightly') && 150 || 30 }}
     env:
       OMP_CI_SET: ${{ github.event_name == 'schedule' && 'nightly' || inputs.set || 'pr' }}

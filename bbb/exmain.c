@@ -30,7 +30,7 @@ static sigjmp_buf ev;
 /* 
     Handler for SIGINT signal
 */
-void int_handler() {
+void int_handler(int sig) {
    char mymyline[200],*ret;
    sigset_t block_mask;
    printf("\nType \"cont\" to continue exmain(), \"abort\" (not compatible with openmp) or \"stop\" (with openmp) to return to Python prompt \n");
