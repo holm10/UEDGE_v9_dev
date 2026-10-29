@@ -52,10 +52,12 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
                 SHA with AUDIT_FLAGS (--serial --checkbounds: -fbounds-check -fcheck=all) and evaluate there, once,
                 every variant the run classifies (with --only, --rename: those) and the two defaults, in --jobs
                 shards per family; then the serial build classifies as usual, and a variant whose audit run ended in
-                a Fortran runtime error is INVALID with the reason 'bounds-check: <dir/file.F:line>: <message>' (the
-                generated .F's line), nothing stored. An audit run that failed otherwise while the serial build
-                classifies the variant other than INVALID, a runtime error on a variant whose application changes
-                nothing, and a default that fails in the audit build are findings (exit 3). --no-audit skips it, in
+                a Fortran runtime error is INVALID with the reason 'bounds-check: <dir/file.F:line>: <message> (serial
+                build: <outcome>)' (the generated .F's line; the outcome is the serial build's own class, or its
+                INVALID reason, which test_invalid pins; owner, 2026-10-28, AIUE-95 D5), nothing stored. An audit run
+                that failed otherwise while the serial build classifies the variant other than INVALID, a runtime
+                error on a variant whose application changes nothing, and a default that fails in the audit build
+                are findings (exit 3). --no-audit skips it, in
                 previews only (refused with --release); --defaults-only, --locality-only and --prune never audit.
           --jobs N: the child evaluates N families at once, one process each, largest first (default: its CPU count).
 _child    runs inside the built environment and writes, from the build record FILE (JSON: commit, compiler,
@@ -250,7 +252,9 @@ AT_LINE = re.compile(r"At line (\d+) of file (\S+)")
 def runtime_error(tail):
     """'<dir/file.F:line>: <message>' of the last 'Fortran runtime error' in a child's log tail (the audit build's
     -fcheck=all abort, exit code 2, no result), the source as its last two path parts (the build directory differs
-    between hosts); '' if there is none."""
+    between hosts); '' if there is none. It reads the log tail the child keeps (harness/state.py LOG_TAIL lines): a
+    runtime error pushed out of it by a longer backtrace gives no runtime line, so the audit failure is a non-runtime
+    one and becomes an owner finding (exit 3) unless the serial build classifies it INVALID, never a silent miss."""
     lines = str(tail).splitlines()
     hits = [i for i, s in enumerate(lines) if RUNTIME_ERROR.search(s)]
     if not hits:
@@ -261,6 +265,28 @@ def runtime_error(tail):
     if at is None:
         return message
     return "{}:{}: {}".format("/".join(Path(at.group(2)).parts[-2:]), at.group(1), message)
+
+
+SERIAL_OUTCOME = re.compile(r"\(serial build: (.*)\)$")
+
+
+def audit_invalid_reason(audit_reason, cls, reason):
+    """The INVALID reason of a variant whose audit run ended in a runtime error: the audit's reason and the serial
+    build's own outcome, the class (SENSITIVE, INERT, MARGINAL) or, when that is INVALID too, its reason text
+    (owner, 2026-10-28, AIUE-95 D5)."""
+    return "{} (serial build: {})".format(audit_reason, cls if cls != "INVALID" else reason)
+
+
+def serial_outcome(reason):
+    """(class, kind) of the serial outcome in an audit_invalid_reason: (class, None) for SENSITIVE, INERT or
+    MARGINAL, ("INVALID", first word of the serial reason) otherwise; None for a reason without the suffix."""
+    m = SERIAL_OUTCOME.search(str(reason))
+    if m is None:
+        return None
+    text = m.group(1)
+    if text in ("SENSITIVE", "INERT", "MARGINAL"):
+        return text, None
+    return "INVALID", re.match(r"[^:\s]*", text).group()
 
 
 def layout_changes(a, b):
@@ -710,7 +736,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                         findings.append({"id": v.id, "finding": "owner: audit {} where the application changes "
                                          "nothing ({})".format(a["reason"], reason)})
                         continue
-                    variables[v.id] = entry(v, "INVALID", a["reason"], rec_v)
+                    variables[v.id] = entry(v, "INVALID", audit_invalid_reason(a["reason"], cls, reason), rec_v)
                     continue
                 if a is not None and cls != "INVALID":
                     findings.append({"id": v.id, "finding": "owner: audit run {}: {}; this build classifies it "
@@ -1063,6 +1089,14 @@ def audits(args):
     return not (args.no_audit or args.defaults_only or args.locality_only or args.prune)
 
 
+def refused(rc):
+    """A child's own refusal (exit 1: rename refused, nothing to prune) or findings (exit 3) is the user's result:
+    raise Stop with the same code; any other code is left to the caller."""
+    if rc in (1, 3):
+        raise Stop(rc, "the evaluation {} (exit {}); see its output above".format(
+            "refused" if rc == 1 else "reported findings", rc))
+
+
 def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=(), audit=True):
     rc, image_id, _ = run(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE])
     if rc != 0:
@@ -1076,7 +1110,9 @@ def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=()
            "-v", "{}:/out".format(out), IMAGE, "bash", "/tests/yldot/linux/generate.sh", sha, runner_image]
     cmd += families + list(opts) + ([] if audit else ["--no-audit"])  # generate.sh audits unless told not to
     print(" ".join(cmd), flush=True)
-    if stream(cmd) != 0:
+    rc = stream(cmd)
+    if rc != 0:
+        refused(rc)
         raise Stop(2, "the container failed (build log: {})".format(out / "build.log"))
 
 
@@ -1112,7 +1148,9 @@ def build_host(sha, families, out, root, run=run, stream=stream, opts=(), audit=
             aenv = build_venv(out / "venv-audit", src, AUDIT_FLAGS, out / "build-audit.log", stream)
             cmd = [str(out / "venv-audit" / "bin" / "python")] + script + ["--out", str(out / "audit"),
                                                                            "--audit-only"]
-            if stream(cmd, cwd=out, env=aenv) != 0:
+            rc = stream(cmd, cwd=out, env=aenv)
+            if rc != 0:
+                refused(rc)
                 raise Stop(2, "the audit failed")
         env = build_venv(venv, src, (FLAGS,), out / "build.log", stream)
         rc, gf, _ = run(["gfortran", "--version"])
@@ -1123,7 +1161,9 @@ def build_host(sha, families, out, root, run=run, stream=stream, opts=(), audit=
         cmd = [str(venv / "bin" / "python")] + script + ["--out", str(out / "references"), "--build",
                                                          str(out / "build.json")]
         cmd += ["--audit", str(out / "audit")] if audit else []
-        if stream(cmd, cwd=out, env=env) != 0:
+        rc = stream(cmd, cwd=out, env=env)
+        if rc != 0:
+            refused(rc)
             raise Stop(2, "the evaluation failed")
     finally:
         run(["git", "-C", str(root), "worktree", "remove", "--force", str(src)])

@@ -12,7 +12,9 @@ INERT      its recorded applied value replayed: yldot and yldot_J equal the live
            the default's tol_i (PRD 7.3).
 INVALID    evaluated with the rules (no applied value is recorded): make_references.classify still gives INVALID, for
            the same kind of reason (error, crash, timeout, neq, equation layout, non-finite); a different text is
-           printed, not failed.
+           printed, not failed. A bounds-check entry (the --checkbounds audit's runtime error, reproducible only in
+           that build) pins the serial build's outcome instead: the serial run must give the class and, for INVALID,
+           the kind of reason its reason ends with 'serial build: ...' (owner, 2026-10-28, AIUE-95 D5).
 MARGINAL and EXCLUDED variants are never run (PRD 7.2); test_inventory.py checks their reasons. The test ids are
 <family>-<variant id>, so -k "d_c and (cfvisx or methe)" selects by family and variable. An owner family's variants
 (AIUE-99) are marked nightly (PRD section 4).
@@ -126,6 +128,33 @@ def test_inert(runner, plan, default, family, vid):
         family, vid, ratio)
 
 
+def invalid_problem(stored, cls, reason):
+    """Why the serial run (class cls, INVALID reason) does not match the stored INVALID reason; None if it does. A
+    reason with a 'serial build: ...' suffix (a bounds-check entry) pins that class and kind (owner, 2026-10-28,
+    AIUE-95 D5); any other needs INVALID with the stored kind."""
+    pinned = mr.serial_outcome(stored)
+    want_class, want_kind = pinned if pinned is not None else ("INVALID", kind(stored))
+    if cls != want_class:
+        return "stored {!r}: the serial build now gives {}{}".format(stored, cls, " " + reason if reason else "")
+    if want_class == "INVALID" and kind(reason) != want_kind:
+        return "stored reason {!r}, now {!r}".format(stored, reason)
+    return None
+
+
+@pytest.mark.parametrize("stored, cls, reason, ok", [
+    ("bounds-check: api/sputt.F:245: Index (serial build: INERT)", "INERT", "", True),
+    ("bounds-check: api/sputt.F:245: Index (serial build: INERT)", "SENSITIVE", "", False),
+    ("bounds-check: bbb/x.F:1: Index (serial build: neq 420 -> 360)", "INVALID", "neq 420 -> 360", True),
+    ("bounds-check: bbb/x.F:1: Index (serial build: neq 420 -> 360)", "INVALID", "error: boom", False),
+    ("bounds-check: bbb/x.F:1: Index (serial build: error: x (y))", "INVALID", "error: other", True),
+    ("neq 420 -> 360", "INVALID", "neq 420 -> 300", True),
+    ("neq 420 -> 360", "INVALID", "error: boom", False),
+    ("neq 420 -> 360", "INERT", "", False),
+])
+def test_invalid_problem(stored, cls, reason, ok):
+    assert (invalid_problem(stored, cls, reason) is None) == ok
+
+
 @pytest.mark.parametrize("family, vid", params("INVALID"))
 def test_invalid(runner, plan, default, family, vid):
     e = MANIFESTS[family]["variables"][vid]
@@ -134,10 +163,8 @@ def test_invalid(runner, plan, default, family, vid):
     fdir = family_dir(family)
     tol = mr.tolerance(fdir, base["yldot"], e["config"], compare.index_map(base, compare.load_regions(fdir)))
     cls, reason, finding = mr.classify(r, base, tol)
-    assert cls == "INVALID", "{}-{}: stored INVALID ({}), now {} {}".format(family, vid, e["reason"], cls,
-                                                                         reason or finding)
-    assert kind(reason) == kind(e["reason"]), "{}-{}: stored reason {!r}, now {!r}".format(family, vid, e["reason"],
-                                                                                          reason)
+    problem = invalid_problem(e["reason"], cls, reason or finding)
+    assert problem is None, "{}-{}: {}".format(family, vid, problem)
     if reason != e["reason"]:
         print("{}-{}: stored reason {!r}, now {!r}".format(family, vid, e["reason"], reason))
 
