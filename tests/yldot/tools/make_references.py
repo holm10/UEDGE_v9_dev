@@ -1,12 +1,17 @@
 """Generate the yldot suite's reference files from one commit: the defaults and the classified variants (epic AIUE-9,
-PRD sections 7.2, 7.3 and 7.6; AIUE-88, AIUE-94).
+PRD sections 7.2, 7.3 and 7.6; AIUE-88, AIUE-94), with the --checkbounds audit and the reference maintenance
+options --prune and --rename (PRD section 4 and 7.6; AIUE-95).
 
 Usage (from a checkout whose tests/yldot is the commit's, references/ aside):
     python make_references.py generate --from-commit SHA [--platform linux|host] [--release yldot-data-v<N>]
-                                       [--out DIR] [--write] [--jobs N]
-                                       [--defaults-only | --locality-only | --only VAR ... [--full]] [family ...]
+                                       [--out DIR] [--write] [--jobs N] [--no-audit]
+                                       [--defaults-only | --locality-only | --only VAR ... [--full] | --prune
+                                        | --rename OLD=NEW ...] [family ...]
     <built python> make_references.py _child family ... [--sweep all|none] [--only VAR ...] [--full]
-                                       [--locality-only] [--jobs N] --out DIR --build FILE
+                                       [--locality-only | --prune | --rename OLD=NEW ...] [--audit DIR] [--jobs N]
+                                       --out DIR --build FILE
+    <audit python> make_references.py _child family ... --audit-only [--only VAR ... | --rename OLD=NEW ...]
+                                       [--shard I/N | --jobs N] --out DIR
 
 generate  builds SHA --serial and, per family (default: every family with sigma.h5 that is not an owner family, the
           five small ones), evaluates the steady and timestep defaults with both Jacobian flags (harness/state.py, PRD
@@ -34,11 +39,33 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
           --locality-only: as --only with no variant named: every entry is copied and only the locality data (the
                 default's pattern and the variants', PRD 7.5) is computed; every guarded SHA-256 of the installed
                 reference must come out the same (exit 3 otherwise; AIUE-101).
+          --prune: as --only with no variant named, and the manifest entries no longer in the inventory dropped
+                (SENSITIVE ones too: the guard then needs Default results: changed); every kept entry is copied
+                with its stored data and its locality pattern, never re-run, and every other guarded SHA-256 must
+                come out the same (exit 3 otherwise; owner, 2026-10-28, AIUE-95 D1). Nothing to prune: exit 1.
+          --rename OLD=NEW ...: as --prune, with each NEW (in the inventory, not in the manifest) classified again
+                and each OLD (in the manifest, not in the inventory) dropped; NEW must reproduce OLD: the applied
+                value (exit 1 "applied value differs"), every field the guard compares, the stored datasets and the
+                locality slice (check_reference_change.rename_differences; exit 1 otherwise). The guard reads such a
+                prune or rename, locality patterns included, as needing no declaration.
+          The audit (PRD section 4; owner, 2026-10-28, AIUE-95 D2, D3): a sweep, --only and --rename first build
+                SHA with AUDIT_FLAGS (--serial --checkbounds: -fbounds-check -fcheck=all) and evaluate there, once,
+                every variant the run classifies (with --only, --rename: those) and the two defaults, in --jobs
+                shards per family; then the serial build classifies as usual, and a variant whose audit run ended in
+                a Fortran runtime error is INVALID with the reason 'bounds-check: <dir/file.F:line>: <message> (serial
+                build: <outcome>)' (the generated .F's line; the outcome is the serial build's own class, or its
+                INVALID reason, which test_invalid pins; owner, 2026-10-28, AIUE-95 D5), nothing stored. An audit run
+                that failed otherwise while the serial build classifies the variant other than INVALID, a runtime
+                error on a variant whose application changes nothing, and a default that fails in the audit build
+                are findings (exit 3). --no-audit skips it, in
+                previews only (refused with --release); --defaults-only, --locality-only and --prune never audit.
           --jobs N: the child evaluates N families at once, one process each, largest first (default: its CPU count).
 _child    runs inside the built environment and writes, from the build record FILE (JSON: commit, compiler,
           runner_image), DIR/<family>.h5, DIR/<family>.json (the manifest without release and external),
           <family>.findings.json, .summary, .cost.json and samples/<family>.npz (the tolerance-inheritance sample of
-          tools/variant_tolerances.py).
+          tools/variant_tolerances.py). With --audit DIR it reads the audit's DIR/<family>.audit.json. With
+          --audit-only (in the audit build) it writes DIR/<family>.audit.<I>.json per shard and, unless --shard is
+          given, merges them into DIR/<family>.audit.json.
 
 Classification (PRD section 7.2; M_CLS = 100, tol_i the default's per-entry tolerance of the variant's
 configuration, for yldot and yldot_J alike): SENSITIVE if some entry differs by more than M_cls*tol_i, then
@@ -88,6 +115,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for the yldot package
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # tools/, for check_reference_change (AIUE-95)
 
 import numpy as np  # noqa: E402
 
@@ -100,6 +128,7 @@ SUITE = Path(__file__).resolve().parents[1]
 IMAGE = "yldot-linux:24.04"
 PINS = ("setuptools==84.2.1", "forthon==0.10.10", "numpy==2.5.4", "h5py==3.16.0")  # linux/Dockerfile, the image's
 FLAGS = "--serial"
+AUDIT_FLAGS = ("--serial", "--checkbounds")  # the audit build: -fbounds-check -fcheck=all (setup.py; AIUE-95)
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
 CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
@@ -214,6 +243,50 @@ def error_reason(res):
         if logged:
             text = "{} (log: {})".format(text, logged)
     return "{}: {}".format(res.status, text[:REASON_CHARS])
+
+
+RUNTIME_ERROR = re.compile(r"Fortran runtime error:\s*(.*\S)")
+AT_LINE = re.compile(r"At line (\d+) of file (\S+)")
+
+
+def runtime_error(tail):
+    """'<dir/file.F:line>: <message>' of the last 'Fortran runtime error' in a child's log tail (the audit build's
+    -fcheck=all abort, exit code 2, no result), the source as its last two path parts (the build directory differs
+    between hosts); '' if there is none. It reads the log tail the child keeps (harness/state.py LOG_TAIL lines): a
+    runtime error pushed out of it by a longer backtrace gives no runtime line, so the audit failure is a non-runtime
+    one and becomes an owner finding (exit 3) unless the serial build classifies it INVALID, never a silent miss."""
+    lines = str(tail).splitlines()
+    hits = [i for i, s in enumerate(lines) if RUNTIME_ERROR.search(s)]
+    if not hits:
+        return ""
+    i = hits[-1]
+    message = RUNTIME_ERROR.search(lines[i]).group(1)[:REASON_CHARS]
+    at = AT_LINE.search(lines[i - 1]) if i > 0 else None
+    if at is None:
+        return message
+    return "{}:{}: {}".format("/".join(Path(at.group(2)).parts[-2:]), at.group(1), message)
+
+
+SERIAL_OUTCOME = re.compile(r"\(serial build: (.*)\)$")
+
+
+def audit_invalid_reason(audit_reason, cls, reason):
+    """The INVALID reason of a variant whose audit run ended in a runtime error: the audit's reason and the serial
+    build's own outcome, the class (SENSITIVE, INERT, MARGINAL) or, when that is INVALID too, its reason text
+    (owner, 2026-10-28, AIUE-95 D5)."""
+    return "{} (serial build: {})".format(audit_reason, cls if cls != "INVALID" else reason)
+
+
+def serial_outcome(reason):
+    """(class, kind) of the serial outcome in an audit_invalid_reason: (class, None) for SENSITIVE, INERT or
+    MARGINAL, ("INVALID", first word of the serial reason) otherwise; None for a reason without the suffix."""
+    m = SERIAL_OUTCOME.search(str(reason))
+    if m is None:
+        return None
+    text = m.group(1)
+    if text in ("SENSITIVE", "INERT", "MARGINAL"):
+        return text, None
+    return "INVALID", re.match(r"[^:\s]*", text).group()
 
 
 def layout_changes(a, b):
@@ -380,7 +453,100 @@ def locality_columns(loc, variant=False):
     return dict(loc, sample=0) if variant else loc
 
 
-def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None, locality_only=False):
+VARIANT_ID = re.compile(r"^[a-z]{3}\.\w+(=(-?[0-9][\w.+-]*|other))?$")  # key, or key=value (variants.plan)
+
+
+def rename_pairs(rename):
+    """{OLD: NEW} of --rename OLD=NEW ...; an id may hold '=' (key=value), so each pair is split where both sides are
+    variant ids. Stop(2) on a pair that splits no way or more than one way, or an id named twice."""
+    pairs = {}
+    for p in rename or ():
+        cuts = [(p[:i], p[i + 1:]) for i, c in enumerate(p) if c == "="]
+        cuts = [(a, b) for a, b in cuts if VARIANT_ID.match(a) and VARIANT_ID.match(b)]
+        if len(cuts) != 1:
+            raise Stop(2, "--rename {!r}: need OLD=NEW with two variant ids".format(p))
+        old, new = cuts[0]
+        if old in pairs or new in pairs.values() or old == new:
+            raise Stop(2, "--rename {!r}: an id named twice".format(p))
+        pairs[old] = new
+    return pairs
+
+
+def audit_child(name, out, repo=None, only=None, rename=None, shard=(0, 1), runner=None):
+    """The --checkbounds audit of one family (PRD section 4; owner, 2026-10-28, AIUE-95 D2, D3), run in the audit
+    build (AUDIT_FLAGS): shard i of n evaluates plan[i::n] of the variants in scope (every non-EXCLUDED one; with only
+    or rename the ids they select) once each, shard 0 also both defaults, and writes out/<family>.audit.<i>.json: the
+    ids evaluated, the failed ones ({status, runtime: whether the log ends in a Fortran runtime error, reason:
+    'bounds-check: <file.F:line>: <message>', else error_reason}) and the findings (a default that fails)."""
+    from yldot.harness import FamilyError, Runner, load_evaluation, variants
+
+    i, n = shard
+    runner = runner or Runner()
+    plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
+    if rename:
+        only = list(rename_pairs(rename).values())
+    scope = set(select_ids(plan, only)) if only is not None else None
+    todo = [v for v in plan if not v.excluded and (scope is None or v.id in scope)][i::n]
+    timeout = TIMEOUT_FACTOR * float(load_evaluation(family_dir(name))["timeout_s"])
+    findings, failed, evaluated = [], {}, []
+    if i == 0:
+        for config in mf.CONFIG_NAMES:
+            r = runner.evaluate(name, config=config, timeout=timeout)
+            if not r.ok:
+                rt = runtime_error(r.log_tail)
+                findings.append({"id": "audit:default", "finding": "owner: audit: the {} default fails: {}".format(
+                    config, "bounds-check: " + rt if rt else error_reason(r))})
+    for v in todo:
+        evaluated.append(v.id)
+        try:
+            r = runner.evaluate(name, variant=v, timeout=timeout)
+        except FamilyError as e:
+            failed[v.id] = {"status": "owner", "runtime": False, "reason": "owner: {}".format(last_line(e))}
+            continue
+        if not r.ok:
+            rt = runtime_error(r.log_tail)
+            failed[v.id] = {"status": r.status, "runtime": bool(rt),
+                            "reason": "bounds-check: " + rt if rt else error_reason(r)}
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "{}.audit.{}.json".format(name, i)).write_text(json.dumps(
+        {"family": name, "shard": [i, n], "evaluated": evaluated, "failed": failed, "findings": findings},
+        indent=1, sort_keys=True) + "\n")
+
+
+def merge_audit(out, name, n):
+    """Merge a family's n audit shards into out/<family>.audit.json (ids sorted); Stop(2) if a shard is missing or
+    two shards evaluated the same id."""
+    out = Path(out)
+    evaluated, failed, findings = [], {}, []
+    for i in range(n):
+        p = out / "{}.audit.{}.json".format(name, i)
+        if not p.is_file():
+            raise Stop(2, "{}: audit shard {}/{} wrote no {}".format(name, i, n, p.name))
+        a = json.loads(p.read_text())
+        evaluated += a["evaluated"]
+        failed.update(a["failed"])
+        findings += a["findings"]
+    if len(set(evaluated)) != len(evaluated):
+        raise Stop(2, "{}: audit shards overlap".format(name))
+    merged = {"family": name, "evaluated": sorted(evaluated), "failed": dict(sorted(failed.items())),
+              "findings": findings}
+    (out / "{}.audit.json".format(name)).write_text(json.dumps(merged, indent=1, sort_keys=True) + "\n")
+    return merged
+
+
+def load_audit(audit, name):
+    """The merged audit of a family from the directory audit (None: no audit)."""
+    if audit is None:
+        return None
+    p = Path(audit) / "{}.audit.json".format(name)
+    if not p.is_file():
+        raise Stop(2, "{}: no audit result {}".format(name, p))
+    return json.loads(p.read_text())
+
+
+def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None, locality_only=False,
+          prune=False, rename=None, audit=None):
     """Evaluate and write each family's reference file and manifest fields into out.
 
     repo: the source tree of the built commit, whose */*.v files are the variant inventory (variants.plan; the
@@ -402,9 +568,24 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     MARGINAL: the default's; a sketch store: tolerance() of the run's yldot, AIUE-99 Q2) and stored as its difference
     from the default pattern. Findings for the owner: stale columns, a failed run, and a default entry within 3x of
     M_loc (rule D3) unless [locality].near_margin records the owner's acceptance; the counts of such entries, the
-    variants' included, go to <family>.locality.json (owner, 2026-10-25, AIUE-101: the 3x rule is the default's)."""
+    variants' included, go to <family>.locality.json (owner, 2026-10-25, AIUE-101: the 3x rule is the default's).
+
+    prune (--prune) and rename (--rename OLD=NEW ..., rename_pairs) run the only path (owner, 2026-10-28, AIUE-95 D1):
+    prune with nothing classified again, the entries no longer in the inventory dropped (SENSITIVE ones too: the guard
+    then needs Default results: changed); rename with each NEW classified (and audited) and each OLD, a manifest
+    entry no longer in the inventory, dropped. Every kept entry is copied with its stored data and its locality
+    pattern (never re-run), and every other guarded SHA-256 of the installed reference must come out the same
+    (exit 3 otherwise). A rename must reproduce OLD: the applied value first, then every field the guard compares,
+    the stored datasets and the locality slice (check_reference_change.rename_differences); exit 1 otherwise.
+
+    audit: the directory of the audit's merged <family>.audit.json (audit_child, merge_audit), which must hold every
+    variant this run evaluates. A variant whose audit run ended in a Fortran runtime error is INVALID with that reason
+    (owner, 2026-10-28, AIUE-95 D2), its apply record from this run, nothing stored; on a variant whose application
+    changes nothing (EXCLUDED) it is a finding. An audit run that failed otherwise is a finding unless this build
+    classifies the variant INVALID too (which keeps its reason). The audit's own findings are this run's."""
     import statistics
 
+    from check_reference_change import rename_differences
     from yldot.harness import FamilyError, Runner, compare, load_evaluation, locality, open_store, store, variants
     from yldot.harness.state import INDEX_ARRAYS
 
@@ -412,6 +593,14 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         if only is not None or sweep == "none" or full:
             raise Stop(2, "--locality-only takes no --only, --sweep none or --full")
         only = []
+    pairs = rename_pairs(rename) if rename else {}
+    if prune or pairs:
+        if prune and pairs:
+            raise Stop(2, "--prune and --rename together: pick one")
+        if only is not None or sweep == "none" or full:
+            raise Stop(2, "--prune and --rename take no --only, --locality-only, --sweep none or --full")
+        only = list(pairs.values())
+    copying = bool(prune or pairs)  # the kept entries' locality patterns are copied, not re-run (AIUE-95)
     rec = json.loads(Path(build).read_text())
     with open(suite / "tolerances.toml", "rb") as f:
         rtol = tomllib.load(f)["rtol"]
@@ -420,6 +609,9 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     runner = Runner()
     plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
     inventory = {v.id for v in plan}
+    for old, new in pairs.items():
+        if new not in inventory:
+            raise Stop(1, "--rename {}={}: {} is not in the inventory".format(old, new, new))
     by_id = {v.id: v for v in plan}
     scope = set(select_ids(plan, sweep)) if isinstance(sweep, (list, tuple)) else None
     selected = set(select_ids(plan, only)) if only is not None else None
@@ -445,7 +637,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             raise Stop(2, "{}: the steady and timestep runs have different index arrays".format(name))
         imap = compare.index_map(data["steady"], compare.load_regions(fdir))
         sig = {config: sigma(fdir, config) for config in mf.CONFIG_NAMES}
-        previous = None
+        previous, dropped = None, []
         if only is not None:
             previous = open_store(name, suite)
             # a sketch store's weights are kept from it and its thresholds follow from them and the defaults
@@ -457,10 +649,27 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                 raise Stop(3, "{}: the stored default differs from this build's (--only needs the same defaults): "
                               "regenerate in full; {}".format(name, default_differences(fresh, stored, previous,
                                                                                          data, sig)))
-            stale = sorted(set(previous.manifest["variables"]) - inventory)
-            if stale:
-                raise Stop(1, "{}: the manifest has entries no longer in the inventory, {}: prune them first "
-                              "(AIUE-95)".format(name, listed(stale)))
+            entries = previous.manifest["variables"]
+            stale = sorted(set(entries) - inventory)
+            if prune:
+                if not stale:
+                    raise Stop(1, "{}: nothing to prune: every manifest entry is in the inventory".format(name))
+                dropped = stale
+            for old, new in pairs.items():
+                if old not in entries or old in inventory:
+                    raise Stop(1, "{}: --rename {}={}: {} is not a manifest entry missing from the inventory".format(
+                        name, old, new, old))
+                if new in entries:
+                    raise Stop(1, "{}: --rename {}={}: {} is in the manifest already".format(name, old, new, new))
+                dropped.append(old)
+            rest = sorted(set(stale) - set(dropped))
+            if rest:
+                raise Stop(1, "{}: the manifest has entries no longer in the inventory, {}: generate --prune (or "
+                              "--rename OLD=NEW) first (AIUE-95)".format(name, listed(rest)))
+            for vid in sorted(dropped) if prune else ():
+                cls = entries[vid]["class"]
+                print("{}: prune {} ({}){}".format(name, vid, cls, "; SENSITIVE: the guard needs 'Default results: "
+                                                   "changed'" if cls == "SENSITIVE" else ""), flush=True)
         w = store.create(out / "{}.h5".format(name), kind, name, data["steady"], imap)
         for config, d in data.items():
             w.write_default(config, d["yldot"], d["yldot_J"], sig[config], d["diagnostics"])
@@ -478,6 +687,11 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             default_p = locality.pattern(locality.Entries.of(run["entries"]), t, rteq)
             w.write_locality("steady", run["delta"], default_p, columns=run["columns"])
         variables, findings, kept = {}, [], {}
+        aud = load_audit(audit, name) if sweep != "none" else None
+        if aud is not None:
+            findings += aud["findings"]
+            audited = set(aud["evaluated"])
+        prev_loc = previous.manifest.get("locality_variants", {}) if previous is not None else {}
         near_counts = {}  # entries within 3x of M_loc: "default" and per variant (written to <family>.locality.json)
         if loc is not None:
             near = locality.near_margin(default_p, t, rteq, float(loc["m_loc"]))
@@ -495,11 +709,15 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                                       "regenerate in full".format(name, v.id))
                     if e["class"] == "SENSITIVE":
                         w.copy_variant(e["config"], v.id, previous)
+                    if copying and v.id in prev_loc:
+                        w.copy_locality_variant(prev_loc[v.id]["config"], v.id, previous)
                     variables[v.id] = e
                     continue
                 if v.excluded:
                     variables[v.id] = entry(v, "EXCLUDED", v.reason)
                     continue
+                if aud is not None and v.id not in audited:
+                    raise Stop(2, "{}: the audit did not evaluate {}".format(name, v.id))
                 try:
                     r = runner.evaluate(name, variant=v, timeout=timeout)
                 except FamilyError as e:
@@ -512,6 +730,18 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     findings.append({"id": v.id, "finding": finding})
                     continue
                 rec_v = applied_record(r.data) if r.ok else None
+                a = aud["failed"].get(v.id) if aud is not None else None
+                if a is not None and a["runtime"]:  # owner, 2026-10-28, AIUE-95 D2
+                    if cls == "EXCLUDED":
+                        findings.append({"id": v.id, "finding": "owner: audit {} where the application changes "
+                                         "nothing ({})".format(a["reason"], reason)})
+                        continue
+                    variables[v.id] = entry(v, "INVALID", audit_invalid_reason(a["reason"], cls, reason), rec_v)
+                    continue
+                if a is not None and cls != "INVALID":
+                    findings.append({"id": v.id, "finding": "owner: audit run {}: {}; this build classifies it "
+                                     "{}".format(a["status"], a["reason"], cls)})
+                    continue
                 if cls == "SENSITIVE":
                     try:  # forked from the same forkserver: run-to-run nondeterminism only (module docstring)
                         again = runner.evaluate(name, variant=v, timeout=timeout)
@@ -546,6 +776,8 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                 special = locality.special_columns(dict(data["steady"], neq=imap.neq))
             base_p = locality.variant_base(default_p, special)
             for vid in locality.variant_scope(loc, variables):
+                if copying and vid not in selected:
+                    continue  # copied with its entry (AIUE-95)
                 e = variables[vid]
                 try:
                     r = runner.evaluate(name, variant=by_id[vid], replay=e["applied"], timeout=timeout,
@@ -573,13 +805,33 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     near_counts[vid] = len(near)
                 w.write_locality_variant(e["config"], vid, *locality.diff(base_p, pv))
         written = w.finish()
-        prev_guarded = previous.manifest["guarded"] if previous is not None else None
+        prev_manifest = previous.manifest if previous is not None else None
+        prev_guarded = prev_manifest["guarded"] if previous is not None else None
         if previous is not None:
             previous.close()
         for vid, e in variables.items():
             if e["class"] == "SENSITIVE":
                 e["sha256"] = mf.variant_sha(written["datasets"], e["config"], vid)
         guarded, unguarded = mf.summarize(written["datasets"])
+        if copying:  # only the dropped entries and the renamed ones may differ (AIUE-95)
+            nl = written["locality_variants"]
+            moved = sorted(k for k in set(prev_guarded) | set(guarded)
+                           if not k.startswith("locality_variants/") and guarded.get(k) != prev_guarded.get(k))
+            moved += sorted(vid for vid in set(prev_loc) - set(dropped) if nl.get(vid) != prev_loc[vid])
+            moved += sorted(vid for vid in set(nl) - set(prev_loc) if vid not in pairs.values())
+            if moved:
+                raise Stop(3, "{}: {} moved {} of the installed reference: regenerate in full".format(
+                    name, "--prune" if prune else "--rename", moved))
+            for old, new in pairs.items():
+                va, vb = prev_manifest["variables"][old], json.loads(json.dumps(variables[new]))
+                if va["applied"] != vb["applied"]:
+                    raise Stop(1, "{}: rename {} -> {}: applied value differs ({} vs {})".format(
+                        name, old, new, json.dumps(va["applied"])[:120], json.dumps(vb["applied"])[:120]))
+                diff = rename_differences(prev_manifest, old, va, {"datasets": written["datasets"],
+                                                                   "locality_variants": nl}, new, vb)
+                if diff:
+                    raise Stop(1, "{}: rename {} -> {}: the re-run does not reproduce the stored entry: {}".format(
+                        name, old, new, ", ".join(diff)))
         if locality_only:  # only locality data may be new (AIUE-101): every installed guarded SHA-256 stays
             moved = sorted(k for k, s in prev_guarded.items() if guarded.get(k) != s)
             if moved:
@@ -625,11 +877,20 @@ def family_weight(name):
 
 def child_argv(args, family):
     """The _child command line for one family of a parallel run (args: the parsed _child options)."""
-    cmd = [sys.executable, str(Path(__file__).resolve()), "_child", family, "--out", args.out, "--build", args.build,
-           "--sweep", args.sweep, "--jobs", "1"]
+    cmd = [sys.executable, str(Path(__file__).resolve()), "_child", family, "--out", args.out, "--sweep", args.sweep,
+           "--jobs", "1"]
+    cmd += ["--build", args.build] if args.build else []
     cmd += (["--only"] + list(args.only) if args.only else []) + (["--full"] if args.full else [])
     cmd += (["--repo", args.repo] if args.repo else []) + (["--locality-only"] if args.locality_only else [])
+    cmd += ["--prune"] if getattr(args, "prune", False) else []
+    cmd += ["--rename"] + list(args.rename) if getattr(args, "rename", None) else []
+    cmd += ["--audit", args.audit] if getattr(args, "audit", None) else []
     return cmd
+
+
+def audit_argv(args, family, i, n):
+    """The _child --audit-only command line of one shard of one family."""
+    return child_argv(args, family) + ["--audit-only", "--shard", "{}/{}".format(i, n)]
 
 
 def parallel_children(args, popen=subprocess.Popen, poll_s=1.0):
@@ -637,15 +898,47 @@ def parallel_children(args, popen=subprocess.Popen, poll_s=1.0):
     own); a freed slot starts the next family at once. Stop with exit 2 if any family failed with an error (2 or
     another code), else 3 if any reported findings for the owner, listing every family; on an exception the running
     children are killed."""
+    names = sorted(args.family, key=lambda f: (-family_weight(f), f))
+    run_parallel([(f, child_argv(args, f)) for f in names], args.jobs, popen, poll_s)
+
+
+def audit_children(args, popen=subprocess.Popen, poll_s=1.0):
+    """_child --audit-only: the audit of each family in N = --jobs shards (owner, 2026-10-28, AIUE-95 D3), one
+    process each, the largest family's first, then each family's shards merged (merge_audit); with --shard I/N only
+    that shard, in this process."""
+    if args.shard:
+        i, n = (int(x) for x in args.shard.split("/"))
+        if not 0 <= i < n:
+            raise Stop(2, "--shard {}: need I/N with 0 <= I < N".format(args.shard))
+        for name in args.family:
+            audit_child(name, args.out, args.repo, args.only, args.rename, (i, n))
+        return
+    n = max(1, args.jobs)
+    if n == 1 and len(args.family) == 1:
+        audit_child(args.family[0], args.out, args.repo, args.only, args.rename)
+    else:
+        names = sorted(args.family, key=lambda f: (-family_weight(f), f))
+        run_parallel([("{} {}/{}".format(f, i, n), audit_argv(args, f, i, n)) for f in names for i in range(n)], n,
+                     popen, poll_s)
+    for name in args.family:
+        a = merge_audit(args.out, name, n)
+        print("{}: audit: {} variants, {} failed, {} with a Fortran runtime error".format(
+            name, len(a["evaluated"]), len(a["failed"]), sum(f["runtime"] for f in a["failed"].values())), flush=True)
+
+
+def run_parallel(tasks, jobs, popen=subprocess.Popen, poll_s=1.0):
+    """Run the (label, argv) tasks in that order, at most jobs at a time; a freed slot starts the next at once. Stop
+    with exit 2 if any failed with an error (2 or another code), else 3 if any reported findings for the owner,
+    listing every one; on an exception the running ones are killed."""
     import time
 
-    queue = sorted(args.family, key=lambda f: (-family_weight(f), f))
+    queue = list(tasks)
     running, failed = [], []
     try:
         while queue or running:
-            while queue and len(running) < args.jobs:
-                name = queue.pop(0)
-                running.append((name, popen(child_argv(args, name))))
+            while queue and len(running) < jobs:
+                name, argv = queue.pop(0)
+                running.append((name, popen(argv)))
             done = [(n, p) for n, p in running if p.poll() is not None]
             if not done:
                 time.sleep(poll_s)
@@ -778,16 +1071,33 @@ def base_image(suite):
 
 
 def child_options(args):
-    """The _child options of a generate run: the sweep, --only and --full."""
+    """The _child options of a generate run: the sweep, --only and --full, --prune, --rename."""
     jobs = ["--jobs", str(args.jobs)] if args.jobs else []
     if args.defaults_only:
         return ["--sweep", "none"] + jobs
     if args.locality_only:
         return ["--locality-only"] + jobs
+    if args.prune:
+        return ["--prune"] + jobs
+    if args.rename:
+        return ["--rename"] + list(args.rename) + jobs
     return (["--only"] + list(args.only) if args.only else []) + (["--full"] if args.full else []) + jobs
 
 
-def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=()):
+def audits(args):
+    """Whether a generate run audits (PRD 7.6; AIUE-95): a sweep, --only and --rename do, unless --no-audit."""
+    return not (args.no_audit or args.defaults_only or args.locality_only or args.prune)
+
+
+def refused(rc):
+    """A child's own refusal (exit 1: rename refused, nothing to prune) or findings (exit 3) is the user's result:
+    raise Stop with the same code; any other code is left to the caller."""
+    if rc in (1, 3):
+        raise Stop(rc, "the evaluation {} (exit {}); see its output above".format(
+            "refused" if rc == 1 else "reported findings", rc))
+
+
+def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=(), audit=True):
     rc, image_id, _ = run(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE])
     if rc != 0:
         raise Stop(1, "image {} not found: docker build --platform linux/amd64 -t {} tests/yldot/linux".format(
@@ -798,40 +1108,62 @@ def build_linux(sha, families, out, suite, root, run=run, stream=stream, opts=()
     runner_image = "{} {} ({})".format(IMAGE, image_id.strip(), base_image(suite))
     cmd = ["docker", "run", "--rm", "--platform", "linux/amd64", "-v", "{}:/tests:ro".format(suite.parent),
            "-v", "{}:/out".format(out), IMAGE, "bash", "/tests/yldot/linux/generate.sh", sha, runner_image]
-    cmd += families + list(opts)
+    cmd += families + list(opts) + ([] if audit else ["--no-audit"])  # generate.sh audits unless told not to
     print(" ".join(cmd), flush=True)
-    if stream(cmd) != 0:
+    rc = stream(cmd)
+    if rc != 0:
+        refused(rc)
         raise Stop(2, "the container failed (build log: {})".format(out / "build.log"))
 
 
-def build_host(sha, families, out, root, run=run, stream=stream, opts=()):
+def build_venv(venv, src, flags, log, stream=stream):
+    """A venv with the image's pins and UEDGE built from src with flags (each its own --build-option); its env."""
+    if stream([sys.executable, "-m", "venv", str(venv)]) != 0:
+        raise Stop(2, "python -m venv failed")
+    # the venv first on PATH: Forthon3 otherwise resolves to another Python (../venvs/base-a8446eb.BUILD.txt)
+    env = dict(os.environ, PATH="{}{}{}".format(venv / "bin", os.pathsep, os.environ.get("PATH", "")),
+               OMP_NUM_THREADS="1")
+    pip = [str(venv / "bin" / "python"), "-m", "pip"]
+    if stream(pip + ["install", "-q"] + list(PINS), env=env) != 0:
+        raise Stop(2, "pip install {} failed".format(" ".join(PINS)))
+    # PWD for the build only: setup.py before AIUE-163 converts and makes in getenv("PWD"), not the cwd, and
+    # --from-commit may name such a commit
+    options = [x for f in flags for x in ("-C", "--build-option={}".format(f))]
+    if stream(pip + ["install", "-v", "--no-build-isolation", "--no-deps", "."] + options, cwd=src,
+              env=dict(env, PWD=str(src)), log=log) != 0:
+        raise Stop(2, "the build failed (log: {})".format(log))
+    return env
+
+
+def build_host(sha, families, out, root, run=run, stream=stream, opts=(), audit=True):
+    """A temporary worktree of sha; with audit, first the audit build (AUDIT_FLAGS) in out/venv-audit and its
+    children (out/audit), then the serial build in out/venv and the main child (with --audit out/audit)."""
     src, venv = out / "src", out / "venv"
     rc, _, err = run(["git", "-C", str(root), "worktree", "add", "--detach", str(src), sha])
     if rc != 0:
         raise Stop(2, "git worktree add failed: {}".format(err.strip()))
     try:
-        if stream([sys.executable, "-m", "venv", str(venv)]) != 0:
-            raise Stop(2, "python -m venv failed")
-        # the venv first on PATH: Forthon3 otherwise resolves to another Python (../venvs/base-a8446eb.BUILD.txt)
-        env = dict(os.environ, PATH="{}{}{}".format(venv / "bin", os.pathsep, os.environ.get("PATH", "")),
-                   OMP_NUM_THREADS="1")
-        pip = [str(venv / "bin" / "python"), "-m", "pip"]
-        if stream(pip + ["install", "-q"] + list(PINS), env=env) != 0:
-            raise Stop(2, "pip install {} failed".format(" ".join(PINS)))
-        # PWD for the build only: setup.py before AIUE-163 converts and makes in getenv("PWD"), not the cwd, and
-        # --from-commit may name such a commit
-        if stream(pip + ["install", "-v", "--no-build-isolation", "--no-deps", ".", "-C",
-                         "--build-option={}".format(FLAGS)], cwd=src, env=dict(env, PWD=str(src)),
-                  log=out / "build.log") != 0:
-            raise Stop(2, "the build failed (log: {})".format(out / "build.log"))
+        script = [str(Path(__file__).resolve()), "_child"] + families + list(opts) + ["--repo", str(src)]
+        if audit:
+            aenv = build_venv(out / "venv-audit", src, AUDIT_FLAGS, out / "build-audit.log", stream)
+            cmd = [str(out / "venv-audit" / "bin" / "python")] + script + ["--out", str(out / "audit"),
+                                                                           "--audit-only"]
+            rc = stream(cmd, cwd=out, env=aenv)
+            if rc != 0:
+                refused(rc)
+                raise Stop(2, "the audit failed")
+        env = build_venv(venv, src, (FLAGS,), out / "build.log", stream)
         rc, gf, _ = run(["gfortran", "--version"])
         rec = {"commit": sha, "compiler": gf.splitlines()[0] if rc == 0 and gf else "unknown",
                "runner_image": "host {} {} python {} (preview)".format(sys.platform, platform.machine(),
                                                                         platform.python_version())}
         (out / "build.json").write_text(json.dumps(rec, indent=1) + "\n")
-        cmd = [str(venv / "bin" / "python"), str(Path(__file__).resolve()), "_child"] + families + list(opts) + [
-            "--repo", str(src), "--out", str(out / "references"), "--build", str(out / "build.json")]
-        if stream(cmd, cwd=out, env=env) != 0:
+        cmd = [str(venv / "bin" / "python")] + script + ["--out", str(out / "references"), "--build",
+                                                         str(out / "build.json")]
+        cmd += ["--audit", str(out / "audit")] if audit else []
+        rc = stream(cmd, cwd=out, env=env)
+        if rc != 0:
+            refused(rc)
             raise Stop(2, "the evaluation failed")
     finally:
         run(["git", "-C", str(root), "worktree", "remove", "--force", str(src)])
@@ -902,8 +1234,11 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         raise Stop(2, "--full needs --only")
     if args.full and args.write:
         raise Stop(2, "--full writes localization vectors, never references: drop --write")
-    if sum(bool(x) for x in (args.only, args.defaults_only, args.locality_only)) > 1:
-        raise Stop(2, "two of --only, --defaults-only and --locality-only together: pick one")
+    if sum(bool(x) for x in (args.only, args.defaults_only, args.locality_only, args.prune, args.rename)) > 1:
+        raise Stop(2, "two of --only, --defaults-only, --locality-only, --prune and --rename together: pick one")
+    rename_pairs(args.rename)  # Stop(2) on a malformed pair, before any build
+    if args.no_audit and args.release is not None:
+        raise Stop(1, "--no-audit makes previews only: a release is audited (PRD 7.6; AIUE-95): drop --release")
     sha = resolve(args.from_commit, root, run)
     families = select(args.family, suite)
     assets = owner_assets(families, suite)
@@ -912,7 +1247,7 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         swept = [f for f in families if mf.path(f, suite).is_file() and mf.load(f, suite).get("variables")]
         if swept:
             raise Stop(1, "--defaults-only --write would drop the classified variants of {}".format(", ".join(swept)))
-    if args.only or args.locality_only:
+    if args.only or args.locality_only or args.prune or args.rename:
         from yldot.harness import StoreError, open_store
 
         for f in families:
@@ -921,7 +1256,9 @@ def generate(args, suite=SUITE, run=run, stream=stream):
                     if not s.manifest["variables"]:
                         raise StoreError("{}: its manifest holds no classified variants".format(f))
             except (StoreError, OSError) as e:
-                raise Stop(1, "--only regenerates against the installed references: {}".format(e))
+                mode = next(o for o, x in (("--only", args.only), ("--locality-only", args.locality_only),
+                                           ("--prune", args.prune), ("--rename", args.rename)) if x)
+                raise Stop(1, "{} regenerates against the installed references: {}".format(mode, e))
     if args.write and args.release is None:
         released = [f for f in families if mf.path(f, suite).is_file() and mf.load(f, suite)["release"] is not None]
         if released:
@@ -932,9 +1269,9 @@ def generate(args, suite=SUITE, run=run, stream=stream):
         raise Stop(1, "--out {} is not empty".format(out))
     out.mkdir(parents=True, exist_ok=True)
     if args.platform == "linux":
-        build_linux(sha, families, out, suite, root, run, stream, child_options(args))
+        build_linux(sha, families, out, suite, root, run, stream, child_options(args), audits(args))
     else:
-        build_host(sha, families, out, root, run, stream, child_options(args))
+        build_host(sha, families, out, root, run, stream, child_options(args), audits(args))
     manifests, findings = assemble(sha, families, out, args.release, assets)
     for name, m in manifests.items():
         e = m["external"][mf.reference_path(name)]
@@ -964,25 +1301,41 @@ def main(argv):
     p.add_argument("--full", action="store_true", help="with --only: the dense vectors in --out/references/full")
     p.add_argument("--locality-only", action="store_true",
                    help="copy the installed references and compute only the locality data (AIUE-101)")
+    p.add_argument("--prune", action="store_true",
+                   help="drop the entries no longer in the inventory, every other entry copied (AIUE-95)")
+    p.add_argument("--rename", nargs="+", metavar="OLD=NEW",
+                   help="re-key manifest entries; NEW is evaluated again and must reproduce OLD (AIUE-95)")
+    p.add_argument("--no-audit", action="store_true", help="previews only: skip the --checkbounds audit (AIUE-95)")
     p.add_argument("--jobs", type=int, help="families evaluated in parallel by the child (default: the CPU count)")
     p = sub.add_parser("_child", help="inside the built environment: evaluate and write")
     p.add_argument("family", nargs="+")
     p.add_argument("--out", required=True)
-    p.add_argument("--build", required=True, help="JSON: commit, compiler, runner_image")
+    p.add_argument("--build", help="JSON: commit, compiler, runner_image (all but --audit-only)")
     p.add_argument("--sweep", choices=("all", "none"), default="all")
     p.add_argument("--only", nargs="+")
     p.add_argument("--full", action="store_true")
     p.add_argument("--repo", help="the built commit's source tree: its .v files are the inventory")
     p.add_argument("--locality-only", action="store_true")
+    p.add_argument("--prune", action="store_true")
+    p.add_argument("--rename", nargs="+")
+    p.add_argument("--audit", help="the directory of the audit's <family>.audit.json")
+    p.add_argument("--audit-only", action="store_true", help="in the audit build: the audit, into --out")
+    p.add_argument("--shard", help="with --audit-only: I/N, this process's shard (default: --jobs shards)")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
-                   help="families in parallel, one process each, largest first (default: the CPU count)")
+                   help="families (with --audit-only: shards per family) in parallel, one process each, largest "
+                        "first (default: the CPU count)")
     args = parser.parse_args(argv[1:])
     try:
-        if args.cmd == "_child" and args.jobs > 1 and len(args.family) > 1:
+        if args.cmd == "_child" and args.audit_only:
+            audit_children(args)
+        elif args.cmd == "_child" and args.build is None:
+            raise Stop(2, "_child needs --build (all but --audit-only)")
+        elif args.cmd == "_child" and args.jobs > 1 and len(args.family) > 1:
             parallel_children(args)
         elif args.cmd == "_child":
             child(args.family, args.out, args.build, sweep=args.sweep, only=args.only, full=args.full,
-                  repo=args.repo, locality_only=args.locality_only)
+                  repo=args.repo, locality_only=args.locality_only, prune=args.prune, rename=args.rename,
+                  audit=args.audit)
         else:
             generate(args)
     except (Stop, mf.ManifestError) as e:

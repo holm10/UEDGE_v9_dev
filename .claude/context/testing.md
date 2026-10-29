@@ -205,10 +205,27 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:963`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1300`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
-  and `--full` (dense vectors for localization). Per family it prints the summary line (PRD §5 story 3, with
+  and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
+  `--rename` takes every following word too) run the `--only` path: prune drops the manifest entries no longer in the
+  inventory (SENSITIVE ones too, then the guard needs `Default results: changed`), rename classifies each NEW again
+  and drops OLD; every kept entry is copied with its stored data and its locality pattern
+  (`Writer.copy_locality_variant`, never re-run), every other guarded SHA-256 must come out the same (exit 3), and
+  NEW must reproduce OLD, the applied value first (exit 1 "applied value differs", then the guard's
+  `rename_differences`); plain `--only` with stale entries names them. The `--checkbounds` audit (PRD §4; AIUE-95,
+  owner D2, D3): a sweep, `--only` and `--rename` first build SHA `--serial --checkbounds` (`-fbounds-check
+  -fcheck=all`, `AUDIT_FLAGS`) and evaluate every variant they classify and both defaults there once (`_child
+  --audit-only`, `--jobs` shards per family, merged into `<f>.audit.json`); a variant whose audit run ends in a
+  Fortran runtime error is INVALID with the reason `bounds-check: <dir/file.F:line>: <message> (serial build: <class or
+  serial reason>)` (the generated `.F`'s line; `runtime_error`; the serial build's own outcome appended by
+  `audit_invalid_reason`, owner D5), nothing stored; an audit run that fails otherwise while the serial build classifies
+  the variant other than INVALID, a runtime error on a no-op variant and a default that fails there are findings
+  (exit 3). A bounds abort reaches the harness as status `crash`, exit code 2, the message only in the log tail
+  (probed, AIUE-95). `--no-audit` is for previews (refused with `--release`); `--defaults-only`, `--locality-only`
+  and `--prune` never audit. On the five small families the macOS audit at c8431d5 took 70-91 s per family and
+  found seven bounds errors (AIUE-95 ticket page). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
   exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
   `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
@@ -323,7 +340,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `<config>/sketch_weight` key is `Default results: changed`, since it changes what every stored variant sketch
   means, AIUE-174; AIUE-101: a narrower `columns`/`variants`, a smaller `sample`, an added `excluded` entry or a
   set `near_margin` loosens, a wider scope or another `seed` is a change; a variant's new locality pattern is a
-  change, a changed one `Default results: changed` as `<family>:<id>`, a removed one a loosening); it downloads the
+  change, a changed one `Default results: changed` as `<family>:<id>`, a removed one a loosening, except one that goes
+  with its variant's prune or rename with an identical slice, which needs no declaration, AIUE-95 D1; a rename needs
+  every compared field, the stored datasets and the locality slice to agree, `rename_differences`); it downloads the
   release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
@@ -354,7 +373,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `tests/yldot/test_variants.py` every stored SENSITIVE, INERT and INVALID variant of every family whose manifest
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
   its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
-  default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`); an owner
+  default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5); an owner
   family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
   the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
   in the nightly tier one, dnull_imp2 `bbb.thetar`; none on `--noopt`, AIUE-99);
@@ -378,7 +397,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   round-off ratio and stored-threshold check on synthetic data,
   `tests/yldot/test_make_references_unit.py` `make_references.py` (its child on `d_only` twice, the same bytes; a
   ten-variant sweep with every class as probed, `--only` reproducing the file bit for bit, a nondeterministic second
-  run; `classify` on synthetic results; its refusals, caps and the git/docker commands with fakes; the manifests that
+  run; `--prune` and `--rename` reproducing the expected manifests with the guard needing no declaration, a rename
+  with another applied value refused, the audit's override, findings and shards with synthetic audit files and a fake
+  runner; `classify` on synthetic results; its refusals, caps and the git/docker commands with fakes; the manifests that
   hold data), `tests/yldot/test_variant_tolerances_unit.py` `variant_tolerances.py` (synthetic sides; a collect and
   a `replay` on `d_only`, `replay` failing on an offset, a NaN and an error),
   `tests/yldot/test_guard_unit.py` the reference guard on scratch git repositories (about 20 s; fakes for the
@@ -574,7 +595,9 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   20 min. Same steps locally: `PYTHON=<omp venv python> tests/deterministic_omp/ci/run_omp_ci.sh pr`; in the Ubuntu
   image: `tests/deterministic_omp/linux/run_ci_replay.sh`.
 - `.github/workflows/regenerate-references.yml` (AIUE-98) makes the yldot data releases: `workflow_dispatch` only
-  (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/defaults-only, `only`, `publish`, `expect_ref`,
+  (inputs `from_commit`, `families`, `mode` sweep/only/locality-only/prune/rename/defaults-only (prune and rename,
+  AIUE-95; sweep, only and rename run the audit, so `generate.sh` builds twice), `only`, `rename` (OLD=NEW pairs),
+  `publish`, `expect_ref`,
   `note`, `cpu`: a case-insensitive `grep -E` pattern, default empty, any CPU (`intel` before AIUE-211); `generate`'s first
   step logs the runner's CPU model and stops unless it matches; imp7's full sweep, a single process, takes about
   3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's

@@ -178,11 +178,11 @@
     "/steady/locality_variants/column": "e4b33c4394979c288ce1675086e11a123744de4896df42e99717ad24db5166ee",
     "/steady/locality_variants/dfull": "a4c7816b95336a957162e08f93e62b114bbbf976f4e3898c0b85f9c40db236b5",
     "/steady/locality_variants/dropped_column": "7e68d1ff016cdef91abc8c02303fa0b5e886de1b0dcb0f1d9ec2381be43f5085",
-    "/steady/locality_variants/dropped_offsets": "1bfb2c499f8a24b9eaacde048827f4fbde2a597619192f18958982bf68c462b9",
+    "/steady/locality_variants/dropped_offsets": "31a1ab17e264cb0649ee454bce9230adba966b2d92913ee37239c708c7c225a5",
     "/steady/locality_variants/dropped_row": "9418f702c87b1d4eb5f310ae03603935e7ca8dfbf393b3b05302551ec402b4c5",
-    "/steady/locality_variants/ids": "9f655cdd1327aede10ba8ace31ceecae7de7a20269329776da98d81d63be976a",
+    "/steady/locality_variants/ids": "f6a8f384f689cc9c2fff1e79e739a9e012b1ce7309435ba857f4df2a4ac52fcd",
     "/steady/locality_variants/mismatch": "ee89a816a465f73f93d94210c4234e727df3c61007f42515c7396967c5b06bea",
-    "/steady/locality_variants/offsets": "cc5c390ef9a29234ab4eaf6da8f31462b0903e14fd3641c6ad2a471c6721f859",
+    "/steady/locality_variants/offsets": "8a636d99ed55c2f7ac0d6e3781d30e6c46dfc7c8a19d5d9b908b236abb9ae48d",
     "/steady/locality_variants/row": "b46a91c22db7b30763f840c8ef6dae4a40fc88cf9ffd9a5831c7442dc395969d",
     "/steady/variants/bbb.albdsi/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.albdsi/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
@@ -1705,14 +1705,14 @@
   },
   "external": {
     "references/d_mols.h5": {
-      "bytes": 1714700,
-      "sha256": "2bfec0bc7554cc6a5f7077a785252246631e3afe7def943914cdad5457c48ccf"
+      "bytes": 1714630,
+      "sha256": "74995d9bda6b827071ff4e42e57fcd7a63f7398255fe07e983a10e39ab73a6d3"
     }
   },
   "family": "d_mols",
   "guarded": {
     "locality/steady": "d77d558561c89157ca6d1b0470570d01adfe5a3ec866c6de1869cc137faead74",
-    "locality_variants/steady": "90eae1ee8a9a85eec3e9167eca178c63ef3fe738cfd24fb09f5227e4db356c3d",
+    "locality_variants/steady": "f3990d8bceec430734541eff4912882cbfcc3d4d76d6e300e2ef530b23d223c9",
     "locality_variants/timestep": "e57824395c1586da1a525cf350c0d620c55fddb6d40835b5fc9aab4f258d9f11",
     "steady/default": "0966fe759ffd206387c1b363429840783aefea984ed13c72434f1ee2133e4134",
     "steady/sigma": "1dbf303d13dc75b8df0bb3839e144a0f42aaca12f5574f20fe85e3fb2eb7d523",
@@ -4636,18 +4636,6 @@
       "dropped": 1,
       "sha256": "b9c9a4e7960c11b65e58799ab16ab393e21109cd31d6b2941d3d6f83dcb9ef99"
     },
-    "bbb.isi_sputpf": {
-      "added": 0,
-      "config": "steady",
-      "dropped": 0,
-      "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
-    },
-    "bbb.isi_sputw": {
-      "added": 0,
-      "config": "steady",
-      "dropped": 0,
-      "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
-    },
     "bbb.isimpon=6": {
       "added": 7,
       "config": "steady",
@@ -7416,15 +7404,15 @@
     }
   },
   "provenance": {
-    "commit": "05ab9d99705d1d032695ae5333fa50092168cd97",
+    "commit": "7bd5639d084ec084a6a026419250289398521ed1",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-28T02:10:24+00:00",
+    "date": "2026-10-29T03:02:14+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v14",
+  "release": "yldot-data-v16",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -20180,7 +20168,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INERT",
+      "class": "INVALID",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20191,7 +20179,7 @@
       },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "",
+      "reason": "bounds-check: api/sputt.F:245: Index '0' of dimension 2 of array 'cidata' below lower bound of 1 (serial build: INERT)",
       "sha256": null
     },
     "bbb.isi_sputw": {
@@ -20203,7 +20191,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INERT",
+      "class": "INVALID",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20214,7 +20202,7 @@
       },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "",
+      "reason": "bounds-check: api/sputt.F:245: Index '0' of dimension 2 of array 'cidata' below lower bound of 1 (serial build: INERT)",
       "sha256": null
     },
     "bbb.isimpon=2": {
@@ -21236,7 +21224,7 @@
       },
       "jflag_block_l2": {},
       "phase": "POST",
-      "reason": "neq 480 -> 420",
+      "reason": "bounds-check: bbb/pandf.F:332: Index '0' of dimension 1 of array 'yldot' below lower bound of 1 (serial build: neq 480 -> 420)",
       "sha256": null
     },
     "bbb.isphion": {

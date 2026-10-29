@@ -113,8 +113,8 @@ class FakeRun:
 class FakeStream:
     """stream() stand-in: the container or the host child 'writes' the files of a real child run."""
 
-    def __init__(self, child_dir, fail=None):
-        self.child_dir, self.fail = child_dir, fail
+    def __init__(self, child_dir, fail=None, rc=1):
+        self.child_dir, self.fail, self.rc = child_dir, fail, rc  # rc: the exit code of the call matching fail
         self.calls = []
         self.envs = []  # the env of each call, in the order of calls
 
@@ -122,7 +122,7 @@ class FakeStream:
         self.calls.append((cmd, cwd, log))
         self.envs.append(env)
         if self.fail and self.fail in cmd:
-            return 1
+            return self.rc
         out = None
         if cmd[0] == "docker":
             out = Path(cmd[cmd.index("-v", 6) + 1].rsplit(":", 1)[0]) / "references"
@@ -135,7 +135,8 @@ class FakeStream:
 
 def args(**kw):
     a = {"from_commit": "HEAD", "platform": "linux", "release": TAG, "out": None, "write": False, "family": [],
-         "defaults_only": False, "only": None, "full": False, "locality_only": False, "jobs": None}
+         "defaults_only": False, "only": None, "full": False, "locality_only": False, "jobs": None, "prune": False,
+         "rename": None, "no_audit": False}
     a.update(kw)
     return Namespace(**a)
 
@@ -219,8 +220,16 @@ def test_host_is_a_preview(tmp_path, children):
     assert mf.load("d_only", suite)["release"] is None
     assert json.loads((out / "build.json").read_text())["runner_image"].endswith("(preview)")
     build = [(c, cwd, log) for c, cwd, log in stream.calls if "--no-build-isolation" in c]
-    assert build == [([str(out / "venv" / "bin" / "python"), "-m", "pip", "install", "-v", "--no-build-isolation",
+    # the audit build first (AIUE-95), then the serial build the references come from
+    assert build == [([str(out / "venv-audit" / "bin" / "python"), "-m", "pip", "install", "-v",
+                       "--no-build-isolation", "--no-deps", ".", "-C", "--build-option=--serial", "-C",
+                       "--build-option=--checkbounds"], out / "src", out / "build-audit.log"),
+                     ([str(out / "venv" / "bin" / "python"), "-m", "pip", "install", "-v", "--no-build-isolation",
                        "--no-deps", ".", "-C", "--build-option=--serial"], out / "src", out / "build.log")]
+    children = [c for c, _, _ in stream.calls if "_child" in c]
+    assert [c[0] for c in children] == [str(out / v / "bin" / "python") for v in ("venv-audit", "venv")]
+    assert children[0][-1] == "--audit-only" and children[0][children[0].index("--out") + 1] == str(out / "audit")
+    assert children[1][-2:] == ["--audit", str(out / "audit")]
     # PWD names the scratch tree for the build only (setup.py before AIUE-163 converted in $PWD); the child keeps
     # the caller's
     envs = {("build" if "--no-build-isolation" in c else "child" if "_child" in c else "other"): e
@@ -889,3 +898,351 @@ def test_parallel_children_kills_the_running_on_an_exception(monkeypatch):
     with pytest.raises(OSError):
         mr.parallel_children(parallel_args(["a", "b"]), popen, poll_s=0)
     assert procs[0].killed
+
+
+# ---------------------------------------------------------------- --prune, --rename and the audit (AIUE-95)
+
+
+def installed(tmp_path, ref_dir):
+    """A scratch suite with the d_only reference of ref_dir (a child's output) installed."""
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], ref_dir, TAG)[0], ref_dir, suite)
+    return suite
+
+
+def plan_without(monkeypatch, drop=(), renamed=None):
+    """variants.plan without the ids in drop, and with renamed {id: new id} applied (the key stays)."""
+    import dataclasses
+
+    from yldot.harness import variants
+
+    real = variants.plan
+
+    def plan(*a, **kw):
+        out = [v for v in real(*a, **kw) if v.id not in drop]
+        return [dataclasses.replace(v, id=(renamed or {}).get(v.id, v.id)) for v in out]
+
+    monkeypatch.setattr(variants, "plan", plan)
+
+
+def guard_requirements(old, new):
+    """The guard's (requirement, why) findings for a manifest change of d_only (its base classes from old)."""
+    import check_reference_change as guard
+
+    found, _ = guard.diff_manifest("d_only", old, new, {vid: {e["class"]} for vid, e in old["variables"].items()})
+    return [(f.req, f.why) for f in found if f.req is not None], [f.why for f in found]
+
+
+def test_prune_drops_the_entries_no_longer_in_the_inventory(tmp_path, swept, monkeypatch):
+    """Acceptance 1 (AIUE-95): bbb.xlinc (INERT, with a locality pattern: d_only has variants = "all") and
+    bbb.isnion (INVALID) leave the inventory; --prune gives the old manifest without them, every other dataset and
+    locality slice the same, nothing evaluated but the defaults, and the guard needs no declaration."""
+    suite = installed(tmp_path, swept[0])
+    old = mf.load("d_only", suite)
+    assert old["variables"]["bbb.xlinc"]["class"] == "INERT" and "bbb.xlinc" in old["locality_variants"]
+    drop = ("bbb.xlinc", "bbb.isnion")
+    plan_without(monkeypatch, drop)
+    d = tmp_path / "prune"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v not in drop], prune=True,
+             suite=suite)
+    new = mf.loads((d / "d_only.json").read_text())
+    assert new["variables"] == {k: e for k, e in old["variables"].items() if k not in drop}
+    assert new["locality_variants"] == {k: e for k, e in old["locality_variants"].items() if k not in drop}
+    assert {k: s for k, s in new["datasets"].items() if "/locality_variants/" not in k} == {
+        k: s for k, s in old["datasets"].items() if "/locality_variants/" not in k}
+    assert json.loads((d / "d_only.cost.json").read_text())["evaluations"] == 2  # the defaults only
+    required, why = guard_requirements(old, dict(new, release=TAG, external=old["external"]))
+    assert required == [], required
+    assert "prune bbb.xlinc (INERT in every family; with its locality pattern)" in why
+
+
+def test_prune_drops_a_sensitive_entry_with_its_data_and_pattern(tmp_path, swept, monkeypatch):
+    """AIUE-95 review I1-m4: bbb.cfvisx (SENSITIVE) leaves the inventory; its variant datasets and locality pattern
+    go, every other dataset is the same, and the guard needs a Default results: changed declaration."""
+    suite = installed(tmp_path, swept[0])
+    old = mf.load("d_only", suite)
+    assert old["variables"]["bbb.cfvisx"]["class"] == "SENSITIVE"
+    plan_without(monkeypatch, ("bbb.cfvisx",))
+    d = tmp_path / "prune"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v != "bbb.cfvisx"], prune=True,
+             suite=suite)
+    new = mf.loads((d / "d_only.json").read_text())
+    assert "bbb.cfvisx" not in new["variables"] and "bbb.cfvisx" not in new.get("locality_variants", {})
+    assert not any("/variants/bbb.cfvisx/" in k for k in new["datasets"])
+    assert any("/variants/bbb.cfvisx/" in k for k in old["datasets"])
+    # the locality pattern tables (row, offsets, ids) are shared by all entries and shrink with the pruned one
+    assert {k: s for k, s in new["datasets"].items() if "/locality_variants/" not in k} == {
+        k: s for k, s in old["datasets"].items() if "/variants/bbb.cfvisx/" not in k
+        and "/locality_variants/" not in k}
+    required, _ = guard_requirements(old, dict(new, release=TAG, external=old["external"]))
+    assert any(req == "default" and "bbb.cfvisx" in why for req, why in required), required
+
+
+def test_prune_refusals(tmp_path, swept, monkeypatch):
+    suite = installed(tmp_path, swept[0])
+    with pytest.raises(mr.Stop) as e:  # every entry is in the inventory
+        mr.child(["d_only"], tmp_path / "p1", build_record(tmp_path), sweep=list(SWEEP), prune=True, suite=suite)
+    assert e.value.code == 1 and "nothing to prune" in str(e.value)
+    plan_without(monkeypatch, ("bbb.xlinc",))
+    with pytest.raises(mr.Stop) as e:  # plain --only names the way out
+        mr.child(["d_only"], tmp_path / "p2", build_record(tmp_path), sweep=[v for v in SWEEP if v != "bbb.xlinc"],
+                 only=["bbb.cfvisx"], suite=suite)
+    assert e.value.code == 1 and "generate --prune (or --rename OLD=NEW) first" in str(e.value)
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "p3", build_record(tmp_path), prune=True, rename=["bbb.a=bbb.b"],
+                 suite=suite)
+    assert e.value.code == 2 and "pick one" in str(e.value)
+
+
+@pytest.fixture(scope="module")
+def old_names(tmp_path_factory):
+    """A d_only sweep whose bbb.cfvisx (SENSITIVE) is stored as bbb.oldname and bbb.xlinc (INERT) as bbb.oldx."""
+    mp = pytest.MonkeyPatch()
+    try:
+        renamed = {"bbb.cfvisx": "bbb.oldname", "bbb.xlinc": "bbb.oldx"}
+        plan_without(mp, renamed=renamed)
+        d = tmp_path_factory.mktemp("oldnames")
+        mr.child(["d_only"], d / "references", build_record(d), sweep=[renamed.get(v, v) for v in SWEEP])
+    finally:
+        mp.undo()
+    return d
+
+
+def test_rename_reproduces_the_entries(tmp_path, swept, old_names):
+    """Acceptance 1 (AIUE-95): renaming both back reproduces the direct sweep's manifest (datasets, variables,
+    locality slices), and the guard reads it as two renames needing no declaration."""
+    suite = installed(tmp_path, old_names)
+    old = mf.load("d_only", suite)
+    d = tmp_path / "rename"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=list(SWEEP),
+             rename=["bbb.oldname=bbb.cfvisx", "bbb.oldx=bbb.xlinc"], suite=suite)
+    new, direct = (mf.loads((x / "d_only.json").read_text()) for x in (d, swept[0] / "references"))
+    for k in ("datasets", "variables", "locality_variants", "guarded"):
+        assert new[k] == direct[k], k
+    required, why = guard_requirements(old, dict(new, release=TAG, external=old["external"]))
+    assert required == [], required
+    assert "rename bbb.oldname -> bbb.cfvisx (identical data; its locality pattern)" in why
+
+
+def test_rename_refused_when_the_applied_value_differs(tmp_path, old_names):
+    """Acceptance 2 (AIUE-95): bbb.oldname holds bbb.cfvisx's entry; renaming it to bbb.xlinc is refused."""
+    suite = installed(tmp_path, old_names)
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "r", build_record(tmp_path), sweep=list(SWEEP),
+                 rename=["bbb.oldname=bbb.xlinc", "bbb.oldx=bbb.cfvisx"], suite=suite)
+    assert e.value.code == 1 and "rename bbb.oldname -> bbb.xlinc: applied value differs" in str(e.value)
+
+
+@pytest.mark.parametrize("pairs, error", [
+    (["bbb.oldname=bbb.cfvisx"], "no longer in the inventory, ['bbb.oldx']"),  # one stale entry left
+    (["bbb.oldx=bbb.oldname"], "bbb.oldname is not in the inventory"),
+    (["bbb.lgvmax=bbb.cfvisx", "bbb.oldname=bbb.xlinc"], "bbb.lgvmax is not a manifest entry missing from the "
+                                                          "inventory"),
+    (["bbb.oldname=bbb.lgvmax", "bbb.oldx=bbb.xlinc"], "bbb.lgvmax is in the manifest already"),
+])
+def test_rename_refusals(tmp_path, old_names, pairs, error):
+    suite = installed(tmp_path, old_names)
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "r", build_record(tmp_path), sweep=list(SWEEP), rename=pairs, suite=suite)
+    assert e.value.code == 1 and error in str(e.value), str(e.value)
+
+
+def test_rename_pairs_split_where_both_sides_are_ids():
+    assert mr.rename_pairs(["bbb.a=bbb.b", "bbb.methe=22=bbb.methx=22", "bbb.c=1=bbb.d"]) == {
+        "bbb.a": "bbb.b", "bbb.methe=22": "bbb.methx=22", "bbb.c=1": "bbb.d"}
+    for bad in (["bbb.a"], ["bbb.a=b"], ["bbb.a=bbb.b", "bbb.a=bbb.c"], ["bbb.a=bbb.a"]):
+        with pytest.raises(mr.Stop) as e:
+            mr.rename_pairs(bad)
+        assert e.value.code == 2
+
+
+BOUNDS_TAIL = (" Reading grid from file:gridue\nAt line 245 of file ../../api/sputt.F\n"
+               "Fortran runtime error: Index '0' of dimension 2 of array 'cidata' below lower bound of 1\n")
+
+
+def test_runtime_error_names_the_source_line():
+    assert mr.runtime_error(BOUNDS_TAIL) == (
+        "api/sputt.F:245: Index '0' of dimension 2 of array 'cidata' below lower bound of 1")
+    linux = "At line 332 of file /work/src/build/temp.linux-x86_64/bbb/pandf.F\nFortran runtime error: Index '0'\n"
+    assert mr.runtime_error(linux) == "bbb/pandf.F:332: Index '0'"
+    assert mr.runtime_error("Fortran runtime error: Recursive call to nonrecursive procedure 'x'") == (
+        "Recursive call to nonrecursive procedure 'x'")
+    assert mr.runtime_error(" *** isphion.ne.0 while isphiofft.ne.0") == ""
+
+
+def write_audit(d, evaluated, failed, findings=()):
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "d_only.audit.json").write_text(json.dumps({"family": "d_only", "evaluated": sorted(evaluated),
+                                                     "failed": failed, "findings": list(findings)}))
+    return d
+
+
+def test_audit_runtime_error_makes_the_variant_invalid(tmp_path):
+    """AIUE-95 D2: a runtime error in the audit makes a SENSITIVE variant INVALID with the audit's reason, its apply
+    record from this run, nothing stored and no locality pattern; MARGINAL and INVALID entries as usual."""
+    ids = ["bbb.cfvisx", "bbb.lgvmax", "bbb.isnion"]
+    reason = "bounds-check: " + mr.runtime_error(BOUNDS_TAIL)
+    audit = write_audit(tmp_path / "audit", ids, {"bbb.cfvisx": {"status": "crash", "runtime": True,
+                                                                  "reason": reason}})
+    d = tmp_path / "out"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=ids, audit=audit)
+    m = mf.loads((d / "d_only.json").read_text())
+    v = m["variables"]
+    assert v["bbb.cfvisx"]["class"] == "INVALID" and v["bbb.cfvisx"]["reason"] == reason + " (serial build: SENSITIVE)"
+    assert v["bbb.cfvisx"]["applied"] is not None and v["bbb.cfvisx"]["sha256"] is None
+    assert not any("/variants/bbb.cfvisx/" in k for k in m["datasets"])
+    assert "bbb.cfvisx" not in m.get("locality_variants", {})
+    assert v["bbb.lgvmax"]["class"] == "MARGINAL" and v["bbb.isnion"]["reason"] == "neq 420 -> 300"
+
+
+def test_audit_runtime_error_replaces_an_invalid_reason(tmp_path):
+    reason = "bounds-check: bbb/pandf.F:332: Index '0' of dimension 1 of array 'yldot' below lower bound of 1"
+    audit = write_audit(tmp_path / "audit", ["bbb.isnion"], {"bbb.isnion": {"status": "crash", "runtime": True,
+                                                                             "reason": reason}})
+    mr.child(["d_only"], tmp_path / "out", build_record(tmp_path), sweep=["bbb.isnion"], audit=audit)
+    assert mf.loads((tmp_path / "out" / "d_only.json").read_text())["variables"]["bbb.isnion"]["reason"] == (
+        reason + " (serial build: neq 420 -> 300)")
+
+
+@pytest.mark.parametrize("cls, serial, outcome", [
+    ("SENSITIVE", "", ("SENSITIVE", None)), ("INERT", None, ("INERT", None)), ("MARGINAL", "", ("MARGINAL", None)),
+    ("INVALID", "neq 420 -> 360", ("INVALID", "neq")),
+    ("INVALID", "error: ValueError: bad (x: 1) (y)", ("INVALID", "error")),
+])
+def test_audit_invalid_reason_round_trips(cls, serial, outcome):
+    """AIUE-95 D5: the serial outcome appended to an audit reason is read back as (class, kind)."""
+    audit = "bounds-check: api/sputt.F:245: Index '0' of dimension 2 (cidata)"
+    reason = mr.audit_invalid_reason(audit, cls, serial)
+    assert reason.startswith(audit + " (serial build: ") and reason.endswith(")")
+    assert mr.serial_outcome(reason) == outcome
+    assert mr.serial_outcome(audit) is None and mr.serial_outcome("neq 420 -> 360") is None
+
+
+@pytest.mark.parametrize("rc, code", [(1, 1), (3, 3), (2, 2), (5, 2)])
+@pytest.mark.parametrize("platform, fail", [("linux", "docker"), ("host", "_child")])
+def test_a_child_refusal_keeps_its_exit_code(tmp_path, children, platform, fail, rc, code):
+    """AIUE-95 review I1-m1: a child's exit 1 (refusal) or 3 (findings) reaches the user as 1 or 3, any other
+    failure as 2."""
+    suite = tmp_suite(tmp_path)
+    kw = {"release": None} if platform == "host" else {}
+    with pytest.raises(mr.Stop) as e:
+        mr.generate(args(platform=platform, out=str(tmp_path / "gen"), **kw), suite, FakeRun(),
+                    FakeStream(children[0], fail=fail, rc=rc))
+    assert e.value.code == code
+
+
+def test_audit_failures_that_fit_no_rule_are_findings(tmp_path):
+    """An audit timeout where this build classifies INERT, a runtime error on a no-op (EXCLUDED) variant and the
+    audit's own findings go to the owner; an audit failure on an INVALID variant keeps the serial reason."""
+    ids = ["bbb.xlinc", "bbb.methe=33", "bbb.isphiofft"]
+    audit = write_audit(tmp_path / "audit", ids, {
+        "bbb.xlinc": {"status": "timeout", "runtime": False, "reason": "timeout: no result after 5 s"},
+        "bbb.methe=33": {"status": "crash", "runtime": True, "reason": "bounds-check: x.F:1: Index"},
+        "bbb.isphiofft": {"status": "error", "runtime": False, "reason": "error: RuntimeError"}},
+        [{"id": "audit:default", "finding": "owner: audit: the steady default fails: crash"}])
+    d = tmp_path / "out"
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=ids, audit=audit)
+    findings = {f["id"]: f["finding"] for f in json.loads((d / "d_only.findings.json").read_text())}
+    assert findings["bbb.xlinc"] == ("owner: audit run timeout: timeout: no result after 5 s; this build classifies "
+                                     "it INERT")
+    assert findings["bbb.methe=33"].startswith("owner: audit bounds-check: x.F:1: Index where the application")
+    assert findings["audit:default"].endswith("fails: crash")
+    v = mf.loads((d / "d_only.json").read_text())["variables"]
+    assert set(v) == {"bbb.isphiofft"} and v["bbb.isphiofft"]["reason"].startswith("error: RuntimeError: *** isphion")
+
+
+def test_audit_must_cover_every_evaluated_variant(tmp_path):
+    audit = write_audit(tmp_path / "audit", ["bbb.xlinc"], {})
+    with pytest.raises(mr.Stop) as e:
+        mr.child(["d_only"], tmp_path / "out", build_record(tmp_path), sweep=["bbb.xlinc", "bbb.cfvisx"],
+                 audit=audit)
+    assert e.value.code == 2 and "the audit did not evaluate bbb.cfvisx" in str(e.value)
+
+
+class FakeRunner:
+    """Runner stand-in: every evaluation is ok but the variants in fail (their log ends in a bounds error)."""
+
+    def __init__(self, fail=()):
+        self.fail, self.calls = set(fail), []
+
+    def evaluate(self, family, config=None, variant=None, timeout=None, **kw):
+        self.calls.append(variant.id if variant is not None else config)
+        if variant is not None and variant.id in self.fail:
+            return Result(status="crash", family=family, config=variant.config, mode="spawn",
+                          message="child exited with code 2 without a result", log_tail=BOUNDS_TAIL, exitcode=2)
+        return Result(status="ok", family=family, config=config, mode="spawn", data={})
+
+
+def test_audit_shards_are_disjoint_and_merge(tmp_path):
+    """D3: three shards evaluate the ids in scope once between them, shard 0 also both defaults; the merged file
+    lists them sorted with the failure's reason; --rename audits the NEW ids."""
+    only = ["bbb.xlinc", "bbb.cfvisx", "bbb.lgvmax", "bbb.isnion", "bbb.methe=33"]  # methe=33 is not EXCLUDED here
+    runners = [FakeRunner(fail={"bbb.cfvisx"}) for _ in range(3)]
+    for i, r in enumerate(runners):
+        mr.audit_child("d_only", tmp_path, only=only, shard=(i, 3), runner=r)
+    assert runners[0].calls[:2] == ["steady", "timestep"] and "steady" not in runners[1].calls + runners[2].calls
+    a = mr.merge_audit(tmp_path, "d_only", 3)
+    assert a["evaluated"] == sorted(only)
+    assert a["failed"] == {"bbb.cfvisx": {"status": "crash", "runtime": True, "reason": "bounds-check: "
+                                          + mr.runtime_error(BOUNDS_TAIL)}}
+    assert json.loads((tmp_path / "d_only.audit.json").read_text()) == a
+    (tmp_path / "d_only.audit.2.json").unlink()
+    with pytest.raises(mr.Stop, match="shard 2/3 wrote no"):
+        mr.merge_audit(tmp_path, "d_only", 3)
+    r = FakeRunner()
+    mr.audit_child("d_only", tmp_path / "rn", rename=["bbb.oldx=bbb.xlinc"], runner=r)
+    assert r.calls == ["steady", "timestep", "bbb.xlinc"]
+
+
+def test_audit_children_shard_per_family(tmp_path, monkeypatch):
+    monkeypatch.setattr(mr, "family_weight", lambda f: {"d_only": 1, "ortho": 2}[f])
+    started = []
+
+    def popen(cmd):
+        started.append(cmd[cmd.index("--shard") + 1] + " " + cmd[cmd.index("_child") + 1])
+        assert cmd[cmd.index("--out") + 1] == str(tmp_path) and "--audit-only" in cmd and "--build" not in cmd
+        name, (i, n) = cmd[cmd.index("_child") + 1], cmd[cmd.index("--shard") + 1].split("/")
+        (tmp_path / "{}.audit.{}.json".format(name, i)).write_text(json.dumps(
+            {"evaluated": ["bbb.{}{}".format(name, i)], "failed": {}, "findings": []}))
+        return FakeProc(0)
+
+    a = Namespace(family=["d_only", "ortho"], jobs=2, out=str(tmp_path), build=None, sweep="all", only=None,
+                  full=False, repo="src", locality_only=False, prune=False, rename=None, audit=None, shard=None,
+                  audit_only=True)
+    mr.audit_children(a, popen, poll_s=0)
+    assert started == ["0/2 ortho", "1/2 ortho", "0/2 d_only", "1/2 d_only"]  # the largest family first
+    assert json.loads((tmp_path / "ortho.audit.json").read_text())["evaluated"] == ["bbb.ortho0", "bbb.ortho1"]
+
+
+def test_generate_audit_and_maintenance_options(tmp_path, swept):
+    suite = installed(tmp_path, swept[0])
+    stream = FakeStream(swept[0])
+    mr.generate(args(out=str(tmp_path / "g1"), release=None, no_audit=True), suite, FakeRun(), stream)
+    assert stream.calls[0][0][-2:] == ["d_only", "--no-audit"]
+    stream = FakeStream(swept[0])
+    mr.generate(args(out=str(tmp_path / "g2"), prune=True), suite, FakeRun(), stream)
+    assert stream.calls[0][0][-3:] == ["d_only", "--prune", "--no-audit"]  # a prune evaluates no variant
+    stream = FakeStream(swept[0])
+    mr.generate(args(out=str(tmp_path / "g3"), rename=["bbb.oldx=bbb.xlinc"]), suite, FakeRun(), stream)
+    assert stream.calls[0][0][-3:] == ["d_only", "--rename", "bbb.oldx=bbb.xlinc"]  # audited
+    assert mr.child_options(args(rename=["bbb.a=bbb.b"], jobs=2)) == ["--rename", "bbb.a=bbb.b", "--jobs", "2"]
+
+
+@pytest.mark.parametrize("kw, code, message", [
+    ({"no_audit": True}, 1, "--no-audit makes previews only"),
+    ({"prune": True, "only": ["bbb.x"]}, 2, "together"),
+    ({"rename": ["bbb.a"]}, 2, "need OLD=NEW"),
+    ({"prune": True}, 1, "--prune regenerates against the installed references"),
+])
+def test_maintenance_option_refusals(tmp_path, kw, code, message):
+    suite = tmp_suite(tmp_path)
+    stream = FakeStream(tmp_path)
+    with pytest.raises(mr.Stop) as e:
+        mr.generate(args(out=str(tmp_path / "gen"), **kw), suite, FakeRun(), stream)
+    assert e.value.code == code and message in str(e.value)
+    assert not stream.calls
+
+
+def test_child_needs_a_build_record_unless_auditing(capsys):
+    assert mr.main(["mr", "_child", "d_only", "--out", "x"]) == 2
+    assert "_child needs --build" in capsys.readouterr().err

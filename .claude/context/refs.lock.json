@@ -232,7 +232,7 @@
  "tests/yldot/harness/__init__.py:10": "os.environ[\"OMP_NUM_THREADS\"] = \"1\"",
  "tests/yldot/harness/build.py:17": "# every BuildLimitWarning's message starts so: pytest -W \"error:<REPORTED>:UserWarning\" turns them into failures",
  "tests/yldot/harness/build.py:19": "REPORTED = \"reported, not failed\"",
- "tests/yldot/tools/make_references.py:963": "p.add_argument(\"--only\", nargs=\"+\", metavar=\"VAR\", help=\"regenerate these variant ids or keys only\")",
+ "tests/yldot/tools/make_references.py:1300": "p.add_argument(\"--only\", nargs=\"+\", metavar=\"VAR\", help=\"regenerate these variant ids or keys only\")",
  "tests/yldot/tools/measure_roundoff.py:66": "if __name__ == \"__main__\" and sys.argv[1:2] == [\"_worker\"]:",
  "tests/yldot/tools/measure_roundoff.py:70": "import uedge # noqa: F401",
  "tests/yldot/tools/run_mutations.py:804": "\"no:cacheprovider\", \"-W\", \"error:{}:UserWarning\".format(hb.REPORTED), \"--junitxml\", str(out)]"

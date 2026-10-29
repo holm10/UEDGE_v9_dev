@@ -754,6 +754,28 @@ def test_locality_variants_round_trip(tmp_path, kind):
             s.locality_variant("timestep", "bbb.xlinc")
 
 
+@pytest.mark.parametrize("kind", ["full", "sketch"])
+def test_copy_locality_variant_keeps_each_slice(tmp_path, kind):
+    """Every locality difference copied into a new file keeps its slice SHA-256 (make_references --prune, --rename;
+    AIUE-95), and the copy refuses an id the source does not store."""
+    m = build(tmp_path / "src", kind, locality=(1e-4, LOC), loc_variants=LOC_VARIANTS)
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        w = store.create(tmp_path / "copy.h5", kind, "fam", DATA, IMAP)
+        for config in mf.CONFIG_NAMES:
+            w.write_default(config, Y, YJ, SIGMA, DIAG)
+            if kind == "sketch":
+                w.write_sketch_thresholds(config, TOL)
+        w.write_locality("steady", 1e-4, LOC)
+        for vid, e in m["locality_variants"].items():
+            w.copy_locality_variant(e["config"], vid, s)
+        with pytest.raises(store.StoreError, match="no stored locality"):
+            w.copy_locality_variant("steady", "bbb.isbcwdt", s)
+        out = w.finish()
+    assert out["locality_variants"] == m["locality_variants"]
+    assert {n: h for n, h in out["datasets"].items() if "locality_variants" in n} == {
+        n: h for n, h in m["datasets"].items() if "locality_variants" in n}
+
+
 def test_locality_pattern_with_a_column_set_uses_the_special_columns(tmp_path, monkeypatch):
     """With stored columns (a column-set family) a variant's pattern is applied to the default's entries in the
     special cells' columns only (locality.variant_base), as generation diffs it (make_references.child)."""
