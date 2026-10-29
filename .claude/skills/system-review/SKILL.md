@@ -183,7 +183,8 @@ Don't apply any of these actions yourself. Each one is a **process change** and 
 1. If the Atlassian MCP server is connected (`mcp__atlassian__getAccessibleAtlassianResources`), for each action:
    - Search for duplicates: `project = AIUE AND labels = ai-layer AND statusCategory != Done AND summary ~ "<2-4 key words>"`.
      If an open issue already covers it, add a comment with this review's evidence instead of a new issue.
-   - Otherwise create a `Task` in project `AIUE` with label `ai-layer`, summary `AI layer: <action>`, and a
+   - Otherwise create a `Task` in project `AIUE` under the epic `AIUE-222` (AI-layer improvements: `parent` AIUE-222,
+     `.claude/context/branching.md` → Guard rails) with label `ai-layer`, summary `AI layer: <action>`, and a
      description holding the evidence (the divergence, plan and report paths), the target file(s), and the proposed
      change.
 2. If Jira isn't available, append the actions to `.claude/work/<KEY>/ai-layer-backlog.md` (local, never committed)

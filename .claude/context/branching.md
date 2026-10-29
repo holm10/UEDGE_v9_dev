@@ -183,6 +183,12 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
   (fallback without Jira: `.claude/work/<KEY>/ai-layer-backlog.md`, local, plus a Findings and decisions entry on the
   ticket page, filed as issues at the next session that has Jira). They land through a `feature/v9-ai-*` PR that a
   person reviews.
+- **Every AI-layer issue lives under the epic AIUE-222** (AI-layer improvements; owner, 2026-10-28): a fix, gotcha,
+  tooling or process ticket for the AI layer, whoever files it, is a Task, Story or Bug with `parent` AIUE-222 and
+  the label `ai-layer`, never an epic of its own (AIUE-72 was converted to a story under it). A GitHub `ai-layer`
+  issue (the weekly drift check's, below) that is turned into a Jira ticket goes there too. The one exception is an
+  AI-layer slice of another epic's breakdown (`spec`), such as AIUE-17 (AIUE-5) and AIUE-102/AIUE-108 (AIUE-9): it
+  keeps that epic as its parent and carries the label.
 - **The code-facts trailer is narrow.** It covers only `CLAUDE.md` and `.claude/context/**`. The hook blocks
   skills, agents, hooks and settings on ticket branches even with the trailer.
 - **Facts are checked, not trusted.** `check_context_refs.py` compares every cited `path:line` with the locked
