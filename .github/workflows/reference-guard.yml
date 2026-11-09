@@ -58,7 +58,10 @@ jobs:
             echo "::error::the PR head moved past $HEAD_SHA; the run for the newer push decides"
             exit 1
         fi
-        git cat-file -e "$BASE_SHA^{commit}"
+        if ! git cat-file -e "$BASE_SHA^{commit}"; then
+            echo "::error::the PR base $BASE_SHA is not in the repository (base branch rewritten); push to the PR to re-run"
+            exit 1
+        fi
 
     - name: Run the reference guard
       env:
@@ -69,5 +72,10 @@ jobs:
       run: |
         # no file over 200 MiB on the runner: the runner-side cap of the guard's MAX_EXTERNAL_BYTES
         ulimit -f 204800
+        rc=0
         python -I tests/yldot/tools/check_reference_change.py check --base "$BASE_SHA" --head "$HEAD_SHA" \
-            --gh-repo "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
+            --gh-repo "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY" || rc=$?
+        if [ "$rc" -eq 153 ]; then   # 128 + SIGXFSZ
+            echo "::error::the guard wrote a file over 200 MiB and was stopped (ulimit -f)"
+        fi
+        exit "$rc"
