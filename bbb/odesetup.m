@@ -1170,6 +1170,8 @@ c ... If isimpon > 0 and isph_sput = 1, init. DIVIMP data for physical sputt.
             call syld96(matt,matp,cion,cizb,crmb)
          endif
       enddo
+c ... Stop if yld96 can run without the data syld96 sets up (AIUE-225)
+      call chksputt
 
 c ... Set up new grid geometry, if desired.
       if(newgeo .eq. 1) then
@@ -2041,6 +2043,50 @@ c ... number (ziin = 0 for neutral species).
             call xerrab('*** ziin must be an integer ion charge ***')
          endif
       enddo
+      return
+      end
+
+c----------------------------------------------------------------------c
+
+      subroutine chksputt
+
+c ... Stop if the physical sputtering yield yld96 (api/sputt.m) can be
+c ... reached although ueinit did not call syld96, which it does only
+c ... for isimpon > 0 and some isph_sput >= 1: then matt and matp name no
+c ... material and yld96 reads cidata out of bounds (AIUE-225). yld96 is
+c ... called for isi_sputw, isi_sputpf (igsp >= 2, any isimpon) and for
+c ... islim_sput (islimon on, isimpon 4..7, nzspt >= 1, igsp > nhgsp);
+c ... the plates (isph_sput) need isimpon 4..7 and so always have it.
+
+      implicit none
+      Use(Dim)      # ngsp,nhgsp,nzspt
+      Use(Share)    # islimon
+      Use(Imprad)   # isimpon
+      Use(Bcond)    # isph_sput,isi_sputw,isi_sputpf,islim_sput
+      integer igsp
+
+      do igsp = 1, ngsp
+         if (isimpon .gt. 0 .and. isph_sput(igsp) .ge. 1) return
+      enddo
+      do igsp = 2, ngsp
+         if (isi_sputw(igsp) .ge. 1 .or. isi_sputpf(igsp) .ge. 1) then
+            write (*,*) '*** igsp = ', igsp, ': isi_sputw = ',
+     .         isi_sputw(igsp), ', isi_sputpf = ', isi_sputpf(igsp)
+            call xerrab('*** isi_sputw, isi_sputpf need isimpon > 0'//
+     .         ' and an isph_sput >= 1 (syld96 data) ***')
+         endif
+      enddo
+      if (islimon .ne. 0 .and. isimpon .ge. 4 .and. isimpon .le. 7
+     .    .and. nzspt .ge. 1) then
+         do igsp = nhgsp+1, ngsp
+            if (islim_sput(igsp) .ge. 1) then
+               write (*,*) '*** igsp = ', igsp, ': islim_sput = ',
+     .            islim_sput(igsp)
+               call xerrab('*** islim_sput needs an isph_sput >= 1'//
+     .            ' (syld96 data) ***')
+            endif
+         enddo
+      endif
       return
       end
 
