@@ -1,0 +1,7 @@
+# Code owners (epic AIUE-9, PRD section 7.6; AIUE-104). A pull request that changes these paths needs the owner's
+# review where a ruleset on v9-develop requires code-owner review (ruleset B); the reference guard
+# (.github/workflows/reference-guard.yml) is a required check of its own (ruleset A). The yldot suite, the workflows
+# that run it (all of .github/workflows/ on purpose) and this file itself.
+/tests/yldot/ @holm10
+/.github/workflows/ @holm10
+/.github/CODEOWNERS @holm10
