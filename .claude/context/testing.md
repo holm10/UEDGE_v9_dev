@@ -346,7 +346,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
-  2 = usage. The workflow that runs it is AIUE-104's.
+  2 = usage. `.github/workflows/reference-guard.yml` (AIUE-104) runs it on every pull request, job `reference guard`
+  (CI facts below).
 - **Tests** (the whole suite, `-m "not nightly"`: about 5,840 tests, none skipped once the data release stores the
   variant locality patterns (before it, `test_locality_variant` has no parameters), about 17 min, serial build, Darwin
   arm64, 2026-10-24 (AIUE-99; AIUE-101); `-m nightly`: the owner families' variant tests, about 2,880, about 37 min on
@@ -565,11 +566,32 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 
 - **An AI-layer-only change runs no tests** (owner, 2026-10-28): `build-test-wheel.yml` and `build-test-omp.yml` have
   `paths-ignore` on `push` and `pull_request` with the process paths of `.claude/hooks/change_kind.py` (`PROCESS`:
-  `CLAUDE.md`, `.mcp.json`, `.claude/**`, `.githooks/**`, `.github/workflows/claude-*.yml`); keep the three lists in
+  `CLAUDE.md`, `.mcp.json`, `.claude/**`, `.githooks/**`, `.github/workflows/claude-*.yml`), and `nightly-tests.yml`
+  has them on `pull_request` together with `docs/**`, `doc/**` and `**/*.md` (AIUE-104); keep the four lists in
   step. One product file in the change runs everything; tag pushes, the nightly schedule and dispatches are
-  unaffected. Such a PR still gets `claude-context-drift.yml` and `claude-review.yml`. None of these checks is
-  required on `v9-develop` (no branch protection, 2026-10-28); a required check whose workflow a path filter skips
-  stays pending and blocks the merge, so a workflow made required (AIUE-104) needs no path filter.
+  unaffected. Such a PR still gets `claude-context-drift.yml`, `claude-review.yml` and the reference guard. A required
+  check whose workflow a path filter skips stays pending and blocks the merge, so the one workflow meant to be
+  required, `reference-guard.yml`, has no path filter.
+- **The reference guard in CI** (AIUE-104, ticket page 5111855): `.github/workflows/reference-guard.yml`, on
+  `pull_request_target` (opened, synchronize, reopened, edited; any base branch), job name `reference guard` (the
+  required-check context: rename it only together with the ruleset). GitHub takes a `pull_request_target` workflow
+  and its checkout from the default branch (since 2025-12-08, GitHub changelog 2025-11-07), so `v9-develop`'s copy of
+  the guard judges every PR, a stacked one too, and a PR that changes the guard or this workflow is judged by the
+  old copy (its own change first runs on the next PR). It fetches `refs/pull/<n>/head` as data (never checked out),
+  passes the description as `PR_BODY` and `GH_TOKEN` through `env:` only, caps files at 200 MiB (`ulimit -f`), and
+  runs `check --base <base sha> --head <head sha>`; its check run lands on the PR head commit. `[skip ci]` does not
+  skip it (it skips `push`/`pull_request` only). `.github/CODEOWNERS` names the owner for `tests/yldot/`,
+  `.github/workflows/` and itself. Owner decision D1 (2026-10-28): two rulesets on `v9-develop`, applied by the owner
+  after AIUE-104 merges: A requires the `reference guard` check (no bypass), B requires code-owner review with the
+  admin role allowed to bypass it on a pull request (the owner's own PRs).
+- **The yldot nightly tier** (AIUE-104): `.github/workflows/nightly-tests.yml` on `schedule` (04:43 UTC, default
+  branch), `pull_request` (path filter above) and `workflow_dispatch`. It builds the serial wheel as
+  `build-test-wheel.yml` does and runs `pytest tests/yldot -n auto --dist worksteal -m nightly --yldot-shard <shard>
+  --timeout 1800` per shard; imp7 runs as two legs with complementary `-k` expressions (`locality-gip`: 11 locality
+  tests; `rest`: 970), 10 legs in all. `common` has no nightly test, and its exit 5 is accepted (a family shard's is
+  not). `--dist worksteal` is needed: xdist's default schedule first hands each worker a run of consecutive tests,
+  which put all 20 imp7 locality tests (6-7 min each) on one worker (imp7 shard, macOS arm64 `-n 4`, 2026-10-28:
+  7303 s with `load`, 2314 s with `worksteal`). Budget: ≤ 60 min wall (PRD §7.9).
 - `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
   builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
   AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
