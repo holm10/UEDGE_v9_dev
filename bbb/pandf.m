@@ -320,6 +320,7 @@ c ... subroutine bouncon.
       if (isphion.eq.1) then 
       do iy = j2p, j5p
          do ix = i2omp, i5omp
+            if (isphionxy(ix,iy) .ne. 1) cycle   # no phi unknown in this cell (idxphi unset): AIUE-224
             iv3 = idxphi(ix,iy)
             isgc = .false.
             isgc1 = .false.
@@ -356,7 +357,6 @@ ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
 ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
 ccc     .                                           phi(nx+1,iy))/temp0
       end if
-
 
 
 c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
