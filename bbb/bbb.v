@@ -3099,7 +3099,7 @@ ziin(1:nispmx)  real  /nispmx*1./ +input
 znuclin(1:nispmx) integer /nispmx*1./ +input #total nuclear charge of ion (i.d. isotope)
 isallloc		integer   /0/        #=1 for local process. allocation with mpi
 newaph			integer  /1/ +input #=1 calls aphread for hyd. atomic data;=0 not
-newapi		integer /1/	     +input #=1, call readmc for new imp. data;=0, no						
+newapi		integer /1/	     +input #=1, call readmc for new imp. data;=0, no (ueinit resets the tables: with ismctab=2 and impurity species it stops unless other tables were read)
 pyrestart_file    character*80 /""/ #Python file that can also be used to restart
 read_diffs		integer /0/	     +maybeinput #=0,a flag to signal whether to read diffusivities
 dif_io		integer /0/	     +maybeinput #=0,a flag to signal whether to read/write dif_use

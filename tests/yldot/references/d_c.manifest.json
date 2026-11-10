@@ -1826,15 +1826,15 @@
     }
   },
   "provenance": {
-    "commit": "7bd5639d084ec084a6a026419250289398521ed1",
+    "commit": "8b6c04d88281b70c7e6dc2b7abe35165d6ac3fc8",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-29T02:59:49+00:00",
+    "date": "2026-11-10T05:27:59+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v16",
+  "release": "yldot-data-v18",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -22373,7 +22373,7 @@
       "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "bounds-check: api/fimp.F:108: Index '1' of dimension 1 of array 'rtlt' above upper bound of 0 (serial build: error: RuntimeError (log: *** mcrates could not find za= 0 zn= 6 / *** check mcfilenames array))",
+      "reason": "error: RuntimeError: *** ueinit: ismctab=2 but no impurity rate tables were read (newapi=0 or nzdf=0); set newapi=1 and nzdf, mcfilename ***",
       "sha256": null
     },
     "bbb.newbcl": {
