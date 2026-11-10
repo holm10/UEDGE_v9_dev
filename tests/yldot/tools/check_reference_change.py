@@ -9,7 +9,7 @@ Usage (from anywhere; PR_BODY holds the PR description):
 check compares the PR head with its merge base as data: it computes the merge base once (git merge-base), lists the
 changed paths from it to the head with git diff, reads every base-side copy (manifests, TOML) at the merge base, never
 at the base tip, and the head copies with git cat-file, and parses the manifests and TOML files. It never imports, runs
-or checks out code of the head (reference-guard.yml runs the base branch's copy of this script, AIUE-104). The PR
+or checks out code of the head (reference-guard.yml runs the default branch's copy of this script, AIUE-104). The PR
 description is read without its HTML comments and fenced code blocks. Every printed line has its control characters
 escaped (\\x0a), so a path or name chosen by the PR cannot start a log line. Each changed path needs one or more
 declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ticket page):

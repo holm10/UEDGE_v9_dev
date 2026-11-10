@@ -1,0 +1,81 @@
+name: yldot reference guard
+
+# The reference guard of the yldot suite (epic AIUE-9, PRD section 7.6; AIUE-104). It runs
+# tests/yldot/tools/check_reference_change.py on every pull request: each change to the references, the tolerances,
+# the test code or the four yldot workflows needs its declaration line in the PR description (Default results:
+# changed, Test criteria: changed, Test criteria: loosened; .claude/context/testing.md). The job "reference guard" is
+# a required check on v9-develop (ruleset A); CODEOWNER approval of a loosening is ruleset B.
+#
+# pull_request_target, so the PR cannot change the judge: GitHub takes this workflow file and the checkout from the
+# default branch (since 2025-12-08), so it is v9-develop's copy of the guard that runs, also for a stacked PR. The PR
+# head is fetched as data only, never checked out or run, and the PR description reaches the script through an
+# environment variable only. No ${{ }} inside run: blocks. "[skip ci]" does not skip pull_request_target.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: reference-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: reference guard   # the required-check context of ruleset A: never rename it without the ruleset
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+    - name: Check out the default branch (the guard that judges)
+      uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955   # v4.3.0
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065   # v5.6.0
+      with:
+        python-version: "3.11"
+
+    - name: Install the guard's dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install numpy==1.26.4 h5py==3.16.0
+
+    - name: Fetch the PR as data
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        git fetch --no-tags origin "+refs/pull/$PR_NUMBER/head:refs/remotes/pr/head" \
+            "+refs/heads/$BASE_REF:refs/remotes/pr/base"
+        if [ "$(git rev-parse refs/remotes/pr/head)" != "$HEAD_SHA" ]; then
+            echo "::error::the PR head moved past $HEAD_SHA; the run for the newer push decides"
+            exit 1
+        fi
+        if ! git cat-file -e "$BASE_SHA^{commit}"; then
+            echo "::error::the PR base $BASE_SHA is not in the repository (base branch rewritten); push to the PR to re-run"
+            exit 1
+        fi
+
+    - name: Run the reference guard
+      env:
+        PR_BODY: ${{ github.event.pull_request.body }}
+        GH_TOKEN: ${{ github.token }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        # no file over 200 MiB on the runner: the runner-side cap of the guard's MAX_EXTERNAL_BYTES
+        ulimit -f 204800
+        rc=0
+        python -I tests/yldot/tools/check_reference_change.py check --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --gh-repo "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY" || rc=$?
+        if [ "$rc" -eq 153 ]; then   # 128 + SIGXFSZ
+            echo "::error::the guard wrote a file over 200 MiB and was stopped (ulimit -f)"
+        fi
+        exit "$rc"

@@ -1,0 +1,205 @@
+name: yldot nightly tier
+
+# The yldot nightly tier (epic AIUE-9, PRD sections 4 and 7.9; AIUE-104): the tests marked nightly (the variant sweep
+# of the large families, the locality tests and the per-variant locality patterns), every night on the default branch
+# and on every pull request that changes more than docs or the AI layer. build-serial builds the serial wheel once as
+# build-test-wheel.yml does (Python 3.11, numpy==1.26.4, ubuntu-24.04) and lists the shards with
+# tests/yldot/tools/shards.py; each leg runs `pytest tests/yldot -m nightly --yldot-shard <shard>`, so the legs together
+# run the nightly tier once. The large families have 20 locality tests each, 4-21 min apiece depending on the runner's
+# hardware (4 workers; AIUE-104 ticket page). large_dd2c and dnull_imp2 run as two legs (11 locality tests, the rest);
+# imp7, the slowest, as five (four locality legs of 4-6 tests, at most 2 rounds each, and the rest). A family's -k
+# expressions partition its shard: together its legs are exactly the shard. --dist worksteal: xdist's default
+# schedule hands each worker a run of consecutive tests first, which put all of imp7's locality tests on one worker.
+# Budget: <= 60 min wall for the whole run (PRD 7.9). The common shard has no nightly test today: its exit 5 ("no
+# tests collected") passes, a family shard's does not. Locally: pytest tests/yldot -n auto -m nightly
+# (.claude/context/testing.md).
+
+# paths-ignore: the ticket's docs paths, plus the AI-layer paths of build-test-wheel.yml (the PROCESS pattern of
+# .claude/hooks/change_kind.py; keep them in step). The schedule and manual dispatch are unaffected.
+on:
+  schedule:
+    - cron: "43 4 * * *"   # after the OpenMP nightly (03:17); runs only from the default branch
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "doc/**"
+      - "**/*.md"
+      - "CLAUDE.md"
+      - ".mcp.json"
+      - ".claude/**"
+      - ".githooks/**"
+      - ".github/workflows/claude-*.yml"
+      - ".github/workflows/claude-*.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yldot-nightly-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # superseded pull-request runs are cancelled; scheduled and dispatched runs always finish
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+
+  build-serial:
+    name: Builds the serial wheel once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      shards: ${{ steps.shards.outputs.shards }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install pip dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "forthon>=0.10.7" numpy==1.26.4 h5py setuptools wheel
+
+    - name: Build the serial wheel
+      run: |
+        gfortran --version | head -1
+        t0=$(date +%s)
+        python -m pip wheel -v --no-build-isolation --no-deps -w dist . -C "--build-option=--serial"
+        line="Serial wheel $(ls dist) built in $(( $(date +%s) - t0 )) s"
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: List the yldot shards
+      id: shards
+      run: |
+        shards=$(python tests/yldot/tools/shards.py)
+        echo "Shards: $shards"
+        echo "shards=$shards" >> "$GITHUB_OUTPUT"
+
+    - name: Upload the wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: uedge-serial-wheel-nightly
+        path: dist/*.whl
+        if-no-files-found: error
+        retention-days: 7
+
+
+  yldot-nightly:
+    name: yldot nightly (${{ matrix.shard }}/${{ matrix.leg }})
+    runs-on: ubuntu-24.04
+    needs: build-serial
+    timeout-minutes: 120   # an over-budget leg is measured, not cancelled; the budget is read from the wall times
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.build-serial.outputs.shards) }}
+        leg: [all]
+        select: [""]
+        exclude:
+          - shard: imp7
+          - shard: large_dd2c
+          - shard: dnull_imp2
+        include:   # applied after exclude: new combinations, two complementary legs per family
+          - shard: imp7
+            leg: locality-g
+            select: "test_locality.py and methg"
+          - shard: imp7
+            leg: locality-ip
+            select: "test_locality.py and (methi or methp)"
+          - shard: imp7
+            leg: locality-u
+            select: "test_locality.py and methu"
+          - shard: imp7
+            leg: locality-en
+            select: "test_locality.py and not (methg or methi or methp or methu)"
+          - shard: imp7
+            leg: rest
+            select: "not test_locality.py"
+          - shard: large_dd2c
+            leg: locality-gip
+            select: "test_locality.py and (methg or methi or methp)"
+          - shard: large_dd2c
+            leg: rest
+            select: "not (test_locality.py and (methg or methi or methp))"
+          - shard: dnull_imp2
+            leg: locality-gip
+            select: "test_locality.py and (methg or methi or methp)"
+          - shard: dnull_imp2
+            leg: rest
+            select: "not (test_locality.py and (methg or methi or methp))"
+    env:
+      SHARD: ${{ matrix.shard }}
+      LEG: ${{ matrix.leg }}
+      SELECT: ${{ matrix.select }}
+    steps:
+    - name: Record start time
+      run: echo "YLDOT_T0=$(date +%s)" >> "$GITHUB_ENV"
+
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Download the serial wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: uedge-serial-wheel-nightly
+        path: dist
+
+    - name: Install the wheel with the test extra
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "$(ls dist/*.whl)[test]" numpy==1.26.4
+        python -m pip list | grep -i -E "^(uedge|numpy|h5py|forthon|pytest)"
+
+    - name: Smoke test
+      run: |
+        cd /tmp && python -I -c "from uedge import bbb; print(bbb.uedge_ver)"
+
+    - name: Restore the release assets
+      uses: actions/cache@v4
+      with:
+        path: tests/yldot/.data
+        key: yldot-data-${{ hashFiles('tests/yldot/references/*.manifest.json') }}
+
+    - name: Fetch and verify the release assets
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python tests/yldot/tools/fetch_data.py
+
+    - name: Test with pytest
+      run: |
+        echo "nproc $(nproc), $(grep -m1 'model name' /proc/cpuinfo)"   # locality tests vary up to 2x with the hardware
+        args=()
+        if [ -n "$SELECT" ]; then args=(-k "$SELECT"); fi
+        set +e
+        python -m pytest tests/yldot -n auto --dist worksteal -m nightly --yldot-shard "$SHARD" "${args[@]}" \
+            --timeout 1800 -p no:cacheprovider -ra --durations=25 --junitxml "junit-nightly-$SHARD-$LEG.xml"
+        rc=$?
+        set -e
+        if [ "$rc" -eq 5 ] && [ "$SHARD" = common ]; then
+            echo "common: no nightly test collected (exit 5), accepted"
+            rc=0
+        fi
+        exit "$rc"
+
+    - name: Wall time
+      if: always()
+      run: |
+        line="yldot nightly $SHARD/$LEG: job wall time $(( $(date +%s) - YLDOT_T0 )) s"
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload the junit report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: yldot-nightly-junit-${{ matrix.shard }}-${{ matrix.leg }}
+        path: junit-nightly-${{ matrix.shard }}-${{ matrix.leg }}.xml
+        if-no-files-found: warn
+        retention-days: 30
