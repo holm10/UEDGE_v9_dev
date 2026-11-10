@@ -581,9 +581,12 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   passes the description as `PR_BODY` and `GH_TOKEN` through `env:` only, caps files at 200 MiB (`ulimit -f`), and
   runs `check --base <base sha> --head <head sha>`; its check run lands on the PR head commit. `[skip ci]` does not
   skip it (it skips `push`/`pull_request` only). `.github/CODEOWNERS` names the owner for `tests/yldot/`,
-  `.github/workflows/` and itself. Owner decision D1 (2026-10-28): two rulesets on `v9-develop`, applied by the owner
-  after AIUE-104 merges: A requires the `reference guard` check (no bypass), B requires code-owner review with the
-  admin role allowed to bypass it on a pull request (the owner's own PRs).
+  `.github/workflows/` and itself. Owner decision D1 (2026-10-28), applied 2026-11-10: two rulesets on `v9-develop`.
+  A (`v9-develop guard`) requires the `reference guard` check, with no bypass. B (`v9-develop code owners`) requires
+  one approving review and code-owner review, and lets the admin role bypass it on a pull request. Every PR the owner
+  opens, including those Claude opens through `gh`, merges only through that bypass, which GitHub records. B first had
+  0 required approvals and then demanded nothing on the owner's own PRs (test PR #86: `CLEAN`, `reviewDecision`
+  null), hence 1 (owner, 2026-11-10).
 - **The yldot nightly tier** (AIUE-104): `.github/workflows/nightly-tests.yml` on `schedule` (04:43 UTC, default
   branch), `pull_request` (path filter above) and `workflow_dispatch`. It builds the serial wheel as
   `build-test-wheel.yml` does and runs `pytest tests/yldot -n auto --dist worksteal -m nightly --yldot-shard <shard>
