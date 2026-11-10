@@ -1,10 +1,9 @@
 # Testing — what actually exists
 
-**The regression suite is not in this repository.** It lives on a `pytests` branch. **v9 work uses `origin/pytests`**
-(the holm10 fork): it holds v9's own references, regenerated for the v9 physics and listed with their reason in
-`V9_REFERENCE_CHANGES.md` on that branch, for a later merge into LLNL's `upstream/pytests`. CI no longer runs it:
-`build-test-wheel.yml` runs the yldot PR tier instead (AIUE-103, CI facts below).
-There are no unit tests of individual Fortran routines and no coverage measurement.
+**The yldot suite (`tests/yldot/`) is the regression suite.** The old one, on the fork's `origin/pytests` branch, is
+retired (AIUE-107): the yldot PR and nightly tiers take more `bbb/pandf*.F` branches than it did (Coverage, below),
+and its last state is kept in "Retired suite" below. CI runs the yldot PR tier (`build-test-wheel.yml`, AIUE-103, CI
+facts below). There are no unit tests of individual Fortran routines.
 
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
 data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
@@ -299,6 +298,21 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
   families: `tg` gets its first `rtol` (from large_dd2c) and `up` 1.589e-8 (dnull_imp2's atoms on its wall ring);
   imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`.
+- **Coverage** (PRD §7.10, AIUE-107) `tests/yldot/tools/coverage.sh` and `coverage_compare.py`: line and branch
+  coverage of `bbb/pandf*.F` under the yldot suite. Needs a coverage build of the checkout (`pip install . -C
+  "--build-option=--coverage"`, AIUE-105: serial, `-O0 --coverage`; it refuses any other build by its record) and
+  gcovr in the venv. `coverage.sh new OUTDIR [--jobs N] [-- PYTEST ARGS]` runs the PR tier, then the nightly tier
+  (or only the given arguments) and writes `new.json` (gcovr), `new.txt`, `new.meta` and the JUnit XML;
+  `coverage.sh report OUTDIR [--base FILE]` compares it with another run (`coverage_compare.py`: branches taken at
+  least once, gcov's "branches executed", the branches only one run takes, mapped to `.m` lines). Facts it relies on
+  (AIUE-107 probes, macOS arm64, gcov 15): harness children keep counts only under `YLDOT_START_METHOD=spawn`, which
+  it sets (forkserver children leave none); concurrent processes merge `.gcda` counts exactly; it passes no pytest
+  `--timeout`, but a harness child timeout still kills a child, which then writes no counts (listed, exit 1);
+  locality runs exceed gcovr's 2^32-hit guard with genuine counts (`--gcov-suspicious-hits-threshold 0`); 95.9 % of
+  the instrumented `.F` lines map to a `.m` line. Gate result (run `coverage-0745776`, kept in
+  `../uedge-wt/data/AIUE-107/`): branches taken, yldot PR + nightly tiers 3081/4580 (67.27 %) against the old suite's
+  2665/4580 (58.19 %); the 220 branches only the old suite took (selector values other than one step from a family
+  default, and the non-`+input` `ifixsrc`) are AIUE-245. The full run takes about 2.3 h at 10 workers on an M4 Pro.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
   without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and
   `build.run` stubbed; `argv` as pip passes `-C "--build-option=--<opt>"`) and records the `--fargs`/`--cargs` strings,
@@ -414,7 +428,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
 
 Every PR that touches Fortran (`*.m`, `*.F90`, hand-written `*.f`), a `.v` file or `ppp/` must show that serial
 results are **bitwise** unchanged against `v9-develop`, in the `--serial` build and in the default OpenMP build with
-`ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0`. The pytests suite (`rtol=1e-5`) cannot show this.
+`ppp.OMPParallelJac = ppp.OMPParallelPandf1 = 0`. A suite that compares within tolerances cannot show this.
 
 ```bash
 python tests/deterministic_omp/harness/serial_check.py \
@@ -434,7 +448,7 @@ so `psetnk`, the ILU preconditioner, Krylov and the line search are covered. It 
 - Exit 2: harness error (a wrong build kind; same build, tree or clean commit; a record not on the serial path; an
   `-itN` case that did not iterate) or an incomplete gate (`RESULT: INCOMPLETE`; `--partial-ok` for a quick look).
 
-Needs no pytests checkout; the owner families (`large_dd2c`, `dnull_imp2`, `imp7`) run by name only, after
+The owner families (`large_dd2c`, `dnull_imp2`, `imp7`) run by name only, after
 `fetch_data.py`. Paste the build lines and the `RESULT` line into the PR. Details:
 `tests/deterministic_omp/README.md`.
 
@@ -503,64 +517,18 @@ CC=gcc-15 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" OMP_NUM_THRE
 (as a script file: the permission check refuses `VAR=… cmd` prefixes, `CLAUDE.md` → Gotchas). Mark a step whose build
 fails `git bisect skip`; without these flags a whole range is skipped and the bisect stalls at "N revisions left".
 
-## Suite structure (`pytests` branch)
+## Retired suite (`pytests` branch)
 
-```
-pytests/fulltests/<case>/{input.py, conftest.py, test_<case>.py, gridue, *.h5 reference}
-pytests/unittests/{D+C, D_mols, D_only, slab_D_only}/<case>/<variant>/{input.py, conftest.py, test_*.py, ...}
-MakeTests.py              # regenerates whole test directories (re-perturbs every case)
-tools/rereference.py      # origin/pytests only: regenerates one case's reference, keeping its stored state
-V9_REFERENCE_CHANGES.md   # origin/pytests only: every reference that differs from LLNL's, and why
-```
+The old regression suite lives on the fork's `origin/pytests` branch (last commit f695acd; v9's references and their
+reasons in `V9_REFERENCE_CHANGES.md` there). It evaluated 157 cases from a stored, perturbed state and compared the
+residual `fnrm` per equation against references at `rtol=1e-5`. Nothing in this repository runs it. AIUE-107 ran it
+once, for the coverage comparison (Coverage, below), and retired it; the skills that still name it lose it in AIUE-108.
 
-Each test (`TestClass.test_reference`):
-1. Silences output (`com.iprint = 0`), executes `input.py` to set up the case.
-2. Sets `bbb.issfon=1`, `bbb.ftol=1e20` (evaluate only, no convergence) and runs `bbb.exmain()` from a stored,
-   deliberately **perturbed** solution. The perturbation (`perturb_solution`, ±1 % random on
-   `nis/ups/tes/tis/ngs/tgs/phis`) was applied to `solution.h5` by `write_data` when the reference was made; the test
-   itself never calls it, so a test run is deterministic.
-3. Cycles the equation switches (`isnion … isphion`) one at a time and compares the residual `fnrm` and
-   case-setup variables against the reference with `rtol=1e-5`. A failure prints which equation/species diverged.
-   This makes the suite a sensitive check of the **RHS residual (`pandf`)**, not of converged physics.
+### Known failures on `v9-develop`
 
-`conftest.py` chdirs into the case dir (same fixture as `pyexamples/input_example/conftest.py`).
-`pytest --isolate` (pytest-isolate) is required: each test needs a fresh process because Forthon module state is global.
-
-## Running locally
-
-```bash
-pip install . -C "--build-option=--serial"     # mirror CI
-pip install pytest pytest-isolate
-git fetch origin pytests
-git worktree add --detach ../uedge-pytests origin/pytests   # an existing checkout: git -C ../uedge-pytests checkout --detach origin/pytests
-cd ../uedge-pytests
-pytest --isolate --tb=long pytests/unittests/D_only -s        # fastest
-pytest --isolate --tb=long pytests/fulltests -s
-```
-
-Pick the suite that exercises your change (impurities → `D+C`, molecules → `D_mols`, slab geometry →
-`slab_D_only`). Physics-neutral changes must pass **all** suites unchanged. On LLNL's `upstream/pytests` the cases
-listed in `V9_REFERENCE_CHANGES.md` fail for v9 by design; don't use it for v9 work.
-
-## Known failures on `v9-develop`
-
-`validate` marks a failure listed here ⚠️ pre-existing without a base re-run; anything else is the change's until a
-base run shows otherwise. Remove an entry when its fix merges. Before scoping a ticket about a failing test, run
-**every** suite on a base venv of the branch point and record here what is red there.
-
-Last full run: all suites on a serial build of the AIUE-132 change (same-mesh restart copies, on `v9-develop` c82a515)
-against `origin/pytests` f695acd (2026-10-21): 157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3).
-- **Failures:** none.
-- **Passes with a warning:** none. The D_only `nonog/icnucx` warning seen before ("Fnrms outside of tolerances, but
-  similar") came from the second exmain interpolating onto the same mesh, fixed by AIUE-132.
-
-## When results change intentionally
-
-New physics should be off by default, so references stay valid. If a reference must change (a bug fix, or an owner
-decision on a physics default), regenerate that case with `tools/rereference.py <case dir>` on `origin/pytests`, in a
-separate PR to that branch, add the case to `V9_REFERENCE_CHANGES.md` (old and new `fnrm`, the change that moved it,
-who decided it), and explain the diff in the main PR. Not `MakeTests.py`: it rebuilds the whole directory and
-re-perturbs every case with unseeded random numbers, so every reference in it would move.
+None. The last full run (all suites on a serial build of `v9-develop` c82a515 against `origin/pytests` f695acd,
+2026-10-21) gave 157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3). AIUE-107's coverage run
+(`-O0 --coverage`, 0745776, 2026-11-10) also gave 157 passed.
 
 ## CI facts / quirks
 
