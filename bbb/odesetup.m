@@ -1164,6 +1164,14 @@ c.....Then the Braams table(s):
          endif
       endif
 
+c ... Impurity species need the Braams tables (ismctab=2), but none were read
+      if ((isimpon .ge. 4) .and. (isimpon .le. 7) .and. (ismctab .eq. 2)
+     .    .and. (nzspt .gt. 0) .and. (rtnsd .eq. 0)) then
+         call xerrab('*** ueinit: ismctab=2 but no impurity rate '//
+     .     'tables were read (newapi=0 or nzdf=0); set newapi=1 '//
+     .     'and nzdf, mcfilename ***')
+      endif
+
 c ... If isimpon > 0 and isph_sput = 1, init. DIVIMP data for physical sputt.
       do igsp = 1, ngsp    # note only one species should have isph_sput=1
          if (isimpon.gt.0 .and. isph_sput(igsp).ge.1) then
