@@ -33,13 +33,17 @@ MODE="$1"; OUT="$2"; shift 2
 JOBS=1; BASE=""; EXTRA=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --jobs) JOBS="$2"; shift 2 ;;
-    --base) BASE="$2"; shift 2 ;;
+    --jobs|--base)
+      [ $# -ge 2 ] || die "$1 needs a value"
+      [ "$1" = --jobs ] && JOBS="$2" || BASE="$2"
+      shift 2 ;;
     --) shift; EXTRA=("$@"); break ;;
     *) usage ;;
   esac
 done
 case "$MODE" in new|report) ;; *) usage ;; esac
+case "$JOBS" in ""|*[!0-9]*) die "--jobs needs a positive integer, got '$JOBS'" ;; esac
+[ "$JOBS" -ge 1 ] || die "--jobs needs a positive integer, got '$JOBS'"
 mkdir -p "$OUT" || die "cannot create $OUT"
 OUT="$(cd "$OUT" && pwd)"
 

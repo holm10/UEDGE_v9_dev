@@ -10,8 +10,9 @@ NEW.json and OLD.json are `gcovr --json` reports of one coverage build (`pip ins
 branch's line ran), per .F file and in total. With --old: the branches OLD takes and NEW does not ("old-only") and the
 reverse, keyed by (file, line, position of the branch among that line's branches), each old-only branch with its .F
 line, the approximate .m line and the source text. gcovr lists the branches of one line in a fixed order for one
-build, so the key is stable between two runs of the same build; reports of different builds are refused (their
-instrumented lines differ).
+build, so the key is stable between two runs of the same build. Compare only reports of one build: two reports whose
+instrumented lines or branch counts differ are refused, but two builds with the same line and branch structure are
+not detected (check the build records in the runs' .meta files).
 
 The .F -> .m map is approximate (PRD 7.10): setup.py's MPPL conversion keeps each pandf file's line count but moves
 declarations (MoveDecs) and rewrites '#' comments to '!'. A .F line maps to the same .m line when the two are equal
@@ -22,7 +23,7 @@ Writes DIR/summary.md (and DIR/old_only.json with --old); prints the totals and,
     GATE: new branches taken >= old: yes|no; old-only branches: N (on L lines)
 The gate's outcome is the owner's to accept (PRD 12 Phase 4); this tool only reports it.
 
-Exit codes: 0 reported, 2 usage (unreadable report, reports of different builds).
+Exit codes: 0 reported, 2 usage (unreadable report, reports whose instrumented lines or branches differ).
 """
 import argparse
 import json
