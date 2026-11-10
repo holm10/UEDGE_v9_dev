@@ -41,7 +41,7 @@ python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 pip install ".[test]"                                # pytest, pytest-xdist, pytest-timeout, h5py, numpy, setuptools
 pytest tests/yldot -n auto -m "not nightly"         # the PR tier (one CI shard: add --yldot-shard <family|common>)
 tests/yldot/tools/coverage.sh new OUT --jobs 10      # pandf*.F coverage under the yldot suite (a --coverage build; testing.md)
-# tests/deterministic_omp/ holds the OpenMP reproducer. The old regression suite (origin/pytests) is retired (AIUE-107)
+# tests/deterministic_omp/ holds the OpenMP reproducer. The old regression suite is retired (AIUE-107, testing.md)
 ```
 
 There is no linter, formatter, or type checker, and CI runs none. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:80-87`).
