@@ -587,14 +587,17 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 - **The yldot nightly tier** (AIUE-104): `.github/workflows/nightly-tests.yml` on `schedule` (04:43 UTC, default
   branch), `pull_request` (path filter above) and `workflow_dispatch`. It builds the serial wheel as
   `build-test-wheel.yml` does and runs `pytest tests/yldot -n auto --dist worksteal -m nightly --yldot-shard <shard>
-  --timeout 1800` per shard; imp7, large_dd2c and dnull_imp2 each run as two legs with complementary `-k`
-  expressions (`locality-gip`: 11 locality tests; `rest`: the other 970, 970 and 967), 12 legs in all. `common` has
+  --timeout 1800` per shard; large_dd2c and dnull_imp2 run as two legs with complementary `-k` expressions
+  (`locality-gip`: 11 locality tests; `rest`: the other 970 and 967), imp7 as five (`locality-g` 5, `locality-ip` 6,
+  `locality-u` 4, `locality-en` 5 incl. the base test, `rest` 961), 15 legs in all. `common` has
   no nightly test, and its exit 5 is accepted (a family shard's is not). `--dist worksteal` is needed: xdist's
   default schedule first hands each worker a run of consecutive tests, which put all 20 imp7 locality tests (6-7 min
   each) on one worker (imp7 shard, macOS arm64 `-n 4`, 2026-10-28: 7303 s with `load`, 2314 s with `worksteal`).
-  Budget: ≤ 60 min wall (PRD §7.9). On the 4-core runner a locality test takes about 740 s (large_dd2c), 490 s
-  (dnull_imp2) and 850-900 s (imp7); with large_dd2c as one leg the run took 72 min (run 42718886354, 2026-11-09:
-  large_dd2c 4184 s, dnull_imp2 2897 s), hence the split.
+  Budget: ≤ 60 min wall (PRD §7.9). A locality test's time on the 4-core runner varies with the runner's hardware:
+  large_dd2c 740 s then 450 s, dnull_imp2 490 s then 600 s, imp7 850-900 s then 1255-1267 s (runs 42718886354 and
+  42739703331, 2026-11-09/10: 72 min with large_dd2c as one leg, 63.7 min with imp7 as two legs of 3 rounds each),
+  hence the splits. Each leg logs its runner's CPU model. The slowest test, 1267 s, is 1.4× under `--timeout 1800`
+  (owner: keep 1800, 2026-11-10).
 - `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
   builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
   AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
