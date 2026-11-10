@@ -587,11 +587,14 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
 - **The yldot nightly tier** (AIUE-104): `.github/workflows/nightly-tests.yml` on `schedule` (04:43 UTC, default
   branch), `pull_request` (path filter above) and `workflow_dispatch`. It builds the serial wheel as
   `build-test-wheel.yml` does and runs `pytest tests/yldot -n auto --dist worksteal -m nightly --yldot-shard <shard>
-  --timeout 1800` per shard; imp7 runs as two legs with complementary `-k` expressions (`locality-gip`: 11 locality
-  tests; `rest`: 970), 10 legs in all. `common` has no nightly test, and its exit 5 is accepted (a family shard's is
-  not). `--dist worksteal` is needed: xdist's default schedule first hands each worker a run of consecutive tests,
-  which put all 20 imp7 locality tests (6-7 min each) on one worker (imp7 shard, macOS arm64 `-n 4`, 2026-10-28:
-  7303 s with `load`, 2314 s with `worksteal`). Budget: ≤ 60 min wall (PRD §7.9).
+  --timeout 1800` per shard; imp7, large_dd2c and dnull_imp2 each run as two legs with complementary `-k`
+  expressions (`locality-gip`: 11 locality tests; `rest`: the other 970, 970 and 967), 12 legs in all. `common` has
+  no nightly test, and its exit 5 is accepted (a family shard's is not). `--dist worksteal` is needed: xdist's
+  default schedule first hands each worker a run of consecutive tests, which put all 20 imp7 locality tests (6-7 min
+  each) on one worker (imp7 shard, macOS arm64 `-n 4`, 2026-10-28: 7303 s with `load`, 2314 s with `worksteal`).
+  Budget: ≤ 60 min wall (PRD §7.9). On the 4-core runner a locality test takes about 740 s (large_dd2c), 490 s
+  (dnull_imp2) and 850-900 s (imp7); with large_dd2c as one leg the run took 72 min (run 42718886354, 2026-11-09:
+  large_dd2c 4184 s, dnull_imp2 2897 s), hence the split.
 - `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
   builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
   AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
