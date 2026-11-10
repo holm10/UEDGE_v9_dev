@@ -769,15 +769,15 @@ isph_sput(ngspmx) integer /ngspmx*0/  +input
 				#=2 adds h-ion chem sputt;=3 adds h-neut c_sput
 isi_sputw(ngspmx) integer /ngspmx*0/ +input 
                 #flag for outer wall ion-based sputter;
-				#=0, no ion sputtering
+				#=0, none; >=1 needs isimpon>0 and an isph_sput>=1
 				#=1 adds phys ion sputt; =2 adds chem ion sputt
 isi_sputpf(ngspmx) integer /ngspmx*0/ +input 
                 #flag for priv flux ion-based sputter;
-				#=0, no ion sputtering
+				#=0, none; >=1 needs isimpon>0 and an isph_sput>=1
 				#=1 adds phys ion sputt; =2 adds chem ion sputt
 islim_sput(ngspmx) integer /ngspmx*0/ +input
                 #flag for limiter flux ion-based sputter;
-				#=0, no ion sputtering
+				#=0, none; >=1 needs isimpon>0 and an isph_sput>=1
 				#=1 adds phys ion sputt; =2 adds chem ion sputt
 
 matt	  integer               #output flag from syld96 for sputt. target mat.
