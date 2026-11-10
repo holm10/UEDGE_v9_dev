@@ -5,8 +5,9 @@ name: yldot nightly tier
 # and on every pull request that changes more than docs or the AI layer. build-serial builds the serial wheel once as
 # build-test-wheel.yml does (Python 3.11, numpy==1.26.4, ubuntu-24.04) and lists the shards with
 # tests/yldot/tools/shards.py; each leg runs `pytest tests/yldot -m nightly --yldot-shard <shard>`, so the legs together
-# run the nightly tier once. imp7 runs as two legs whose -k expressions are complements (its 20 locality tests take
-# 6-7 min each; AIUE-104 ticket page): together they are exactly the imp7 shard. --dist worksteal: xdist's default
+# run the nightly tier once. imp7, large_dd2c and dnull_imp2 each run as two legs whose -k expressions are complements
+# (20 locality tests each, 8-15 min apiece on the runner, 4 workers; run 42718886354 took 72 min with large_dd2c as one
+# leg; AIUE-104 ticket page): together a family's two legs are exactly its shard. --dist worksteal: xdist's default
 # schedule hands each worker a run of consecutive tests first, which put all of imp7's locality tests on one worker.
 # Budget: <= 60 min wall for the whole run (PRD 7.9). The common shard has no nightly test today: its exit 5 ("no
 # tests collected") passes, a family shard's does not. Locally: pytest tests/yldot -n auto -m nightly
@@ -97,11 +98,25 @@ jobs:
         select: [""]
         exclude:
           - shard: imp7
-        include:   # applied after exclude: two new combinations, complements of each other
+          - shard: large_dd2c
+          - shard: dnull_imp2
+        include:   # applied after exclude: new combinations, two complementary legs per family
           - shard: imp7
             leg: locality-gip
             select: "test_locality.py and (methg or methi or methp)"
           - shard: imp7
+            leg: rest
+            select: "not (test_locality.py and (methg or methi or methp))"
+          - shard: large_dd2c
+            leg: locality-gip
+            select: "test_locality.py and (methg or methi or methp)"
+          - shard: large_dd2c
+            leg: rest
+            select: "not (test_locality.py and (methg or methi or methp))"
+          - shard: dnull_imp2
+            leg: locality-gip
+            select: "test_locality.py and (methg or methi or methp)"
+          - shard: dnull_imp2
             leg: rest
             select: "not (test_locality.py and (methg or methi or methp))"
     env:
