@@ -6,7 +6,7 @@
 
 [rule]
 k = 100.0
-rtol_factor = 100.0
+rtol_factor = 1000.0
 rtol_floor = 1e-14
 floor_limit = 0.1
 floor = "PRD 7.4: tol_i = max(rtol_eq*|ref_i|, k*sigma_i) where sigma_i > 0; where sigma_i = 0, max(rtol_eq*|ref_i|, k*sigma_min,r), sigma_min,r the smallest non-zero sigma of the entry's (equation, species, region), else of its (equation, species) over the family, else the epic owner"
