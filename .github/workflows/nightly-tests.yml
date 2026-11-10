@@ -5,7 +5,7 @@ name: yldot nightly tier
 # and on every pull request that changes more than docs or the AI layer. build-serial builds the serial wheel once as
 # build-test-wheel.yml does (Python 3.11, numpy==1.26.4, ubuntu-24.04) and lists the shards with
 # tests/yldot/tools/shards.py; each leg runs `pytest tests/yldot -m nightly --yldot-shard <shard>`, so the legs together
-# run the nightly tier once. The large families have 20 locality tests each, 4-21 min apiece depending on the runner's
+# run the nightly tier once. The large families have 20 locality tests each, 4-25 min apiece depending on the runner's
 # hardware (4 workers; AIUE-104 ticket page). large_dd2c and dnull_imp2 run as two legs (11 locality tests, the rest);
 # imp7, the slowest, as five (four locality legs of 4-6 tests, at most 2 rounds each, and the rest). A family's -k
 # expressions partition its shard: together its legs are exactly the shard. --dist worksteal: xdist's default

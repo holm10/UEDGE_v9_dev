@@ -600,7 +600,7 @@ re-perturbs every case with unseeded random numbers, so every reference in it wo
   large_dd2c 740 s then 450 s, dnull_imp2 490 s then 600 s, imp7 850-900 s then 1255-1267 s (runs 42718886354 and
   42739703331, 2026-11-09/10: 72 min with large_dd2c as one leg, 63.7 min with imp7 as two legs of 3 rounds each),
   hence the splits. With 15 legs the run took 41.7 min (run 42747608872, slowest leg imp7/locality-ip 39.6 min).
-  Each leg logs its runner's CPU model: that run drew five (AMD EPYC 7763, 9V74, 9V45; Intel Xeon 8370C, 8573C,
+  Each leg logs its runner's CPU model: that run drew six (AMD EPYC 7763, 9V74, 9V45; Intel Xeon 8370C, 8573C,
   6973P-C), and the slowest test, imp7 `methi=44` at 1488 s on a Xeon 8370C, is only 1.2× under `--timeout 1800`
   (owner: keep 1800, 2026-11-10; a timeout goes back to the owner).
 - `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
