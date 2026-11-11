@@ -151,12 +151,12 @@ c     routines.
       if (kymax .lt. kybeg) then
          write(*,90) '*** Max. growth rate for L-mode turbulence',
      .      ' found at ky < kybeg = ', kybeg
-         call xerrab("")
+         call xerrab('Error in subroutine lmode_chi_norm: max. growth rate for L-mode turbulence found at ky < kybeg')
       endif
       if (kymax .gt. kyend) then
          write(*,90) '*** Max. growth rate for L-mode turbulence',
      .      ' found at ky > kyend = ', kyend
-         call xerrab("")
+         call xerrab('Error in subroutine lmode_chi_norm: max. growth rate for L-mode turbulence found at ky > kyend')
       endif
  90   format(a,a,f6.3)
 

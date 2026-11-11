@@ -26,6 +26,33 @@ CASE_FILES = ["input_mod4.py", "b0p1.hdf5", "gridue.hdf5", "save_input_mod4.h5",
 ITER_RE = re.compile(r"(OMP )?iter=\s*(\d+)\s+fnrm=\s*(\S+)\s+nfe=\s*(\d+)")
 
 
+def log_tail(rundir, budget=280):
+    """The end of rundir's run.log for a failure reason: NULs removed, whitespace collapsed, blank lines dropped,
+    whole lines kept from the end while their ' / '-joined length stays within budget (a last line longer than
+    budget keeps its last budget characters). run.log is in time order (GFORTRAN_UNBUFFERED_PRECONNECTED and the
+    workers' line-buffered stdout), so the tail ends at the stop; earlier, unrelated lines may precede it. '' if
+    nothing is left or run.log cannot be read. A copy of the rule of tests/yldot/tools/make_references.py
+    logged_error (AIUE-239, owner D2'), since tests/deterministic_omp does not import yldot."""
+    try:
+        with open(os.path.join(rundir, "run.log"), "rb") as f:
+            text = f.read().replace(b"\x00", b"").decode(errors="replace")
+    except OSError:
+        return ""
+    lines = [" ".join(s.split()) for s in text.splitlines()]
+    lines = [s for s in lines if s]
+    if not lines or budget <= 0:
+        return ""
+    if len(lines[-1]) > budget:
+        return lines[-1][-budget:]
+    kept, size = [], -len(" / ")
+    for s in reversed(lines):
+        if size + len(" / ") + len(s) > budget:
+            break
+        kept.append(s)
+        size += len(" / ") + len(s)
+    return " / ".join(reversed(kept))
+
+
 class HarnessError(Exception):
     """The harness could not produce a result (exit code 2), as opposed to a mismatch."""
 
@@ -102,6 +129,9 @@ def run_spec(spec, rundir, python=None, rates_dir=None, timeout=3600):
         "UEDGE_OMP_RATES_DIR": rates_dir,
         "OMP_NUM_THREADS": str(spec.threads),
         "OMP_STACKSIZE": spec.omp_stacksize,
+        # unbuffered Fortran output and line-buffered Python output (the workers' main) keep run.log in time
+        # order, so it ends at the stop (AIUE-239)
+        "GFORTRAN_UNBUFFERED_PRECONNECTED": "y",
     })
     cmd = [python, "-I", os.path.join(HERE, "worker.py"), os.path.join(rundir, "spec.json")]
     start = time.time()

@@ -226,7 +226,15 @@ def test_failure_reason(tmp_path):
     (tmp_path / "run.log").write_bytes(b" iter= 0\x00\n*** For isimpon=7, set afracs, not afrac ***\n"
                                        b" *** Error: Jacobian row = 0 for eqn iv =      1092\n")
     err = "run in {} failed:\nTraceback (most recent call last):\n  ...\nRuntimeError\n".format(tmp_path)
-    assert flow.failure_reason(err, str(tmp_path)) == "RuntimeError *** Error: Jacobian row = 0 for eqn iv = 1092"
+    reason = flow.failure_reason(err, str(tmp_path))
+    assert reason.startswith("RuntimeError (log: ") and reason.endswith("*** Error: Jacobian row = 0 for eqn iv = 1092)")
+    assert "\x00" not in reason
+    # D2' trade-off (AIUE-239): the tail ends with the log's last line, even an informational one after the error
+    (tmp_path / "run.log").write_bytes(b" *** Error: Jacobian row = 0 for eqn iv =      1092\n"
+                                       b" ***Impurity file using pre-2012 format is C_rates.adas\x00\x00\n")
+    assert flow.failure_reason(err, str(tmp_path)) == (
+        "RuntimeError (log: *** Error: Jacobian row = 0 for eqn iv = 1092 / ***Impurity file using pre-2012 format is "
+        "C_rates.adas)")
     reason = flow.failure_reason("run in /x/y exited with -11 and wrote no record")
     assert reason == "exited with -11 and wrote no record"
 

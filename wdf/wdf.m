@@ -16,7 +16,7 @@ c     main driver routine for wdf package
          call remark("*** Error:  write_degas procedure only valid when")
          call remark("               ixpt2-ixpt1 is an even number")
          call remark(" ")
-         call xerrab("")
+         call xerrab('Error in subroutine write_degas: procedure only valid when ixpt2-ixpt1 is an even number')
       endif
 
 c     allocate arrays for DEGAS

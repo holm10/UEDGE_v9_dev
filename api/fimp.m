@@ -93,6 +93,7 @@ c
       integer i1e,i1i,i,ii,j1
       real nenonz,y,dlogn,fy
       real tmpenonz,tmpinonz,xte,xti,dlogt,fxte,fxti,lrion,lrrec
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
 c
       real rcxr_zn6, rcxr_zn6b
       external rcxr_zn6, rcxr_zn6b 
@@ -162,7 +163,9 @@ c
       if (ii .lt. 0) then
          write (*,*) '*** mcrates could not find za=',za,' zn=',zn
          write (*,*) '*** check mcfilenames array'
-         call xerrab("")
+         write (xerrmsg,'(a,i0,a,i0,a)') 'Error in subroutine mcrates: '//
+     .      'could not find za=',za,' zn=',zn,'; check mcfilenames array'
+         call xerrab(trim(xerrmsg))
       endif
 c
 c     Compute rate parameters for transitions from table species ii.
@@ -303,7 +306,7 @@ c----------------------------------------------------------------------c
          write(*,*)
      .     '*** Input file mcfilename = "', mcfilename(i),
      .     '" not found.'
-         call xerrab("")
+         call xerrab('Error in subroutine readmc: input file mcfilename not found')
       endif
 
 c     read header --
@@ -335,7 +338,7 @@ c     Test for compatibility of (rtnt,rtnn) from different tables:
          write(*,*)
      .      '*** subroutine readmc: incompatible table dimensions in ',
      .      mcfilename(i),' and ',mcfilename(i-1)
-         call xerrab("")
+         call xerrab('Error in subroutine readmc: incompatible table dimensions in mcfilename(i) and mcfilename(i-1)')
       endif
 
 c     allocate storage --
@@ -453,6 +456,7 @@ c
       real nenonz,y,dlogn,fy
       real tenonz,xt,dlogt,fxt
       real kionz,krecz,keelz,lionz,lrecz,leelz,fac_rad,temintab
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
 c
       tenonz = max(te, cutlo)      # to avoid possible log(0) error
       xt = log(tenonz/ev2)
@@ -511,7 +515,9 @@ c     First, find the species index of the neutral impurity atom
       if (k0 .lt. 0) then
          write (*,*) '*** radmc could not find za=',0,' zn=',znuc
          write (*,*) '*** check mcfilenames array'
-         call xerrab("")
+         write (xerrmsg,'(a,i0,a,i0,a)') 'Error in function radmc: '//
+     .      'could not find za=',0,' zn=',znuc,'; check mcfilenames array'
+         call xerrab(trim(xerrmsg))
       endif
 
       radmc = 0.	# total electron energy loss rate
@@ -561,6 +567,7 @@ c----------------------------------------------------------------------c
       implicit none
       real ebindz
       integer zatomic, znuclear
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
 
 c     This function returns the ionization energy (eV) for an atom
 c     with atomic charge, zatomic, and nuclear charge, znuclear.
@@ -569,7 +576,9 @@ c     Data is from CRC Handbook of Chemistry and Physics, except as noted.
       if (zatomic .ge. znuclear) then
          write (*,*) '*** ebindz: input error'
          write (*,*) ' zatomic=',zatomic,'   .ge.   znuclear=',znuclear
-         call xerrab("")
+         write (xerrmsg,'(a,i0,a,i0)') 'Error in function ebindz: '//
+     .      'input error, zatomic=',zatomic,' .ge. znuclear=',znuclear
+         call xerrab(trim(xerrmsg))
       endif
 
       if (znuclear .eq. 1) then		# hydrogen
@@ -1162,7 +1171,9 @@ c            ebindz=72.28               # CRC handbook value
       else   # data not available
          write (*,*) '*** ebindz: no binding energy data'
          write (*,*) '    for znuclear=',znuclear,', zatomic=',zatomic
-         call xerrab("")
+         write (xerrmsg,'(a,i0,a,i0)') 'Error in function ebindz: '//
+     .      'no binding energy data for znuclear=',znuclear,', zatomic=',zatomic
+         call xerrab(trim(xerrmsg))
       endif
 
       return

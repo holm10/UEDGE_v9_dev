@@ -209,37 +209,35 @@ def last_line(message):
 BARE_EXCEPTION = re.compile(r"^[A-Za-z_][\w.]*$")  # a traceback's last line without text, e.g. "RuntimeError"
 
 
-ERROR_LINE = re.compile(r"\berror\b", re.IGNORECASE)
-
-
-def logged_error(tail):
-    """The message UEDGE printed before an xerrab, which Forthon raises as a bare RuntimeError: the last run of '***'
-    lines in a child's log tail (blank lines inside it kept out), whitespace collapsed and joined by ' / '. If a line
-    naming an error follows that run (a solver's own report, e.g. "Error return from ilut: ierr = -5" after the
-    "**** mhdgeo=-1: cartesian grid generated *****" banner), the first such line instead. '' if there is neither."""
-    lines = str(tail).splitlines()
-    marked = [i for i, s in enumerate(lines) if s.lstrip().startswith("***")]
-    after = marked[-1] + 1 if marked else 0
-    later = [s for s in lines[after:] if ERROR_LINE.search(s)]
-    if later:
-        return " ".join(later[0].split())
-    if not marked:
+def logged_error(tail, budget):
+    """The end of a child's log tail, for an xerrab that Forthon raises as a bare RuntimeError (AIUE-239, owner D2').
+    The child's log is line-buffered and in time order (harness/state.py run), so it ends at the stop. NULs are
+    removed, whitespace collapsed and blank lines dropped; whole lines are kept from the end while their ' / '-joined
+    length stays within budget (earlier, unrelated lines may precede the stop). A last line longer than budget keeps
+    its last budget characters. '' if nothing is left."""
+    lines = [" ".join(s.replace("\x00", "").split()) for s in str(tail).splitlines()]
+    lines = [s for s in lines if s]
+    if not lines or budget <= 0:
         return ""
-    run = []
-    for s in reversed(lines[:marked[-1] + 1]):
-        if s.lstrip().startswith("***"):
-            run.append(" ".join(s.split()))
-        elif s.strip():
+    if len(lines[-1]) > budget:
+        return lines[-1][-budget:]
+    kept, size = [], -len(" / ")
+    for s in reversed(lines):
+        if size + len(" / ") + len(s) > budget:
             break
-    return " / ".join(reversed(run))
+        kept.append(s)
+        size += len(" / ") + len(s)
+    return " / ".join(reversed(kept))
 
 
 def error_reason(res):
-    """The INVALID reason of a failed evaluation: its status and the exception's last line, with the log's '***'
-    message (logged_error) when the exception carries no text (an xerrab), as "RuntimeError (log: ...)"."""
+    """The INVALID reason of a failed evaluation: its status and the exception's last line. When the exception carries
+    no text (a bare xerrab), the end of the child's log (logged_error) as "RuntimeError (log: ...)", sized so that the
+    REASON_CHARS cap never cuts it: the reason ends at the stop. Fortran sites outside grd/ and flx/ pass their
+    message to xerrab, so their exception has text (AIUE-239, owner D1)."""
     text = last_line(res.message)
     if BARE_EXCEPTION.match(text):
-        logged = logged_error(res.log_tail)
+        logged = logged_error(res.log_tail, REASON_CHARS - len("{} (log: )".format(text)))
         if logged:
             text = "{} (log: {})".format(text, logged)
     return "{}: {}".format(res.status, text[:REASON_CHARS])

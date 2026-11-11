@@ -199,7 +199,14 @@ def test_error_cause(tmp_path):
     (tmp_path / "run.log").write_bytes(b" iter= 0\x00\n *** Error: Jacobian row = 0 for eqn iv = 1092\n")
     msg = "run in X failed:\nTraceback (most recent call last):\n  File x\nRuntimeError\n"
     cause = sc.error_cause(msg, str(tmp_path))
-    assert cause.startswith("RuntimeError") and "Jacobian row = 0" in cause
+    assert cause.startswith("RuntimeError; log: ") and cause.endswith("*** Error: Jacobian row = 0 for eqn iv = 1092")
+    assert "\x00" not in cause
+    # D2' trade-off (AIUE-239): the tail ends with the log's last line, even an informational one after the error
+    (tmp_path / "run.log").write_bytes(b" *** Error: Jacobian row = 0 for eqn iv = 1092\n\n done reading\x00\n")
+    assert sc.error_cause(msg, str(tmp_path)) == (
+        "RuntimeError; log: *** Error: Jacobian row = 0 for eqn iv = 1092 / done reading")
+    # an exception with text keeps it alone
+    assert sc.error_cause(msg.replace("RuntimeError\n", "RuntimeError: boom\n"), str(tmp_path)) == "RuntimeError: boom"
 
 
 def test_first_mismatch_names_entry():

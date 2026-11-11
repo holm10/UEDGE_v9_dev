@@ -861,7 +861,7 @@ c...  Special case for xno = 0,1; yyn could be more general if xn.ne.0,1
      .points, check vel. grd at nx')
                write(*,*) 'ixo,iy,ixm,iyom = ',ixo,iy,ixm,iyom,
      .                    '  ixf,ixof,iyf,iyof = ',ixf,ixof,iyf,iyof
-               call xerrab("")
+               call xerrab('Error in subroutine grdintpy: cannot find straddling grid points, check vel. grd at nx')
             endif
             if (abs(xno(ixo,iyomp)-xno(ixo,iyom)) .lt. smalln) then
                xxn = xno(ixo,iyom)

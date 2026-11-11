@@ -987,7 +987,7 @@ c----------------------------------------------------------------------c
      .     status='old',iomsg=io_emsg)
       if (ios .ne. 0) then 
          print *, trim(io_emsg)
-         call xerrab("")
+         call xerrab('Error in subroutine readcrumpetn: could not open the CRM rate file')
       endif
 
 c     Atom depletion rate in CRM (cm**3/sec):
@@ -1071,7 +1071,7 @@ c----------------------------------------------------------------------c
      .     status='old',iomsg=io_emsg)
       if (ios .ne. 0) then
          print *, trim(io_emsg)
-         call xerrab("")
+         call xerrab('Error in subroutine readcrumpete: could not open the CRM rate file')
       endif
 
 c     Electron energy change due to atoms (W cm**3):

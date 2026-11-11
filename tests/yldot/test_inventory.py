@@ -10,12 +10,15 @@ inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones 
 since its sweep (AIUE-99; owner, 2026-10-24, Q1: D6's "or none" is gone); every EXCLUDED, MARGINAL
 and INVALID entry has a reason; every manifest is mf.dumps's canonical text (AIUE-190); every tagged input the
 harness itself sets (harness/state.py) is EXCLUDED; every input.py is in normal form (it never sets restart,
-restores a state or runs exmain); and no file under tests/yldot skips or xfails a test. Each check is shown failing
-on a planted defect.
+restores a state or runs exmain); no file under tests/yldot skips or xfails a test; and no tracked Fortran source
+outside grd/ and flx/ calls xerrab with an empty message (AIUE-239). Each check is shown failing on a planted
+defect.
 """
 import ast
 import copy
 import json
+import re
+import subprocess
 
 import numpy as np
 import pytest
@@ -304,3 +307,56 @@ def test_no_skips():
 ])
 def test_skip_ban_detects(src, expected):
     assert skip_uses(src) == expected
+
+
+# ---------------------------------------------------------------- Fortran stops carry a message
+
+BARE_XERRAB = re.compile(r"""\bcall\s+xerrab\s*\(\s*(""|'')\s*\)""", re.IGNORECASE)
+GRIDGEN = ("grd/", "flx/")  # their bare stops stay (owner, 2026-11-11, AIUE-239 D1)
+
+
+def bare_xerrab_sites(paths, root):
+    """'file:line' of every non-comment line of the Fortran sources paths (relative to root) that calls xerrab with
+    an empty literal. A comment line: fixed form (.m, .f) has c, C, * or ! in column 1; free form (.F90) has ! as
+    its first non-blank character; ! as the first non-blank character is a comment in fixed form too."""
+    out = []
+    for rel in paths:
+        free = rel.endswith(".F90")
+        for i, line in enumerate((root / rel).read_text(errors="replace").splitlines(), 1):
+            if line.lstrip().startswith("!") or (not free and line[:1] in "cC*"):
+                continue
+            if BARE_XERRAB.search(line):
+                out.append("{}:{}".format(rel, i))
+    return out
+
+
+def test_no_bare_xerrab_outside_gridgen():
+    """AIUE-239 (owner D1, D3): a Fortran stop outside grd/ and flx/ passes its message to xerrab, as
+    'Error in subroutine <name>: ...'; Forthon raises it as the RuntimeError's text, which a yldot INVALID reason
+    stores. The sources are the git-tracked ones (git ls-files), so the test needs a git checkout, as CI and every
+    worktree have; when git fails, the test fails with that cause (it never skips, test_no_skips)."""
+    p = subprocess.run(["git", "ls-files", "*.m", "*.F90", "*.f"], cwd=inputs.REPO, capture_output=True, text=True)
+    assert p.returncode == 0, "git ls-files failed in {} (this test needs a git checkout): {}".format(
+        inputs.REPO, p.stderr.strip())
+    paths = [f for f in p.stdout.split() if not f.startswith(GRIDGEN)]
+    assert {"bbb/pandf.m", "ppp/parallel.F90", "svr/daux1.f"} <= set(paths), paths  # the tracked sources were listed
+    sites = bare_xerrab_sites(paths, inputs.REPO)
+    assert not sites, ("{} call(s) of xerrab with an empty message outside grd/ and flx/; give each its message, "
+                       "'Error in subroutine <name>: <text>' (AIUE-239 D1, D3): {}".format(len(sites), sites))
+
+
+def test_bare_xerrab_detects(tmp_path):
+    (tmp_path / "a.m").write_text(
+        "      subroutine a\n"
+        "         call xerrab(\"\")\n"
+        "ccc      call xerrab(\"\")\n"
+        "c        call xerrab('')\n"
+        "         call xerrab('Error in subroutine a: x')\n"
+        "         CALL XERRAB( '' )\n")
+    (tmp_path / "b.F90").write_text(
+        "subroutine b\n"
+        "  ! call xerrab('')\n"
+        "  call xerrab('Error in subroutine b: y')\n"
+        "  call xerrab ( \"\" )\n"
+        "c = 1\n")
+    assert bare_xerrab_sites(["a.m", "b.F90"], tmp_path) == ["a.m:2", "a.m:6", "b.F90:4"]

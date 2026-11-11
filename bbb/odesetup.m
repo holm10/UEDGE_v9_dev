@@ -58,6 +58,7 @@ cc      Use(Rccoef)
 * --  local variables
       integer lda, lenk, ngspon, nispon, nuspon, ntgspon, ifld, isor, id
       character*60 runid
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
       #Former Aux module variables
       integer igsp
 
@@ -185,14 +186,17 @@ c ... Check that number neutral gas species is not larger than ngspmx
       if (ngsp .gt. ngspmx) then
          call remark('***Increase ngspmx (now <ngsp) & recompile***')
          call remark('*** And increase nuixold,psorgold in pandf ***')
-         call xerrab("")
+         call xerrab('Error in subroutine allocate: increase ngspmx (now < ngsp) and recompile; also increase nuixold,psorgold '//
+     .      'in pandf')
       endif
 
 c ... Check that isupcore=2 is not being used
       do igsp = 1, ngsp
         if (isngcore(igsp) == 2) then
           write(*,*) "*** isngcore=2 option unvailable; igsp = ",igsp
-          call xerrab("")
+          write (xerrmsg,'(a,i0)') 'Error in subroutine allocate: '//
+     .       'isngcore=2 option unavailable; igsp = ',igsp
+          call xerrab(trim(xerrmsg))
         endif
       enddo
 
@@ -201,7 +205,7 @@ c ... Check that a gas source and albedo is not assigned to nonexistent gas sp
       do isor = 1, nwsor
          if (igspsori(isor).gt. ngsp .or. igspsoro(isor).gt.ngsp) then
             call remark('*** igspsori,o refers to igsp > ngsp *** ')
-            call xerrab("")
+            call xerrab('Error in subroutine allocate: igspsori,o refers to igsp > ngsp')
          endif
       enddo
 
@@ -351,7 +355,8 @@ c 'banded'.
               write(STDOUT,*) "*** Invalid option:  premeth=",premeth
               write(STDOUT,*) "When using standard Newton, premeth ",
      .                        "must equal banded."
-              call xerrab("")
+              call xerrab('Error in subroutine allocate: invalid option premeth; when using standard Newton, premeth must equal '//
+     .           'banded')
             endif
          endif
       endif
@@ -384,7 +389,8 @@ c save preconditioner reordering info for icntnunk=1 case.
          call gallot("Nonzero_diagonals",0)
       else
          write(STDOUT,*) "*** Invalid option:  premeth=",premeth
-         call xerrab("")
+         call xerrab('Error in subroutine allocate: invalid option premeth='//
+     .      trim(premeth))
       endif
 
 c ... Set lengths of work arrays for desired solver option.
@@ -428,7 +434,8 @@ cc     do not reset if icntnunk=1 (saved Jac) as storage changes if mmaxu reset
          liw = 20 + mmaxu + liwp
       else
          write(STDOUT,*) "*** Invalid option:  svrpkg=",svrpkg
-         call xerrab("")
+         call xerrab('Error in subroutine allocate: invalid option svrpkg='//
+     .      trim(svrpkg))
       endif
 
 c ... Set maximum lengths of arrays to hold part of Jacobian matrix,
@@ -1649,7 +1656,7 @@ c.... If the grid does not change, but restart from saved variables
                    if (nis(ix,iy,ifld) <= 0.) then
                       call remark('*** Error: nis <= 0 ***')
                       write (*,*) 'Error at ix=', ix,'  iy=',iy,' ifld=',ifld
-                      call xerrab("")
+                      call xerrab('Error in subroutine ueinit: nis <= 0')
                    endif
                 enddo
              enddo
@@ -1661,7 +1668,7 @@ c.... If the grid does not change, but restart from saved variables
                    if (ngs(ix,iy,igsp) <= 0.) then
                       call remark('*** Error: ngs <= 0 ***')
                       write (*,*) 'Error at ix=', ix,'  iy=',iy
-                      call xerrab("")
+                      call xerrab('Error in subroutine ueinit: ngs <= 0')
                    endif
                    lng(ix,iy,igsp) = log(ng(ix,iy,igsp))
                    tg(ix,iy,igsp) = tgs(ix,iy,igsp)
@@ -1849,7 +1856,7 @@ c...  Check if any ion density is zero
             if (ni(ix,iy,ifld) <= 0) then
               call remark('****** ERROR: ni <= 0 ******')
               write(*,*) 'begins at ix,iy,ifld = ',ix,iy,ifld
-              call xerrab("")
+              call xerrab('Error in subroutine ueinit: ni <= 0')
             endif
           enddo
         enddo

@@ -115,7 +115,8 @@ c-----------------------------------------------------------------------
  50   format(6x,15hin above,  r1 =,d21.13,3x,4hr2 =,d21.13)
 c abort the run if level = 2. ------------------------------------------
  100  if (level .ne. 2) return
-      call xerrab("")
+      call xerrab('Error in subroutine dxerrwv_u: '//
+     1            msg(1:min(nmes,len(msg))))
 c----------------------- end of subroutine dxerrwv ---------------------
       end
 cc ************************************************cc

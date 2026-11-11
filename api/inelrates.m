@@ -46,7 +46,8 @@ c     is given in the variable inelrad (formerly carbavg.dat).
      .      status='old')
       if (ios .ne. 0) then
          write (*,*) '*** Input file inelrad=', inelrad(1), ' not found'
-         call xerrab("")
+         call xerrab('Error in subroutine inelinput: input file inelrad='//
+     .      trim(inelrad(1))//' not found')
       endif
       read(us,inrad)
       close (us)
@@ -91,7 +92,7 @@ c
      .   '*** Routine inelinput -- bbb.ziin incompatible with')
             call remark(
      .   '          assumptions of multi-charge state model')
-            call xerrab("")
+            call xerrab('Error in subroutine inelinput: bbb.ziin incompatible with assumptions of multi-charge state model')
          endif
       enddo
 c
@@ -100,7 +101,8 @@ c
      .      status='old')
       if (ios .ne. 0) then
          write (*,*) '*** Input file inelmc=', inelmc(1), ' not found'
-         call xerrab("")
+         call xerrab('Error in subroutine inelinput: input file inelmc='//
+     .      trim(inelmc(1))//' not found')
       endif
 c
 c   ionization rate

@@ -75,6 +75,7 @@ c     local variables
       real fnrm, fnew, tick, tock
       external tick, tock
       integer i,ifld,lid,ilg
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
       #Former Aux module variables
       integer ix,iy,igsp,iv
 
@@ -204,7 +205,9 @@ c        Note that iwork(27) & iwork(28) were set in subroutine allocate.
          endif
          if (idid.lt.0) then
             write(*,*) 'idid = ',idid
-            call xerrab("")
+            write (xerrmsg,'(a,i0)') 'Error in subroutine uedriv: '//
+     .         'daspk returned idid = ',idid
+            call xerrab(trim(xerrmsg))
          endif
          if (info(14).eq.1) goto 200   #init. only, jump out of time loop
 
@@ -248,7 +251,7 @@ c_mpicvode          CALL FCVODE (tout, ts, yl, itask, istate)
          write(*,*) '      nksol'
          write(*,*) '      newton'
          write(*,*)
-         call xerrab("")
+         call xerrab('Error in subroutine uedriv: invalid solver option, check variable svrpkg')
        endif
 
        if (svrpkg.eq.'daspk') then # gather some data
@@ -896,7 +899,7 @@ c     change diagnostics.
 c ... Test if too many iterations have been tried.
       if(npsn .ge. nmaxnewt .or. npsn .gt. 101) then
          call writeToLog('***** The newton iteration has not converged')
-         call xerrab("")
+         call xerrab('Error in subroutine newton: the newton iteration has not converged')
       endif
 
 c ... Test if user wants to quit.
