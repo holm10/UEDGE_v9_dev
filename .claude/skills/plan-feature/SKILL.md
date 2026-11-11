@@ -235,9 +235,9 @@ Execute top to bottom; each task is atomic.
 - **VALIDATE**: `<command>` (e.g. build, a python one-liner checking a new variable)
 
 ## Testing strategy
-- Regression suites to run and expected outcome (unchanged / named cases move).
+- The yldot tier to run (PR, or nightly for L) and expected outcome (unchanged / named cases move).
 - Case-level checks: a specific input deck, `bbb.exmain()` convergence, `checkbal()` balances.
-- Regression suites include the yldot suite (`validate` step 3b), and a new `+input` switch its variant (`physics-workflow.md`).
+- The regression suite is the yldot suite (`validate` step 3); a new `+input` switch also gets its variant (`physics-workflow.md`).
 - OpenMP check (the AIUE-8 test flow, `validate` step 4) if the `pandf` tree or threadprivate vars change.
 - Edge cases: <topologies, species counts, switches>.
 
@@ -249,11 +249,11 @@ after a dry run, or by grepping the AI layer for the files and routines you touc
 checking. Each entry becomes a final task with the trailer `AI-layer: code-facts`.>
 
 ## Validation commands
-Run the `validate` skill (suites: <list>; `--omp` if applicable), plus any feature-specific commands.
+Run the `validate` skill (`nightly` for an L-tier change; `--omp` if applicable), plus any feature-specific commands.
 
 ## Acceptance criteria
 - [ ] Builds without new warnings in touched files
-- [ ] Refactor: all suites unchanged · Physics: only the documented cases move
+- [ ] Refactor: the yldot suite unchanged · Physics: only the documented cases move
 - [ ] New variables visible from Python with units/docs
 - [ ] OpenMP test flow passes (if applicable; `validate` step 4)
 - [ ] AI-layer facts updated; drift check clean (`check_context_refs.py`)

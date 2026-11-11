@@ -1,7 +1,7 @@
 ---
 name: validate
-description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the regression suites from the pytests branch and the yldot suite (`tests/yldot`), the AIUE-8 OpenMP test flow when RHS/Jacobian code changed, and the serial old-vs-new bitwise check when Fortran, `.v` or `ppp/` changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
-argument-hint: [suites e.g. "D_only D_mols" | "all"] [--omp] [--ticket <KEY>] [--no-tracker] [--tracker-dry-run]
+description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the yldot suite (`tests/yldot`), the AIUE-8 OpenMP test flow when RHS/Jacobian code changed, and the serial old-vs-new bitwise check when Fortran, `.v` or `ppp/` changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
+argument-hint: [nightly] [--omp] [--ticket <KEY>] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Validate
@@ -10,9 +10,8 @@ Run the UEDGE gate and report results. Mirror CI (`.github/workflows/build-test-
 locally" means "green in CI". Commands and background: `CLAUDE.md` → *Build & validation commands*,
 `.claude/context/testing.md`.
 
-Arguments: `$ARGUMENTS`. Suites (the pytests branch, step 3) default to `D_only` plus the suites matching the changed
-area (below). `all` runs every suite; step 3b runs the yldot suite's PR tier whenever step 3 runs; `--omp` forces
-step 4.
+Arguments: `$ARGUMENTS`. Step 3 runs the yldot suite's PR tier; `nightly` adds the nightly tier (required for an
+L-tier change); `--omp` forces step 4.
 
 This is the **full gate**: run it once a change is complete, not after every edit. While iterating, run the subset
 (one case, two thread counts, the one affected suite) and leave heavy matrices to CI (`.claude/context/testing.md` →
@@ -69,45 +68,25 @@ python -c "import uedge; from uedge import bbb, com; print(bbb.uedge_ver)"
 If new variables/routines were added in a `.v` file, also confirm they are visible:
 `python -c "from uedge import bbb; print(bbb.<newvar>)"`.
 
-## 3. Regression suites (pytests branch)
+## 3. yldot regression suite (`tests/yldot`, epic AIUE-9)
 
-```bash
-git fetch origin pytests                 # v9: the fork's pytests branch holds v9's references (testing.md)
-[ -d ../uedge-pytests ] || git worktree add --detach ../uedge-pytests origin/pytests
-git -C ../uedge-pytests log -1 --oneline  # must be origin/pytests; if not: git -C ../uedge-pytests checkout --detach origin/pytests
-pip install -q pytest pytest-isolate
-cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/<suite> -s
-```
-
-Choose suites by what changed: impurities/`api` → `D+C`; molecules / gas → `D_mols`; slab or geometry →
-`slab_D_only`; anything in `bbb/pandf*`, `convert.m`, `odesetup.m`, `svr/` → all `unittests` + `fulltests`.
-
-A failure listed in `.claude/context/testing.md` → "Known failures on `v9-develop`" is ⚠️ pre-existing (quote it and
-say so). Any other failure is the change's until a run on the base venv shows the same output.
-
-Interpret failures with the **defaults rule** (`CLAUDE.md` → Hard rules):
-- **Refactor / restructuring:** any fnrm or variable mismatch is a ❌ — the refactor changed results.
-- **Intended physics change to defaults:** mismatches are expected only in the cases the plan/spec named.
-  Report them as ⚠️ "expected, documented", list every moved case, and flag any *unexpected* one as ❌.
-
-## 3b. yldot regression suite (`tests/yldot`, epic AIUE-9)
-
-Runs alongside step 3 (the retire ticket AIUE-108 removes step 3). In the worktree's own serial venv (step 1), from
-the worktree root:
+In the worktree's own serial venv (step 1), from the worktree root:
 
 ```bash
 pip install -q pytest h5py
 pytest tests/yldot -m "not nightly"      # the PR tier, 15-20 min on a serial build; never `pytest tests/`
 ```
 
-`pytest tests/yldot` (no `-m`) adds the nightly tier: run it for an L-tier change. The session fetches the reference
-data first and nothing skips (`.claude/context/testing.md` → the yldot bullets). Reading the result:
+`pytest tests/yldot` (no `-m`) adds the nightly tier: run it with `nightly` (any L-tier change). The session fetches
+the reference data first and nothing skips (`.claude/context/testing.md` → the yldot bullets). Reading the result
+(the **defaults rule**, `CLAUDE.md` → Hard rules):
 - A `test_default.py` failure means the defaults moved. Refactor: ❌. Physics or bug fix: ⚠️ only for the
   `<family>:<id>` entries the plan or RCA names, ❌ for any other.
 - `test_manifest_inventory` failing with `missing:` after a new `+input` variable: regenerate its variant
   (`.claude/context/physics-workflow.md` → A new switch in the yldot suite).
 - On a macOS `-O3` build two `BuildLimitWarning`s (d_c `bbb.mvolcur`, slab_phi `bbb.icnucx`) are recorded limits:
   ⚠️, not ❌.
+- A failure that the base venv's run shows too is ⚠️ pre-existing (quote it and say so); any other is the change's.
 - Never pass `--yldot-no-fetch`, and never edit a tolerance, override, manifest or `family.toml` to get green. A test,
   variant or block that behaves irregularly goes to the epic owner (AIUE-9 decision 23).
 
@@ -166,7 +145,6 @@ fixes to comments on existing lines where possible, so the AI layer's line refer
 UEDGE validation — <branch> @ <short sha>
   Build (serial) ........ ✅/❌  <first error or "n warnings in touched files">
   Smoke import .......... ✅/❌  uedge_ver=<…>
-  Suites ................ ✅/⚠️/❌  <suite: passed/failed, moved cases>
   yldot suite ........... ✅/⚠️/❌  <passed/failed, moved <family>:<id>; guard: required declarations or "not run">
   OpenMP flow ........... ✅/❌/skipped  <arm verdicts, new vs base on macOS; build-test-omp.yml run; or why skipped>
   Serial bitwise ........ ✅/⚠️/❌/skipped  <RESULT line, moved cases, or why skipped>

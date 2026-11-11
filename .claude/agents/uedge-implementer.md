@@ -50,7 +50,7 @@ Write a brief implementation plan listing files and routines to change, new vari
 
 Run, in this order, and record results:
 
-1. **Regression**: the existing test suites with the new switch OFF: the pytests suites and the yldot suite (`validate` steps 3 and 3b). Results must match the previous version. A new `+input` switch also gets its yldot variant (`.claude/context/physics-workflow.md` → A new switch in the yldot suite).
+1. **Regression**: the existing test suites with the new switch OFF: the yldot suite (`validate` step 3). Results must match the previous version. A new `+input` switch also gets its yldot variant (`.claude/context/physics-workflow.md` → A new switch in the yldot suite).
 2. **Unit checks**: isolated evaluation of new terms against values computed independently (e.g. a short Python script implementing the spec's formula).
 3. **Spec validation plan**: every test and acceptance criterion in the spec's validation section, with the switch ON.
 4. **Convergence behaviour**: the Newton solver still converges on the reference cases; report iteration counts and any time-step reduction compared to the switch-OFF case.
