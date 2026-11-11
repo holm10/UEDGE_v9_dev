@@ -52,6 +52,10 @@ c     Full-line comment: 'c' in column 1
 
 - Fatal: `call xerrab('*** <ROUTINE>: message ***')` (`bbb/pandf_plasma_continuity.m:29`). Returns control
   to the Python/BASIS prompt; do not `stop`.
+- Never a bare `call xerrab("")`: the message is the Python `RuntimeError`'s text (Forthon `kaboom`) and a yldot
+  INVALID reason. New stops write `Error in subroutine <name>: <text>` (`Error in function <name>:` in a function),
+  composing a number into a plain local `character*256` buffer only where it identifies the cause (`api/fimp.m`
+  `mcrates`; AIUE-239, owner D3). `tests/yldot/test_inventory.py` refuses a bare one outside `grd/` and `flx/`.
 - Message: `call remark('...')` (`bbb/convert.m:345`). Gate chatty output on `com.iprint` (`com/com.v:709`).
 - Interrupt points already exist in `pandf` (`check_kaboom`, `ruthere`, `bbb/pandf.m:548-552`); do not add more.
 

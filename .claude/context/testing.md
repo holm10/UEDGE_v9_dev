@@ -8,7 +8,10 @@ facts below). There are no unit tests of individual Fortran routines.
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
 data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
 harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with the test flow `cli.py flow`, see
-`openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet.
+`openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet. Each run directory's
+`run.log` is in time order (`GFORTRAN_UNBUFFERED_PRECONNECTED` and the workers' line-buffered stdout, AIUE-239,
+probed), so a failed run's reason (`flow.failure_reason`, `serial_check.error_cause`) takes the log's tail of whole
+lines (`runner.log_tail`) when the exception has no text.
 
 `tests/yldot/` is the yldot suite (epic AIUE-9). Run it as `pytest tests/yldot` (never `pytest tests/`). In a
 background or batch run whose log is read later, pass `-rf --tb=short`, so each failure's id and text survive the
@@ -208,7 +211,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1300`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1298`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -230,8 +233,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and `--prune` never audit. On the five small families the macOS audit at c8431d5 took 70-91 s per family and
   found seven bounds errors (AIUE-95 ticket page). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
-  exception's text; for a bare `RuntimeError` (an `xerrab`) the log's message (the first error line after the last
-  `***` run, else that run). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
+  exception's text; Fortran stops outside `grd/` and `flx/` pass their message to `xerrab` (AIUE-239, owner D1). For
+  a bare `RuntimeError` (an `xerrab("")`) it holds the tail of the child's log, which is line-buffered and so in time
+  order (`tests/yldot/harness/state.py` `run`): whole lines from the end up to the 300-character cap, NULs stripped,
+  ending at the stop (`make_references.logged_error`; AIUE-239, owner D2′). The second SENSITIVE run is forked from the same forkserver: it shows run-to-run
   nondeterminism only, not build or memory-layout dependence. Two Linux runs from one
   commit gave the same SHA-256s on one host (x86 emulation on Apple silicon), and so did two native amd64 runs
   (`regenerate-references.yml` on `ubuntu-24.04`, runs 40220476594 and 40234117547, full sweep at `bfca6180`). Native
@@ -404,8 +409,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family's too,
   since AIUE-99 ended D6's "or none"), a reason on every EXCLUDED, MARGINAL and INVALID entry, every manifest in
   `dumps`'s canonical text (AIUE-190), every tagged input `tests/yldot/harness/state.py` assigns
-  EXCLUDED, every `input.py` in normal form (no `restart`, `hdf5_restore`, `exmain`) and no skip or xfail under
-  `tests/yldot/` (through import aliases too), each shown failing on a planted defect, `tests/yldot/test_inputs.py` the
+  EXCLUDED, every `input.py` in normal form (no `restart`, `hdf5_restore`, `exmain`) no skip or xfail under
+  `tests/yldot/` (through import aliases too) and no `xerrab` with an empty message in a tracked Fortran source outside
+  `grd/` and `flx/` (`git ls-files`; AIUE-239, owner D1), each shown failing on a planted defect, `tests/yldot/test_inputs.py` the
   input inventory, overrides and value rules, `tests/yldot/test_variant_apply.py` variant application and replay,
   `tests/yldot/test_states.py` both states of every family are round-trip fixed points, `tests/yldot/test_history.py`
   `measure_history.py check` per family (about 3 s each) and the `[evaluation]` keys (measured, or the W = P = 2
@@ -496,7 +502,7 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
 - **Probing initialisation without a solve** (grid-change interpolation, `ueinit` checks): after the restore and the
   input changes, `bbb.ifexmain = 1; bbb.allocate(); bbb.ifexmain = 0; bbb.ueinit()`. A Python `allocate()`
   (`ifexmain = 0`) sets `nxold`/`nyold` to the current size, reallocates `Interp` and sets `isimesh = 1`
-  (`bbb/odesetup.m:524-529`, AIUE-141). The next `ueinit` then copies the saved state as it is: a restore after the
+  (`bbb/odesetup.m:531-536`, AIUE-141). The next `ueinit` then copies the saved state as it is: a restore after the
   allocate is used for the current mesh, and the last `gridseq`'s old-mesh data are dropped. To interpolate after a
   same-mesh allocate (e.g. one made to set wall arrays), set `bbb.isimesh = 0` after it (owner, 2026-10-21). Without
   that, a mesh change with no restore stops with `variable nis=0, no saved solution for interp` (probed through
@@ -607,7 +613,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
   350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
   AIUE-211; an `--only` dispatch is not cheap either: it re-runs each owner family's default and its stored variant
-  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:603`), so run
+  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:601`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone when another owner
   family shares the job, AIUE-242), three
