@@ -62,10 +62,14 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order. A
   `Store.check` report finds that diagnostic array-scaled: max|a-b| over the array's max |value| above
   `DIAG_SCALED_RTOL = 1e-8`. The entry-relative measure always fires on round-off between macOS runs and the
-  Linux-built references; the scaled one stays below 3.5e-10 unmutated (owner, 2026-10-22, AIUE-89), except
-  dnull_imp2 on macOS `-O3`: `resmo` at its half-1 plate face (36,34,2), an algebraic row, differs by 1.9e-6 (FMA, a
-  near-cancellation) and the `resei`/`reseg` NaN cells at ix = 37 differ by build, so its hint names `resmo` (open,
-  AIUE-176). For a sketch store `Store.diagnostic_pair` cuts the new run's diagnostics to the stored `res*` names.
+  Linux-built references; the scaled one stays below 3.5e-10 unmutated (owner, 2026-10-22, AIUE-89). Only residual
+  entries that reach yldot count (owner, 2026-11-11, AIUE-176): with diagnostics on (and no locality), the child
+  repeats step 8b's `pandf` with `isrscalf = 0` and marks a `res*` entry live where its yldot row equals `calc_rhs`'s
+  copy bit for bit (`state.live_residuals`, `r.data["live"]`), and `Store.diagnostic_pair` zeroes the others on both
+  sides (`compare.mask_dead`). Unmasked, dnull_imp2 on macOS `-O3` named `resmo` at its plate face (Fortran
+  (36,34,2), algebraic, 1.9e-6 by FMA) and has build-dependent NaN in `resei`/`reseg` at the cut guard ix = 37
+  (AIUE-253); masked, all 8 families x 2 configurations name none (largest 3.0e-10). For a sketch store
+  `Store.diagnostic_pair` also cuts the new run's diagnostics to the stored `res*` names.
 - **Variants** (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
