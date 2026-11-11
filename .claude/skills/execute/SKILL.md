@@ -93,6 +93,18 @@ For EACH task in "Step by Step Tasks":
   working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
   it before a flush that leaves nothing queued.
 
+#### e. Owner questions and handovers (also without a ticket record)
+- A probe that shows stored suite data is wrong (an INVALID reason, a manifest field, a release asset, a tolerance's
+  provenance), even when no test outcome changes, is an owner question asked at once with AskUserQuestion: what is
+  wrong, the whole class counted (every entry the same cause can reach), and where to fix it (this ticket, a new
+  ticket). Never offer it as an optional follow-up (AIUE-241: imp7's stored `bbb.newapi` INVALID reason named a
+  non-fatal remark; now AIUE-239).
+- Before an irreversible or shared step (a `regenerate-references.yml` dispatch, a publish, opening the PR), re-read
+  the ticket's Jira comments since the plan's publish date and the owner-decision records of the sibling tickets the
+  plan names (their pages' Findings and decisions, the memory index). A handover into this ticket (work another
+  ticket moved here) amends the plan first (`ticket-page publish`), or goes to the owner if its precondition is not
+  met (AIUE-240: AIUE-226's dispatch missed AIUE-224's handed-over `bbb.isphioffxy` update).
+
 ### 3. Implement Testing Strategy
 
 After completing implementation tasks:
@@ -140,6 +152,10 @@ If any command fails:
 - Fix the issue (never loosen tolerances or skip suites)
 - Re-run the command
 - Continue only when it passes
+
+A fix made after the implementation APPROVE, because a CI run on the PR failed or an owner decided a change, is not a
+MINOR: it gets a verification round on its diff, as step 3 of the Adversarial review loop in `end-to-end-feature`
+requires, before the PR is marked ready (AIUE-236: two matrix changes merged unreviewed in AIUE-104).
 
 ### 5. Final Verification
 

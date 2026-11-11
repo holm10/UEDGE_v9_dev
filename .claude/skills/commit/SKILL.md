@@ -33,6 +33,9 @@ description: Creates a git commit for the current work with an explicit file lis
      "Simplifies …" (see `git log --oneline`).
    - Body (if needed): what changed and why, wrapped at ~72 chars. For physics changes, state whether default
      results change and which reference cases move.
+   - Don't state in the message a claim the plan marks *assumed* unless execute or a probe confirmed it; leave it out
+     or say it is unverified (AIUE-233: a commit stated an *assumed* stale `idxphi` as fact, and the reviewer's probe
+     disproved it).
    - Optional CI tags on their own line after `#`: `#@notest`, `#@nowheel` (only when the user asks to skip those
      CI stages). Both are inert at present and there is no BASIS CI, so no `#@nobasis` (`testing.md` → CI facts).
    - Trailer `AI-layer: code-facts` (before the attribution line) only in the case described in step 2.

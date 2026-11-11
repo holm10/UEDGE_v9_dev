@@ -157,7 +157,10 @@ For AI-layer changes, one round plus their tests; round 2 only for an open BLOCK
      local working copy `<worktree>/.claude/work/<KEY>/plan.md`; the ticket page's Plan section is its published
      copy);
    - for `implementation`: the diff range (`git diff <base>...HEAD` plus uncommitted changes) and the validation
-     output you got;
+     output you got. Before spawning the reviewer, `git fetch origin v9-develop` again: if the base moved past the
+     merge base, say so in the prompt with the new commits and the files they touch, and record the decision (rebase
+     and re-validate now, or at PR time) as a Progress entry (AIUE-234: AIUE-225 merged during AIUE-224's 4 h
+     validate run, after `validate` §0's fetch);
    - the **run budget**: which builds/venvs it may use (never to be reinstalled), what it may build in a scratch
      worktree, and a time limit. If it needs scratch files (venvs, logs, builds), it makes a scratch worktree in the
      session scratchpad, keeps them inside it, and removes it before returning with `git worktree remove --force`
