@@ -18,8 +18,11 @@ when someone last checked the reference by hand. A reference is
            range end like `],`), on the line the nearest such number of the same reference moved it to
            (`--fix` rewrites the number in the doc and moves its lock entry). The second kind is a heuristic,
            marked `(with line k)`: check it in the doc diff. `--fix` holds back a move onto a line that another
-           reference cites as STALE or NEW, so no lock entry is overwritten;
-  STALE    the locked text is gone. The claim must be re-checked by a person or agent, then `--update`;
+           reference cites as STALE or NEW, so no lock entry is overwritten. A range end whose text is not unique
+           and still sits on its old line moves with its start when its text is on the shifted line (AIUE-243);
+  STALE    the locked text is gone, or a range's start moved and its non-unique end text is still in place but not
+           on the shifted line (then the start is not moved either). The claim must be re-checked by a person or
+           agent, then `--update`;
   BROKEN   the file is missing, or the line is past the end of the file;
   NEW      the reference isn't in the lock yet. Check it, then `--update`;
   MISSING  a backticked repo path (no line number) that doesn't exist.
@@ -151,6 +154,26 @@ def check(lock, changed=None):
                 else:
                     unsettled.add(f"{path}:{n}")
                     problems.append(("STALE", where, cited, f"line {n} was {want[:60]!r}, now {have[:60]!r}"))
+        # a range end whose text is not unique can still sit on its old line by chance after its start moved (an
+        # `endif` shifted onto it, AIUE-243): it moves by the start's shift if its text is there, else the whole
+        # reference is held for a hand fix (the start's move too: once it is fixed, the end would look OK again)
+        shift_of = dict(shifts)
+        for a, b in numbers(m.group("nums")):
+            d = shift_of.get(a)
+            want = lock.get(f"{path}:{b}")
+            if a == b or d is None or want is None or b > len(lines) or want != norm(lines[b - 1]):
+                continue  # not a range, start not moved, or the end is NEW, BROKEN or handled above
+            if sum(1 for t in lines if norm(t) == want) < 2:
+                continue  # a unique end text in place is trusted (the range grew or shrank inside)
+            if 0 < b + d <= len(lines) and norm(lines[b + d - 1]) == want:
+                moved.append((doc, i, m.start(), path, b, b + d))
+                problems.append(("MOVED", where, cited, f"line {b} -> {b + d} (with line {a})"))
+            else:
+                moved[:] = [mv for mv in moved if mv[:3] != (doc, i, m.start())]
+                unsettled.add(f"{path}:{b}")
+                problems.append(("STALE", where, cited, f"line {a} moved by {d:+d}, but end line {b}'s text "
+                                 f"{want[:40]!r} is not on line {b + d} and also elsewhere: set the range by hand "
+                                 f"(--fix moves neither end)"))
     for doc in docs():
         rel = str(doc.relative_to(ROOT))
         for i, line in enumerate(doc.read_text().splitlines(), 1):
@@ -227,10 +250,14 @@ def main() -> int:
     problems, moved, seen, unsettled = check(lock)
     if a.fix and moved:
         # a move onto a line another reference cites as STALE or NEW would overwrite that lock entry: hold it back,
-        # and its own old key stays cited, so repeat along chains
+        # and its own old key stays cited, so repeat along chains. A held move holds every move of its reference: a
+        # range whose start moved while its end is held would be left wrong (`15-20` for `15-25`), and once the other
+        # reference is settled the drift check would pass on it (AIUE-243)
         held, n_held = set(unsettled), 0
         while True:
             keep = [mv for mv in moved if f"{mv[3]}:{mv[5]}" not in held]
+            refs = {mv[:3] for mv in moved if mv not in keep}
+            keep = [mv for mv in keep if mv[:3] not in refs]
             if len(keep) == len(moved):
                 break
             held |= {f"{mv[3]}:{mv[4]}" for mv in moved if mv not in keep}

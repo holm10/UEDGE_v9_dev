@@ -21,7 +21,8 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
 `archive/AIUE-8-docs`.)
 
 - **Ticket working documents** (the plan, review reports and responses, validation records and run protocols, the
-  RCA, the code review, the execution report and the system-review notes) are written to the ticket's **working
+  RCA, the code review, the execution report, the system-review notes and the probe scripts a plan cites, under
+  `probes/`, AIUE-238) are written to the ticket's **working
   folder** `<worktree>/.claude/work/<KEY>/` (`issue-<N>` for a GitHub issue, the slug for work without a ticket). It
   is gitignored and never committed. Their lasting content goes to the ticket's Confluence page through the
   `ticket-page` skill: the plan (or RCA) is mirrored into the Plan (or RCA) section; each review round's verdict,

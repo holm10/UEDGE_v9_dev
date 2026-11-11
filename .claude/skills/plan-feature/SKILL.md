@@ -96,19 +96,25 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    the second dispatch got v11), and it records the N it got on its ticket page. A hand publish with
    `release_data.py` (no `--renumber`) still reserves N = highest + 1 as a Findings and decisions entry once the owner
    agrees (AIUE-161 planned v8 while AIUE-174 held v7 with no manifests yet). Planning reads the in-flight tickets'
-   pages for both (`testing.md` → Tools, `release_data.py`; AIUE-207).
+   pages for both (`testing.md` → Tools, `release_data.py`; AIUE-207). Read the sibling tickets' Findings and
+   decisions and the Jira comments for work handed over to this ticket: a handover is planned, or asked about
+   (AIUE-240).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
    assignment types Forthon accepts, what a link line pulls in. Cite the probe in the plan (the command and the output
-   line that settles it). When the conclusion depends on what an input value means (a solver option set to 0, a flag
-   that selects a path), cite the source line that defines that meaning next to the output: an output code alone
-   (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200 iterations,
-   `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates, is marked
-   *assumed*, and the task that relies on it checks it first. For a build change, plan a link check on every
-   platform the change claims (the link line, plus `nm -u` or an import), and give every runtime gate a way to fail
-   (a count, not a file's existence). The same holds for a repo tool used as a VALIDATE step: probe what that mode
-   actually verifies (run it once on the current tree, or cite the contract in its docstring), else mark it
+   line that settles it). A probe script the plan cites, or that a later task re-runs, is saved under
+   `.claude/work/<KEY>/probes/` (gitignored, kept with the worktree), not only in the session scratchpad, which does
+   not outlive the session (AIUE-238). When the conclusion depends on what an input value means (a solver option
+   set to 0, a flag that selects a path), cite the source line that defines that meaning next to the output: an
+   output code alone (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200
+   iterations, `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates,
+   is marked *assumed*, and the task that relies on it checks it first. An *assumed* claim that scopes a follow-up or
+   a Note, and that a probe in an existing venv can settle in minutes, is probed at planning instead (AIUE-233). For
+   a build change, plan a link check on every platform the change claims (the link line, plus `nm -u` or an import),
+   and give every runtime gate a way to fail (a count, not a file's existence). The same holds for a repo tool used
+   as a VALIDATE step: probe what that mode actually verifies (run it once on the current tree, or cite the contract
+   in its docstring), else mark it
    *assumed* (AIUE-91: `fetch_data.py --check` verifies only cached files, not the files at their manifest paths).
    An estimate that decides a gate (a size cap, a budget, a runtime) is probed with the code that will produce it:
    the real writer and serializer on each case the gate applies to, from that case's own output (a sibling's pattern
@@ -117,7 +123,13 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    put the manifests at 3 MB; the real `manifest.dumps` wrote 8.9 MB. AIUE-99, AIUE-196: d_c's pattern put
    imp7 at 11.15 of 12 MB; it wrote 12.06 MB after a 2 h sweep). A runtime estimate for a CI job names the runner
    CPU it was measured on, and a job limit is checked against the slowest model the job accepts (AIUE-214: the fastest runner seen set
-   two wrong ETAs; `testing.md` → `regenerate-references.yml`).
+   two wrong ETAs; `testing.md` → `regenerate-references.yml`). A `regenerate-references.yml` dispatch's ETA comes
+   from the measured child times in `testing.md`, not from the variant count (AIUE-242: an `--only` dispatch planned
+   as "well under 350 min" took 316). A run of a suite in a slower build (`-O0`, `--coverage`, `--checkbounds`) checks
+   every harness timeout it can hit, not only the largest. That covers the per-child `timeout_s` for the most
+   expensive single child (`--durations` from a CI or base run, scaled by the measured slowdown and by the planned
+   worker count's load), as well as the locality factor. A margin under about 2× is an owner question at planning
+   (AIUE-246: `test_inert[imp7-bbb.isdtsfscal]` was killed at 120 s in the -O0 coverage run).
    A claim about what a check reports on a fault (which blocks fire, what it localizes to, the message text) is
    probed with the fault applied, against the references the suite really uses (another platform's, if they are),
    even when a build takes minutes (AIUE-89: `rscalf` couples a continuity fault into the up/te/ti rows, and the
@@ -141,6 +153,10 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
      symbols the build links (`nm -u` on the built objects, or `nm` of the extension), separating scalar libm (`exp`,
      `log`, …) from glibc's vector library libmvec (`_ZGV*`). Vectorized calls do not go through scalar libm, so a
      probe of `libm.so.6` alone can return a false negative (AIUE-210, AIUE-215).
+   - **A population probe whose result decides a data release** runs on the reference platform (the pinned Linux
+     image, or native CI for what only it reproduces), or the plan marks its expected set as measured on <platform>
+     and *assumed* for the reference platform, so the pre-publish check treats a difference as expected-possible, not
+     as a surprise (AIUE-229: `bbb.newaph` tripped the `--checkbounds` audit only on Linux).
 8. Use `research-agent` instances in parallel only when the user has asked for subagents.
 
 ## Phase 3: External research (when needed)
@@ -166,9 +182,12 @@ literature belongs in the physics spec, not here.
   Budget one targeted regeneration round (`--only` or the tool's equivalent) after the authoritative-build validation
   and the owner's review of the classified lists, and prototype, at planning, every generator mode the plan may need
   on each store kind it will write (AIUE-99, AIUE-197: `--only` on a sketch store always refused; -O0 found three
-  switches to exclude after a 2 h sweep). A rebase that leaves the generator's inputs byte-identical (`git diff
-  <gen-commit> <rebased> -- <tool tree>` empty) needs no regeneration if the owner agrees; keep the generating commit as a local
-  tag until merge. A check that reproduces a data release reads the release's history first (`git log` of its
+  switches to exclude after a 2 h sweep). A rebase whose diff to the generating commit, over everything the
+  generator builds or runs (tool tree and compiled sources), is empty, or touches only code that cannot run during
+  generation (name the routine and why, e.g. a signal handler), needs no regeneration if the owner agrees. The
+  release tag keeps the generating commit reachable (keep it as a local tag until merge otherwise); the PR body says
+  why the data still holds (AIUE-230: AIUE-95 kept yldot-data-v16 across a rebase that changed only `int_handler`).
+  A check that reproduces a data release reads the release's history first (`git log` of its
   manifests, and the releases they were regenerated from): an `--only` release copies every other entry, and its
   `reason` text, from the installed release, so the manifest's provenance commit is where only the regenerated
   entries were computed (AIUE-98, AIUE-206).
@@ -178,6 +197,11 @@ literature belongs in the physics spec, not here.
 - **Report-only paths.** When a test reports a condition instead of failing (a warning, a print), name every consumer
   of that test (CI tiers, the mutation cross-check, tools that run it in a child) and say whether each one treats the
   report as a pass or a failure (AIUE-188).
+- **Readers of what the change writes.** When the change writes or rewrites a stored field (a manifest class or
+  reason, a stored dataset, a saved variable, a tolerance), grep for every test and tool that reads that field back
+  and say in the plan what each does with the new value. A reader that would now fail goes into the plan's files
+  list (AIUE-228: `test_invalid` re-runs stored INVALID entries in the serial build, so AIUE-95's audit-INVALID
+  entries needed `(serial build: …)` pinned).
 - **CI gating.** A change that un-gates or re-gates CI jobs (removes a job they `needs`, changes an `if:`) checks
   their run history (`gh run list --workflow <file>`) and states their expected first run; jobs that have never run
   get an owner decision (AIUE-103, AIUE-203).
@@ -240,16 +264,22 @@ Execute top to bottom; each task is atomic.
 - The regression suite is the yldot suite (`validate` step 3); a new `+input` switch also gets its variant (`physics-workflow.md`).
 - OpenMP check (the AIUE-8 test flow, `validate` step 4) if the `pandf` tree or threadprivate vars change.
 - Edge cases: <topologies, species counts, switches>.
+- The scope `validate` requires for the plan's tier (L: the yldot nightly tier too; the full suite took 4 h 21 min on
+  a serial macOS build in AIUE-224), with a wall-time estimate, not a narrower set (AIUE-235).
 
 ## AI-layer facts affected
 <Every fact in `CLAUDE.md`, `.claude/context/*.md` (incl. `physics-models.md`, `architecture.md`) that this change
 makes untrue or incomplete: moved routines, new or renamed files, new switches/models, changed build steps,
 changed defaults. Find candidates with `uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop`
 after a dry run, or by grepping the AI layer for the files and routines you touch. Write "none" only after
-checking. Each entry becomes a final task with the trailer `AI-layer: code-facts`.>
+checking. Each entry becomes a final task with the trailer `AI-layer: code-facts`. A plan that removes or renames
+a heading in `CLAUDE.md` or `.claude/context/` greps `.claude/skills`, `.claude/agents`, `.claude/hooks` and
+`.claude/context` for the heading's text: a heading that is still cited stays, or its citations change on an AI-layer
+branch first. The drift check does not see headings (AIUE-247).>
 
 ## Validation commands
-Run the `validate` skill (`nightly` for an L-tier change; `--omp` if applicable), plus any feature-specific commands.
+Run the `validate` skill (`nightly` for an L-tier change; `--omp` if applicable), plus any feature-specific commands,
+with each one's wall-time estimate (AIUE-235).
 
 ## Acceptance criteria
 - [ ] Builds without new warnings in touched files
