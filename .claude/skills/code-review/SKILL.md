@@ -69,7 +69,7 @@ the defaults rule applies.
   `tests/yldot/families/*/family.toml` is a finding: CRITICAL when the reference guard requires `Default results:
   changed`, HIGH when it requires `Test criteria: loosened` (as it does for any harness or test code under
   `tests/yldot/`, too), MEDIUM otherwise. Run the guard where you have a shell
-  (`validate` step 3b); in CI without one, list the paths. In a physics or bug-fix PR, the description must carry every
+  (`validate` step 3); in CI without one, list the paths. In a physics or bug-fix PR, the description must carry every
   declaration the guard requires (`CLAUDE.md` → Hard rules), and its `<family>:<id>` list must match the cases the
   plan, spec or RCA says move.
 

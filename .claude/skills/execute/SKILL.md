@@ -99,8 +99,8 @@ After completing implementation tasks:
 
 - Run the case-level checks the plan lists (input decks, `bbb.exmain()` convergence, `checkbal()`)
 - Run the OpenMP check (the AIUE-8 test flow, `validate` step 4) if the plan calls for it
-- Add any test or example artefacts the plan specifies. Regression cases live on the `pytests` branch (the old
-  suite) and in `tests/yldot` (families and variants; a new `+input` switch gets its variant as
+- Add any test or example artefacts the plan specifies. Regression cases live in `tests/yldot`
+  (families and variants; a new `+input` switch gets its variant as
   `.claude/context/physics-workflow.md` → A new switch in the yldot suite says). Do not invent a new test location,
   and never edit a tolerance, override or manifest to make a test pass (AIUE-9 decision 23)
 
@@ -126,7 +126,7 @@ Before validating, bring the AI layer's description of the code up to date (`.cl
 
 ### 4. Run Validation Commands
 
-Run the `validate` skill with the suites the plan names, then any feature-specific commands from the plan:
+Run the `validate` skill with the yldot tier the plan names, then any feature-specific commands from the plan:
 
 ```bash
 # Run each command exactly as specified in plan
@@ -146,7 +146,7 @@ If any command fails:
 Before completing:
 
 - ✅ All tasks from plan completed
-- ✅ Validate gate green, the yldot suite included (refactor: suites unchanged; physics: only documented cases moved)
+- ✅ Validate gate green, the yldot suite included (refactor: the yldot suite unchanged; physics: only documented cases moved)
 - ✅ All validation commands pass
 - ✅ Code follows project conventions
 - ✅ Documentation added/updated as needed

@@ -61,11 +61,11 @@ Look for:
 - Related bug fixes
 - Refactorings that might have introduced the issue
 
-**A regression against stored references (a pytests case, a saved state):** establish a known-good baseline before
+**A regression against stored references (a yldot reference, a saved state):** establish a known-good baseline before
 building or bisecting anything.
 - Replay the failing case on LLNL's published wheels first: in a scratch venv, `pip install "uedge==<version>"` for a
   few releases (the release history at https://pypi.org/project/uedge/#history; `pip index versions uedge` may find
-  none for your Python), then run the case from the pytests checkout. Also build the last upstream merge
+  none for your Python), then run the failing case with it. Also build the last upstream merge
   (`git merge-base origin/v9-develop upstream/master`). Minutes, not hours.
 - If they reproduce the references, the references are right and the divergence is **fork-only**: bisect the fork's
   own commits, `git bisect start --first-parent <bad> <last upstream merge>`. If they don't, the reference or the
@@ -239,7 +239,7 @@ publish it (below).
 
 **Validation:**
 - Reproduction script/input deck and expected outcome after the fix
-- `validate` skill suites to run (and `--omp` if the `pandf` tree or `ppp/` is involved)
+- `validate` tier to run (`nightly` for the `pandf` tree; `--omp` if the `pandf` tree or `ppp/` is involved)
 - Expected change in default results (none / named cases)
 
 ## Implementation Plan

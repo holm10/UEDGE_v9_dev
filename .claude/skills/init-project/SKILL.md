@@ -54,17 +54,18 @@ cd /tmp && python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 Run from outside the repo so the installed package (not `src/`) is imported. Watch for a `.uedgerc.py` in
 `$HOME` or the cwd — it runs on import.
 
-## 5. Regression tests (optional, needed for `validate`)
+## 5. yldot quick check (optional; `validate` runs the full PR tier)
+
+From the repo root, in the venv of step 3:
 
 ```bash
-git fetch origin pytests                 # v9: the fork's pytests branch holds v9's references
-git worktree add --detach ../uedge-pytests origin/pytests
-pip install pytest pytest-isolate
-cd ../uedge-pytests && pytest --isolate --tb=short pytests/unittests/D_only -s
+pip install pytest pytest-xdist pytest-timeout h5py setuptools   # the `test` extra, without reinstalling UEDGE
+pytest tests/yldot/test_smoke.py -rf --tb=short
 ```
 
-LLNL's `upstream/pytests` holds the references for LLNL UEDGE; the cases in `V9_REFERENCE_CHANGES.md` (on
-`origin/pytests`) fail there for v9 by design (`.claude/context/testing.md`).
+The first run fetches the reference data (about 50 MB into `tests/yldot/.data/`), then runs 41 tests in about 30 s
+(macOS arm64, 2026-11-10). The yldot suite is the regression suite (`.claude/context/testing.md`); never run
+`pytest tests/`.
 
 ## 6. Claude Code hooks
 

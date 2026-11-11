@@ -43,7 +43,7 @@ implementer updates it on the same branch as the code (trailer `AI-layer: code-f
 - SI units except temperatures, which are stored in **Joules** internally (`te`, `ti` in J; `ev` conversion factor).
   Check neighbours before assuming.
 - Read `openmp-jacobian.md` before writing anything inside the `pandf` tree.
-- Validate: regression suites unchanged with feature off, the pytests suites and the yldot suite (or the changes explained, if defaults moved on purpose); with feature on, check `checkbal()` (`src/uedge/balance.py`)
+- Validate: the yldot suite unchanged with feature off (or the changes explained, if defaults moved on purpose); with feature on, check `checkbal()` (`src/uedge/balance.py`)
   for particle/power balance, and run the AIUE-8 OpenMP test flow (`validate` step 4).
 
 ## A new switch in the yldot suite

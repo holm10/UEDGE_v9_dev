@@ -521,14 +521,10 @@ fails `git bisect skip`; without these flags a whole range is skipped and the bi
 
 The old regression suite lives on the fork's `origin/pytests` branch (last commit f695acd; v9's references and their
 reasons in `V9_REFERENCE_CHANGES.md` there). It evaluated 157 cases from a stored, perturbed state and compared the
-residual `fnrm` per equation against references at `rtol=1e-5`. Nothing in this repository runs it. AIUE-107 ran it
-once, for the coverage comparison (Coverage, below), and retired it; the skills that still name it lose it in AIUE-108.
-
-### Known failures on `v9-develop`
-
-None. The last full run (all suites on a serial build of `v9-develop` c82a515 against `origin/pytests` f695acd,
-2026-10-21) gave 157 passed (D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3). AIUE-107's coverage run
-(`-O0 --coverage`, 0745776, 2026-11-10) also gave 157 passed.
+residual `fnrm` per equation against references at `rtol=1e-5`. Nothing in this repository runs it, and no skill or
+agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c82a515, 2026-10-21) gave 157 passed
+(D_only 125, D+C 1, D_mols 27, slab_D_only 1, fulltests 3); AIUE-107 ran it once more, for the coverage comparison
+(`-O0 --coverage`, 0745776, 2026-11-10; Coverage, below), also 157 passed, and retired it.
 
 ## CI facts / quirks
 

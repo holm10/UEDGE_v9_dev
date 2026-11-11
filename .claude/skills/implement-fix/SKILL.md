@@ -67,7 +67,7 @@ review, but is at least M: its implementation review runs on Opus (`FORTRAN: yes
 2. Re-run the reproduction — the failure must be gone.
 3. If the fix touches the `pandf` tree, threadprivate variables, or `ppp/`: run the AIUE-8 OpenMP test flow
    (`validate --omp`, step 4).
-4. Run the `validate` skill with the suites matching the area (the yldot suite, its step 3b, included).
+4. Run the `validate` skill (the yldot suite, its step 3; `nightly` for an L-tier fix).
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
@@ -92,7 +92,7 @@ by resuming the long agent), rounds 2+ as verification rounds.
 
 ## 5. Regression coverage
 
-The old suite lives on the `pytests` branch; its replacement is the yldot suite (`tests/yldot`, epic AIUE-9). Do not
+The regression suite is the yldot suite (`tests/yldot`, epic AIUE-9). Do not
 add tests for the fix here. Record in the report the exact case (input deck/script and settings) that reproduces the
 bug, and, when a yldot family or variant shows it, the family, configuration and variant id. A case no family covers
 becomes its own intake ticket (a new family), not part of the fix.

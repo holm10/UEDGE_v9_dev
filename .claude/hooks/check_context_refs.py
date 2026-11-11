@@ -57,7 +57,7 @@ BARE = re.compile(r"`:(\d+)")
 TICKPATH = re.compile(rf"`(?P<path>{PATH})`")
 # paths that legitimately live outside this checkout or are created later (.claude/work/ and the legacy
 # working-document paths are local and untracked: .claude/context/branching.md)
-EXTERNAL = ("pytests/", "../", "./", "~", "docs/", ".claude/work/", ".claude/plans/", ".claude/execution-reports/",
+EXTERNAL = ("../", "./", "~", "docs/", ".claude/work/", ".claude/plans/", ".claude/execution-reports/",
             ".claude/system-reviews/", ".claude/code-reviews/", "logs/", "build/", "upstream/")
 
 
