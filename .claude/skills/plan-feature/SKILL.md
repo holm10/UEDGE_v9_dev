@@ -106,14 +106,15 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    line that settles it). A probe script the plan cites, or that a later task re-runs, is saved under
    `.claude/work/<KEY>/probes/` (gitignored, kept with the worktree), not only in the session scratchpad, which does
    not outlive the session (AIUE-238). When the conclusion depends on what an input value means (a solver option
-   set to 0, a flag that selects a path), cite the source line that defines that meaning next to the output: an output code alone
-   (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200 iterations,
-   `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates, is marked
-   *assumed*, and the task that relies on it checks it first. An *assumed* claim that scopes a follow-up or a Note,
-   and that a probe in an existing venv can settle in minutes, is probed at planning instead (AIUE-233). For a build
-   change, plan a link check on every platform the change claims (the link line, plus `nm -u` or an import), and give every runtime gate a way to fail
-   (a count, not a file's existence). The same holds for a repo tool used as a VALIDATE step: probe what that mode
-   actually verifies (run it once on the current tree, or cite the contract in its docstring), else mark it
+   set to 0, a flag that selects a path), cite the source line that defines that meaning next to the output: an
+   output code alone (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200
+   iterations, `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates,
+   is marked *assumed*, and the task that relies on it checks it first. An *assumed* claim that scopes a follow-up or
+   a Note, and that a probe in an existing venv can settle in minutes, is probed at planning instead (AIUE-233). For
+   a build change, plan a link check on every platform the change claims (the link line, plus `nm -u` or an import),
+   and give every runtime gate a way to fail (a count, not a file's existence). The same holds for a repo tool used
+   as a VALIDATE step: probe what that mode actually verifies (run it once on the current tree, or cite the contract
+   in its docstring), else mark it
    *assumed* (AIUE-91: `fetch_data.py --check` verifies only cached files, not the files at their manifest paths).
    An estimate that decides a gate (a size cap, a budget, a runtime) is probed with the code that will produce it:
    the real writer and serializer on each case the gate applies to, from that case's own output (a sibling's pattern

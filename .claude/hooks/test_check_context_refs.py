@@ -172,5 +172,14 @@ with tempfile.TemporaryDirectory() as tmp:
     ok(r.doc() == "See `src/a.py:10-20`.\n" and r.lock() == before, "T9 end unsure: doc and lock unchanged")
     ok(r.run()[0] == 1, "T9 end unsure: a plain re-run still fails")
 
+    # ... and when the end's move is held back (another reference cites its target as NEW), the start is held too
+    body = lines(40, {10: "start here", 15: "endif", 20: "endif"})
+    r = Repo(tmp / "t9c", "See `src/a.py:10-20`.\n", body)
+    (r.root / "CLAUDE.md").write_text("See `src/a.py:10-20`.\nAnd `src/a.py:25`.\n")  # 25 NEW, not locked
+    r.write(insert(body, 0, 5, "ins"))
+    rc, out = r.run("--fix")
+    ok(rc == 1 and "held back 2" in out, "T9 end held: both ends of the range held back, exit 1")
+    ok(r.doc() == "See `src/a.py:10-20`.\nAnd `src/a.py:25`.\n", "T9 end held: the range is not half-moved")
+
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -18,9 +18,10 @@ After Step 1, `cd` into that worktree and stay there for every later step.
 section of its page (the ticket's entry on the epic's breakdown page on Confluence, as filed by `spec`). The
 acceptance criteria are what the reviewer checks against, so quote them verbatim.
 
-**Working documents.** The plan, the review reports and responses, validation records, the execution report and
-the system review are written to the ticket's working folder `<worktree>/.claude/work/<KEY>/` and never committed
-(`.claude/context/branching.md`). What must last goes to the ticket page at the milestones below. The folder and the
+**Working documents.** The plan, the probe scripts it cites (`probes/`), the review reports and responses,
+validation records, the execution report and the system review are written to the ticket's working folder
+`<worktree>/.claude/work/<KEY>/` and never committed (`.claude/context/branching.md`). What must last goes to the
+ticket page at the milestones below. The folder and the
 `ticket-page` outbox go with the worktree: flush (nothing queued) before a worktree is removed.
 
 **Worktrees and subagents.** The ticket's worktree is always an explicit one (`git worktree add … ../uedge-wt/<KEY>`,

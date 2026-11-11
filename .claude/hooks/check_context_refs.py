@@ -250,10 +250,14 @@ def main() -> int:
     problems, moved, seen, unsettled = check(lock)
     if a.fix and moved:
         # a move onto a line another reference cites as STALE or NEW would overwrite that lock entry: hold it back,
-        # and its own old key stays cited, so repeat along chains
+        # and its own old key stays cited, so repeat along chains. A held move holds every move of its reference: a
+        # range whose start moved while its end is held would be left wrong (`15-20` for `15-25`), and once the other
+        # reference is settled the drift check would pass on it (AIUE-243)
         held, n_held = set(unsettled), 0
         while True:
             keep = [mv for mv in moved if f"{mv[3]}:{mv[5]}" not in held]
+            refs = {mv[:3] for mv in moved if mv not in keep}
+            keep = [mv for mv in keep if mv[:3] not in refs]
             if len(keep) == len(moved):
                 break
             held |= {f"{mv[3]}:{mv[4]}" for mv in moved if mv not in keep}

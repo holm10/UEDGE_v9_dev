@@ -69,8 +69,8 @@ AIUE-216).
   `tests/yldot/tools/run_mutations.py:804`).
 - **A script that drives the yldot harness itself needs a `__main__` guard.** A script that calls
   `Runner(...).evaluate` outside pytest puts the calls under `if __name__ == "__main__":`. Under spawn
-  (`YLDOT_START_METHOD=spawn`, which coverage runs need, `testing.md` → Coverage), the child re-imports the script, and
-  a module-level call crashes it at once ("An attempt has been made to start a new process before the current process
-  has finished its bootstrapping phase"; the harness reports `status='crash'` with no result). pytest never hits this,
-  since conftest imports are not `__main__` (AIUE-107 probe 6, AIUE-248; the mechanism re-probed 2026-11-10 with a
-  plain `multiprocessing` spawn at module level: the same message, child exit code 1).
+  (`YLDOT_START_METHOD=spawn`, which coverage runs need, `testing.md` → Coverage), the child re-imports the script,
+  and a module-level call crashes it at once ("An attempt has been made to start a new process before the current
+  process has finished its bootstrapping phase"; the harness reports `status='crash'` with no result). pytest never
+  hits this, since conftest imports are not `__main__` (AIUE-107 probe 6, AIUE-248; the mechanism re-probed
+  2026-11-10 with a plain `multiprocessing` spawn at module level: the same message, child exit code 1).
