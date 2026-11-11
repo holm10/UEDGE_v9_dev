@@ -72,11 +72,11 @@ def test_default(tol, runner, family, config):
         imap = compare.index_map(r.data, compare.load_regions(family))
         t = tolerance(s, config, tol, imap)
         yldot, yldot_j = r.data["yldot"], r.data["yldot_J"]
-        chk = s.check(config, None, yldot, yldot_j, t, imap, r.data["diagnostics"])
+        chk = s.check(config, None, yldot, yldot_j, t, imap, r.data["diagnostics"], r.data.get("live"))
         if not chk.ok:
             ref = s.default(config)
             lines = [headline(family, config, "yldot", yldot, ref, t, imap,
-                              s.diagnostic_pair(config, r.data["diagnostics"])),
+                              s.diagnostic_pair(config, r.data["diagnostics"], r.data.get("live"))),
                      headline(family, config, "flag difference", np.asarray(yldot_j) - np.asarray(yldot),
                               s.jflag(config), t, imap)]
             pytest.fail("\n".join(lines + [chk.report]), pytrace=False)

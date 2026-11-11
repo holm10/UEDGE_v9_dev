@@ -20,7 +20,8 @@ The steps, numbered as in the PRD (the timestep configuration adds 6a-6c):
     8b  yl[neq] = +1 (Jacobian flag), pandf x P: yldot_J; yl[neq] = -1 again
     8c  steady only, with job['locality'] = delta: the locality protocol of PRD section 7.5 (locality.run); its f00
         must equal yldot_J bit for bit
-    9   results back through the pipe
+    9   results back through the pipe; with job['diagnostics'] the diagnostic arrays and, unless 8c ran, the live
+        mask of the residual arrays (live_residuals: one more pandf as in 8b with isrscalf = 0; AIUE-176)
 
 The intake configuration (PRD section 7.1, decision 20) replaces steps 3-8b: allocate, restore reference_state.h5,
 restart = 1, POST hook; issfon = 1, ftol = 1e50, dtreal = 1e20; exmain once; step 7; pandf once. It returns yldot and
@@ -147,6 +148,68 @@ def diagnostics(bbb):
     return out
 
 
+def live_residuals(bbb, com, neq, captured):
+    """Which entries of the residual arrays reach yldot (owner, 2026-11-11, AIUE-176 D1: empirical, in the child).
+
+    pandf once more as in step 8b (yl[neq] = +1: no add_timestep, bbb/pandf.m:737-743), with isrscalf = 0 so that
+    rscalf (its only use, bbb/pandf.m:724) leaves the rows as calc_rhs and bouncon left them. An entry is live when its
+    yldot row equals calc_rhs's copy of it bit for bit (bbb/pandf.m:272-359: residual / its normalisation), NaN on both
+    sides included; an algebraic row (0 from calc_rhs) or a row bouncon overwrote is dead. captured: the diagnostics
+    of step 8b, which the repeated call must reproduce bit for bit. Returns ({name: bool array}, [names left
+    unmasked]): an array with rows but no live entry is left unmasked (a changed normalisation must not hide it)."""
+    from .compare import RESIDUAL_ROWS
+
+    if bbb.yl[neq] != -1.0:
+        raise Stop("harness", "live_residuals: yl[neq] = {}, expected -1 after step 8b".format(bbb.yl[neq]))
+    isrscalf = int(bbb.isrscalf)
+    try:
+        bbb.isrscalf = 0
+        bbb.yl[neq] = 1.0
+        bbb.pandf(-1, -1, neq, 0.0, bbb.yl, bbb.yldot)
+        y = bbb.yldot[:neq].copy()
+    finally:
+        bbb.isrscalf = isrscalf
+        bbb.yl[neq] = -1.0
+    again = diagnostics(bbb)
+    for name in RESIDUAL_ROWS:
+        if name in captured and not np.array_equal(again.get(name), captured[name], equal_nan=True):
+            raise Stop("harness", "live_residuals: {} differs between step 8b's pandf and its repeat with "
+                       "isrscalf = 0".format(name))
+    vol, volv = np.array(com.vol), np.array(com.volv)
+    ennorm = float(bbb.ennorm)
+    den = {"resco": vol[:, :, None] * np.array(bbb.n0)[None, None, :],
+           "resmo": volv[:, :, None] * np.array(bbb.fnorm)[None, None, :],
+           "resee": vol * ennorm, "resei": vol * ennorm,
+           "resng": vol[:, :, None] * np.array(bbb.n0g)[None, None, :],
+           "reseg": vol[:, :, None] * ennorm,
+           "resphi": vol * float(bbb.temp0)}
+    live, unmasked = {}, []
+    for name, (idx_name, on_name) in RESIDUAL_ROWS.items():
+        if name not in captured:
+            continue
+        r = captured[name]
+        idx, on, d = np.array(getattr(bbb, idx_name)), np.array(getattr(bbb, on_name)), den[name]
+        if r.ndim == 3:  # species last: the residual's count may be below the index array's or the norm's
+            idx, on, d = idx[..., :r.shape[2]], on[..., :r.shape[2]], d[..., :r.shape[2]]
+        try:
+            d = np.broadcast_to(d, r.shape)
+        except ValueError:
+            d = None
+        if d is None or not idx.shape == on.shape == r.shape:
+            raise Stop("harness", "live_residuals: {} has shape {}, {} {}, {} {}".format(
+                name, r.shape, idx_name, idx.shape, on_name, on.shape))
+        has = (on == 1) & (idx > 0)
+        yv = np.where(has, y[np.clip(idx - 1, 0, neq - 1)], np.nan)  # idx holds Fortran (1-based) row numbers
+        with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+            q = r / d
+        keep = has & ((yv == q) | (np.isnan(yv) & np.isnan(q)))
+        if has.any() and not keep.any():
+            unmasked.append(name)
+            continue
+        live[name] = keep
+    return live, unmasked
+
+
 def evaluate(job):
     family = Path(job["family"])
     if job["mode"] == "spawn":
@@ -270,4 +333,6 @@ def evaluate(job):
         out["locality"] = loc
     if job["diagnostics"]:
         out["diagnostics"] = diagnostics(bbb)
+        if loc is None:  # 8c's perturbed calls leave the last pandf unrepresentative
+            out["live"], out["live_unmasked"] = live_residuals(bbb, com, neq, out["diagnostics"])
     return out
