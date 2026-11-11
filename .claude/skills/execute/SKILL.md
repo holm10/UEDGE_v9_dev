@@ -38,8 +38,8 @@ never committed).
 
 ### 1b. Iterate fast
 
-Use the smallest check that can fail for each task: one case, two thread counts, the one suite the task touches. Run
-the full matrix (all suites, all thread counts, the bitwise checks) **once**, in step 4, and prefer CI for heavy
+Use the smallest check that can fail for each task: one case, two thread counts, the one yldot family the task touches. Run
+the full matrix (the yldot tier, all thread counts, the bitwise checks) **once**, in step 4, and prefer CI for heavy
 matrices (`.claude/context/testing.md` → Fast iteration). Reuse builds: one venv per build kind per worktree, rebuilt
 only when sources changed. Before a run expected to take more than about 10 minutes in another environment (a
 container, CI, a remote host), run the same command there at its smallest size first (one family, a two-id `--only`,

@@ -41,7 +41,7 @@ later reader needs in the PR description.
 
 - Build (serial): ✓/✗ [first error / new warnings in touched files]
 - Smoke import: ✓/✗
-- Regression suites: ✓/⚠️/✗ [suites run; passed/failed; cases that moved and whether that was documented]
+- yldot suite: ✓/⚠️/✗ [tier run; passed/failed; cases that moved and whether that was documented]
 - OpenMP check: ✓/✗/skipped [why skipped]
 
 ### What Went Well

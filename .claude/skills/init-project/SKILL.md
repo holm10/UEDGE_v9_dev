@@ -59,7 +59,7 @@ Run from outside the repo so the installed package (not `src/`) is imported. Wat
 From the repo root, in the venv of step 3:
 
 ```bash
-pip install pytest pytest-xdist pytest-timeout h5py setuptools   # the `test` extra, without reinstalling UEDGE
+pip install pytest pytest-xdist pytest-timeout h5py numpy setuptools   # the `test` extra, without reinstalling UEDGE
 pytest tests/yldot/test_smoke.py -rf --tb=short
 ```
 
