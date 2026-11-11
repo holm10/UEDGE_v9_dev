@@ -35,6 +35,10 @@ pytest does not load (not *.py, conftest.py, *.ini, *.cfg, *.toml) is not guarde
 
 A line matches with leading list markers, '>' and surrounding ** or backticks ignored; the keywords are exact.
 
+Values compare by their canonical JSON text (same(): -0.0 != 0.0, 1 != 1.0, NaN == NaN, as manifest.runs) in the
+variant fields, the rename check and overrides.toml; tolerances.toml and family.toml compare with == (owner,
+2026-11-10, AIUE-199).
+
 A base manifest that is invalid is treated as absent: the PR that changes it needs Default results: changed with the
 item <family>:* (the head manifest must be valid); an invalid manifest the PR does not touch is not charged to it. An external file over 200 MB is refused before the download.
 
@@ -248,6 +252,17 @@ def monotone(a, b):
     return CHANGED if a is None or b <= a else LOOSENED
 
 
+def same(a, b):
+    """Two decoded values are equal when their canonical JSON texts are (json.dumps with sorted keys), the equality
+    manifest.runs uses: -0.0 != 0.0, 1 != 1.0, true != 1 and NaN == NaN, where Python's == says otherwise (owner,
+    2026-11-10, AIUE-199; AIUE-9 decision 23). A value JSON cannot write (a TOML date or time) compares by its repr,
+    so a date never equals its string and a head file cannot crash the guard."""
+    try:
+        return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    except (TypeError, ValueError):
+        return repr(a) == repr(b)
+
+
 def diff_tolerances(t0, t1):
     """[(requirement, what)] for two parsed tolerances.toml."""
     out = []
@@ -284,7 +299,7 @@ def diff_overrides(o0, o1, pruned):
     out = []
     for key in sorted(set(o0) | set(o1)):
         a, b = o0.get(key), o1.get(key)
-        if a == b:
+        if same(a, b):
             continue
         if a is None:
             out.append((CHANGED, "[{}] new override".format(key)))
@@ -378,7 +393,7 @@ def rename_differences(m0, a, va, m1, b, vb):
     variant SHA, which hashes the id), "stored datasets" if the stored data differ under the new id, and "locality
     pattern" if their locality slices differ (one stored and not the other, or another slice; AIUE-95). [] for a
     rename."""
-    out = [k for k in RENAME_FIELDS if va[k] != vb[k]]
+    out = [k for k in RENAME_FIELDS if not same(va[k], vb[k])]
     if stored(m0, va["config"], a) != stored(m1, vb["config"], b):
         out.append("stored datasets")
     if m0.get("locality_variants", {}).get(a) != m1.get("locality_variants", {}).get(b):
@@ -464,7 +479,7 @@ def diff_manifest(family, m0, m1, base_classes):
         if l0[vid] != l1[vid]:
             add(DEFAULT, "locality pattern of variant {} changed".format(vid), "{}:{}".format(family, vid))
     for vid in sorted(set(v0) & set(v1)):
-        diff = sorted(k for k in v0[vid] if k != "reason" and v0[vid][k] != v1[vid][k])
+        diff = sorted(k for k in v0[vid] if k != "reason" and not same(v0[vid][k], v1[vid][k]))
         if diff:
             add(DEFAULT, "variant {} changed: {}".format(vid, ", ".join(diff)), "{}:{}".format(family, vid))
     ref = mf.reference_path(family) if "datasets" in m1 else None  # judged through the datasets, if there are any

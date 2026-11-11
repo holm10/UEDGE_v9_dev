@@ -448,6 +448,14 @@ def test_overrides_rules():
     assert {r for r, _ in guard.diff_overrides(base, edited, set())} == {"loosened"}
     assert {r for r, _ in guard.diff_overrides(base, removed, set())} == {"loosened"}
     assert {r for r, _ in guard.diff_overrides(base, removed, {"bbb.both"})} == {"changed"}
+    # AIUE-199: compared by the canonical JSON text, so an int turned float or a zero's sign is a change, and a TOML
+    # date (which JSON cannot write) compares by its repr instead of crashing the guard
+    zero = dict(base, **{"bbb.inert": {"reason": "base", "values": [0.0, 2]}})
+    for b0, b1 in ((base, dict(base, **{"bbb.inert": {"reason": "base", "values": [1.0, 2]}})),
+                   (zero, dict(base, **{"bbb.inert": {"reason": "base", "values": [-0.0, 2]}})),
+                   (tomllib.loads('["bbb.x"]\nwhen = "2026-11-10"\n'), tomllib.loads('["bbb.x"]\nwhen = 2026-11-10\n'))):
+        assert {r for r, _ in guard.diff_overrides(b0, b1, set())} == {"loosened"}
+    assert guard.diff_overrides(zero, json.loads(json.dumps(zero)), set()) == []
 
 
 def test_override_removed_with_its_pruned_variable(repo):
@@ -611,6 +619,52 @@ def test_runs_form_alone_is_no_change_and_a_changed_value_in_it_is_named(repo):
     code, v, out = repo.check()
     assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:bbb.both"], out
     assert "variant bbb.both changed: applied" in out
+
+
+def put_values(repo, edits, message=None):
+    """Write fam's manifest with edits {vid: {field: encoded value}}; commit it as the new base if message."""
+    m = repo.manifest("fam")
+    for vid, fields in edits.items():
+        m["variables"][vid].update(fields)
+    repo.write(G + "references/fam.manifest.json", mf.dumps(m))
+    if message:
+        repo.base = repo.commit(message)
+
+
+def scalar(x):
+    return {"dtype": "float64", "shape": [], "data": x}
+
+
+def pair(x):
+    return {"dtype": "float64", "shape": [2], "data": [1.0, x]}
+
+
+def test_signed_zero_in_applied_and_d_is_a_change(repo):
+    """AIUE-199: -0.0 == 0.0 in Python, but replay applies other bits; the guard compares the canonical JSON text."""
+    put_values(repo, {"bbb.inert": {"applied": scalar(0.0)}, "bbb.both": {"d": pair(0.0)}}, "base with zeros")
+    put_values(repo, {"bbb.inert": {"applied": scalar(-0.0)}, "bbb.both": {"d": pair(-0.0)}})
+    code, v, out = repo.check()
+    assert code == 1 and reqs(v) == {"default"} and v["items"] == ["fam:bbb.both", "fam:bbb.inert"], out
+    assert "variant bbb.inert changed: applied" in out and "variant bbb.both changed: d" in out
+
+
+def test_int_to_float_in_applied_is_a_change(repo):
+    put_values(repo, {"bbb.inert": {"applied": scalar(1)}}, "base with an int")
+    put_values(repo, {"bbb.inert": {"applied": scalar(1.0)}})
+    code, v, out = repo.check()
+    assert code == 1 and v["items"] == ["fam:bbb.inert"] and "variant bbb.inert changed: applied" in out, out
+
+
+def test_rename_refused_when_only_the_sign_of_a_zero_differs(repo):
+    put_values(repo, {"bbb.sens": {"applied": scalar(0.0)}}, "base with a zero")
+    variables = {k: c for k, c in BASE_VARIABLES["fam"].items() if k != "bbb.sens"}
+    m1, _ = repo.put_ref("fam", dict(variables, **{"bbb.renamed": ("SENSITIVE", 1)}),
+                         applied={"bbb.renamed": scalar(-0.0)})
+    m0 = mf.loads(repo.git("show", "{}:{}references/fam.manifest.json".format(repo.base, G)))
+    assert guard.rename_differences(m0, "bbb.sens", m0["variables"]["bbb.sens"],
+                                    m1, "bbb.renamed", m1["variables"]["bbb.renamed"]) == ["applied"]
+    code, v, out = repo.check()
+    assert code == 1 and v["items"] == ["fam:bbb.sens"] and "identical data" not in out, out
 
 
 LOC = (1e-5, {"column": np.array([0, 2]), "row": np.array([1, 3]), "mismatch": np.array([1e-6, -2e-6]),
