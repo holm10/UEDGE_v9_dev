@@ -172,7 +172,8 @@ def check(lock, changed=None):
                 moved[:] = [mv for mv in moved if mv[:3] != (doc, i, m.start())]
                 unsettled.add(f"{path}:{b}")
                 problems.append(("STALE", where, cited, f"line {a} moved by {d:+d}, but end line {b}'s text "
-                                 f"{want[:40]!r} is not on line {b + d} and also elsewhere: set the range by hand"))
+                                 f"{want[:40]!r} is not on line {b + d} and also elsewhere: set the range by hand "
+                                 f"(--fix moves neither end)"))
     for doc in docs():
         rel = str(doc.relative_to(ROOT))
         for i, line in enumerate(doc.read_text().splitlines(), 1):

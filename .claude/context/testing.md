@@ -600,7 +600,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
   350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
   AIUE-211; an `--only` dispatch is not cheap either: it re-runs each owner family's default and its stored variant
-  locality patterns, so run 42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent
+  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:603`), so run 42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent
   9315 s in large_dd2c's children and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes:
   dispatch imp7 alone when another owner family shares the job, AIUE-242), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
