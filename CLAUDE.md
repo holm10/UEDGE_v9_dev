@@ -40,12 +40,8 @@ python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"
 # tests/yldot/ is the yldot suite (epic AIUE-9; run `pytest tests/yldot`, never `pytest tests/`); CI runs its PR tier
 pip install ".[test]"                                # pytest, pytest-xdist, pytest-timeout, h5py, numpy, setuptools
 pytest tests/yldot -n auto -m "not nightly"         # the PR tier (one CI shard: add --yldot-shard <family|common>)
-# tests/deterministic_omp/ holds the OpenMP reproducer. The old regression suite lives on a separate branch:
-# origin/pytests for v9 work (v9's references, see testing.md)
-git worktree add --detach ../uedge-pytests origin/pytests
-pip install pytest pytest-isolate
-cd ../uedge-pytests && pytest --isolate --tb=long pytests/unittests/D_only -s
-#   suites: fulltests, unittests/{D+C, D_mols, D_only, slab_D_only}
+tests/yldot/tools/coverage.sh new OUT --jobs 10      # pandf*.F coverage under the yldot suite (a --coverage build; testing.md)
+# tests/deterministic_omp/ holds the OpenMP reproducer. The old regression suite is retired (AIUE-107, testing.md)
 ```
 
 There is no linter, formatter, or type checker, and CI runs none. Compiler warnings come from `-Wconversion -fimplicit-none` (`setup.py:80-87`).

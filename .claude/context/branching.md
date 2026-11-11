@@ -135,7 +135,6 @@ path is relative to the current directory, and from inside a ticket worktree `..
 
 - **Give each worktree its own virtualenv.** Two worktrees that install into the same env overwrite each other's
   `uedge` build, and the tests then run the wrong code.
-- The regression worktree `../uedge-pytests` is shared. It holds only tests and reference data.
 - **Ticket work always runs in an explicit worktree** (`git worktree add … ../uedge-wt/<KEY>`, above), also when a
   subagent does it. Never use the Agent tool's `isolation: "worktree"` for ticket work: Claude Code removes such a
   worktree by itself when the subagent finishes without committed changes, and sweeps old ones later, and gitignored
