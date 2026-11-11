@@ -312,20 +312,47 @@ def test_skip_ban_detects(src, expected):
 # ---------------------------------------------------------------- Fortran stops carry a message
 
 BARE_XERRAB = re.compile(r"""\bcall\s+xerrab\s*\(\s*(""|'')\s*\)""", re.IGNORECASE)
+FREE_CONTINUED = re.compile(r"&\s*(!.*)?$")
 GRIDGEN = ("grd/", "flx/")  # their bare stops stay (owner, 2026-11-11, AIUE-239 D1)
 
 
+def fortran_statements(text, free):
+    """(first line number, text) of each statement of a Fortran source, its continuation lines joined; comment lines
+    are dropped and do not end a statement. A comment line: fixed form (.m, .f) has c, C, * or ! in column 1; free
+    form (.F90) has ! as its first non-blank character; ! as the first non-blank character is a comment in fixed
+    form too. A continuation line: fixed form has columns 1-5 blank and a character other than blank or 0 in
+    column 6 (MPPL writes '.'); free form follows a line ending in & and may start with &."""
+    out, open_amp = [], False
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("!") or (not free and line[:1] in "cC*"):
+            continue
+        if free:
+            body = line.strip()
+            cont = open_amp and bool(out)
+            if cont and body.startswith("&"):
+                body = body[1:]
+            m = FREE_CONTINUED.search(body)  # a trailing &, perhaps followed by a ! comment
+            open_amp = bool(m)
+            if open_amp:
+                body = body[:m.start()]
+        else:
+            cont = bool(out) and len(line) > 5 and not line[:5].strip() and line[5] not in " 0\t"
+            body = line[6:] if cont else line
+        if cont:
+            out[-1] = (out[-1][0], out[-1][1] + body)
+        else:
+            out.append((i, body))
+    return out
+
+
 def bare_xerrab_sites(paths, root):
-    """'file:line' of every non-comment line of the Fortran sources paths (relative to root) that calls xerrab with
-    an empty literal. A comment line: fixed form (.m, .f) has c, C, * or ! in column 1; free form (.F90) has ! as
-    its first non-blank character; ! as the first non-blank character is a comment in fixed form too."""
+    """'file:line' (the statement's first line) of every statement of the Fortran sources paths (relative to root)
+    that calls xerrab with an empty literal, also when the call is split over continuation lines."""
     out = []
     for rel in paths:
-        free = rel.endswith(".F90")
-        for i, line in enumerate((root / rel).read_text(errors="replace").splitlines(), 1):
-            if line.lstrip().startswith("!") or (not free and line[:1] in "cC*"):
-                continue
-            if BARE_XERRAB.search(line):
+        text = (root / rel).read_text(errors="replace")
+        for i, stmt in fortran_statements(text, rel.endswith(".F90")):
+            if BARE_XERRAB.search(stmt):
                 out.append("{}:{}".format(rel, i))
     return out
 
@@ -358,5 +385,18 @@ def test_bare_xerrab_detects(tmp_path):
         "  ! call xerrab('')\n"
         "  call xerrab('Error in subroutine b: y')\n"
         "  call xerrab ( \"\" )\n"
-        "c = 1\n")
-    assert bare_xerrab_sites(["a.m", "b.F90"], tmp_path) == ["a.m:2", "a.m:6", "b.F90:4"]
+        "c = 1\n"
+        "  if (x) call xerrab( &  ! split\n"
+        "    & '')\n"
+        "  if (y) call xerrab( &\n"
+        "    'Error in subroutine b: z')\n")
+    (tmp_path / "c.m").write_text(
+        "      if (n .gt. 1) call xerrab(\n"
+        "c     a comment inside the statement\n"
+        "     .  '')\n"
+        "      if (n .gt. 2) call xerrab(\n"
+        "     .  'Error in subroutine c: n > 2')\n"
+        "      x = 1\n"
+        "     0  + 2\n")
+    assert bare_xerrab_sites(["a.m", "b.F90", "c.m"], tmp_path) == [
+        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1"]

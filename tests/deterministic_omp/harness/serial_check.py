@@ -57,7 +57,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 from harness.cli import exit_code  # noqa: E402
 from harness.compare import compare_records, format_report  # noqa: E402
 from harness.config import PRESETS, RunSpec  # noqa: E402
-from harness.runner import REPO_DIR, HarnessError, Record, log_tail, parse_iterations, run_spec  # noqa: E402
+from harness.runner import (REPO_DIR, NO_RECORD, HarnessError, Record, log_tail, parse_iterations,  # noqa: E402
+                            run_spec)
 
 FAMILIES = os.path.join(REPO_DIR, "tests", "yldot", "families")
 SETTINGS = os.path.join(REPO_DIR, "tests", "deterministic_omp", "settings")
@@ -332,7 +333,7 @@ def run_family_case(case, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
             raise HarnessError("run in {} timed out after {} s".format(rundir, timeout))
     elapsed = time.time() - start
     if not os.path.exists(os.path.join(rundir, "record.json")):
-        raise HarnessError("run in {} exited with {} and wrote no record (see run.log)".format(rundir, proc.returncode))
+        raise HarnessError("run in {} exited with {} and {} (see run.log)".format(rundir, proc.returncode, NO_RECORD))
     record = Record(rundir)
     if proc.returncode != 0:
         raise HarnessError("run in {} exited with {}".format(rundir, proc.returncode))
@@ -419,11 +420,11 @@ BARE_EXCEPTION = re.compile(r"^[A-Za-z_][\w.]*$")  # a traceback's last line wit
 
 def error_cause(message, rundir):
     """The informative part of a failed run: the last line of the traceback and, when that is a bare exception
-    name (an xerrab without a message), the end of run.log (runner.log_tail: whole lines up to its budget, ending
-    at the stop; AIUE-239, owner D2')."""
+    name (an xerrab without a message) or the run crashed without a record ("... wrote no record ..."), the end of
+    run.log (runner.log_tail: whole lines up to its budget, ending at the stop; AIUE-239, owner D2' and D7)."""
     lines = [ln.strip() for ln in message.splitlines() if ln.strip()]
     cause = lines[-1] if lines else message
-    if BARE_EXCEPTION.match(cause):
+    if BARE_EXCEPTION.match(cause) or NO_RECORD in cause:
         tail = log_tail(rundir)
         if tail:
             cause = "{}; log: {}".format(cause, tail)

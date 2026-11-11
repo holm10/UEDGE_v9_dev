@@ -1287,7 +1287,9 @@ c     factorization routine sgbco from Linpack/SLATEC.
          if (ierr .ne. 0) then
             write(STDOUT,*)
      .         '*** jac_lu_decomp -- csrbnd returned ierr =', ierr
-            call xerrab('Error in subroutine jac_lu_decomp: csrbnd returned an error (ierr .ne. 0)')
+            write (xerrmsg,'(a,i0)') 'Error in subroutine jac_lu_decomp: '//
+     .         'csrbnd returned ierr = ',ierr
+            call xerrab(trim(xerrmsg))
          endif
          tsmatfac = tick()
          call sgbco (wp, lowd, neq, lbw, ubw, iwp(4), rcond, rwk1)
@@ -2329,6 +2331,7 @@ c ... Common blocks:
 c ... Local variables:
       real tp
       integer i
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
       #Add working array to avoid recursive variable assignment
       real wk(neq)
       wk(1:neq)=0.0
@@ -2362,7 +2365,9 @@ c ... Also find initial maximum of yldot*sf = ydt_max0 for scaling nufak
       do i = 1, neq
          if (abs(sf(i)) .lt. 1e20*cutlo) then
             write(*,*) '*** Error: Jacobian row = 0 for eqn iv =', i
-            call xerrab('Error in subroutine sfsetnk: Jacobian row = 0 for an equation (its iv is printed above)')
+            write (xerrmsg,'(a,i0)') 'Error in subroutine sfsetnk: '//
+     .         'Jacobian row = 0 for equation iv = ',i
+            call xerrab(trim(xerrmsg))
          else
             sf(i) = 1./sf(i)
          endif

@@ -254,7 +254,8 @@ c     blanks). Basis function basfilex expands $,~.
       if (ios .ne. 0) then
          write(*,*) 
      .      '*** Input file ',impfname,' not found'
-         call xerrab('Error in subroutine readrates: input file impfname not found')
+         call xerrab('Error in subroutine readrates: input file '//
+     .               trim(impfname)//' not found')
       else
          write(*,*)
      .      '*** Reading from impurity excitation rate file: ',impfname

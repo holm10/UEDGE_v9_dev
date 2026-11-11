@@ -205,6 +205,10 @@ def test_error_cause(tmp_path):
     (tmp_path / "run.log").write_bytes(b" *** Error: Jacobian row = 0 for eqn iv = 1092\n\n done reading\x00\n")
     assert sc.error_cause(msg, str(tmp_path)) == (
         "RuntimeError; log: *** Error: Jacobian row = 0 for eqn iv = 1092 / done reading")
+    # a crash without a record also gets the tail (owner D7, AIUE-239 review I1-m2)
+    crash = "run in X exited with -11 and wrote no record (see run.log)"
+    assert sc.error_cause(crash, str(tmp_path)) == (
+        crash + "; log: *** Error: Jacobian row = 0 for eqn iv = 1092 / done reading")
     # an exception with text keeps it alone
     assert sc.error_cause(msg.replace("RuntimeError\n", "RuntimeError: boom\n"), str(tmp_path)) == "RuntimeError: boom"
 

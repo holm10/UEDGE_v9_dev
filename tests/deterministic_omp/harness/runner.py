@@ -26,6 +26,9 @@ CASE_FILES = ["input_mod4.py", "b0p1.hdf5", "gridue.hdf5", "save_input_mod4.h5",
 ITER_RE = re.compile(r"(OMP )?iter=\s*(\d+)\s+fnrm=\s*(\S+)\s+nfe=\s*(\d+)")
 
 
+NO_RECORD = "wrote no record"  # in the HarnessError of a run that crashed before writing its record
+
+
 def log_tail(rundir, budget=280):
     """The end of rundir's run.log for a failure reason: NULs removed, whitespace collapsed, blank lines dropped,
     whole lines kept from the end while their ' / '-joined length stays within budget (a last line longer than
@@ -142,7 +145,7 @@ def run_spec(spec, rundir, python=None, rates_dir=None, timeout=3600):
             raise HarnessError("run in {} timed out after {} s".format(rundir, timeout))
     elapsed = time.time() - start
     if not os.path.exists(os.path.join(rundir, "record.json")):
-        raise HarnessError("run in {} exited with {} and wrote no record (see run.log)".format(rundir, proc.returncode))
+        raise HarnessError("run in {} exited with {} and {} (see run.log)".format(rundir, proc.returncode, NO_RECORD))
     record = Record(rundir)
     if proc.returncode != 0:
         raise HarnessError("run in {} exited with {}".format(rundir, proc.returncode))

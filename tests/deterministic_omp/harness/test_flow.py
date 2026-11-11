@@ -237,6 +237,11 @@ def test_failure_reason(tmp_path):
         "C_rates.adas)")
     reason = flow.failure_reason("run in /x/y exited with -11 and wrote no record")
     assert reason == "exited with -11 and wrote no record"
+    # a crash without a record also gets the tail (owner D7, AIUE-239 review I1-m2)
+    crash = "run in {} exited with -11 and wrote no record (see run.log)".format(tmp_path)
+    assert flow.failure_reason(crash, str(tmp_path)) == (
+        "exited with -11 and wrote no record (see run.log) (log: *** Error: Jacobian row = 0 for eqn iv = 1092 / "
+        "***Impurity file using pre-2012 format is C_rates.adas)")
 
 
 def test_cli_flow_setup_errors(tmp_path, monkeypatch):

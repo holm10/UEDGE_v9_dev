@@ -306,7 +306,8 @@ c----------------------------------------------------------------------c
          write(*,*)
      .     '*** Input file mcfilename = "', mcfilename(i),
      .     '" not found.'
-         call xerrab('Error in subroutine readmc: input file mcfilename not found')
+         call xerrab('Error in subroutine readmc: input file '//
+     .               trim(mcfilename(i))//' not found')
       endif
 
 c     read header --
@@ -338,7 +339,9 @@ c     Test for compatibility of (rtnt,rtnn) from different tables:
          write(*,*)
      .      '*** subroutine readmc: incompatible table dimensions in ',
      .      mcfilename(i),' and ',mcfilename(i-1)
-         call xerrab('Error in subroutine readmc: incompatible table dimensions in mcfilename(i) and mcfilename(i-1)')
+         call xerrab('Error in subroutine readmc: incompatible table '//
+     .               'dimensions in '//trim(mcfilename(i))//' and '//
+     .               trim(mcfilename(i-1)))
       endif
 
 c     allocate storage --
