@@ -104,6 +104,12 @@ UNORDERED = (
     "fq2qneo", "fqypneo", "fqyqneo", "newfnglb", "newfnglbth", "newfngpf", "newfngpfth", "newfngrb", "newfngrbth",
     "newfngw", "newfngwth", "psor_tmpov", "psorcxgc", "psort", "qgpar",
 )
+# The residual arrays that calc_rhs copies into yldot (bbb/pandf.m:272-359): residual -> (index array, mask array).
+# An entry whose row is algebraic or that bouncon overwrites never reaches yldot; the harness child marks the live
+# entries (state.live_residuals) and Store.diagnostic_pair zeroes the others for first_difference (AIUE-176).
+RESIDUAL_ROWS = {"resco": ("idxn", "isnionxy"), "resmo": ("idxu", "isuponxy"), "resee": ("idxte", "isteonxy"),
+                 "resei": ("idxti", "istionxy"), "resng": ("idxg", "isngonxy"), "reseg": ("idxtg", "istgonxy"),
+                 "resphi": ("idxphi", "isphionxy")}
 
 
 class IndexTruthError(Exception):
@@ -489,6 +495,24 @@ class Difference:
         return "{} ({}): {} {:.3e} at {}".format(self.name, where, what, self.max_rel, self.index)
 
 
+def mask_dead(diag, live):
+    """diag with the dead entries of each array named in live (a bool array of the array's shape, True = the entry
+    reaches yldot) set to 0, as on both sides of a first_difference (owner, 2026-11-11, AIUE-176 D1: the form of the
+    AIUE-92 option (b) simulation, which also drops them from the array's scale). Arrays not in live pass unchanged;
+    live None returns diag. Only the localization hint uses it: no comparison of yldot is masked."""
+    if live is None:
+        return diag
+    out = dict(diag)
+    for name, keep in live.items():
+        if name not in out:
+            continue
+        a, keep = np.asarray(out[name], dtype=float), np.asarray(keep, dtype=bool)
+        if a.shape != keep.shape:
+            raise ValueError("{}: live mask shape {} differs from the array's {}".format(name, keep.shape, a.shape))
+        out[name] = np.where(keep, a, 0.0)
+    return out
+
+
 def first_difference(ref_diag, new_diag, rtol=0.0, scaled=False):
     """The first array, in PANDF_ORDER and then the others sorted, whose max relative difference |a-b|/max(|a|,|b|)
     exceeds rtol (0 = bitwise), or that is missing on one side or changed shape. None if all agree. scaled: compare
@@ -496,7 +520,8 @@ def first_difference(ref_diag, new_diag, rtol=0.0, scaled=False):
     in entries that cancel to near zero does not count (owner, 2026-10-22, AIUE-89).
 
     A heuristic for localization, never a pass/fail decision: an UNORDERED array is reported only when no ordered one
-    differs, although pandf may write it earlier (fmix, written through a call argument before fmixy)."""
+    differs, although pandf may write it earlier (fmix, written through a call argument before fmixy). Residual
+    entries that never reach yldot are masked by the caller (mask_dead through Store.diagnostic_pair, AIUE-176)."""
     names = set(ref_diag) | set(new_diag)
     ordered = [n for n in PANDF_ORDER if n in names]
     for n in ordered + sorted(names - set(PANDF_ORDER)):

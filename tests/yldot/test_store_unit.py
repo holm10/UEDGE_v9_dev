@@ -235,6 +235,30 @@ def test_failing_default_names_the_stored_intermediate(tmp_path, kind):
         assert cut is new and d.name == "fnix"  # fnix comes first in PANDF_ORDER; every array is compared
 
 
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_diagnostic_pair_masks_dead_residual_entries(tmp_path, kind):
+    """AIUE-176: with the new run's live mask, a difference only in dead residual entries names nothing, on both
+    sides (the stored array is masked too), and Store.check passes the mask on to its report."""
+    from yldot.harness.compare import DIAG_SCALED_RTOL, first_difference
+
+    build(tmp_path, kind)
+    live = {"resco": np.array([[True, True], [True, False], [True, False]])}
+    resco = DIAG["resco"].copy()
+    resco[1, 1] += 100.0
+    resco[2, 1] = np.nan
+    new = {"resco": resco, "fnix": DIAG["fnix"].copy()}
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        ref, cut = s.diagnostic_pair("steady", new, live)
+        assert ref["resco"][1, 1] == 0.0 and ref["resco"][2, 1] == 0.0 and cut["resco"][2, 1] == 0.0
+        assert first_difference(ref, cut, rtol=DIAG_SCALED_RTOL, scaled=True) is None
+        unmasked = first_difference(*s.diagnostic_pair("steady", new), rtol=DIAG_SCALED_RTOL, scaled=True)
+        assert unmasked.name == "resco"
+        bad = Y.copy()
+        bad[0] += 1.0
+        report = s.check("steady", None, bad, YJ + (bad - Y), TOL, IMAP, new, live).report
+    assert "first differing intermediate: none" in report
+
+
 THR_TOL = np.linspace(1e-9, 1e-7, N)
 
 

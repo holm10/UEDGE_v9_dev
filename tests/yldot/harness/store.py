@@ -62,7 +62,7 @@ from pathlib import Path
 import numpy as np
 
 from . import manifest as mf
-from .compare import DIAG_SCALED_RTOL, compare, index_map, listed, load_regions
+from .compare import DIAG_SCALED_RTOL, compare, index_map, listed, load_regions, mask_dead
 from .state import INDEX_ARRAYS, MASK_ARRAYS
 
 K = 8
@@ -739,14 +739,16 @@ class Store:
         g = "{}/default/diagnostics".format(config)
         return {name: self.read("/{}/{}".format(g, name)) for name in self.f[g]}
 
-    def diagnostic_pair(self, config, new):
+    def diagnostic_pair(self, config, new, live=None):
         """(stored, new) diagnostics for compare.first_difference: a sketch store keeps the res* arrays only, so the new
         run's are cut to the stored names; otherwise the first array not stored would always be the difference
-        (owner, 2026-10-23, AIUE-92). A full store compares every array, a new or lost name included."""
+        (owner, 2026-10-23, AIUE-92). A full store compares every array, a new or lost name included. live: the new
+        run's mask of the residual entries that reach yldot (state.live_residuals); the others are zeroed on both
+        sides (compare.mask_dead; owner, 2026-11-11, AIUE-176)."""
         ref = self.diagnostics(config)
         if self.kind == "sketch":
             new = {name: a for name, a in new.items() if name in ref}
-        return ref, new
+        return mask_dead(ref, live), mask_dead(new, live)
 
     def variants(self, config):
         g = "{}/variants".format(config)
@@ -763,16 +765,16 @@ class Store:
         lines = (c.report(*diag, rtol_diag=DIAG_SCALED_RTOL, scaled=True) if diag else c.report()).splitlines()
         return Check(c.ok, ["{} {}".format(what, lines[0])] + lines[1:])
 
-    def check(self, config, vid, yldot, yldot_J, tol, imap, diagnostics=None):
+    def check(self, config, vid, yldot, yldot_J, tol, imap, diagnostics=None, live=None):
         """Compare a new run with the default (vid None) or a stored variant: yldot and the Jacobian-flag difference,
         both under the per-entry tolerance tol of the default (decision 27). diagnostics: the new run's, to name the
-        first differing intermediate of a failing default. The Check's ratio: the largest of its parts' when each
-        part has one (a sketch store's variant), else None."""
+        first differing intermediate of a failing default; live: its residual mask (diagnostic_pair). The Check's
+        ratio: the largest of its parts' when each part has one (a sketch store's variant), else None."""
         self._same_index(imap)
         n = imap.neq
         yldot, yldot_J = _f64("yldot", yldot, n, False), _f64("yldot_J", yldot_J, n, False)
         if vid is None:
-            diag = self.diagnostic_pair(config, diagnostics) if diagnostics is not None else None
+            diag = self.diagnostic_pair(config, diagnostics, live) if diagnostics is not None else None
             parts = [self._full_check(yldot, self.default(config), tol, imap, "yldot", diag),
                      self._full_check(yldot_J - yldot, self.jflag(config), tol, imap, "flag difference")]
         else:

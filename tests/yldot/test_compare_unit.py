@@ -8,9 +8,10 @@ import numpy as np
 import pytest
 
 from yldot.harness import FAMILIES
-from yldot.harness.compare import (PANDF_ORDER, REGIONS, RULE_FAMILY, RULE_OWN, RULE_REGION, UNORDERED,
-                                   IndexTruthError, ToleranceEscalation, check_regions, compare, first_difference,
-                                   index_map, region_cells, region_of, tolerances)
+from yldot.harness.compare import (EQUATIONS, PANDF_ORDER, REGIONS, RESIDUAL_ROWS, RULE_FAMILY, RULE_OWN,
+                                   RULE_REGION, UNORDERED, IndexTruthError, ToleranceEscalation, check_regions,
+                                   compare, first_difference, index_map, mask_dead, region_cells, region_of,
+                                   tolerances)
 
 NX, NY, NISP, NUSP, NGSP = 3, 2, 2, 1, 1
 SPEC = {"nx": NX, "ny": NY, "ix_inner_leg": [1, 1], "ix_core": [2, 2], "ix_outer_leg": [3, 3], "iy_closed": [1, 1],
@@ -496,6 +497,36 @@ def test_first_difference_structure_and_nan():
     assert first_difference(both, diag(fqp=np.array([np.nan, 1.0]))) is None
     d = first_difference(diag(fqp=np.array([1.0, 1.0])), diag(fqp=np.array([np.nan, 1.0])))
     assert d.name == "fqp" and d.max_rel == np.inf and d.index == (0,)
+
+
+def test_mask_dead_hides_only_dead_residual_entries():
+    """AIUE-176: a dead residual entry (its yldot row algebraic or overwritten by bouncon) that differs, by a value or
+    by NaN on one side, is no longer the first difference; a live one still is, and other arrays are untouched."""
+    ref = diag()
+    live = {"resco": np.array([[True, True, False], [True, True, False]])}
+    dead = ref["resco"].copy()
+    dead[0, 2] += 1.0
+    dead[1, 2] = np.nan
+    assert first_difference(ref, diag(resco=dead)).name == "resco"
+    assert first_difference(mask_dead(ref, live), mask_dead(diag(resco=dead), live)) is None
+    both = dead.copy()
+    both[1, 0] += 1.0  # a live entry differs as well
+    d = first_difference(mask_dead(ref, live), mask_dead(diag(resco=both), live))
+    assert d.name == "resco" and d.index == (1, 0)
+    fnix = ref["fnix"] + 1.0
+    assert first_difference(mask_dead(ref, live), mask_dead(diag(fnix=fnix), live)).name == "fnix"
+    assert mask_dead(ref, None) is ref
+    same = mask_dead(ref, {"absent": np.ones((2, 3), bool)})
+    assert set(same) == set(ref) and all(same[k] is ref[k] for k in ref)
+    assert np.array_equal(ref["resco"], np.arange(6.0).reshape(2, 3))  # the input is not modified
+    with pytest.raises(ValueError, match="shape"):
+        mask_dead(ref, {"resco": np.ones(6, bool)})
+
+
+def test_residual_rows_follow_the_equations():
+    """RESIDUAL_ROWS names one residual per equation of EQUATIONS, with that equation's index and mask arrays."""
+    assert sorted(RESIDUAL_ROWS.values()) == sorted((idx, mask) for _, idx, mask in EQUATIONS)
+    assert set(RESIDUAL_ROWS) <= set(PANDF_ORDER)
 
 
 def test_first_difference_scaled_ignores_cancellation_residue():

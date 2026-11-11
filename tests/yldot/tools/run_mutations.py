@@ -698,15 +698,15 @@ def child(families, out, locality=False, variant=None):
                 imap = compare.index_map(r.data, regions)
                 t = compare.tolerances(s.default(config), s.sigma(config), tol["rtol"], tol["rule"]["k"], imap).tol
                 y, yj = np.asarray(r.data["yldot"]), np.asarray(r.data["yldot_J"])
-                chk = s.check(config, None, y, yj, t, imap, r.data["diagnostics"])
+                chk = s.check(config, None, y, yj, t, imap, r.data["diagnostics"], r.data.get("live"))
                 parts = {part: part_summary(compare.compare(new, ref, t, imap, worst=1), imap)
                          for part, new, ref in (("yldot", y, s.default(config)),
                                                 ("flag difference", yj - y, s.jflag(config)))}
                 if chk.ok != all(p["ok"] for p in parts.values()):
                     raise Stop(2, "{} {}: Store.check says {} but the comparisons {}".format(
                         family, config, chk.ok, {k: p["ok"] for k, p in parts.items()}))
-                d = first_difference(*s.diagnostic_pair(config, r.data["diagnostics"]), rtol=DIAG_SCALED_RTOL,
-                                     scaled=True)
+                d = first_difference(*s.diagnostic_pair(config, r.data["diagnostics"], r.data.get("live")),
+                                     rtol=DIAG_SCALED_RTOL, scaled=True)
             res[family][config] = {"status": "ok", "parts": parts, "intermediate": d.name if d else None,
                                    "first_difference": str(d) if d else None}
         if locality and res[family]["steady"].get("status") == "ok":
