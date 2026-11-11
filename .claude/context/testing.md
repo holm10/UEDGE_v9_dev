@@ -356,7 +356,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   set `near_margin` loosens, a wider scope or another `seed` is a change; a variant's new locality pattern is a
   change, a changed one `Default results: changed` as `<family>:<id>`, a removed one a loosening, except one that goes
   with its variant's prune or rename with an identical slice, which needs no declaration, AIUE-95 D1; a rename needs
-  every compared field, the stored datasets and the locality slice to agree, `rename_differences`); it downloads the
+  every compared field, the stored datasets and the locality slice to agree, `rename_differences`; the variant fields,
+  the rename check and `overrides.toml` compare values by their canonical JSON text, `same()` as `manifest.runs`:
+  -0.0 ≠ 0.0, 1 ≠ 1.0, NaN = NaN, a TOML date by its repr, while `tolerances.toml` and `family.toml` keep `==`,
+  owner, 2026-11-10, AIUE-199); it downloads the
   release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
