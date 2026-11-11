@@ -11,7 +11,7 @@ harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with 
 `openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet. Each run directory's
 `run.log` is in time order (`GFORTRAN_UNBUFFERED_PRECONNECTED` and the workers' line-buffered stdout, AIUE-239,
 probed), so a failed run's reason (`flow.failure_reason`, `serial_check.error_cause`) takes the log's tail of whole
-lines (`runner.log_tail`) when the exception has no text.
+lines (`runner.log_tail`) when the exception has no text or the run crashed without writing its record.
 
 `tests/yldot/` is the yldot suite (epic AIUE-9). Run it as `pytest tests/yldot` (never `pytest tests/`). In a
 background or batch run whose log is read later, pass `-rf --tb=short`, so each failure's id and text survive the
