@@ -163,8 +163,8 @@ class Runner:
         hooks called as f(bbb, com) in the PRE and POST phases, before the variant. variant: a variants.Variant (or
         its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form)
         used instead of the rules. timeout: seconds, default from family.toml, times LOCALITY_TIMEOUT_FACTOR for
-        locality over a column set and INTAKE_TIMEOUT_FACTOR for the intake configuration. locality: delta_loc, which adds the
-        locality protocol (PRD 7.5, state.py step 8c) to the evaluation (steady or timestep, with or without a
+        locality over a column set and INTAKE_TIMEOUT_FACTOR for the intake configuration. locality: delta_loc,
+        which adds the locality protocol (PRD 7.5, state.py step 8c) to the evaluation (steady or timestep, with or without a
         variant); columns: the columns it perturbs, None for all, 0-based columns, or a [locality] table
         (locality.select_columns, resolved in the child on the live grid)."""
         spec = None
