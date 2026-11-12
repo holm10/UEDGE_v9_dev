@@ -1552,6 +1552,26 @@ c...  Reset fym, fy0, fyp at ixpt1,2+0,1 if half-space problem with no flux
            enddo
         endif
 
+c...  Make the face of each interior cut guard ix = ixrb(jx)+1 (jx < nxpt)
+c...  orthogonal: the cell is its own poloidal neighbour, so nonorthg left
+c...  dxnog there at round-off (0 in places) and the nonorthogonal fluxes
+c...  divided by it (AIUE-253)
+        do jx = 1, nxpt-1
+           ix = ixrb(jx) + 1
+           do ik = 0, 1
+              do iy = 0, ny+1
+                 fym(ix,iy,ik)  = 0.
+                 fy0(ix,iy,ik)  = 1.
+                 fyp(ix,iy,ik)  = 0.
+                 fymx(ix,iy,ik) = 0.
+                 fypx(ix,iy,ik) = 0.
+              enddo
+           enddo
+           do iy = 0, ny+1
+              dxnog(ix,iy) = 1./gxf(ix,iy)
+           enddo
+        enddo
+
       endif   # end of if (isnonog .ge. 1)
 
 
