@@ -49,9 +49,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   on Intel) keeps every v9 default and variant bit for bit and adds the locality data. `yldot-data-v14` (seven
   families) and `v15` (imp7) are full sweeps with the scalar-math Linux build (AIUE-211), the same on any x86 CPU.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
-  (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; timeouts; results
-  `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Importing the package pins `OMP_NUM_THREADS=1`
-  for the process; an OpenMP run imports `uedge` first (`uedge-gotchas.md` → Test tooling, AIUE-147).
+  (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; results
+  `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Timeouts: `family.toml` `timeout_s` per child,
+  x `LOCALITY_TIMEOUT_FACTOR` (30) for locality over a column set, x `INTAKE_TIMEOUT_FACTOR` (5) for the intake,
+  whose Jacobian took up to 114 s of 120 on CI (owner, 2026-11-12, AIUE-288 D1; `test_intake_timeout_scaled`).
+  Importing the package pins `OMP_NUM_THREADS=1` for the process; an OpenMP run imports `uedge` first (`uedge-gotchas.md` → Test tooling, AIUE-147).
 - **Protocol** `tests/yldot/harness/state.py`: PRD §6, the `steady` and `timestep` configurations returning `yldot` and
   `yldot_J`, and the `intake` configuration (`issfon=1` at `reference_state.h5`, no variant) returning `yldot` and
   `sfscal`; every configuration also returns `idx*`, `igyl`, the `is<eq>onxy` masks and the grid indices.
