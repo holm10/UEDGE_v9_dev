@@ -28,6 +28,7 @@ exists before proposing something new.
 
 Boundary conditions for all equations: `bouncon` `bbb/pandf_boundary.m:4`, which dispatches to
 `iwall_boundary`, `owall_boundary`, `left_boundary` and `right_boundary` (`bbb/pandf_boundary.m:1302`).
+Every selector, its options and the known issues: `boundary-conditions.md`.
 
 ## Models
 

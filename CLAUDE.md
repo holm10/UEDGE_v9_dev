@@ -60,6 +60,7 @@ There is no linter, formatter, or type checker, and CI runs none. Compiler warni
 | `.claude/context/physics-models.md` | Planning, specifying, implementing or reviewing anything that touches an equation or model (index of models, switches, routines, specs) |
 | `.claude/context/python-layer.md` | Editing `src/uedge/*.py` (save/restore, `rundt`, balance, packaging) |
 | `.claude/context/process-tiers.md` | Coordinating tickets or an epic: tiers S/M/L, review rounds, fresh fixers, model mix, report caps, session SOP |
+| `.claude/context/boundary-conditions.md` | Reading, testing, documenting or changing a boundary condition (`bbb/pandf_boundary.m`, `setwallbcarrays`, the `Bcond` group in `bbb/bbb.v`): what each selector value does, the per-cell wall arrays, out-of-range values, known issues (copy for people: Confluence SD page 25067521) |
 | `.claude/context/uedge-gotchas.md` | Running UEDGE from Python (Forthon arrays, `allocate()`), running several cases or decks in one process, reading species slots or saved states (inertial neutrals), writing or running `tests/yldot` families or tools (OpenMP runs through them), or recording a by-design trap (`prime` always loads it) |
 
 ## Workflow (skills and agents)
