@@ -18,8 +18,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from yldot.harness import CONFIGS, FAMILIES, FamilyError, load_evaluation
+from yldot.harness import CONFIGS, FAMILIES, INTAKE, FamilyError, load_evaluation
 from yldot.harness import manifest as mf
+from yldot.harness.process import INTAKE_TIMEOUT_FACTOR
 from yldot.harness.store import file_sha256
 
 SUITE = Path(__file__).resolve().parent
@@ -212,6 +213,15 @@ def test_timeout_classified(runner):
     assert x.status == "timeout", describe(x)
     assert x.wall_s < 15
     assert runner.evaluate("d_only").ok
+
+
+def test_intake_timeout_scaled(runner):
+    """The intake configuration waits INTAKE_TIMEOUT_FACTOR x the timeout (owner, 2026-11-12, AIUE-288 D1)."""
+    assert INTAKE_TIMEOUT_FACTOR == 5
+    x = runner.evaluate("d_only", config=INTAKE, pre=HOOKS + "_pre_sleep", timeout=1)
+    assert x.status == "timeout", describe(x)
+    assert x.message == "no result after 5 s; child killed", describe(x)
+    assert 5 <= x.wall_s < 15
 
 
 def test_crash_classified(runner):

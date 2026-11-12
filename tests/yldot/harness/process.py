@@ -41,6 +41,10 @@ EVALUATION_DEFAULTS = {"w": 2, "p": 2, "timeout_s": 120.0, "dt_timestep_s": 1e-6
 # family's timeout_s: 4 evaluations per column (AIUE-101: imp7's default over 9036 columns took 433 s on macOS arm64
 # and timed out at 600 s on CI amd64); a small family's every-column run fits its timeout_s
 LOCALITY_TIMEOUT_FACTOR = 30
+# the timeout of an intake evaluation, in units of the family's timeout_s: the intake's exmain with issfon = 1 builds
+# and factors the Jacobian, 25-30x a steady child (owner, 2026-11-12, AIUE-288 D1: imp7's intake took up to 114 s of
+# 120 on CI amd64 with 4 workers, 30 s alone on macOS arm64); steady, timestep and variant children keep timeout_s
+INTAKE_TIMEOUT_FACTOR = 5
 START_ENV = {"UEDGE_BANNER": "0", "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
              "GFORTRAN_UNBUFFERED_PRECONNECTED": "y"}  # the last one: Fortran output reaches the log before a crash
 EXIT_GRACE_S = 30.0
@@ -159,7 +163,7 @@ class Runner:
         hooks called as f(bbb, com) in the PRE and POST phases, before the variant. variant: a variants.Variant (or
         its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form)
         used instead of the rules. timeout: seconds, default from family.toml, times LOCALITY_TIMEOUT_FACTOR for
-        locality over a column set. locality: delta_loc, which adds the
+        locality over a column set and INTAKE_TIMEOUT_FACTOR for the intake configuration. locality: delta_loc, which adds the
         locality protocol (PRD 7.5, state.py step 8c) to the evaluation (steady or timestep, with or without a
         variant); columns: the columns it perturbs, None for all, 0-based columns, or a [locality] table
         (locality.select_columns, resolved in the child on the live grid)."""
@@ -188,6 +192,8 @@ class Runner:
         timeout = float(ev["timeout_s"] if timeout is None else timeout)
         if locality is not None and columns is not None:
             timeout *= LOCALITY_TIMEOUT_FACTOR
+        elif config == INTAKE:
+            timeout *= INTAKE_TIMEOUT_FACTOR
         with tempfile.TemporaryDirectory(prefix="yldot-child-") as tmp:
             job = {"family": str(fdir), "config": config, "mode": self.mode, "w": int(ev["w"]), "p": int(ev["p"]),
                    "dt": float(ev["dt_timestep_s"]), "diagnostics": bool(diagnostics), "pre": pre, "post": post,
