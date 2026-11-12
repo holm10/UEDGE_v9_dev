@@ -116,7 +116,7 @@ reason = "cgmompl, read under recycm < -10.1 (3238), varied with that branch on"
 ["set:plate-imp-negsputt"]
 assign = { "bbb.sputtr" = -0.5 }
 families = ["d_c"]
-issues = ["AIUE-268"]
+issues = ["AIUE-268", "AIUE-295"]
 reason = "negative sputtr with physical sputtering on (d_c isph_sput(2) = 3): sputflxlb > 0 keeps the flux-balance branch (3540), where -sputtlb*hflux acts as a negative yield; the albedo branch is not reached. Covers the code as it behaves today (flux balance normalised by n0(igsp), AIUE-268)"
 
 ["set:plate-imp-albedo"]
