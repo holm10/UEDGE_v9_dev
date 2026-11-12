@@ -402,13 +402,10 @@ c
       Use(Selec)
       integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l,neq
       real time, yl(neqmx),yldot(neq)
-
-c...  Add a real timestep, dtreal, to the nksol equations 
-c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
-
+c...  dtreal term for nksol eqns (yl(neq+1)<0: from nksol, not jac_calc)
          if (ParallelPandfCall .eq. 0) then
              if (isbcwdt .eq. 0) then  # omit b.c. eqns
-cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
+c  internal b.c. rows (cut, limiter, symmetry): skipped by iseqalg below
                 j2l = 1
                 j5l = ny
                 i2l = 1
@@ -437,6 +434,7 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
               do ifld = 1, nisp
                 if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
+                  if (iseqalg(iv)*(1-isbcwdt) .ne. 0) cycle
                   yldot(iv) = (1.-fdtnixy(ix,iy,ifld))*yldot(iv)
                   if(zi(ifld).eq.0. .and. ineudif.eq.3) then
                     yldot(iv) = yldot(iv) - (1/n0(ifld))*
@@ -446,11 +444,11 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                   endif
                 endif
               enddo
-               if(ix.ne.nx+2*isbcwdt) then  
-                              # nx test - for algebr. eq. unless isbcwdt=1
+               if(ix.ne.nx+2*isbcwdt) then  # nx: alg. eq. if isbcwdt=0
                   do ifld = 1, nusp
                     if(isuponxy(ix,iy,ifld).eq.1) then
                       iv = idxu(ix,iy,ifld)
+                      if (iseqalg(iv)*(1-isbcwdt) .ne. 0) cycle
                       yldot(iv) = (1.-fdtupxy(ix,iy,ifld))*yldot(iv)
                       yldot(iv) = yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
                     endif
@@ -458,17 +456,22 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                endif
                if (isteonxy(ix,iy) == 1) then
                  iv =  idxte(ix,iy)
+                 if (iseqalg(iv)*(1-isbcwdt) .eq. 0) then
                  yldot(iv) = (1.-fdttexy(ix,iy))*yldot(iv)
-                 yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv) 
+                 yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv)
+                 endif
                endif
                if (istionxy(ix,iy) == 1) then
                  iv1 = idxti(ix,iy)
+                 if (iseqalg(iv1)*(1-isbcwdt) .eq. 0) then
                  yldot(iv1) = (1.-fdttixy(ix,iy))*yldot(iv1)
                  yldot(iv1)=yldot(iv1) - (yl(iv1)-ylodt(iv1))/dtuse(iv1)
+                 endif
                endif
                do igsp = 1, ngsp
                   if(isngonxy(ix,iy,igsp).eq.1) then
                      iv = idxg(ix,iy,igsp)
+                     if (iseqalg(iv)*(1-isbcwdt) .ne. 0) cycle
                      yldot(iv) = (1.-fdtngxy(ix,iy,igsp))*yldot(iv)
                      if(ineudif.eq.3) then
                        yldot(iv) = yldot(iv) - (1/n0g(igsp))*
@@ -481,6 +484,7 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                do igsp = 1, ngsp
                   if(istgonxy(ix,iy,igsp).eq.1) then
                      iv = idxtg(ix,iy,igsp)
+                     if (iseqalg(iv)*(1-isbcwdt) .ne. 0) cycle
                      yldot(iv) = (1.-fdttgxy(ix,iy,igsp))*yldot(iv)
                      yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
                   endif
@@ -490,12 +494,9 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                   yldot(iv) = (1.-fdtphixy(ix,iy))*yldot(iv)
                   yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv)
                endif
-
             enddo
          enddo
-      
-C...  Now do an additional relaxation of the potential equations with
-c...  timestep dtphi
+C...  Additional relaxation of the potential eqns with timestep dtphi
         if (dtphi < 1e10) then
           do iy = 0, ny+1
             do ix = 0, nx+1
@@ -506,7 +507,6 @@ c...  timestep dtphi
             enddo
           enddo
         endif
-
       END SUBROUTINE add_timestep
 
 c-----------------------------------------------------------------------
