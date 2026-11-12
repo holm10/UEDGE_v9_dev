@@ -57,7 +57,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 from harness.cli import exit_code  # noqa: E402
 from harness.compare import compare_records, format_report  # noqa: E402
 from harness.config import PRESETS, RunSpec  # noqa: E402
-from harness.runner import REPO_DIR, HarnessError, Record, parse_iterations, run_spec  # noqa: E402
+from harness.runner import (REPO_DIR, NO_RECORD, HarnessError, Record, log_tail, parse_iterations,  # noqa: E402
+                            run_spec)
 
 FAMILIES = os.path.join(REPO_DIR, "tests", "yldot", "families")
 SETTINGS = os.path.join(REPO_DIR, "tests", "deterministic_omp", "settings")
@@ -114,7 +115,10 @@ PAIRS = {"serial": ("base_python", "new_python", False), "omp0": ("base_omp_pyth
 def clean_env(home, threads=1, stacksize="512M"):
     """The runner's environment: no OMP_/GOMP_/KMP_/PYTHON* variables, empty HOME, pinned threads."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("OMP_", "GOMP_", "KMP_", "PYTHON"))}
-    env.update({"HOME": home, "OMP_NUM_THREADS": str(threads), "OMP_STACKSIZE": stacksize})
+    env.update({"HOME": home, "OMP_NUM_THREADS": str(threads), "OMP_STACKSIZE": stacksize,
+                # unbuffered Fortran output and the worker's line-buffered Python output keep run.log in time
+                # order, so it ends at the stop (AIUE-239)
+                "GFORTRAN_UNBUFFERED_PRECONNECTED": "y"})
     return env
 
 
@@ -329,7 +333,7 @@ def run_family_case(case, rundir, python, timeout=3600, capture=CAPTURE_SLOTS):
             raise HarnessError("run in {} timed out after {} s".format(rundir, timeout))
     elapsed = time.time() - start
     if not os.path.exists(os.path.join(rundir, "record.json")):
-        raise HarnessError("run in {} exited with {} and wrote no record (see run.log)".format(rundir, proc.returncode))
+        raise HarnessError("run in {} exited with {} and {} (see run.log)".format(rundir, proc.returncode, NO_RECORD))
     record = Record(rundir)
     if proc.returncode != 0:
         raise HarnessError("run in {} exited with {}".format(rundir, proc.returncode))
@@ -411,19 +415,19 @@ def first_mismatch(report):
     return None
 
 
+BARE_EXCEPTION = re.compile(r"^[A-Za-z_][\w.]*$")  # a traceback's last line without text, as in yldot
+
+
 def error_cause(message, rundir):
-    """The informative part of a failed run: the last line of the traceback, and the last
-    error line UEDGE printed to run.log (often the only cause given, e.g. '*** Error: ...')."""
+    """The informative part of a failed run: the last line of the traceback and, when that is a bare exception
+    name (an xerrab without a message) or the run crashed without a record ("... wrote no record ..."), the end of
+    run.log (runner.log_tail: whole lines up to its budget, ending at the stop; AIUE-239, owner D2' and D7)."""
     lines = [ln.strip() for ln in message.splitlines() if ln.strip()]
     cause = lines[-1] if lines else message
-    log = os.path.join(rundir, "run.log")
-    if os.path.exists(log):
-        with open(log, "rb") as f:
-            text = f.read().replace(b"\x00", b"").decode(errors="replace")
-        hits = [ln.strip() for ln in text.splitlines()
-                if re.search(r"\*\*\*|error|Error|ERROR", ln) and "Traceback" not in ln]
-        if hits and hits[-1] not in cause:
-            cause = "{}; log: {}".format(cause, hits[-1])
+    if BARE_EXCEPTION.match(cause) or NO_RECORD in cause:
+        tail = log_tail(rundir)
+        if tail:
+            cause = "{}; log: {}".format(cause, tail)
     return cause
 
 

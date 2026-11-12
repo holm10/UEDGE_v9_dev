@@ -265,6 +265,10 @@ def run(spec):
 
 
 def main():
+    # line-buffered (AIUE-239): print and remark reach run.log in time order with the unbuffered Fortran output
+    # (GFORTRAN_UNBUFFERED_PRECONNECTED, runner.run_spec and serial_check.clean_env), so the log ends at the stop
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
     spec = RunSpec.from_json(open(sys.argv[1]).read())
     try:
         meta = run(spec)

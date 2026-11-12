@@ -297,7 +297,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
                 if (nnz .gt. nnzmxperchunk) then
                     write(*,*) 'nnz=',nnz,'nnzmxperchunk=',nnzmxperchunk
                     write(*,*) 'chunk',ichunk,'*** jac_calc -- More storage needed for Jacobian. Increase omplenpfac.'
-                    call xerrab("")
+                    call xerrab('Error in subroutine LocalJacBuilder: more storage needed for Jacobian. Increase omplenpfac.')
                 endif
                 iJacCol(nnz)=ii
                 rJacElem(nnz)=jacelem
@@ -311,7 +311,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
                 endif
                 call remark("***** non-zero jac_elem at irstop,icstop")
                 write(*,*) 'irstop = ', irstop, ', icstop = ', icstop
-                call xerrab("")
+                call xerrab('Error in subroutine LocalJacBuilder: non-zero jac_elem at irstop,icstop')
             endif check
 
         enddo loopii

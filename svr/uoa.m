@@ -1621,7 +1621,7 @@ c----------------------------------------------------------------------
 c_tdr      call parsestr("f_uoa=objfcn_newuoa(x_uoa)")
       call remark('***Must provide functionality just above to use')
       call remark('***parsestr does not work for c++ uedge')
-      call xerrab("")
+      call xerrab('Error in subroutine calfun: must provide functionality just above to use; parsestr does not work for c++ uedge')
       f=f_uoa
 
       return

@@ -851,7 +851,8 @@ c     finding maximum charge state.
            call remark("subroutine mombal0 error: ")
            call remark("To avoid write out-of-bounds for array natomic")
            call remark("increase the value of MXMISO and recompile.")
-	       call xerrab("")
+               call xerrab('Error in subroutine mombal0: to avoid write out-of-bounds for array natomic, increase the value of '//
+     .            'MXMISO and recompile')
          endif
          natomic(misotope) = nzsp(jz)
          nchstate = max(nchstate, natomic(misotope)) 

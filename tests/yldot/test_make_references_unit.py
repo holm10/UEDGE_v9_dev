@@ -662,26 +662,57 @@ ILUT = """ UEDGE 8.1.2-beta.0
     ierr = -5   --> Zero row encountered."""
 
 
-def test_invalid_reasons_carry_the_error_text():
-    """Review I1-m1: an xerrab is a RuntimeError without text; its reason takes the '***' message of the log."""
+# imp7 bbb.znuclin on the line-buffered child log (AIUE-239 task 1), verbatim from the probe
+# (.claude/work/AIUE-239/probe_imp7_znuclin_linebuf.txt); the NULs pad a Fortran character variable
+MCRATES_ORDERED = ("\n"
+                   "Reading uedge.hdf5-style save-file 'base_state.h5'.\n"
+                   ">>> Save read successfully\n"
+                   " UEDGE 8.1.2-beta.0                                                                    \n"
+                   "*** For isimpon=7, set afracs, not afrac ***\n"
+                   " ***Impurity file using pre-2012 format is C_rates.adas" + "\x00" * 244 + "\n"
+                   " TARGET MATERIAL IS      GRAPHITE         \n"
+                   " BOMBARDING IONS ARE     D    \n"
+                   " Reading grid data from gridue.hdf5\n"
+                   " Grid data read successfully:\n"
+                   "     file name:   gridue.hdf5\n"
+                   "     run-ID:      EFITD    02/21/2024    #981836  2000ms                      \n"
+                   " *** mcrates could not find za=                    0  zn=                    7\n"
+                   " *** check mcfilenames array")
+
+
+def test_invalid_reasons_end_at_the_stop():
+    """AIUE-239 (owner D2'): an xerrab without a message is a bare RuntimeError; its reason is the end of the child's
+    log, which is line-buffered and in time order: whole lines from the end up to the REASON_CHARS cap, NULs
+    stripped. It ends at the stop; earlier, unrelated lines may precede it."""
     def reason(message, tail):
         return mr.classify(Result(status="error", family="fam", config="steady", mode="spawn", message=message,
                                   log_tail=tail), data(), TOL)[1]
 
-    assert reason(BARE, MIST) == (
-        "error: RuntimeError (log: **** data file mist.dat not found -- / **** Data files for various impurities are "
-        "available; / **** check uedge/in/api or contact authors / **** For UEDGE, the data file must be re-named "
-        "mist.dat)")
-    # the last run of '***' lines only, not an earlier informational one
-    assert reason(BARE, MCRATES) == ("error: RuntimeError (log: *** mcrates could not find za= 0 zn= 6 / *** check "
-                                     "mcfilenames array)")
-    assert reason(BARE, "no marked line") == "error: RuntimeError"
-    # an error line after the last '***' run wins over an informational banner; the first one, not the help text
-    assert reason(BARE, ILUT) == "error: RuntimeError (log: Error return from ilut: ierr = -5)"
+    def lines(tail):
+        return [" ".join(s.replace("\x00", "").split()) for s in tail.splitlines() if s.replace("\x00", "").strip()]
+
+    cap = len("error: ") + mr.REASON_CHARS
+    head = "error: RuntimeError (log: "
+    r = reason(BARE, MCRATES_ORDERED)
+    assert r.endswith("*** mcrates could not find za= 0 zn= 7 / *** check mcfilenames array)")
+    assert "\x00" not in r and "afracs" not in r and len(r) <= cap
+    # the tail starts at a line boundary and ends with the log's last line (MCRATES in the old, unordered log order)
+    for tail in (MIST, MCRATES, ILUT, MCRATES_ORDERED):
+        r = reason(BARE, tail)
+        assert r.startswith(head) and r.endswith(")") and len(r) <= cap
+        logged, ls = r[len(head):-1], lines(tail)
+        assert any(logged == " / ".join(ls[-k:]) for k in range(1, len(ls) + 1)), (tail, r)
+        assert logged.endswith(ls[-1])
+    assert reason(BARE, MCRATES).endswith("Save read successfully)")
+    assert reason(BARE, "no marked line") == "error: RuntimeError (log: no marked line)"
+    assert reason(BARE, "\n  \n") == "error: RuntimeError"
+    assert reason(BARE, "\x00\x00\n\x00 \n") == "error: RuntimeError"
+    # one over-long line keeps its last characters, so the reason still ends at the stop
+    r = reason(BARE, "*** " + "x" * 1000 + " the end")
+    assert len(r) == cap and r.endswith("x the end)") and r.startswith(head + "x")
     # an exception with text keeps its text, whatever the log holds
     assert reason(BARE.replace("RuntimeError\n", "RuntimeError: *** isphion.ne.0 ***\n"), MIST) == (
         "error: RuntimeError: *** isphion.ne.0 ***")
-    assert len(reason(BARE, "*** " + "x" * 1000)) == len("error: ") + mr.REASON_CHARS
 
 
 def test_classify_failures_and_noops():

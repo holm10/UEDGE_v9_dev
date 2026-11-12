@@ -380,7 +380,7 @@ c
         ierrjm = ijmgetmr(msgjm,80,1,nrcv)
         if (ierrjm .eq. 0) then
           if (msgjm(1:nrcv).eq.'kaboom' .or. msgjm(1:nrcv).eq.'k')then
-            call xerrab("")
+            call xerrab('Error in subroutine check_kaboom: kaboom typed at the prompt')
           endif
         endif
       endif

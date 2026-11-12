@@ -21,6 +21,7 @@ c ... Common blocks:
 c
 c ... Local variables:
       integer us, ios
+      integer nmlen   # file-name length up to the first NUL, for xerrab (AIUE-239)
       integer i, j, k
       real rl, cs
 c
@@ -46,7 +47,10 @@ c     is given in the variable inelrad (formerly carbavg.dat).
      .      status='old')
       if (ios .ne. 0) then
          write (*,*) '*** Input file inelrad=', inelrad(1), ' not found'
-         call xerrab("")
+c ...    A name set from Python is NUL-padded, which trim keeps and which ends the C string
+         nmlen = index(inelrad(1)//char(0), char(0)) - 1
+         call xerrab('Error in subroutine inelinput: input file inelrad='//
+     .      trim(inelrad(1)(1:nmlen))//' not found')
       endif
       read(us,inrad)
       close (us)
@@ -91,7 +95,7 @@ c
      .   '*** Routine inelinput -- bbb.ziin incompatible with')
             call remark(
      .   '          assumptions of multi-charge state model')
-            call xerrab("")
+            call xerrab('Error in subroutine inelinput: bbb.ziin incompatible with assumptions of multi-charge state model')
          endif
       enddo
 c
@@ -100,7 +104,9 @@ c
      .      status='old')
       if (ios .ne. 0) then
          write (*,*) '*** Input file inelmc=', inelmc(1), ' not found'
-         call xerrab("")
+         nmlen = index(inelmc(1)//char(0), char(0)) - 1
+         call xerrab('Error in subroutine inelinput: input file inelmc='//
+     .      trim(inelmc(1)(1:nmlen))//' not found')
       endif
 c
 c   ionization rate

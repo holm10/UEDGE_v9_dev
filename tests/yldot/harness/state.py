@@ -66,6 +66,10 @@ def run(conn, job):
     os.dup2(fd, 1)
     os.dup2(fd, 2)
     os.close(fd)
+    # line-buffered (AIUE-239): remark and print go through Python's sys.stdout, block-buffered on a file, while
+    # Fortran writes unbuffered (process.py START_ENV); this keeps the log in time order, so it ends at the stop
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
     try:
         status, data, message = "ok", evaluate(job), ""
     except Stop as e:

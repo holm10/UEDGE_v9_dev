@@ -36,7 +36,7 @@ from dataclasses import asdict
 
 from harness.compare import check_arm, compare_records
 from harness.config import PRESETS, RunSpec
-from harness.runner import HarnessError, Record, run_spec
+from harness.runner import NO_RECORD, HarnessError, Record, log_tail, run_spec
 
 # The harness preset used for the phi isolation (named only here). phi alone and full_note (the full
 # problem with isteon=0) fail in serial on this case ("Jacobian row = 0" for phi(ix=11,iy=1)); Te and phi
@@ -109,19 +109,20 @@ def group_verdict(group):
 
 
 def failure_reason(error, rundir=None):
-    """One line for a failed run: the last line of the error without the run directory, plus the
-    last '***' line UEDGE wrote to run.log when the exception itself says nothing."""
+    """One line for a failed run: the last line of the error without the run directory and, when the exception
+    itself says nothing (a bare RuntimeError, an xerrab without a message), the end of run.log as
+    "RuntimeError (log: ...)"; a run that crashed without a record gets the same tail as "<error> (log: ...)"
+    (runner.log_tail: whole lines up to its budget, ending at the stop; AIUE-239, owner D2' and D7)."""
     lines = [ln.strip() for ln in str(error).strip().splitlines() if ln.strip()]
     reason = re.sub(r"run in \S+ ", "", lines[-1] if lines else str(error))
     if rundir and reason in ("RuntimeError", "RuntimeError:"):
-        try:
-            with open(os.path.join(rundir, "run.log"), "rb") as f:
-                log = f.read().replace(b"\x00", b"").decode(errors="replace")
-            stars = [ln.strip() for ln in log.splitlines() if "***" in ln and "isimpon=7" not in ln]
-            if stars:
-                reason += " " + " ".join(stars[-1].split())
-        except OSError:
-            pass
+        tail = log_tail(rundir)
+        if tail:
+            reason = "RuntimeError (log: {})".format(tail)
+    elif rundir and NO_RECORD in reason:
+        tail = log_tail(rundir)
+        if tail:
+            reason = "{} (log: {})".format(reason, tail)
     return reason
 
 

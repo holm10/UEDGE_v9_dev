@@ -1190,7 +1190,7 @@ c ...  Add a pseudo timestep to the diagonal ## if eqn is not algebraic
      .             '*** jac_calc -- More storage needed for Jacobian.',
      .             ' Storage exceeded at (i,j) = (',ii,',',iv,').',
      .             ' Increase lenpfac.'
-	          call xerrab("")
+                  call xerrab('Error in subroutine jac_calc: more storage needed for Jacobian. Increase lenpfac.')
                endif
 cc               if (rdoff.ne.0.e0) jacelem=jacelem*(1.0e0+ranf()*rdoff)
                rcsc(nnz) = jacelem
@@ -1206,7 +1206,7 @@ cc               if (rdoff.ne.0.e0) jacelem=jacelem*(1.0e0+ranf()*rdoff)
                endif
                call remark("***** non-zero jac_elem at irstop,icstop")
                write(*,*) 'irstop = ', irstop, ', icstop = ', icstop
-               call xerrab("")
+               call xerrab('Error in subroutine jac_calc: non-zero jac_elem at irstop,icstop')
             endif
 
          enddo  # end of ii loop over equations
@@ -1275,6 +1275,7 @@ c ... Local variables:
       integer lowd, ierr, i, idum(1)
       real rcond, dum(1)
       real tsmatfac, tick, tock
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
       external tick, tock
 
 c ... Convert compressed sparse row to banded format and use exact
@@ -1286,7 +1287,9 @@ c     factorization routine sgbco from Linpack/SLATEC.
          if (ierr .ne. 0) then
             write(STDOUT,*)
      .         '*** jac_lu_decomp -- csrbnd returned ierr =', ierr
-            call xerrab("")
+            write (xerrmsg,'(a,i0)') 'Error in subroutine jac_lu_decomp: '//
+     .         'csrbnd returned ierr = ',ierr
+            call xerrab(trim(xerrmsg))
          endif
          tsmatfac = tick()
          call sgbco (wp, lowd, neq, lbw, ubw, iwp(4), rcond, rwk1)
@@ -1329,7 +1332,9 @@ c ... Use incomplete factorization routine ilut from SparsKit.
      ./'    decrease the value of lfililut if lenplufac cannot be'
      ./'    increased.'
      .)
-            call xerrab("")
+            write (xerrmsg,'(a,i0)') 'Error in subroutine jac_lu_decomp: '//
+     .         'error return from ilut, ierr = ',ierr
+            call xerrab(trim(xerrmsg))
          endif
 
 c ... Use incomplete factorization routine precond5 from INEL.
@@ -1342,7 +1347,8 @@ c ... Get the number of nonzero diagonals and the maximum in LU.
          if (ndiag .gt. ndiagmx) then
             call remark('More storage for diagonals of the Jacobian')
             call remark('is needed.  Increase value of ndiagmx.')
-            call xerrab("")
+            call xerrab('Error in subroutine jac_lu_decomp: more storage for diagonals of the Jacobian is needed. Increase value '//
+     .         'of ndiagmx.')
          endif
          ndiagm = min(lfilinel+ndiag, ndiagmx)
          iwp(1) = ndiag
@@ -1576,6 +1582,7 @@ c     an argument.
 c ... Local variables:
       integer neq, lbw, ubw
       integer lowd, ierr
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
 
 c ... Get total number of equations (all grid points) and
 c     lower and upper bandwidths.
@@ -1601,7 +1608,9 @@ c     format.
      .             lbw, ubw, ierr)
       if (ierr .ne. 0) then
          write(STDOUT,*) '*** jacd1 -- ierr =', ierr
-         call xerrab("")
+         write (xerrmsg,'(a,i0)') 'Error in subroutine jacd1: '//
+     .      'csrbnd returned ierr = ',ierr
+         call xerrab(trim(xerrmsg))
       endif
 
       return
@@ -2322,6 +2331,7 @@ c ... Common blocks:
 c ... Local variables:
       real tp
       integer i
+      character*256 xerrmsg   # the xerrab message (AIUE-239); a plain local, so per thread under OpenMP
       #Add working array to avoid recursive variable assignment
       real wk(neq)
       wk(1:neq)=0.0
@@ -2355,7 +2365,9 @@ c ... Also find initial maximum of yldot*sf = ydt_max0 for scaling nufak
       do i = 1, neq
          if (abs(sf(i)) .lt. 1e20*cutlo) then
             write(*,*) '*** Error: Jacobian row = 0 for eqn iv =', i
-            call xerrab("")
+            write (xerrmsg,'(a,i0)') 'Error in subroutine sfsetnk: '//
+     .         'Jacobian row = 0 for equation iv = ',i
+            call xerrab(trim(xerrmsg))
          else
             sf(i) = 1./sf(i)
          endif
@@ -2669,7 +2681,7 @@ c ... Convert Jacobian matrix to full storage format.
          write (STDOUT,*)
      .      '*** jacmap got error return ierr =', ierr,
      .      ' from csrdns.'
-         call xerrab("")
+         call xerrab('Error in subroutine jacmap: got error return from csrdns')
       endif
 
 c ... Open a file, and output the map.
@@ -4198,7 +4210,7 @@ c     Dimensions:
          call remark('*** READMCNTEST: nmcsp > nmcmx')
          call remark('                 re-compile with larger nmcmx')
          call remark('***')
-         call xerrab("")
+         call xerrab('Error in subroutine readmcntest: nmcsp > nmcmx; re-compile with larger nmcmx')
       endif
 
       call gchange("MCN_test",0)
@@ -4274,7 +4286,7 @@ c     dimension; Dynamic allocation not allowed on C90 (MER 97/03/11).
          call remark('*** READ44: natmi or nmoli or nioni > nmcmx')
          call remark('            re-compile with larger nmcmx')
          call remark('***')
-         call xerrab("")
+         call xerrab('Error in subroutine read44: natmi or nmoli or nioni > nmcmx; re-compile with larger nmcmx')
       endif
 
       call gchange("MCN_sources",0)

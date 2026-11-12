@@ -10,12 +10,15 @@ inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones 
 since its sweep (AIUE-99; owner, 2026-10-24, Q1: D6's "or none" is gone); every EXCLUDED, MARGINAL
 and INVALID entry has a reason; every manifest is mf.dumps's canonical text (AIUE-190); every tagged input the
 harness itself sets (harness/state.py) is EXCLUDED; every input.py is in normal form (it never sets restart,
-restores a state or runs exmain); and no file under tests/yldot skips or xfails a test. Each check is shown failing
-on a planted defect.
+restores a state or runs exmain); no file under tests/yldot skips or xfails a test; and no tracked Fortran source
+outside grd/ and flx/ calls xerrab with an empty message (AIUE-239). Each check is shown failing on a planted
+defect.
 """
 import ast
 import copy
 import json
+import re
+import subprocess
 
 import numpy as np
 import pytest
@@ -304,3 +307,126 @@ def test_no_skips():
 ])
 def test_skip_ban_detects(src, expected):
     assert skip_uses(src) == expected
+
+
+# ---------------------------------------------------------------- Fortran stops carry a message
+
+BARE_XERRAB = re.compile(r"""\bcall\s+xerrab\s*\(\s*(""|'')\s*\)""", re.IGNORECASE)
+GRIDGEN = ("grd/", "flx/")  # their bare stops stay (owner, 2026-11-11, AIUE-239 D1)
+
+
+def strip_comment(code, marks):
+    """code without its inline comment: from the first character of marks ('!', or '!#' in MPPL) outside a quoted
+    string; a doubled quote inside a string stays in the string."""
+    quote = None
+    for k, ch in enumerate(code):
+        if quote:
+            if ch == quote:
+                quote = None  # a doubled quote closes and reopens: same result
+        elif ch in "'\"":
+            quote = ch
+        elif ch in marks:
+            return code[:k]
+    return code
+
+
+def fortran_statements(text, free, mppl=False):
+    """(first line number, text) of each statement of a Fortran source, its continuation lines joined. Comments are
+    dropped and never end a statement: blank lines; whole-line comments (fixed form (.m, .f): c, C, * or ! in column
+    1; any form: ! as the first non-blank character; MPPL (.m): # as the first non-blank character); inline comments
+    (from ! outside a string, and # in MPPL, which the converter turns into !). A continuation line: fixed form has
+    columns 1-5 blank and a character other than blank or 0 in column 6 (MPPL writes '.'); free form follows a line
+    ending in & and may start with &."""
+    marks = "!#" if mppl else "!"
+    out, open_amp = [], False
+    for i, line in enumerate(text.splitlines(), 1):
+        first = line.lstrip()[:1]
+        if not first or first in marks or (not free and line[:1] in "cC*"):
+            continue
+        if free:
+            body = strip_comment(line, marks).strip()
+            cont = open_amp and bool(out)
+            if cont and body.startswith("&"):
+                body = body[1:]
+            open_amp = body.endswith("&")
+            if open_amp:
+                body = body[:-1]
+        else:
+            cont = bool(out) and len(line) > 5 and not line[:5].strip() and line[5] not in " 0\t"
+            body = strip_comment(line[6:] if cont else line, marks)
+        if cont:
+            out[-1] = (out[-1][0], out[-1][1] + body)
+        else:
+            out.append((i, body))
+    return out
+
+
+def bare_xerrab_sites(paths, root):
+    """'file:line' (the statement's first line) of every statement of the Fortran sources paths (relative to root)
+    that calls xerrab with an empty literal, also when the call is split over continuation lines."""
+    out = []
+    for rel in paths:
+        text = (root / rel).read_text(errors="replace")
+        for i, stmt in fortran_statements(text, rel.endswith(".F90"), mppl=rel.endswith(".m")):
+            if BARE_XERRAB.search(stmt):
+                out.append("{}:{}".format(rel, i))
+    return out
+
+
+def test_no_bare_xerrab_outside_gridgen():
+    """AIUE-239 (owner D1, D3): a Fortran stop outside grd/ and flx/ passes its message to xerrab, as
+    'Error in subroutine <name>: ...'; Forthon raises it as the RuntimeError's text, which a yldot INVALID reason
+    stores. The sources are the git-tracked ones (git ls-files), so the test needs a git checkout, as CI and every
+    worktree have; when git fails, the test fails with that cause (it never skips, test_no_skips)."""
+    p = subprocess.run(["git", "ls-files", "*.m", "*.F90", "*.f"], cwd=inputs.REPO, capture_output=True, text=True)
+    assert p.returncode == 0, "git ls-files failed in {} (this test needs a git checkout): {}".format(
+        inputs.REPO, p.stderr.strip())
+    paths = [f for f in p.stdout.split() if not f.startswith(GRIDGEN)]
+    assert {"bbb/pandf.m", "ppp/parallel.F90", "svr/daux1.f"} <= set(paths), paths  # the tracked sources were listed
+    sites = bare_xerrab_sites(paths, inputs.REPO)
+    assert not sites, ("{} call(s) of xerrab with an empty message outside grd/ and flx/; give each its message, "
+                       "'Error in subroutine <name>: <text>' (AIUE-239 D1, D3): {}".format(len(sites), sites))
+
+
+def test_bare_xerrab_detects(tmp_path):
+    (tmp_path / "a.m").write_text(
+        "      subroutine a\n"
+        "         call xerrab(\"\")\n"
+        "ccc      call xerrab(\"\")\n"
+        "c        call xerrab('')\n"
+        "         call xerrab('Error in subroutine a: x')\n"
+        "         CALL XERRAB( '' )\n")
+    (tmp_path / "b.F90").write_text(
+        "subroutine b\n"
+        "  ! call xerrab('')\n"
+        "  call xerrab('Error in subroutine b: y')\n"
+        "  call xerrab ( \"\" )\n"
+        "c = 1\n"
+        "  if (x) call xerrab( &  ! split\n"
+        "    & '')\n"
+        "  if (y) call xerrab( &\n"
+        "    'Error in subroutine b: z')\n")
+    (tmp_path / "c.m").write_text(
+        "      if (n .gt. 1) call xerrab(\n"
+        "c     a comment inside the statement\n"
+        "     .  '')\n"
+        "      if (n .gt. 2) call xerrab(\n"
+        "     .  'Error in subroutine c: n > 2')\n"
+        "      x = 1\n"
+        "     0  + 2\n")
+    # review I2-m1: an MPPL # line, a blank line and inline comments inside a split call; # and ! inside strings
+    (tmp_path / "d.m").write_text(
+        "      if (n .gt. 3) call xerrab(   # stop\n"
+        "         # why it stops\n"
+        "\n"
+        "     .  '')\n"
+        "      call xerrab('Error in subroutine d: a # and a ! in the text')\n"
+        "      call xerrab('Error in subroutine d: it''s fine')\n")
+    (tmp_path / "e.F90").write_text(
+        "  if (x) call xerrab( & ! split\n"
+        "\n"
+        "    ! a comment line\n"
+        "    & \"\")\n"
+        "  call xerrab('Error in subroutine e: & and ! inside')\n")
+    assert bare_xerrab_sites(["a.m", "b.F90", "c.m", "d.m", "e.F90"], tmp_path) == [
+        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1", "d.m:1", "e.F90:1"]

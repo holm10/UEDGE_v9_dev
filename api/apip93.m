@@ -25,7 +25,8 @@ c----------------------------------------------------------------------c
          call remark("**** check uedge/in/api or contact authors")
          call remark(" ")
          call remark("**** For UEDGE, the data file must be re-named mist.dat")
-         call xerrab("")
+         call xerrab('Error in subroutine readpost: data file '//trim(fname)//
+     .      ' not found')
       endif
 
 c     read array dimensions

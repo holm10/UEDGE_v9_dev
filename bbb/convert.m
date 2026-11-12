@@ -344,12 +344,12 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
       if (inegni .gt. 0 .and. itrap_negni.eq.1) then 
          call remark("***  ni is negative - calculation stopped")
 	 write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' ifld =', ifldneg
-         call xerrab("")
+         call xerrab('Error in subroutine convsr_vo1: ni is negative - calculation stopped')
       endif
       if (inegng .gt. 0 .and. itrap_negng.eq.1) then 
          call remark("***  ng is negative - calculation stopped")
 	 write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' igsp =', igspneg
-         call xerrab("")
+         call xerrab('Error in subroutine convsr_vo1: ng is negative - calculation stopped')
       endif
 cc Since Te and Ti have temin eV floors, this not used
 cc      if (inegt .gt. 0 .and. itrap_negt.eq.1) then 
