@@ -280,6 +280,7 @@ c     local variables --
       integer i, ios, kstart, n, nget, rtnt_old, rtnn_old, rtnsd_old, kk,
      .        stringlen1, stringlen2, iprt_imp_file
       character idcod*8, idtyp*8, id1*32, mcfnuse*256
+      integer nmlen, nmlen2   # file-name lengths up to the first NUL, for xerrab (AIUE-239)
 
 c     procedures --
       external freeus, gchange, xerrab
@@ -306,8 +307,10 @@ c----------------------------------------------------------------------c
          write(*,*)
      .     '*** Input file mcfilename = "', mcfilename(i),
      .     '" not found.'
+c ...    A name set from Python is NUL-padded, which trim keeps and which ends the C string
+         nmlen = index(mcfilename(i)//char(0), char(0)) - 1
          call xerrab('Error in subroutine readmc: input file '//
-     .               trim(mcfilename(i))//' not found')
+     .               trim(mcfilename(i)(1:nmlen))//' not found')
       endif
 
 c     read header --
@@ -339,9 +342,11 @@ c     Test for compatibility of (rtnt,rtnn) from different tables:
          write(*,*)
      .      '*** subroutine readmc: incompatible table dimensions in ',
      .      mcfilename(i),' and ',mcfilename(i-1)
+         nmlen = index(mcfilename(i)//char(0), char(0)) - 1
+         nmlen2 = index(mcfilename(i-1)//char(0), char(0)) - 1
          call xerrab('Error in subroutine readmc: incompatible table '//
-     .               'dimensions in '//trim(mcfilename(i))//' and '//
-     .               trim(mcfilename(i-1)))
+     .               'dimensions in '//trim(mcfilename(i)(1:nmlen))//
+     .               ' and '//trim(mcfilename(i-1)(1:nmlen2)))
       endif
 
 c     allocate storage --
