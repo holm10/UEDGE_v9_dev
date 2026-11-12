@@ -161,7 +161,8 @@ class Runner:
         """One evaluation of the family. config: steady, timestep or intake (the unperturbed reference_state.h5,
         never with a variant); None takes the variant's configuration, else steady. pre/post: 'module:function'
         hooks called as f(bbb, com) in the PRE and POST phases, before the variant. variant: a variants.Variant (or
-        its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form)
+        its dict), applied in its phase with d read live; replay: a recorded applied value (variants.encode form;
+        for a combination set, {key: encode form})
         used instead of the rules. timeout: seconds, default from family.toml, times LOCALITY_TIMEOUT_FACTOR for
         locality over a column set and INTAKE_TIMEOUT_FACTOR for the intake configuration. locality: delta_loc,
         which adds the locality protocol (PRD 7.5, state.py step 8c) to the evaluation (steady or timestep, with or without a

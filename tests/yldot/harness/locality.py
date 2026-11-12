@@ -138,7 +138,8 @@ def variant_scope(cfg, variables):
     """The sorted variant ids with a stored locality pattern (owner, 2026-10-25, AIUE-101 Q2-Q3), from the manifest's
     variables ({id: {"class", ...}}): "all" every SENSITIVE, INERT and MARGINAL variant; "listed" the bbb.meth* variants
     and the WINDOW_INPUTS, "meth" the bbb.meth* variants, both of those classes only. The ids in [locality].excluded
-    (owner decisions with their reasons) are left out."""
+    (owner decisions with their reasons) are left out, and so are the combination sets (set:<name>, AIUE-257: a set
+    takes no locality pattern)."""
     excluded = cfg.get("excluded", {})
     def name(vid):
         return vid.split("=", 1)[0]
@@ -148,7 +149,8 @@ def variant_scope(cfg, variables):
         return n.startswith("bbb.meth") or (cfg["variants"] == "listed" and n in ["bbb." + w for w in WINDOW_INPUTS])
 
     return sorted(vid for vid, v in variables.items()
-                  if v["class"] in VALID and vid not in excluded and (cfg["variants"] == "all" or listed(vid)))
+                  if v["class"] in VALID and vid not in excluded and not vid.startswith("set:")
+                  and (cfg["variants"] == "all" or listed(vid)))
 
 
 # ---------------------------------------------------------------- child side

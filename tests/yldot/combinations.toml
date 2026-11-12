@@ -1,0 +1,103 @@
+# Combination sets of the yldot suite (AIUE-257; owner D1, 2026-11-11; read by harness/variants.py load_sets).
+#
+# A set assigns several inputs at once, so a branch that only a combination reaches is taken in a stored, checked
+# configuration, and a parameter that only a non-default branch reads is varied while that branch is on. One table
+# per set, id "set:<name>" (lower case letters, digits, '_', '-', '.'). Fields:
+#   assign   = { "pkg.var" = <value>, ... }  required; every key's d is read first, then the values are assigned in
+#                                             this order. A value is
+#              a number                       at every element (elementwise, like a value of overrides.toml)
+#              { value = x, at = [i, ...] }   x at d[i, ...] (numpy indices: the Fortran index minus its lower bound)
+#              { scale = x, at = [...] }      d[at] * x (real variables only)
+#              { cycle = [a, b], at = [...] } along the 0:nx+1 axis of d[at], cell i takes entry i mod n of the list
+#                                             (the other axes broadcast); at must reach that axis
+#   reason   = "..."                          required: the branch the set takes (pandf_boundary.m lines)
+#   base     = "set:<name>"                   optional: classified against that set's result instead of the family
+#                                             default (the base has no base; full-store families only)
+#   families = ["d_only", ...]                default: the five small families (owner D3)
+#   phase    = "PRE" | "POST"                 default: POST if any key is a dynamic array, else PRE
+#   config   = "steady" | "timestep"          default: steady
+#   issues   = ["AIUE-260", ...]              the AIUE-259 issues the set covers as the code behaves today (owner D4)
+#
+# A per-cell wall array (bbb.istepfcix, bbb.lyteix, ...) needs its switch (bbb.ispfbcvsix or bbb.iswobcvsix) = 1 in
+# the same set: setwallbcarrays (bbb/odesetup.m:548) overwrites it from the scalar otherwise. A key that
+# overrides.toml EXCLUDES cannot be assigned. A based set assigns every key of its base (load_sets checks it), with
+# the base's values except the parameter it varies, so the base's branch stays on. Owner rule (decision 23): a set that comes out INVALID is stored as INVALID with its
+# reason; never tune its values to make it pass. Lines below are bbb/pandf_boundary.m at a62f121.
+
+# ---------------------------------------------------------------- plates (Task 3 prototype)
+
+["set:ibctepl0"]
+assign = { "bbb.ibctepl" = 0 }
+reason = "left-plate Te fixed at tepltl (ibctepl = 0, 3381)"
+
+["set:ibctepl0-tepltl"]
+assign = { "bbb.ibctepl" = 0, "bbb.tepltl" = { scale = 1.5 } }
+base = "set:ibctepl0"
+reason = "tepltl, read only under ibctepl = 0 (3382), varied with that branch on"
+
+# ---------------------------------------------------------------- PF wall (Task 3 prototype)
+
+["set:pfte1"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 5.0 } }
+reason = "PF-wall Te fixed at tewalli (istepfcix = 1, 1812); tewalli is 0 in the small families, so 5 eV"
+
+["set:pfte1-tewalli"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 7.5 } }
+base = "set:pfte1"
+reason = "tewalli, read only under istepfcix = 1 (1812), varied with that branch on"
+
+["set:pfte3"]
+assign = { "bbb.istepfc" = 3 }
+reason = "PF-wall Te scale length lyteix (istepfcix = 3, 1808)"
+
+["set:pfte3-lyte"]
+assign = { "bbb.istepfc" = 3, "bbb.lyte" = { value = 0.05, at = [0] } }
+base = "set:pfte3"
+reason = "lyte(1), copied to lyteix(1,) and read only under istepfcix = 3 (1808), varied with that branch on"
+
+["set:pfnw3"]
+assign = { "bbb.isnwconi" = 3 }
+reason = "PF-wall ni scale length lyniix + nwimin (isnwconiix = 3, 1517)"
+
+["set:pfnw3-lyni"]
+assign = { "bbb.isnwconi" = 3, "bbb.lyni" = { value = 0.05, at = [0] } }
+base = "set:pfnw3"
+reason = "lyni(1), copied to lyniix(1,,) and read only under isnwconiix = 3 (1517), varied with that branch on"
+
+["set:pfup3"]
+assign = { "bbb.isupwi" = 3 }
+reason = "PF-wall up scale length lyup(1) (isupwiix = 3, 1624-1633)"
+
+["set:pfup3-lyup"]
+assign = { "bbb.isupwi" = 3, "bbb.lyup" = { value = 0.05, at = [0] } }
+base = "set:pfup3"
+reason = "lyup(1), read only under isupwiix = 3 (1633), varied with that branch on"
+
+# ---------------------------------------------------------------- per-cell PF arrays (Task 3 prototype)
+
+["set:pfvsix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+reason = "per-cell PF Te/Ti options 0, 1, 3 mixed along the wall (ispfbcvsix = 1; 1808, 1861), with non-uniform lyteix"
+
+# ---------------------------------------------------------------- core (Task 3 prototype)
+
+["set:core-flcore1"]
+assign = { "bbb.iflcore" = 1 }
+reason = "core Te/Ti from the power pcoree/pcorei (iflcore = 1, 1787, 1834)"
+
+["set:core-flcore1-pcore"]
+assign = { "bbb.iflcore" = 1, "bbb.pcoree" = { scale = 1.5 }, "bbb.pcorei" = { scale = 1.5 } }
+base = "set:core-flcore1"
+reason = "pcoree/pcorei, read only under iflcore = 1 (1787, 1834), varied with that branch on"
+
+["set:core-imp-nicore4"]
+assign = { "bbb.isnicore" = { value = 4, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "impurity core ni flux fnzysi (isnicore = 4 on the top C charge state, slot 8; impurity-only option, 1684); covers AIUE-292 as the code behaves today: the first core loop over all nisp ions (1369) refuses 4 (1515)"
+
+# ---------------------------------------------------------------- recycling (Task 3 prototype)
+
+["set:plate-albedo"]
+assign = { "bbb.recycp" = { value = -0.5, at = [0] } }
+reason = "plate atom albedo branch (recylb in [-1, 0], 3163)"
