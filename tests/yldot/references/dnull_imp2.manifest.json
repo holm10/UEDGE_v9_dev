@@ -39,9 +39,9 @@
     "/index/masks/isuponxy": "4130f3ae21e32e895d5979c8c997ce3eba0205ba944b4cd0bb6a6aacbc3a207d",
     "/steady/default/diagnostics/resco": "a89da1944fcea1f22a959915b7dd8b3cbe6fcac2ffddf78e7985f3f511982e2e",
     "/steady/default/diagnostics/resee": "7073d20ee4ac2aac138ce7c8572d1fe181d2f89c70718e82ac5a8394c0e15a10",
-    "/steady/default/diagnostics/reseg": "5cbb81b7863d1770a21dd011c78ec0234b446f35fa40e48797af7efec6ecac27",
-    "/steady/default/diagnostics/resei": "7a753fb019a2a47e2bb8b841a216a3962c269dcb4951fc3b6945c57fe1a86c3d",
-    "/steady/default/diagnostics/resmo": "92f31c09fda687900c39d929c9f8e647721d92bc554a6d1abffcb0ff37c6b745",
+    "/steady/default/diagnostics/reseg": "485cea7a0ea6d85321dbda603f578ecf30d7ba7267b6363f4c73eaff761788d2",
+    "/steady/default/diagnostics/resei": "2e6c051871d08625c60339a459580dc026a7570b32174fa99313655f7c350f2b",
+    "/steady/default/diagnostics/resmo": "e5f128c5dbfe1d07ec667d372120478d10ed54cbfc3cb0ce62808f6c83888997",
     "/steady/default/diagnostics/resng": "9c9351f552d1f9b9cb9b872c7b9c8afa1c0918b4f6aad12c547cd0ee21def723",
     "/steady/default/diagnostics/resphi": "56d0f4031f43e0624ea18c3c0c60698bfd9f6475d8b9779fa6a381ced3554b6a",
     "/steady/default/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
@@ -1805,14 +1805,6 @@
     "/steady/variants/bbb.istewc/yldot/l2": "cd1b4b47f0c9c52d9091de8c7603d172807552b4e843866351e01270ac37e836",
     "/steady/variants/bbb.istewc/yldot/maxabs": "d1c9afd5d4787bb275caf612256a274422d59508eae9a32388843daaf0bbc3a2",
     "/steady/variants/bbb.istewc/yldot/proj": "5fa622d68c95dee008a541f2229818bd23fbc33fdbfefead6423c961b248f99b",
-    "/steady/variants/bbb.istipfc/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
-    "/steady/variants/bbb.istipfc/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
-    "/steady/variants/bbb.istipfc/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
-    "/steady/variants/bbb.istipfc/jflag/proj": "be2c2f7302304c20a5aaac81e8e368d77b161a77e95fd1f5924c86ba6baaffa5",
-    "/steady/variants/bbb.istipfc/yldot/argmax": "7fee3138c816141bb0fcd459be92d4703efee26727e93daec7ee84b7ed1e5334",
-    "/steady/variants/bbb.istipfc/yldot/l2": "d73276bbf836c235cb0bec168f94670286020169d8f181902e9d11e7b40d3e82",
-    "/steady/variants/bbb.istipfc/yldot/maxabs": "d1c9afd5d4787bb275caf612256a274422d59508eae9a32388843daaf0bbc3a2",
-    "/steady/variants/bbb.istipfc/yldot/proj": "f528dd9f993622d77682ac685b93ae1c29fc54085232b96ef868b527618a703e",
     "/steady/variants/bbb.istiwc/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
     "/steady/variants/bbb.istiwc/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
     "/steady/variants/bbb.istiwc/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
@@ -2711,69 +2703,69 @@
     "/steady/variants/bbb.znuclin/yldot/proj": "6676243ae257e70eb4127947e4c05cd042219635d201fd8aa3034c3a0fdf49a9",
     "/timestep/default/diagnostics/resco": "a89da1944fcea1f22a959915b7dd8b3cbe6fcac2ffddf78e7985f3f511982e2e",
     "/timestep/default/diagnostics/resee": "7073d20ee4ac2aac138ce7c8572d1fe181d2f89c70718e82ac5a8394c0e15a10",
-    "/timestep/default/diagnostics/reseg": "5cbb81b7863d1770a21dd011c78ec0234b446f35fa40e48797af7efec6ecac27",
-    "/timestep/default/diagnostics/resei": "7a753fb019a2a47e2bb8b841a216a3962c269dcb4951fc3b6945c57fe1a86c3d",
-    "/timestep/default/diagnostics/resmo": "92f31c09fda687900c39d929c9f8e647721d92bc554a6d1abffcb0ff37c6b745",
+    "/timestep/default/diagnostics/reseg": "485cea7a0ea6d85321dbda603f578ecf30d7ba7267b6363f4c73eaff761788d2",
+    "/timestep/default/diagnostics/resei": "2e6c051871d08625c60339a459580dc026a7570b32174fa99313655f7c350f2b",
+    "/timestep/default/diagnostics/resmo": "e5f128c5dbfe1d07ec667d372120478d10ed54cbfc3cb0ce62808f6c83888997",
     "/timestep/default/diagnostics/resng": "9c9351f552d1f9b9cb9b872c7b9c8afa1c0918b4f6aad12c547cd0ee21def723",
     "/timestep/default/diagnostics/resphi": "56d0f4031f43e0624ea18c3c0c60698bfd9f6475d8b9779fa6a381ced3554b6a",
-    "/timestep/default/jflag/index": "d67cec7107bb1a63fe526976ea073e61c626b5e134587ef534ad48cc2d3a0abb",
-    "/timestep/default/jflag/value": "5d4d0d44eb112042845070f6db82f240012656f3a95d8307a8c999c8d00b500c",
+    "/timestep/default/jflag/index": "61f2acdbfa01c39de9aa6e1d95fd5e6ffb21bde245105755412020bad9e453bd",
+    "/timestep/default/jflag/value": "03fbd849b5944c62efa5f8af7ab4be09fda64647fcfe9fdcde93c0e8450c8d92",
     "/timestep/default/sigma": "9742db959f4c3cb1fad868eef47a39c16522233597c61872df55f299edd44662",
     "/timestep/default/sketch_threshold/block": "c88b28bfabf2dd188c9c500a916076bf5106bcb05d9ff7f37a20d5edeee2303a",
-    "/timestep/default/sketch_threshold/cell_block": "427f8da63bf2b19bb972795a8a07ca8bdeb68cd6001d4343e5c7729a607e380d",
+    "/timestep/default/sketch_threshold/cell_block": "9320bc9c927a7cdc0d67bc67a468aeb19f31019af199276a290f0249c44f4943",
     "/timestep/default/sketch_threshold/cell_ix": "692eb43a48a747741c296e35cd1c7238f08a4bd48f0abcac99096482c16e57d5",
     "/timestep/default/sketch_threshold/cell_iy": "e14c3b9ce71c920898157d67c4cf6cd5f3390b27facf26dc6d658539bc9f18d9",
     "/timestep/default/sketch_threshold/cell_m": "30a54b6d7fe29ceb6e36dce2dc06bf5d3c62e4f151c93f58d392e666dfebcfe9",
-    "/timestep/default/sketch_weight": "a1057cd296e8252bde955d2a01e106afebf3a7dcb909c74923ed060faea8e391",
-    "/timestep/default/yldot": "87b8a5ebddc1cb0e8e41b3930c6a2c743d9b9140c27a85fe6000e8200e059d90",
-    "/timestep/variants/bbb.cfqydt/jflag/argmax": "aace6f1d2307bc16bc6204b0b682f358d7efc9f1f746ad1475e646b6b82287f3",
-    "/timestep/variants/bbb.cfqydt/jflag/l2": "da7713e60c042140920bd41e0e33ee73b17d518a25a6555670dcd29427e11a0b",
-    "/timestep/variants/bbb.cfqydt/jflag/maxabs": "247339fc0f06a82b07ab7c823e8f8addf9d374bb29ed0fe2877badbc395aa5cb",
-    "/timestep/variants/bbb.cfqydt/jflag/proj": "09ec78ba4d3c1fbaa7dbd4a15f1445ace3d216645745552aabf243f10911eb39",
+    "/timestep/default/sketch_weight": "4e23a799a0834d4d0330920775d4a5997c5facb485aa8c5cba36d9cc4936544e",
+    "/timestep/default/yldot": "01e96e24421b3a54863620fcbc21edc30349e2954bbefee4e5474be0674039e8",
+    "/timestep/variants/bbb.cfqydt/jflag/argmax": "e69250b862796d0aa51149815515ca015de6bfe5f7a10c8c7b7f23d2682ee5b3",
+    "/timestep/variants/bbb.cfqydt/jflag/l2": "2791a44806bd7fb74403b477ca462f5df81590206fa0367b76a508061758ed48",
+    "/timestep/variants/bbb.cfqydt/jflag/maxabs": "3bd9fc3f5f4e59136e129aa437aec3c9c00cb2a4a50af940a87082d5eb5cb628",
+    "/timestep/variants/bbb.cfqydt/jflag/proj": "d564d7e5a233fe2f64b1299940de5d25f9697d1d21296cfd528961b232dc7ca1",
     "/timestep/variants/bbb.cfqydt/yldot/argmax": "4de345d86669e3fce81bf80e4ed1429acc0993e2abae18f7c6c04447df90fac8",
-    "/timestep/variants/bbb.cfqydt/yldot/l2": "5c993e71040d18355d2a049164a16d58268479890858492c330c4a5bd2349708",
-    "/timestep/variants/bbb.cfqydt/yldot/maxabs": "2b3d93c58234598712c99495e1bfbda474c06bd17d42fc2d0f693c47462d5111",
-    "/timestep/variants/bbb.cfqydt/yldot/proj": "aea899f8530f2fd822ceaeeb30ec2ad5ee2320788fe5ffd73a4ffc5e4aade48a",
-    "/timestep/variants/bbb.fdtnixy/jflag/argmax": "aaef100efce6734df11855a5911c38094681851484c20442fc25434b599b8f1b",
-    "/timestep/variants/bbb.fdtnixy/jflag/l2": "c5946045473378711115ac85c357aa1484e7466b1473683ad9564e0dcc0f7dec",
-    "/timestep/variants/bbb.fdtnixy/jflag/maxabs": "173558362bc1da36969b4ced8b9db0d0a168e85fa0631a347e45dd297f0da6ee",
-    "/timestep/variants/bbb.fdtnixy/jflag/proj": "b5d316304115bfc5fa90d8a9452b82c8f74d28339540ace35455a6e50957a0cd",
-    "/timestep/variants/bbb.fdtnixy/yldot/argmax": "db896feffff3e147874d6e2ef28a085e42408c10932062fc643b174ce2a6400b",
-    "/timestep/variants/bbb.fdtnixy/yldot/l2": "574cba8d06cbfa9e42442c0b405436de1fcb3fd3afe23d0ea520e3572ede5958",
-    "/timestep/variants/bbb.fdtnixy/yldot/maxabs": "adb278224dddae9015f0950cbd782a1118ec6e0a34a50304e24a14e6a0476005",
-    "/timestep/variants/bbb.fdtnixy/yldot/proj": "38f6f7acdcf4c5dae5d6d697ab165263085230a13bce0764b12eb6ce76e9c8ca",
-    "/timestep/variants/bbb.fdttexy/jflag/argmax": "5aaebe153875fd1e1152bf43d7273076a1aa6ca0620da067ec8c6fdfd377e372",
-    "/timestep/variants/bbb.fdttexy/jflag/l2": "235d4db7bc7df97513fcbdf1d56931e83d510171d888b39c3ab4cbf5350c956e",
-    "/timestep/variants/bbb.fdttexy/jflag/maxabs": "2603a056a903782748129d803766a34322c43bd0024655ea955d0d71e9864013",
-    "/timestep/variants/bbb.fdttexy/jflag/proj": "7002d3165c3f79abca112d75c9cea006205fbbc6b35ea8b6665fb8131cbf7076",
-    "/timestep/variants/bbb.fdttexy/yldot/argmax": "99a50d71264b7a41dc80226ae6b8769868792a338aece8e0cb5cb52c419c5a7b",
-    "/timestep/variants/bbb.fdttexy/yldot/l2": "845ce0b9a442e9604f169ae9777790f038db7bd0f9d4e27573f46f8450ce552f",
-    "/timestep/variants/bbb.fdttexy/yldot/maxabs": "56be6b92f4651c3fdd709cae6d014b936728b4ee04d0124d9b0949c4208f74a6",
-    "/timestep/variants/bbb.fdttexy/yldot/proj": "205ca42e7d367aee124150ffe1d66af6b43c9e446d0e75a42ce5b43d8d28f8ed",
-    "/timestep/variants/bbb.fdttixy/jflag/argmax": "109973eb487726adc5e7146e7b26bfacbdc64e4b7bcd67572118cf20b6ff0d3f",
-    "/timestep/variants/bbb.fdttixy/jflag/l2": "a7bdbdb432a70d06d57971b1bc9677f1d95414f15f20b65ede6e3f09dea4f889",
-    "/timestep/variants/bbb.fdttixy/jflag/maxabs": "fadc1f205360b24a800f323b056313fd8a34ad2d98181c1b02c1c6bf098b4422",
-    "/timestep/variants/bbb.fdttixy/jflag/proj": "fad3c324f95e33a607d814bd272f31df2f07397a34903cd88c214bfc2f920de9",
+    "/timestep/variants/bbb.cfqydt/yldot/l2": "4727c3817b8dca56ea4fb2dbe9fb1b460bc72fd7d774434f7849421cf0f19477",
+    "/timestep/variants/bbb.cfqydt/yldot/maxabs": "7976406e5afb2dca507ec2f1d3682c581e3b4c6379137de679731c12651c0af0",
+    "/timestep/variants/bbb.cfqydt/yldot/proj": "d26a7a548e51d14c94d23ad0b75283ae1910a4e0093b19f7affe78ee2c41b69c",
+    "/timestep/variants/bbb.fdtnixy/jflag/argmax": "b5d702d7762674f23952f19683c65c97be1bd7c6ae03af27c2b5c871e5a2c51b",
+    "/timestep/variants/bbb.fdtnixy/jflag/l2": "24ca6885e211067864aabde2578e9f66544cd82179f241fe9782464cb6969b2b",
+    "/timestep/variants/bbb.fdtnixy/jflag/maxabs": "ba40c3c3cef35ffa88525e2d330162e475ac396148e97473730d7f41a16cea85",
+    "/timestep/variants/bbb.fdtnixy/jflag/proj": "fff3e7548f394f49227f8432d481c1e1f1002678930be45b47226518149cf2de",
+    "/timestep/variants/bbb.fdtnixy/yldot/argmax": "0a92356a16fb0f71efe51edd1d05b77be33615210d88bb6523b92b3b63f8cb33",
+    "/timestep/variants/bbb.fdtnixy/yldot/l2": "81cebf894d40acd939d4d52687a746089faced3674f70709e31d2b8f5f408036",
+    "/timestep/variants/bbb.fdtnixy/yldot/maxabs": "6b2789f8010194671876978ef0c0787caff2cfd29cfbfe681b85e0a5512f41dc",
+    "/timestep/variants/bbb.fdtnixy/yldot/proj": "f06d05ff7898a5b9aab8735a796541e89bb4c298f0b9e2de6e3eb809e5b80552",
+    "/timestep/variants/bbb.fdttexy/jflag/argmax": "2c9c94178e923abbcd264b81f1e882b250f1c75495666ba3f77c048a27bfe92e",
+    "/timestep/variants/bbb.fdttexy/jflag/l2": "174c0ee501b34790b351e1d189a9e417aa05f384a2af2d733f928154dc1ec42d",
+    "/timestep/variants/bbb.fdttexy/jflag/maxabs": "c6a2fdc3ba4d274419ed996aba36619f74263d0176886b8e81a1df2953ec70d9",
+    "/timestep/variants/bbb.fdttexy/jflag/proj": "9243b70a15927713d13e8479ec7d82ae11118f22923ae3f121e9c3687796d3f9",
+    "/timestep/variants/bbb.fdttexy/yldot/argmax": "83cf6716dbf6396664abb56d7d279c41b0e189f5322f5924a10526d3007d7ec3",
+    "/timestep/variants/bbb.fdttexy/yldot/l2": "84ea48818cdfc06b12cff4e923adb6bfe6cde8cac42e98cd86d77569c0bba63c",
+    "/timestep/variants/bbb.fdttexy/yldot/maxabs": "5ccd5943e35d01a9fe0570c197ea2c667bca4067959eba2b38d87d57a0345d86",
+    "/timestep/variants/bbb.fdttexy/yldot/proj": "5595158cfa333c0dfa1d487f09e59927711e80d983a0c894cbdd30f110335045",
+    "/timestep/variants/bbb.fdttixy/jflag/argmax": "3f56093cd7628e040b0ba1fafe546d1b05d46f2074f0c4e4de017b8fc54aaf8f",
+    "/timestep/variants/bbb.fdttixy/jflag/l2": "61b3139c18094eb24d6296d56444824dc0ada541bb449a139cc2cb95a235cbad",
+    "/timestep/variants/bbb.fdttixy/jflag/maxabs": "055994402f8864a4db8c37b1871ca12ec25d11657ecb007944a118700c932a10",
+    "/timestep/variants/bbb.fdttixy/jflag/proj": "4423b446347d0391696966e2e423d3c65194a345d34f5eb32881efc8dfeeb259",
     "/timestep/variants/bbb.fdttixy/yldot/argmax": "4451494e79eb0f050d4a8a306dea7f0e86b1fe782cb04f07c5d13a8f023033ae",
-    "/timestep/variants/bbb.fdttixy/yldot/l2": "78280110af6399e2bb9dad958b4b867f57ca0aa270788df5c1e63de3d01e65d6",
-    "/timestep/variants/bbb.fdttixy/yldot/maxabs": "0ecd55e90260d3b84fb652c559b78eff9f5a7346db2fc811910417f5ad8afaa5",
-    "/timestep/variants/bbb.fdttixy/yldot/proj": "d18326821942ed55ed5ecf60c973f2de4f5c74746f976d0da187c0300a1d2e70",
-    "/timestep/variants/bbb.fdtupxy/jflag/argmax": "86ef88e3ccf8b58808eacd423090e31d23a813c04bd9cedc1fc72bdd9d38f5b2",
-    "/timestep/variants/bbb.fdtupxy/jflag/l2": "69737c934f1eb57bdef52e67529e34ce018300ef6bb24834578eff98e72610b4",
-    "/timestep/variants/bbb.fdtupxy/jflag/maxabs": "981d896b2cbb260ff49d158aa69561946ccab0375ff592006b45fcefb2efb5f9",
-    "/timestep/variants/bbb.fdtupxy/jflag/proj": "2c8ee2c9b547ce4f0f0b982d3cc844118641da393ada5e6494486cd2f1bf9039",
-    "/timestep/variants/bbb.fdtupxy/yldot/argmax": "a4e3264b1b3a11f844a1a6fd92da03e257827e047d85d6d3881808970ec6a1dc",
-    "/timestep/variants/bbb.fdtupxy/yldot/l2": "834312d0c1e0c2470809c8264d4588775da0d9945ab6fdb062105ff90fb329f4",
-    "/timestep/variants/bbb.fdtupxy/yldot/maxabs": "3e20dff5940dd23b4b1e582ea288e0b14e936f702e861c93aa09787b15cea8d6",
-    "/timestep/variants/bbb.fdtupxy/yldot/proj": "dabd6063bb2bd657bb44293238a6e4ff758717d3baa9a993aaee3d302f786336",
+    "/timestep/variants/bbb.fdttixy/yldot/l2": "c1041ae62d832597a5e6ac73ae22392043a45f5972df30d162dfaa6c11ff397c",
+    "/timestep/variants/bbb.fdttixy/yldot/maxabs": "a35fffe6a2415a3cb8116009f1105e9d48e28f6b87dbf1ae655e75ecb32b3b75",
+    "/timestep/variants/bbb.fdttixy/yldot/proj": "04032d0daa1a3cc4eef9e3881bcbe766b3bd000529ad0aecc6152a180d06980a",
+    "/timestep/variants/bbb.fdtupxy/jflag/argmax": "879fee45c97a2336556b5cac06d5d300a90fb485968e3bc4addc9c23bc246723",
+    "/timestep/variants/bbb.fdtupxy/jflag/l2": "7eaf176fc2af80d2444c585597eb4b2eed35968dc499ad7fe00ed9047377ccac",
+    "/timestep/variants/bbb.fdtupxy/jflag/maxabs": "40ccbe72f088b9b2d7a1d51bf8c5ef5dc1d1d244de812b3ce9b8a8a1076c451d",
+    "/timestep/variants/bbb.fdtupxy/jflag/proj": "24440464f0470d4f6fded1c122fcffb2294fff62ecdea19da6106c4ed91e9a94",
+    "/timestep/variants/bbb.fdtupxy/yldot/argmax": "6abf198b5c4e69e5943dcff5e7268f568140aa28adf911619970faab2b27aa17",
+    "/timestep/variants/bbb.fdtupxy/yldot/l2": "1b4bff4291a4813782c2f7d839d99547259ca430cc79f41c4adf8d50646f4539",
+    "/timestep/variants/bbb.fdtupxy/yldot/maxabs": "3fb449b94b872a0c4b2c9f91a5371327ae28cb0be7ee89608d546de7ac349311",
+    "/timestep/variants/bbb.fdtupxy/yldot/proj": "08e9b6f0047695b01b861702b5fda9db8cde4f9745b04f596413d1fe4f20e799",
     "/timestep/variants/bbb.isbcwdt/jflag/argmax": "892c8f5e8386629c67953602e7b6bb6ea349957ab1569f2a747ff9d9af9cd8ce",
     "/timestep/variants/bbb.isbcwdt/jflag/l2": "98dd095d5c51ad440b5b181aa9434aaa416e9a85a699b79d59f1494c88159ad6",
     "/timestep/variants/bbb.isbcwdt/jflag/maxabs": "461bd0202baff7807ef5efbf16907dbb9c3c7f0ae9215d764c1c4a3b31e734b2",
-    "/timestep/variants/bbb.isbcwdt/jflag/proj": "5a1379700bad995a44195d87792e8f0fbcc6f5be01e1752ff33d22cbe16bd657",
+    "/timestep/variants/bbb.isbcwdt/jflag/proj": "22022c1bb94850e26a5cb5d06b4c62a175642b844690f96a71eed9d263e463b1",
     "/timestep/variants/bbb.isbcwdt/yldot/argmax": "4de345d86669e3fce81bf80e4ed1429acc0993e2abae18f7c6c04447df90fac8",
     "/timestep/variants/bbb.isbcwdt/yldot/l2": "e4f4d11d7ef9646e19634e6ebe392453bd71c04e03e2e747b9b4d41c70d12138",
     "/timestep/variants/bbb.isbcwdt/yldot/maxabs": "f11431b4bb7e9959c94e42e4d747c3a4203c88f3f9393bd1353e1076d6aa89e5",
-    "/timestep/variants/bbb.isbcwdt/yldot/proj": "dcbed42ec89dde1289499896b4c95949f931847892d4a33bc2a6cc68a67f4c78"
+    "/timestep/variants/bbb.isbcwdt/yldot/proj": "9cb732e6ebecd385ba0275f92cdb3fbbf946c7afdf56d2e96e33ff14f5849270"
   },
   "external": {
     "families/dnull_imp2/base_state.h5": {
@@ -2797,8 +2789,8 @@
       "sha256": "0720df9ab2fb36c56cb9a553647921efc4052eb4317181e7a014645ebfdfebd5"
     },
     "references/dnull_imp2.h5": {
-      "bytes": 8555380,
-      "sha256": "38c94fd02fe9627d6f6d9d029ceee6808e92998f1fae18ea7a6fc5c2eadfdd6f"
+      "bytes": 8533580,
+      "sha256": "4dd57ca7d4ea0b3d85f1f71d65637b3ae7fc32136c334e72dbb4d15f887f901d"
     }
   },
   "family": "dnull_imp2",
@@ -2809,10 +2801,10 @@
     "steady/sigma": "8679a50489965d2ea0dc03db956940c98c9b2c8c19e13ecb5f1612f9dffb6df6",
     "steady/sketch_threshold": "7de356b80e242ed967e3021953b23cba5044b442a8b74684cf763c7e3afc06c7",
     "steady/sketch_weight": "60a543ffbcc4e39f27650b4068715c6bf5838cacf900d201ce0e57f12a1f3d8e",
-    "timestep/default": "a0a8d256cd5e1c6fe1708fd069a05dc4c6c10288d86333088202da4909f542dd",
+    "timestep/default": "de4b2458561495f5151f16029da3f11db16f30cb6b91377fb60ba7c0bedcf6a5",
     "timestep/sigma": "f7706b1a1b6679b5c34a3fcd9d366976a3e3ce9e35adb82a68fc3102c1a900b3",
-    "timestep/sketch_threshold": "96cedd7a9fe0e1dafe0c85538d6f36a2fe38941b3e9aa4a41fb87e4dd4661790",
-    "timestep/sketch_weight": "0bcc899291ab54f28010d9c04c6697294e85dce18ea064d7f0933d21f2efb638"
+    "timestep/sketch_threshold": "2276adb161f41482aa5c2e1a88db4c0152a695956bbc4e6f3d73a6ea5db2d78f",
+    "timestep/sketch_weight": "2e833ebcfe039e52b5c7e02090090c24f4054519f62a9e4c4432fcb231592e4e"
   },
   "locality_variants": {
     "bbb.methe=22": {
@@ -2931,15 +2923,15 @@
     }
   },
   "provenance": {
-    "commit": "05ab9d99705d1d032695ae5333fa50092168cd97",
+    "commit": "979fe041d85c10a2652d7cde57f55ec82fe2cde7",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-10-28T03:41:06+00:00",
+    "date": "2026-11-12T21:01:32+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v14",
+  "release": "yldot-data-v21",
   "schema": 1,
   "sketch": {
     "k": 8,
@@ -2947,7 +2939,7 @@
   },
   "store": "sketch",
   "unguarded": {
-    "diagnostics": "efa25b0ab742049c9f0b0c656b6a69fb4e0575c669128651aac7f436b8ea9113"
+    "diagnostics": "368404f797a34848cd5e573fa4a84d772b91bb96d2154eb73326f934efeef2ae"
   },
   "variables": {
     "aph.erad": {
@@ -6414,7 +6406,7 @@
       },
       "phase": "PRE",
       "reason": "max |diff|/tol = 3.89e+10",
-      "sha256": "f30d18f91278f6b4d07ce164a854a8a4f3500c95547129c0e98108a77004a03d"
+      "sha256": "3c254d1511f607c5b5fa42ddd55f494658bedea3758043292c6a729f12beb2e4"
     },
     "bbb.cfqym": {
       "applied": {
@@ -11768,7 +11760,6 @@
       },
       "block_l2": {
         "ni[1] core": 615731.8443068517,
-        "ni[1] guard": 46645899.789874546,
         "ni[1] lower_inner_leg": 9494.177305390536,
         "ni[1] lower_outer_leg": 120933.17818569756,
         "ni[1] pf_lower": 203534.8119189843,
@@ -11778,7 +11769,6 @@
         "ni[1] upper_inner_leg": 715026.2270951432,
         "ni[1] upper_outer_leg": 53241.16248580029,
         "ni[2] core": 62384.1643625806,
-        "ni[2] guard": 213514000.35139614,
         "ni[2] lower_inner_leg": 2096088.5674487802,
         "ni[2] lower_outer_leg": 1344532.3030479664,
         "ni[2] pf_lower": 692580040.2200059,
@@ -11801,7 +11791,6 @@
       },
       "jflag_block_l2": {
         "ni[1] core": 615731.8443068517,
-        "ni[1] guard": 46645899.789874546,
         "ni[1] lower_inner_leg": 9494.177305390536,
         "ni[1] lower_outer_leg": 120933.17818569756,
         "ni[1] pf_lower": 203534.8119189843,
@@ -11811,7 +11800,6 @@
         "ni[1] upper_inner_leg": 715026.2270951432,
         "ni[1] upper_outer_leg": 53241.16248580029,
         "ni[2] core": 62384.1643625806,
-        "ni[2] guard": 213514000.35139614,
         "ni[2] lower_inner_leg": 2096088.5674487802,
         "ni[2] lower_outer_leg": 1344532.3030479664,
         "ni[2] pf_lower": 692580040.2200059,
@@ -11823,7 +11811,7 @@
       },
       "phase": "POST",
       "reason": "max |diff|/tol = 7.51e+09",
-      "sha256": "d3a09b70da84ffe6a090f29e951c7d1f6211c19147a536c616b292a034074bde"
+      "sha256": "4bbd538dabedd638e9ba97cd725c08912dc437b7e74d5b48426da52cf3722108"
     },
     "bbb.fdtphixy": {
       "applied": {
@@ -11861,7 +11849,6 @@
       },
       "block_l2": {
         "te[1] core": 3594719735.3953757,
-        "te[1] guard": 435914094.21855444,
         "te[1] lower_inner_leg": 3385244.3331441204,
         "te[1] lower_outer_leg": 540963.577294912,
         "te[1] pf_lower": 244131.78424258975,
@@ -11883,7 +11870,6 @@
       },
       "jflag_block_l2": {
         "te[1] core": 3594719735.3953757,
-        "te[1] guard": 435914094.21855444,
         "te[1] lower_inner_leg": 3385244.3331441204,
         "te[1] lower_outer_leg": 540963.577294912,
         "te[1] pf_lower": 244131.78424258973,
@@ -11895,7 +11881,7 @@
       },
       "phase": "POST",
       "reason": "max |diff|/tol = 9.27e+08",
-      "sha256": "327220c4211771657fd950e4b6991c780e789d8a5019e3f70bce37c440fd6978"
+      "sha256": "af65c6ef406d68ff5031e59a0c882192258a7b0840109afd476a7ae2dc1db50f"
     },
     "bbb.fdttgxy": {
       "applied": {
@@ -11935,7 +11921,6 @@
       },
       "block_l2": {
         "ti[1] core": 3001615.155419213,
-        "ti[1] guard": 12021943.649265856,
         "ti[1] lower_inner_leg": 1896452.9465612688,
         "ti[1] lower_outer_leg": 99534.36926806401,
         "ti[1] pf_lower": 216909341.04479223,
@@ -11957,7 +11942,6 @@
       },
       "jflag_block_l2": {
         "ti[1] core": 3001615.155419213,
-        "ti[1] guard": 12021943.649265856,
         "ti[1] lower_inner_leg": 1896452.9465612688,
         "ti[1] lower_outer_leg": 99534.36926806401,
         "ti[1] pf_lower": 216909341.04479223,
@@ -11969,7 +11953,7 @@
       },
       "phase": "POST",
       "reason": "max |diff|/tol = 4.26e+10",
-      "sha256": "6dba80ae79a0c69756fe58290024667adad2ad3f5bd922770796725215b46f0e"
+      "sha256": "533fd7cba8ef3ee5e01c3b5b5338ce897df48bee27d17798751a296c2968d157"
     },
     "bbb.fdtupxy": {
       "applied": {
@@ -11983,24 +11967,22 @@
       },
       "block_l2": {
         "up[1] core": 3938343.323581392,
-        "up[1] guard": 12476683.448165841,
         "up[1] lower_inner_leg": 80320.74362006146,
         "up[1] lower_outer_leg": 69876.62530096757,
         "up[1] pf_lower": 1168447.1537526026,
-        "up[1] pf_upper": 4448501.063893454,
+        "up[1] pf_upper": 319955.0426111296,
         "up[1] sol": 940097.1069355966,
-        "up[1] sol_between": 3136380.937259542,
-        "up[1] upper_inner_leg": 6807002.368197889,
+        "up[1] sol_between": 2276826.1606221483,
+        "up[1] upper_inner_leg": 335086.72687050706,
         "up[1] upper_outer_leg": 495280.3124912957,
         "up[2] core": 39955599907.28803,
-        "up[2] guard": 9376703.759795537,
         "up[2] lower_inner_leg": 45816189.48878401,
         "up[2] lower_outer_leg": 12697674.851451425,
         "up[2] pf_lower": 1913830938.4931862,
-        "up[2] pf_upper": 112278082.49133487,
+        "up[2] pf_upper": 112274896.23801742,
         "up[2] sol": 13749909424.48322,
-        "up[2] sol_between": 37429884805.92362,
-        "up[2] upper_inner_leg": 1492058.8393703508,
+        "up[2] sol_between": 37429884791.283455,
+        "up[2] upper_inner_leg": 552764.1121150939,
         "up[2] upper_outer_leg": 109168004.78953439
       },
       "class": "SENSITIVE",
@@ -12016,29 +11998,27 @@
       },
       "jflag_block_l2": {
         "up[1] core": 3938343.323581392,
-        "up[1] guard": 12476683.448165841,
         "up[1] lower_inner_leg": 80320.74362006146,
         "up[1] lower_outer_leg": 69876.62530096757,
         "up[1] pf_lower": 1168447.1537526026,
-        "up[1] pf_upper": 4448501.063893454,
+        "up[1] pf_upper": 319955.0426111296,
         "up[1] sol": 940097.1069355966,
-        "up[1] sol_between": 3136380.937259542,
-        "up[1] upper_inner_leg": 6807002.368197889,
+        "up[1] sol_between": 2276826.1606221483,
+        "up[1] upper_inner_leg": 335086.72687050706,
         "up[1] upper_outer_leg": 495280.3124912957,
         "up[2] core": 39955599907.28803,
-        "up[2] guard": 9376703.759795537,
         "up[2] lower_inner_leg": 45816189.48878401,
         "up[2] lower_outer_leg": 12697674.851451425,
         "up[2] pf_lower": 1913830938.4931862,
-        "up[2] pf_upper": 112278082.49133487,
+        "up[2] pf_upper": 112274896.23801742,
         "up[2] sol": 13749909424.48322,
-        "up[2] sol_between": 37429884805.92362,
-        "up[2] upper_inner_leg": 1492058.8393703508,
+        "up[2] sol_between": 37429884791.283455,
+        "up[2] upper_inner_leg": 552764.1121150939,
         "up[2] upper_outer_leg": 109168004.78953439
       },
       "phase": "POST",
       "reason": "max |diff|/tol = 8.26e+09",
-      "sha256": "60ac6d28873c4d6f20f48591f41abda6eef19a04eefc3d3d00e2addddfe4e635"
+      "sha256": "73c66a7d171b600972395d7142f0dbae3d99df9ac4b4b50b25d11df3d31014c6"
     },
     "bbb.feeyosn_io": {
       "applied": {
@@ -16027,8 +16007,8 @@
         "shape": []
       },
       "block_l2": {
-        "ni[1] guard": 332225.44967646716,
-        "ni[2] guard": 579467.7930769376,
+        "ni[1] guard": 426262.95195823745,
+        "ni[2] guard": 1349618.9396188892,
         "phi[1] core": 1148871.5016450558,
         "phi[1] guard": 545041.9116116145,
         "phi[1] lower_inner_leg": 33125.77216022723,
@@ -16039,14 +16019,20 @@
         "phi[1] sol_between": 356818.72699941386,
         "phi[1] upper_inner_leg": 2269.3146295298434,
         "phi[1] upper_outer_leg": 80701.44071022795,
-        "te[1] guard": 529722.3391688148,
-        "ti[1] guard": 374959.906999889,
-        "up[1] guard": 339298.08890677115,
+        "te[1] guard": 530330.8640197574,
+        "ti[1] guard": 375345.65672648983,
+        "up[1] guard": 348493.6359114278,
         "up[1] lower_outer_leg": 19536.936168992084,
         "up[1] pf_lower": 31395.581300162034,
-        "up[2] guard": 350747.49610666314,
+        "up[1] pf_upper": 10942.366600313631,
+        "up[1] sol_between": 13006.460080155948,
+        "up[1] upper_inner_leg": 13882.474733530387,
+        "up[2] guard": 362063.20331766014,
         "up[2] lower_outer_leg": 19353.58683764549,
-        "up[2] pf_lower": 26730.716324162393
+        "up[2] pf_lower": 26730.716324162393,
+        "up[2] pf_upper": 7423.669892632515,
+        "up[2] sol_between": 11985.341559657392,
+        "up[2] upper_inner_leg": 12727.017273758744
       },
       "class": "SENSITIVE",
       "config": "timestep",
@@ -16056,8 +16042,8 @@
         "shape": []
       },
       "jflag_block_l2": {
-        "ni[1] guard": 332225.44967646716,
-        "ni[2] guard": 579467.7930769376,
+        "ni[1] guard": 426262.95195823745,
+        "ni[2] guard": 1349618.9396188892,
         "phi[1] core": 1148871.5016450558,
         "phi[1] guard": 545041.9116116145,
         "phi[1] lower_inner_leg": 33125.77216022723,
@@ -16068,18 +16054,24 @@
         "phi[1] sol_between": 356818.72699941386,
         "phi[1] upper_inner_leg": 2269.3146295298434,
         "phi[1] upper_outer_leg": 80701.44071022795,
-        "te[1] guard": 529722.3391688148,
-        "ti[1] guard": 374959.906999889,
-        "up[1] guard": 339298.08890677115,
+        "te[1] guard": 530330.8640197574,
+        "ti[1] guard": 375345.65672648983,
+        "up[1] guard": 348493.6359114278,
         "up[1] lower_outer_leg": 19536.936168992084,
         "up[1] pf_lower": 31395.581300162034,
-        "up[2] guard": 350747.49610666314,
+        "up[1] pf_upper": 10942.366600313631,
+        "up[1] sol_between": 13006.460080155948,
+        "up[1] upper_inner_leg": 13882.474733530387,
+        "up[2] guard": 362063.20331766014,
         "up[2] lower_outer_leg": 19353.58683764549,
-        "up[2] pf_lower": 26730.716324162393
+        "up[2] pf_lower": 26730.716324162393,
+        "up[2] pf_upper": 7423.669892632515,
+        "up[2] sol_between": 11985.341559657392,
+        "up[2] upper_inner_leg": 12727.017273758744
       },
       "phase": "PRE",
       "reason": "max |diff|/tol = 2.53e+12",
-      "sha256": "3773bb50a6ebef9a737058e78cfe33f162f37ef240f25379c7b36d5b4f5f1826"
+      "sha256": "4112c48d13a2ccb39d7723ed202bc816917df390055caa4370075003d9d0f1b9"
     },
     "bbb.isbetaicalc": {
       "applied": {
@@ -19450,10 +19442,8 @@
         "dtype": "int64",
         "shape": []
       },
-      "block_l2": {
-        "ti[1] guard": 12405803.142062386
-      },
-      "class": "SENSITIVE",
+      "block_l2": {},
+      "class": "INVALID",
       "config": "steady",
       "d": {
         "data": [3],
@@ -19462,8 +19452,8 @@
       },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 6.12e+09",
-      "sha256": "961d7cdc2679b209f2a0269bb0ca84a78fff9d0705ae542df2ed9ed0df505e08"
+      "reason": "bounds-check: bbb/pandf_boundary.F:1881: Index '2' of dimension 3 of array 'tg' above upper bound of 1 (serial build: SENSITIVE)",
+      "sha256": null
     },
     "bbb.istipfcix": {
       "applied": {
@@ -23895,7 +23885,7 @@
       },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "non-finite yldot or yldot_J at rows [9, 16, 23, 30, 37, 44, 51, 58, 65, 72] (+21410 more)",
+      "reason": "bounds-check: aph/aphrates.F:1054: Index '-9223372036854775807' of dimension 1 of array 'ekpt' below lower bound of 1 (serial build: non-finite yldot or yldot_J at rows [9, 16, 23, 30, 37, 44, 51, 58, 65, 72] (+21410 more))",
       "sha256": null
     },
     "bbb.newapi": {
