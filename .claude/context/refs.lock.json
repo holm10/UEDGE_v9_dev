@@ -228,6 +228,7 @@
  "src/uedge/rundt.py:1300": "def rundt(**kwargs):",
  "src/uedge/rundt.py:17": "class UeRun():",
  "svr/nksol.m:973": "if (itermx .eq. 0) itermx = 200",
+ "tests/yldot/families/d_c/input.py:122": "com.mcfilename[0] = \"C_rates.strahl\" # Imp rate file name",
  "tests/yldot/families/d_mols/input.py:134": "com.ngsp = 2",
  "tests/yldot/families/d_mols/input.py:30": "com.ngsp=1",
  "tests/yldot/families/d_only/input.py:58": "bbb.allocate() #bbb.allocate() space of bbb.nwallo,i",

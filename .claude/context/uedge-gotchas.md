@@ -11,6 +11,22 @@ AIUE-216).
 ## Running UEDGE from Python
 
 - **Forthon runtime.** Reading an unallocated dynamic array raises `Array is unallocated` (it does not return an empty array). `allocate()` keeps a dynamic array's values when its dimensions are unchanged; when they change, `gchange` keeps the overlapping block and zero-fills the rest (probed on `Interp`, AIUE-141). Importing `Forthon` (e.g. `Forthon.interfaceparser`) parses `sys.argv` and exits with usage when argv has one entry, so set `sys.argv` first. Count `+input`/`+maybeinput` variables with Forthon's parser or the built module's `getvarattr`, not with grep (`.claude/context/variables-forthon.md`).
+- **A string-array element set from Python is NUL-padded in Fortran's memory** (AIUE-239; also on the Confluence page
+  `UEDGE gotchas`). A Forthon string array (`Filename` or `character*N`: `com.mcfilename`, `hdfilename`,
+  `api.inelrad`, `inelmc`, `inelrates`, …) reaches Python as a numpy view of the Fortran storage (`com.mcfilename` is
+  `|S256`, `owndata` False). Assigning one element, `com.mcfilename[0] = "abc"` (as every impurity deck does,
+  `tests/yldot/families/d_c/input.py:122`), is numpy's assignment: it stores `abc` and 253 NULs. Assigning the whole
+  array (`com.mcfilename = [...]`, Forthon's setter), the `.v` defaults and `"abc".ljust(256)` store blanks (probed on
+  4044e91, 2026-11-12, through a `uint8` view of the array).
+  - Python never sees the NULs: numpy drops trailing NULs when it reads an `S` element, so `com.mcfilename[0]` is
+    `b'abc'`, and `.decode()` or `.strip()` on the Python side changes nothing in Fortran's copy.
+  - Fortran does. `trim` removes blanks only, so a message composed from the element stops at the first NUL once it
+    becomes the Python `RuntimeError` (AIUE-239 lost `not found` from readmc's message), `write(*,*)` prints the
+    NULs, and a comparison with a literal is false (Fortran pads the shorter operand with blanks; by the standard, not
+    probed). Fortran code that uses such an element cuts it at the first NUL (`.claude/context/mppl-fortran.md` →
+    Errors and output; `api/fimp.m` `readmc`, `api/inelrates.m` `inelinput`).
+  - `open(file=…)` works anyway: the impurity families open their rate files from such a name every run (`api/fimp.m`
+    `readmc`).
 - **Several cases in one Python process** behave differently from a fresh process, by design (owner, 2026-10-21; also on the Confluence page `UEDGE gotchas`). Check a multi-case run against a fresh process:
   - A second deck's grid is read only if `bbb.newgeo = 1` is set before its `exmain`. `ueinit` sets `newgeo = 0` after reading a grid (`bbb/odesetup.m:1192-1194`) and the decks never set it, so without it the new state runs on the old mesh.
   - Settings the first deck sets and the second does not reset carry over. Example: nonog's `com.isnonog = 1` carried into orthogonal_unittest gives fnrm 1.35 vs 0.128 fresh, with the state copied exactly. When only the mesh should differ, use one deck for both cases.
