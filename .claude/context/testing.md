@@ -70,8 +70,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   repeats step 8b's `pandf` with `isrscalf = 0` and marks a `res*` entry live where its yldot row equals `calc_rhs`'s
   copy bit for bit (`state.live_residuals`, `r.data["live"]`), and `Store.diagnostic_pair` zeroes the others on both
   sides (`compare.mask_dead`). Unmasked, dnull_imp2 on macOS `-O3` named `resmo` at its plate face (Fortran
-  (36,34,2), algebraic, 1.9e-6 by FMA) and has build-dependent NaN in `resei`/`reseg` at the cut guard ix = 37
-  (AIUE-253); masked, all 8 families x 2 configurations name none (largest 3.0e-10). For a sketch store
+  (36,34,2), algebraic, 1.9e-6 by FMA) and had NaN in `resei`/`reseg` at the cut guard ix = 37 from its round-off
+  `dxnog`, until AIUE-253 made that face orthogonal in `nphygeo` (older references still store it, dead); masked, all 8 families x 2 configurations name none (largest 3.0e-10). For a sketch store
   `Store.diagnostic_pair` also cuts the new run's diagnostics to the stored `res*` names.
 - **Variants** (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
