@@ -53,7 +53,9 @@ c     Full-line comment: 'c' in column 1
 - Fatal: `call xerrab('Error in subroutine <name>: <text>')` (`Error in function <name>:` in a function), which
   returns control to the Python/BASIS prompt; do not `stop`. A number or file name that identifies the cause is
   composed in, through a plain local `character*256` buffer or a concatenated argument (`api/fimp.m:166-168`
-  `mcrates`; AIUE-239, owner D3). Older stops read `'*** message ***'` (`bbb/pandf_plasma_continuity.m:29`); new
+  `mcrates`; AIUE-239, owner D3). An element of a Forthon string array (`Filename`, e.g. `mcfilename`) set from
+  Python is NUL-padded, which `trim` keeps and which ends the message: cut it at `index(s//char(0), char(0)) - 1`
+  first (`api/fimp.m` `readmc`; scalars are blank-padded, probed). Older stops read `'*** message ***'` (`bbb/pandf_plasma_continuity.m:29`); new
   ones use the form above.
 - Never a bare `call xerrab("")`: the message is the Python `RuntimeError`'s text (Forthon `kaboom`) and a yldot
   INVALID reason. `tests/yldot/test_inventory.py` refuses a bare one outside `grd/` and `flx/`.
