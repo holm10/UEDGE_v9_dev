@@ -312,32 +312,48 @@ def test_skip_ban_detects(src, expected):
 # ---------------------------------------------------------------- Fortran stops carry a message
 
 BARE_XERRAB = re.compile(r"""\bcall\s+xerrab\s*\(\s*(""|'')\s*\)""", re.IGNORECASE)
-FREE_CONTINUED = re.compile(r"&\s*(!.*)?$")
 GRIDGEN = ("grd/", "flx/")  # their bare stops stay (owner, 2026-11-11, AIUE-239 D1)
 
 
-def fortran_statements(text, free):
-    """(first line number, text) of each statement of a Fortran source, its continuation lines joined; comment lines
-    are dropped and do not end a statement. A comment line: fixed form (.m, .f) has c, C, * or ! in column 1; free
-    form (.F90) has ! as its first non-blank character; ! as the first non-blank character is a comment in fixed
-    form too. A continuation line: fixed form has columns 1-5 blank and a character other than blank or 0 in
-    column 6 (MPPL writes '.'); free form follows a line ending in & and may start with &."""
+def strip_comment(code, marks):
+    """code without its inline comment: from the first character of marks ('!', or '!#' in MPPL) outside a quoted
+    string; a doubled quote inside a string stays in the string."""
+    quote = None
+    for k, ch in enumerate(code):
+        if quote:
+            if ch == quote:
+                quote = None  # a doubled quote closes and reopens: same result
+        elif ch in "'\"":
+            quote = ch
+        elif ch in marks:
+            return code[:k]
+    return code
+
+
+def fortran_statements(text, free, mppl=False):
+    """(first line number, text) of each statement of a Fortran source, its continuation lines joined. Comments are
+    dropped and never end a statement: blank lines; whole-line comments (fixed form (.m, .f): c, C, * or ! in column
+    1; any form: ! as the first non-blank character; MPPL (.m): # as the first non-blank character); inline comments
+    (from ! outside a string, and # in MPPL, which the converter turns into !). A continuation line: fixed form has
+    columns 1-5 blank and a character other than blank or 0 in column 6 (MPPL writes '.'); free form follows a line
+    ending in & and may start with &."""
+    marks = "!#" if mppl else "!"
     out, open_amp = [], False
     for i, line in enumerate(text.splitlines(), 1):
-        if line.lstrip().startswith("!") or (not free and line[:1] in "cC*"):
+        first = line.lstrip()[:1]
+        if not first or first in marks or (not free and line[:1] in "cC*"):
             continue
         if free:
-            body = line.strip()
+            body = strip_comment(line, marks).strip()
             cont = open_amp and bool(out)
             if cont and body.startswith("&"):
                 body = body[1:]
-            m = FREE_CONTINUED.search(body)  # a trailing &, perhaps followed by a ! comment
-            open_amp = bool(m)
+            open_amp = body.endswith("&")
             if open_amp:
-                body = body[:m.start()]
+                body = body[:-1]
         else:
             cont = bool(out) and len(line) > 5 and not line[:5].strip() and line[5] not in " 0\t"
-            body = line[6:] if cont else line
+            body = strip_comment(line[6:] if cont else line, marks)
         if cont:
             out[-1] = (out[-1][0], out[-1][1] + body)
         else:
@@ -351,7 +367,7 @@ def bare_xerrab_sites(paths, root):
     out = []
     for rel in paths:
         text = (root / rel).read_text(errors="replace")
-        for i, stmt in fortran_statements(text, rel.endswith(".F90")):
+        for i, stmt in fortran_statements(text, rel.endswith(".F90"), mppl=rel.endswith(".m")):
             if BARE_XERRAB.search(stmt):
                 out.append("{}:{}".format(rel, i))
     return out
@@ -398,5 +414,19 @@ def test_bare_xerrab_detects(tmp_path):
         "     .  'Error in subroutine c: n > 2')\n"
         "      x = 1\n"
         "     0  + 2\n")
-    assert bare_xerrab_sites(["a.m", "b.F90", "c.m"], tmp_path) == [
-        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1"]
+    # review I2-m1: an MPPL # line, a blank line and inline comments inside a split call; # and ! inside strings
+    (tmp_path / "d.m").write_text(
+        "      if (n .gt. 3) call xerrab(   # stop\n"
+        "         # why it stops\n"
+        "\n"
+        "     .  '')\n"
+        "      call xerrab('Error in subroutine d: a # and a ! in the text')\n"
+        "      call xerrab('Error in subroutine d: it''s fine')\n")
+    (tmp_path / "e.F90").write_text(
+        "  if (x) call xerrab( & ! split\n"
+        "\n"
+        "    ! a comment line\n"
+        "    & \"\")\n"
+        "  call xerrab('Error in subroutine e: & and ! inside')\n")
+    assert bare_xerrab_sites(["a.m", "b.F90", "c.m", "d.m", "e.F90"], tmp_path) == [
+        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1", "d.m:1", "e.F90:1"]
