@@ -123,7 +123,10 @@ def plan():
 def test_plan_covers_inventory(plan):
     ids = [v.id for v in plan]
     assert len(ids) == len(set(ids))
-    assert {v.key for v in plan} == set(inputs.tagged()) | ADDITIONS
+    assert {v.key for v in plan if v.rule != "set"} == set(inputs.tagged()) | ADDITIONS
+    sets = [v for v in plan if v.rule == "set"]
+    assert [v.id for v in sets] == [v.id for v in variants.load_sets()]  # after the variants, in file order
+    assert plan[-len(sets):] == sets if sets else True
 
 
 def test_plan_exclusions(plan):
@@ -164,6 +167,8 @@ def test_plan_values_phases_configs(plan):
     assert [(v.rule, v.bound, v.excluded) for v in by_key["bbb.ziin"]] == [("charge", "com.nhsp", False)]
     allvars = inputs.parse()
     for v in plan:
+        if v.rule == "set":
+            continue
         assert v.config == ("timestep" if v.key in TIMESTEP else "steady"), v.id
         assert v.phase == ("POST" if allvars[v.key].dynamic else "PRE"), v.id
 
@@ -215,3 +220,150 @@ def test_encode_roundtrip():
         assert bitwise(variants.decode(json.loads(json.dumps(variants.encode(x)))), x)
     with pytest.raises(ValueError, match="non-finite"):
         variants.encode(np.array([np.nan]))
+
+
+# ---------------------------------------------------------------- combination sets (AIUE-257, owner D1 2026-11-11)
+
+GOOD_SETS = '''
+["set:pfte1"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { scale = 1.5 } }
+reason = "istepfc = 1 with tewalli"
+
+["set:pfte1-ly"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { scale = 1.5 }, "bbb.lyte" = { value = 0.05, at = [0] } }
+base = "set:pfte1"
+families = ["d_only", "d_c"]
+issues = ["AIUE-269"]
+reason = "based"
+
+["set:pfvsix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] } }
+families = ["d_only"]
+reason = "per-cell PF arrays"
+'''
+
+
+def load_sets_text(tmp_path, text):
+    f = tmp_path / "combinations.toml"
+    f.write_text(text)
+    return variants.load_sets(f)
+
+
+def test_sets_load(tmp_path):
+    sets = {v.id: v for v in load_sets_text(tmp_path, GOOD_SETS)}
+    assert list(sets) == ["set:pfte1", "set:pfte1-ly", "set:pfvsix"]
+    a, b, c = sets.values()
+    assert (a.rule, a.key, a.phase, a.config, a.base, a.families, a.issues) == (
+        "set", "set:pfte1", "POST", "steady", None, variants.SMALL_FAMILIES, None)  # tewalli is dynamic
+    assert a.assign == (("bbb.istepfc", "value", 1, ()), ("bbb.tewalli", "scale", 1.5, ()))
+    assert a.keys == ("bbb.istepfc", "bbb.tewalli")
+    assert (b.phase, b.base, b.families, b.issues) == ("POST", "set:pfte1", ("d_only", "d_c"), ("AIUE-269",))
+    assert c.assign[1] == ("bbb.istepfcix", "cycle", (0, 1, 3), ())
+    assert c.assign[2] == ("bbb.lyteix", "cycle", (0.02, 0.05), (0,))
+    for v in sets.values():
+        assert variants.Variant.from_dict(json.loads(json.dumps(v.to_dict()))) == v
+    plan = variants.plan(sets=list(sets.values()), family="d_c")
+    assert [v.id for v in plan if v.rule == "set"] == ["set:pfte1", "set:pfte1-ly"]
+    assert [v.id for v in variants.plan(sets=list(sets.values())) if v.rule == "set"] == list(sets)
+
+
+def test_value_list_families():
+    """A value list limited to some families (AIUE-257, owner 2026-11-12): its =N and =other ids run there, and the
+    other families keep the key's default-rule id."""
+    small = set(variants.SMALL_FAMILIES)
+    plan = variants.plan()
+    by_id = {v.id: v for v in plan}
+    assert set(by_id["bbb.istepfc=1"].families) == small and by_id["bbb.istepfc=other"].excluded
+    fallback = by_id["bbb.istepfc"]
+    assert fallback.rule == "default" and set(fallback.families) == set(variants.all_families()) - small
+    for fam in variants.all_families():
+        ids = {v.id for v in variants.plan(family=fam)}
+        assert ("bbb.istepfc=1" in ids) == (fam in small) and ("bbb.istepfc" in ids) == (fam not in small), fam
+    assert by_id["bbb.iphibcwi=1"].families is None  # an entry without families runs everywhere
+    # rest_exclude: isch_sput runs 0-7 in the small families and keeps the AIUE-195 exclusion in the others
+    ch = by_id["bbb.isch_sput"]
+    assert ch.excluded and "AIUE-195" in ch.reason and set(ch.families) == set(variants.all_families()) - small
+    assert not by_id["bbb.isch_sput=7"].excluded and set(by_id["bbb.isch_sput=7"].families) == small
+
+
+@pytest.mark.parametrize("text, match", [
+    ('["bbb.istepfc"]\nfamilies = ["d_only"]\nreason = "x"\n', "families only with values"),
+    ('["bbb.istepfc"]\nvalues = [0]\nfamilies = []\nreason = "x"\n', "non-empty list"),
+    ('["bbb.istepfc"]\nvalues = [0]\nfamilies = ["nosuch"]\nreason = "x"\n', "no family"),
+    ('["bbb.istepfc"]\nvalues = [0]\nrest_exclude = "y"\nreason = "x"\n', "rest_exclude without families"),
+    ('["bbb.istepfc"]\nvalues = [0]\nfamilies = ["d_only"]\nrest_exclude = " "\nreason = "x"\n', "needs a reason"),
+])
+def test_value_list_families_refused(tmp_path, text, match):
+    f = tmp_path / "overrides.toml"
+    f.write_text(text)
+    with pytest.raises(ValueError, match=match):
+        variants.load_overrides(f)
+
+
+@pytest.mark.parametrize("text, match", [
+    ('["pfte1"]\nassign = { "bbb.istepfc" = 1 }\nreason = "x"\n', "set:<name>"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nreason = " "\n', "no reason"),
+    ('["set:a"]\nassign = {}\nreason = "x"\n', "non-empty table"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nwhy = "x"\nreason = "x"\n', "unknown fields"),
+    ('["set:a"]\nassign = { "bbb.nosuchvar" = 1 }\nreason = "x"\n', "no such variable"),
+    ('["set:a"]\nassign = { "bbb.restart" = 1 }\nreason = "x"\n', "EXCLUDED in overrides.toml"),
+    ('["set:a"]\nassign = { "bbb.petscoptfile" = 1 }\nreason = "x"\n', "character variable"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1.5 }\nreason = "x"\n', "not an integer"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = { scale = 2 } }\nreason = "x"\n', "scale on a integer"),
+    ('["set:a"]\nassign = { "bbb.lyte" = { value = 1.0, scale = 2.0 } }\nreason = "x"\n', "exactly one of"),
+    ('["set:a"]\nassign = { "bbb.lyte" = { value = 1.0, at = [0, 1] } }\nreason = "x"\n', "more indices"),
+    ('["set:a"]\nassign = { "bbb.lyte" = { cycle = [1.0] } }\nreason = "x"\n', "cycle runs along"),
+    ('["set:a"]\nassign = { "bbb.ispfbcvsix" = 1, "bbb.lyteix" = { cycle = [1.0] } }\nreason = "x"\n',
+     "cycle runs along"),
+    ('["set:a"]\nassign = { "bbb.istepfcix" = { cycle = [0, 1] } }\nreason = "x"\n', "bbb.ispfbcvsix = 1"),
+    ('["set:a"]\nassign = { "bbb.iswobcvsix" = 1, "bbb.lyteix" = { cycle = [1.0], at = [0] } }\nreason = "x"\n',
+     "bbb.ispfbcvsix = 1"),
+    ('["set:a"]\nassign = { "bbb.ispfbcvsix" = 1, "bbb.lyniix" = 0.1 }\nreason = "x"\n', "bbb.iswobcvsix = 1"),
+    ('["set:a"]\nassign = { "bbb.tewalli" = 1.0 }\nphase = "PRE"\nreason = "x"\n', "phase PRE with a dynamic"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nconfig = "transient"\nreason = "x"\n', "config"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nfamilies = ["nosuch"]\nreason = "x"\n', "no family"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nissues = ["#1"]\nreason = "x"\n', "Jira keys"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nbase = "set:b"\nreason = "x"\n', "not a set of this file"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nreason = "x"\n["set:b"]\n'
+     'assign = { "bbb.istepfc" = 1, "bbb.istipfc" = 1 }\nbase = "set:a"\nreason = "x"\n["set:c"]\n'
+     'assign = { "bbb.istewc" = 1 }\nbase = "set:b"\nreason = "x"\n', "has a base itself"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nfamilies = ["d_only"]\nreason = "x"\n["set:b"]\n'
+     'assign = { "bbb.istepfc" = 1, "bbb.istipfc" = 1 }\nbase = "set:a"\nfamilies = ["d_c"]\nreason = "x"\n',
+     "not among the base's"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nfamilies = ["imp7"]\nreason = "x"\n["set:b"]\n'
+     'assign = { "bbb.istepfc" = 1, "bbb.istipfc" = 1 }\nbase = "set:a"\nfamilies = ["imp7"]\nreason = "x"\n',
+     "needs a full store"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nreason = "x"\n["set:b"]\n'
+     'assign = { "bbb.istepfc" = 1, "bbb.istipfc" = 1 }\nbase = "set:a"\nconfig = "timestep"\nreason = "x"\n',
+     "runs in steady"),
+    ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nreason = "x"\n["set:b"]\nassign = { "bbb.istipfc" = 3 }\n'
+     'base = "set:a"\nreason = "x"\n', "does not assign the base's keys"),
+])
+def test_sets_refused(tmp_path, text, match):
+    with pytest.raises(ValueError, match=match):
+        load_sets_text(tmp_path, text)
+
+
+def test_sets_file_valid():
+    """The repository's combinations.toml loads, and no set id collides with a variant id."""
+    sets = variants.load_sets()
+    ids = [v.id for v in variants.plan()]
+    assert len(ids) == len(set(ids)) and all(v.id in ids for v in sets)
+
+
+def test_set_value():
+    d = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
+    assert bitwise(variants.set_value(d, "value", 0.5), np.full((2, 4), 0.5))
+    assert bitwise(variants.set_value(d, "value", 0.5, (1, 2)), np.array([[1, 2, 3, 4], [5, 6, 0.5, 8.0]]))
+    assert bitwise(variants.set_value(d, "scale", 2.0, (0,)), np.array([[2, 4, 6, 8], [5, 6, 7, 8.0]]))
+    assert bitwise(variants.set_value(d, "cycle", (0.1, 0.2), (1,)), np.array([[1, 2, 3, 4], [.1, .2, .1, .2]]))
+    assert bitwise(d, np.array([[1, 2, 3, 4], [5, 6, 7, 8.0]]))  # d itself is not changed
+    i = np.zeros((5, 3), dtype=np.int64)  # an (0:nx+1, nisp) array: the cycle runs along ix, every species
+    assert bitwise(variants.set_value(i, "cycle", (0, 1, 3)), np.array([[0] * 3, [1] * 3, [3] * 3, [0] * 3, [1] * 3]))
+    assert bitwise(variants.set_value(np.int64(0), "value", 4), np.int64(4))
+    with pytest.raises(ValueError, match="not representable"):
+        variants.set_value(i, "cycle", (0, 1.5))
+    with pytest.raises(TypeError):
+        variants.set_value(i, "scale", 2.0)
+    with pytest.raises(ValueError, match="needs an axis"):
+        variants.set_value(d, "cycle", (1.0,), (0, 1))

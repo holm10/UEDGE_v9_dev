@@ -105,7 +105,7 @@ def inventory_problems(manifest, plan):
     """What keeps a manifest's variables from being the inventory: missing and stale ids, and inventory-EXCLUDED
     variants stored in another class or with another reason. Every family, owner families included (AIUE-99)."""
     stored = manifest.get("variables") or {}
-    ids = {v.id: v for v in plan}
+    ids = {v.id: v for v in plan if v.runs_in(manifest["family"])}  # a value list or set limited to some families
     out = ["missing: {}".format(vid) for vid in ids if vid not in stored]
     out += ["stale: {}".format(vid) for vid in stored if vid not in ids]
     for vid, v in ids.items():

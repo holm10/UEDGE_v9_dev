@@ -15,6 +15,9 @@ INVALID    evaluated with the rules (no applied value is recorded): make_referen
            printed, not failed. A bounds-check entry (the --checkbounds audit's runtime error, reproducible only in
            that build) pins the serial build's outcome instead: the serial run must give the class and, for INVALID,
            the kind of reason its reason ends with 'serial build: ...' (owner, 2026-10-28, AIUE-95 D5).
+A combination set (AIUE-257) is run like a variant, its recorded {key: value} replayed; a set with a base compares
+with its base set's live result (the base's stored applied value replayed) instead of the default, for INERT and
+INVALID alike, as make_references classified it.
 MARGINAL and EXCLUDED variants are never run (PRD 7.2); test_inventory.py checks their reasons. The test ids are
 <family>-<variant id>, so -k "d_c and (cfvisx or methe)" selects by family and variable. An owner family's variants
 (AIUE-99) are marked nightly (PRD section 4).
@@ -114,12 +117,23 @@ def test_sensitive(runner, plan, stores, record, family, vid):
     pytest.fail(what, pytrace=False)
 
 
+def comparison_base(runner, plan, default, family, e):
+    """What a variant is compared with: the live default of its configuration, or for a set with a base (AIUE-257)
+    the base set's live result, its stored applied value replayed."""
+    if not e.get("base"):
+        return default(family, e["config"])
+    b = MANIFESTS[family]["variables"][e["base"]]
+    rb = runner.evaluate(family, variant=plan[e["base"]], replay=b["applied"])
+    assert rb.ok, "base set {}: {}".format(e["base"], describe(rb))
+    return rb.data
+
+
 @pytest.mark.parametrize("family, vid", params("INERT"))
 def test_inert(runner, plan, default, family, vid):
     e = MANIFESTS[family]["variables"][vid]
     r = runner.evaluate(family, variant=plan[vid], replay=e["applied"])
     assert r.ok, describe(r)
-    base = default(family, e["config"])
+    base = comparison_base(runner, plan, default, family, e)
     assert mr.same_index(r.data, base), "{}-{}: the equation layout differs from the default's".format(family, vid)
     fdir = family_dir(family)
     tol = mr.tolerance(fdir, base["yldot"], e["config"], compare.index_map(base, compare.load_regions(fdir)))
@@ -159,7 +173,7 @@ def test_invalid_problem(stored, cls, reason, ok):
 def test_invalid(runner, plan, default, family, vid):
     e = MANIFESTS[family]["variables"][vid]
     r = runner.evaluate(family, variant=plan[vid])
-    base = default(family, e["config"])
+    base = comparison_base(runner, plan, default, family, e)
     fdir = family_dir(family)
     tol = mr.tolerance(fdir, base["yldot"], e["config"], compare.index_map(base, compare.load_regions(fdir)))
     cls, reason, finding = mr.classify(r, base, tol)

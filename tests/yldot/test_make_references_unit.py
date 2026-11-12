@@ -1277,3 +1277,130 @@ def test_maintenance_option_refusals(tmp_path, kw, code, message):
 def test_child_needs_a_build_record_unless_auditing(capsys):
     assert mr.main(["mr", "_child", "d_only", "--out", "x"]) == 2
     assert "_child needs --build" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- combination sets (AIUE-257)
+
+TEST_SETS = '''
+["set:t-te0"]
+assign = { "bbb.ibctepl" = 0 }
+families = ["d_only"]
+reason = "test: left-plate Te fixed at tepltl"
+
+["set:t-te0-tepltl"]
+assign = { "bbb.ibctepl" = 0, "bbb.tepltl" = { scale = 1.5 } }
+base = "set:t-te0"
+families = ["d_only"]
+reason = "test: tepltl with ibctepl = 0"
+
+["set:t-te0-same"]
+assign = { "bbb.ibctepl" = 0, "bbb.tepltl" = { scale = 1.0 } }
+base = "set:t-te0"
+families = ["d_only"]
+reason = "test: equal to its base"
+
+["set:t-noop"]
+assign = { "bbb.istepfc" = 3 }
+families = ["d_only"]
+reason = "test: d_only runs istepfc = 3 already"
+
+["set:t-noop-ly"]
+assign = { "bbb.istepfc" = 3, "bbb.lyte" = { value = 0.05, at = [0] } }
+base = "set:t-noop"
+families = ["d_only"]
+reason = "test: its base is EXCLUDED"
+
+["set:t-other"]
+assign = { "bbb.ibctepl" = 0 }
+families = ["d_c"]
+reason = "test: another family only"
+'''
+SET_IDS = ["set:t-te0", "set:t-te0-tepltl", "set:t-te0-same", "set:t-noop", "set:t-noop-ly"]
+
+
+def with_sets(monkeypatch, tmp_path):
+    """variants.plan with TEST_SETS instead of combinations.toml."""
+    from yldot.harness import variants
+
+    f = tmp_path / "combinations.toml"
+    f.write_text(TEST_SETS)
+    sets = variants.load_sets(f)
+    real = variants.plan
+    monkeypatch.setattr(variants, "plan", lambda *a, **kw: real(*a, **dict(kw, sets=sets)))
+
+
+@pytest.fixture(scope="module")
+def set_sweep(tmp_path_factory):
+    mp = pytest.MonkeyPatch()
+    d = tmp_path_factory.mktemp("sets")
+    try:
+        with_sets(mp, d)
+        mr.child(["d_only"], d / "references", build_record(d), sweep=SET_IDS)
+    finally:
+        mp.undo()
+    return d
+
+
+def test_set_sweep_classes(set_sweep):
+    """A set is classified against the default, a based set against its base's result (owner D1); a based set whose
+    base is EXCLUDED is EXCLUDED; a set of another family is not in d_only's inventory; sets take no locality."""
+    ref = set_sweep / "references"
+    m = mf.loads((ref / "d_only.json").read_text())
+    v = m["variables"]
+    assert sorted(v) == sorted(SET_IDS)
+    assert v["set:t-te0"]["class"] == "SENSITIVE" and v["set:t-te0"]["base"] is None
+    assert v["set:t-te0-tepltl"]["class"] == "SENSITIVE"
+    assert v["set:t-te0-tepltl"]["reason"].endswith("against base set set:t-te0")
+    assert v["set:t-te0-same"]["class"] == "INERT"  # equal to its base, not to the default
+    assert v["set:t-noop"]["class"] == "EXCLUDED" and "value equals d" in v["set:t-noop"]["reason"]
+    e = v["set:t-noop-ly"]
+    assert (e["class"], e["reason"], e["applied"]) == ("EXCLUDED", "base set set:t-noop is EXCLUDED", None)
+    e = v["set:t-te0-tepltl"]
+    assert e["keys"] == ["bbb.ibctepl", "bbb.tepltl"] and e["base"] == "set:t-te0"
+    assert sorted(e["applied"]) == sorted(e["d"]) == e["keys"]
+    assert e["applied"]["bbb.tepltl"]["data"] == [e["d"]["bbb.tepltl"]["data"][0] * 1.5]
+    assert set(m.get("locality_variants", {})).isdisjoint(SET_IDS)
+    assert set_manifest_errors(v["set:t-te0-tepltl"]) == ""
+
+
+def test_set_only_reruns_a_copied_base(tmp_path, set_sweep, monkeypatch):
+    """--only of a based set alone: its base is copied, evaluated again with its stored applied value, and the
+    result is the same file bit for bit."""
+    suite = installed(tmp_path, set_sweep)
+    with_sets(monkeypatch, tmp_path)
+    d = tmp_path / "only"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=SET_IDS, only=["set:t-te0-tepltl"],
+             suite=suite)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(set_sweep / "references" / "d_only.h5")
+    cost = json.loads((d / "references" / "d_only.cost.json").read_text())
+    assert cost["evaluations"] == 2 + 1 + 2  # the defaults, the base again, the based set twice (SENSITIVE)
+
+
+def test_rename_pairs_take_set_ids():
+    assert mr.rename_pairs(["set:a=set:b", "bbb.x=bbb.x=1"]) == {"set:a": "set:b", "bbb.x": "bbb.x=1"}
+
+
+def set_manifest_errors(e, vid="set:x"):
+    """The validation errors of the installed d_only manifest with the set entry e added ('' if it validates)."""
+    m = mf.load("d_only")
+    m["variables"][vid] = e
+    try:
+        mf.validate(m)
+    except mf.ManifestError as x:
+        return str(x)
+    return ""
+
+
+def test_manifest_set_entries():
+    base = {"class": "INERT", "reason": "", "applied": None, "d": None, "phase": "PRE", "config": "steady",
+            "sha256": None, "block_l2": {}, "jflag_block_l2": {}}
+    enc = {"dtype": "int64", "shape": [], "data": [0]}
+    for bad, msg in [({}, "need exactly the keys"),
+                     ({"keys": [], "base": None}, "keys must be"),
+                     ({"keys": ["bbb.a"], "base": None, "applied": {"bbb.b": enc}}, "over its keys"),
+                     ({"keys": ["bbb.a"], "base": None, "applied": enc}, "over its keys"),
+                     ({"keys": ["bbb.a"], "base": "bbb.a"}, "base must be")]:
+        assert msg in set_manifest_errors(dict(base, **bad)), bad
+    assert set_manifest_errors(dict(base, keys=["bbb.a"], base="set:y", applied={"bbb.a": enc},
+                                    d={"bbb.a": enc})) == ""
+    assert "need exactly the keys" in set_manifest_errors(dict(base, keys=["bbb.a"], base=None), vid="bbb.kye")

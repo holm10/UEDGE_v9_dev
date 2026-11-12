@@ -131,8 +131,9 @@ FLAGS = "--serial"
 AUDIT_FLAGS = ("--serial", "--checkbounds")  # the audit build: -fbounds-check -fcheck=all (setup.py; AIUE-95)
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
-CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 2, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
+CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 3, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
            "large_dd2c": 13, "dnull_imp2": 13, "imp7": 13}  # owner, 2026-10-24 (AIUE-99; 9 MB in AIUE-92 B4)
+# d_mols 2 -> 3: owner, 2026-11-12 (AIUE-257 Task 3: ~1.9 KB per added SENSITIVE entry put it under a 10 % margin)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
 SKETCH_DEFAULT_RE = re.compile(r"/default/sketch_(weight$|threshold/)")  # a sketch store's, not the default's own
@@ -329,10 +330,14 @@ def classify(res, base, tol, m_cls=M_CLS):
 
 
 def entry(v, cls, reason, rec=None, sha=None, l2=None):
-    """A manifest variables entry (harness/manifest.py); l2: (block_l2, jflag_block_l2)."""
-    return {"class": cls, "reason": reason, "applied": rec.get("applied") if rec else None,
-            "d": rec.get("d") if rec else None, "phase": v.phase, "config": v.config, "sha256": sha,
-            "block_l2": l2[0] if l2 else {}, "jflag_block_l2": l2[1] if l2 else {}}
+    """A manifest variables entry (harness/manifest.py); l2: (block_l2, jflag_block_l2). A combination set's entry
+    also holds its keys and its base set (AIUE-257), and its applied and d are {key: encode form}."""
+    e = {"class": cls, "reason": reason, "applied": rec.get("applied") if rec else None,
+         "d": rec.get("d") if rec else None, "phase": v.phase, "config": v.config, "sha256": sha,
+         "block_l2": l2[0] if l2 else {}, "jflag_block_l2": l2[1] if l2 else {}}
+    if v.rule == "set":
+        e.update(keys=list(v.keys), base=v.base)
+    return e
 
 
 def norms(w, res, base):
@@ -451,7 +456,8 @@ def locality_columns(loc, variant=False):
     return dict(loc, sample=0) if variant else loc
 
 
-VARIANT_ID = re.compile(r"^[a-z]{3}\.\w+(=(-?[0-9][\w.+-]*|other))?$")  # key, or key=value (variants.plan)
+# key, key=value or a combination set (variants.plan, variants.SET_ID)
+VARIANT_ID = re.compile(r"^([a-z]{3}\.\w+(=(-?[0-9][\w.+-]*|other))?|set:[a-z0-9][a-z0-9_.-]*)$")
 
 
 def rename_pairs(rename):
@@ -484,7 +490,7 @@ def audit_child(name, out, repo=None, only=None, rename=None, shard=(0, 1), runn
     if rename:
         only = list(rename_pairs(rename).values())
     scope = set(select_ids(plan, only)) if only is not None else None
-    todo = [v for v in plan if not v.excluded and (scope is None or v.id in scope)][i::n]
+    todo = [v for v in plan if v.runs_in(name) and not v.excluded and (scope is None or v.id in scope)][i::n]
     timeout = TIMEOUT_FACTOR * float(load_evaluation(family_dir(name))["timeout_s"])
     findings, failed, evaluated = [], {}, []
     if i == 0:
@@ -605,17 +611,20 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     runner = Runner()
-    plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
-    inventory = {v.id for v in plan}
+    all_plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
     for old, new in pairs.items():
-        if new not in inventory:
+        if new not in {v.id for v in all_plan}:
             raise Stop(1, "--rename {}={}: {} is not in the inventory".format(old, new, new))
-    by_id = {v.id: v for v in plan}
-    scope = set(select_ids(plan, sweep)) if isinstance(sweep, (list, tuple)) else None
-    selected = set(select_ids(plan, only)) if only is not None else None
-    if scope is not None:
-        plan = [v for v in plan if v.id in scope]
+    by_id = {v.id: v for v in all_plan}
+    scope = set(select_ids(all_plan, sweep)) if isinstance(sweep, (list, tuple)) else None
+    selected = set(select_ids(all_plan, only)) if only is not None else None
     for name in families:
+        # the family's inventory: a value list or set limited to some families runs only there (AIUE-257); the based
+        # sets go last, so their base is classified (or copied) first
+        fplan = [v for v in all_plan if v.runs_in(name)]
+        inventory = {v.id for v in fplan}
+        plan = [v for v in fplan if scope is None or v.id in scope]
+        plan = [v for v in plan if not v.base] + [v for v in plan if v.base]
         fdir = family_dir(name)
         with open(fdir / "family.toml", "rb") as f:
             kind = tomllib.load(f)["family"]["store"]
@@ -699,6 +708,23 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                                  "of M_loc (rule D3), first {}".format(len(near), locality_labels(near, imap))})
         if sweep != "none":
             tol = {config: tolerance(fdir, d["yldot"], config, imap) for config, d in data.items()}
+            set_data = {}  # a set's result data in this run, for the sets based on it
+
+            def base_of(v):
+                """(base data, None) for a based set, or (None, why EXCLUDED) when its base has no usable result.
+                A base copied from the installed reference is evaluated again with its stored applied value."""
+                b = by_id[v.base]
+                e = variables.get(b.id)
+                if e is None or e["class"] not in ("SENSITIVE", "INERT", "MARGINAL"):
+                    return None, "base set {} is {}".format(b.id, e["class"] if e else "not classified")
+                if b.id not in set_data:
+                    rb = runner.evaluate(name, variant=b, replay=e["applied"], timeout=timeout)
+                    walls.append(rb.wall_s)
+                    if not rb.ok:
+                        return None, "base set {} failed on its re-run: {}".format(b.id, error_reason(rb))
+                    set_data[b.id] = rb.data
+                return set_data[b.id], None
+
             for v in plan:
                 if selected is not None and v.id not in selected:
                     e = previous.manifest["variables"].get(v.id)
@@ -716,14 +742,23 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     continue
                 if aud is not None and v.id not in audited:
                     raise Stop(2, "{}: the audit did not evaluate {}".format(name, v.id))
+                base = data[v.config]
+                if v.base:  # classified against its base set's result (AIUE-257, owner D1), with the default's tol
+                    base, why = base_of(v)
+                    if why:
+                        variables[v.id] = entry(v, "EXCLUDED", why)
+                        continue
                 try:
                     r = runner.evaluate(name, variant=v, timeout=timeout)
                 except FamilyError as e:
                     findings.append({"id": v.id, "finding": "owner: {}".format(last_line(e))})
                     continue
                 walls.append(r.wall_s)
-                base = data[v.config]
+                if v.rule == "set" and r.ok:
+                    set_data[v.id] = r.data
                 cls, reason, finding = classify(r, base, tol[v.config])
+                if v.base and cls in ("SENSITIVE", "MARGINAL"):
+                    reason = "{} against base set {}".format(reason, v.base)
                 if finding is not None:
                     findings.append({"id": v.id, "finding": finding})
                     continue
@@ -765,7 +800,7 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     variables[v.id] = entry(v, cls, reason, rec_v)
                 if full and selected is not None and r.ok:
                     (out / "full").mkdir(exist_ok=True)
-                    np.savez(out / "full" / "{}.{}.npz".format(name, v.id), default=base["yldot"],
+                    np.savez(out / "full" / "{}.{}.npz".format(name, v.id.replace(":", "_")), default=base["yldot"],
                              default_J=base["yldot_J"], yldot=r.data["yldot"], yldot_J=r.data["yldot_J"],
                              labels=np.array([imap.label(i) for i in range(imap.neq)]))
         if loc is not None and sweep != "none":

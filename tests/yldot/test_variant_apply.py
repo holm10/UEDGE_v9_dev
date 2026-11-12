@@ -113,6 +113,77 @@ def test_scalar_selector_value(runner, plan):
     print("\nbbb.iphibcwi=1 changes yldot:", bool((res.data["yldot"] != default.data["yldot"]).any()))
 
 
+LIVE_SETS = '''
+["set:pfte1"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 5.0 } }
+families = ["d_only"]
+reason = "test: istepfc = 1 reads tewalli (bbb/pandf_boundary.m:1812)"
+
+["set:pfte1-ts"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 5.0 } }
+config = "timestep"
+families = ["d_only"]
+reason = "test: the same in the timestep configuration"
+
+["set:pfvsix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] } }
+families = ["d_only"]
+reason = "test: per-cell PF Te options"
+'''
+
+
+@pytest.fixture(scope="module")
+def live_sets(tmp_path_factory):
+    f = tmp_path_factory.mktemp("sets") / "combinations.toml"
+    f.write_text(LIVE_SETS)
+    return {v.id: v for v in variants.load_sets(f)}
+
+
+@pytest.mark.parametrize("sid", ["set:pfte1", "set:pfvsix"])
+def test_set_apply_and_replay(runner, live_sets, sid):
+    """A combination set (AIUE-257): every key is applied in the POST phase and recorded with its d; it changes
+    yldot, and replaying the record's dict reproduces yldot and yldot_J bit for bit."""
+    v = live_sets[sid]
+    default = runner.evaluate(FAMILY)
+    gen = runner.evaluate(FAMILY, variant=v)
+    assert default.ok and gen.ok, describe(default if not default.ok else gen)
+    assert gen.data["variant"]["PRE"] is None
+    rec = gen.data["variant"]["POST"]
+    assert rec["status"] == "applied" and rec["keys"] == list(v.keys), rec
+    assert sorted(rec["d"]) == sorted(rec["applied"]) == sorted(v.keys)
+    for k, kind, x, at in v.assign:
+        expected = variants.set_value(variants.decode(rec["d"][k]), kind, x, at)
+        assert variants.decode(rec["applied"][k]).tobytes() == expected.tobytes(), k
+    assert (gen.data["yldot"] != default.data["yldot"]).any(), "{}: yldot unchanged".format(sid)
+
+    rep = runner.evaluate(FAMILY, variant=v, replay=rec["applied"])
+    assert rep.ok, describe(rep)
+    assert rep.data["variant"]["POST"]["applied"] == rec["applied"]
+    for k in ("yldot", "yldot_J"):
+        assert rep.data[k].tobytes() == gen.data[k].tobytes(), "{} {}: replay differs".format(sid, k)
+
+
+def test_set_timestep(runner, live_sets):
+    """A set in the timestep configuration is applied in both POST passes, with a second_pass entry per key."""
+    v = live_sets["set:pfte1-ts"]
+    default = runner.evaluate(FAMILY, config="timestep")
+    gen = runner.evaluate(FAMILY, variant=v)
+    assert default.ok and gen.ok, describe(default if not default.ok else gen)
+    assert gen.config == "timestep"
+    rec = gen.data["variant"]["POST"]
+    assert rec["status"] == "applied" and set(rec["second_pass"]) == set(v.keys), rec
+    assert set(rec["second_pass"].values()) <= {"kept", "reset"}
+    assert (gen.data["yldot"] != default.data["yldot"]).any()
+
+
+def test_set_replay_refused(runner, live_sets):
+    """A set's replay must cover exactly its keys."""
+    v = live_sets["set:pfte1"]
+    x = runner.evaluate(FAMILY, variant=v, replay={"bbb.istepfc": variants.encode(np.int64(1))})
+    assert x.status == "error", describe(x)
+    assert "dict over its keys" in x.message
+
+
 def test_replay_uses_recorded_value(runner, plan):
     """A replayed value that differs from the rule value is the one applied, and it moves yldot."""
     v = plan["bbb.kye"]
