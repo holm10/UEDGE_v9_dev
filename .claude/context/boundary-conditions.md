@@ -62,7 +62,7 @@ The selectors with no `else` are listed under issue #14 below.
 
 | Selector | Values |
 |---|---|
-| `isnicore` (ions; `bbb/pandf_boundary.m:1465`) | 1 `ncore`; 0 flux `curcore`; 2 as 0 + `ncore` on `ixfixnc..+incixc`; 3 const ni + integral `curcore − recycc·fngy`; 5 `lynicore`/`ncoremin`; 4 impurity-only `fnzysi`; else `xerrab` (hydrogen) or no equation (impurities) |
+| `isnicore` (ions; `bbb/pandf_boundary.m:1465`) | 1 `ncore`; 0 flux `curcore`; 2 as 0 + `ncore` on `ixfixnc..+incixc`; 3 const ni + integral `curcore − recycc·fngy`; 5 `lynicore`/`ncoremin`; 4 impurity-only `fnzysi`, refused when the impurities are ion species (#25); else `xerrab` (hydrogen) or no equation (impurities) |
 | `isngcore` (inertial atoms `bbb/pandf_boundary.m:1380`; diffusive gas `bbb/pandf_boundary.m:1910`) | 0 albedo `albedoc`; 1 `ngcore`; 2 `xerrab` (inertial) or gradient length (diffusive); 3 limited extrapolation; 4 zero gradient (diffusive); else zero gradient (inertial) or no equation (diffusive) |
 | `isupcore` (`bbb/pandf_boundary.m:1575`) | 0 `upcore`; 1 dup/dy = 0; 2 d²up/dy² = 0; 3 `fmiy` = 0; 4 `lzflux`; 5 `utorave`; else `xerrab` |
 | `iflcore` (`bbb/pandf_boundary.m:1787`) | 0 `tcoree`/`tcorei`; 1 `pcoree`/`pcorei`; −1 zero gradient |
@@ -139,3 +139,7 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
     names, `iphibcwi` needing `isnewpot`, `isphicore0`.
 24. AIUE-286: Dead code: `fluxsurfav2`/`fluxsurfav1` (`bbb/pandf_boundary.m:1038`, `bbb/pandf_boundary.m:1096`); the `isnewpot*isphion=1000` block (`bbb/pandf_boundary.m:2955`);
     the duplicate `isupwiix` loop in `setwallbcarrays`.
+25. AIUE-292: Impurity core `isnicore=4` is refused when the impurities are ion species (`isimpon` 6, 7): the first
+    core-ni loop runs over every ion (`bbb/pandf_boundary.m:1369`) and stops on 4 (`bbb/pandf_boundary.m:1515`), before the impurity loop
+    (`bbb/pandf_boundary.m:1646`) that codes it (`bbb/pandf_boundary.m:1684`); for the shared options the impurity loop writes the rows
+    again. Seen in d_c (AIUE-257 prototype, a62f121).

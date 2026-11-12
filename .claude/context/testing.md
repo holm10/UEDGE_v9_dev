@@ -217,7 +217,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1298`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1333`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -619,7 +619,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
   350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
   AIUE-211; an `--only` dispatch is not cheap either: it re-runs each owner family's default and its stored variant
-  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:601`), so run
+  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:607`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone when another owner
   family shares the job, AIUE-242), three
