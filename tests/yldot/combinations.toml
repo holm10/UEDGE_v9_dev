@@ -113,28 +113,33 @@ assign = { "bbb.recycm" = -11.0, "bbb.cgmompl" = { scale = 1.5 } }
 base = "set:plate-mom-thermal"
 reason = "cgmompl, read under recycm < -10.1 (3238), varied with that branch on"
 
-["set:plate-imp-albedo"]
+["set:plate-imp-negsputt"]
 assign = { "bbb.sputtr" = -0.5 }
 families = ["d_c"]
 issues = ["AIUE-268"]
-reason = "plate impurity-gas albedo (-9.9 <= sputt < 0, 3540) with isph_sput = 3; the flux balance it replaces is normalised by n0(igsp), AIUE-268"
+reason = "negative sputtr with physical sputtering on (d_c isph_sput(2) = 3): sputflxlb > 0 keeps the flux-balance branch (3540), where -sputtlb*hflux acts as a negative yield; the albedo branch is not reached. Covers the code as it behaves today (flux balance normalised by n0(igsp), AIUE-268)"
+
+["set:plate-imp-albedo"]
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -0.5 }
+families = ["d_c"]
+reason = "plate impurity-gas albedo (-9.9 <= sputtlb < 0, 3552): needs sputflxlb = 0, so physical sputtering off for the C gas (isph_sput(2) = 0)"
 
 ["set:plate-imp-albedo-r"]
-assign = { "bbb.sputtr" = -0.3 }
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -0.3 }
 base = "set:plate-imp-albedo"
 families = ["d_c"]
-reason = "the impurity-gas plate albedo, varied with the albedo branch on (3540)"
+reason = "the impurity-gas plate albedo 1 + sputtlb, varied with the albedo branch on (3552)"
 
 ["set:plate-imp-fixed"]
-assign = { "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 1.0e15 }, "bbb.ngplatrb" = { value = 1.0e15 } }
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 1.0e15 }, "bbb.ngplatrb" = { value = 1.0e15 } }
 families = ["d_c"]
-reason = "plate impurity-gas density fixed at ngplatlb/ngplatrb (sputt < -9.9, 3540)"
+reason = "plate impurity-gas density fixed at ngplatlb/ngplatrb (sputtlb < -9.9, 3558): needs isph_sput(2) = 0 (sputflxlb = 0)"
 
 ["set:plate-imp-fixed-ng"]
-assign = { "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 2.0e15 }, "bbb.ngplatrb" = { value = 2.0e15 } }
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 2.0e15 }, "bbb.ngplatrb" = { value = 2.0e15 } }
 base = "set:plate-imp-fixed"
 families = ["d_c"]
-reason = "ngplatlb/ngplatrb, read only under sputt < -9.9 (3540), varied with that branch on"
+reason = "ngplatlb/ngplatrb, read only under sputtlb < -9.9 (3559, 4292), varied with that branch on"
 
 # ================================================================ PF wall (iwall_boundary 1302, iy = 0, isixcore = 0)
 
@@ -428,7 +433,20 @@ reason = "core D+ flux plus ni = ncore over ixfixnc..ixfixnc+incixc (isnicore = 
 ["set:core-nicore2-range"]
 assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 2, "bbb.incixc" = 1 }
 base = "set:core-nicore2"
-reason = "the fixed-density range ixfixnc/incixc, read only under isnicore = 2 (1479), varied with that branch on"
+families = ["d_only", "d_mols", "ortho"]
+reason = "the fixed-density range ixfixnc/incixc, read only under isnicore = 2 (1479), varied with that branch on: ix 2-3 reaches core cell 3 (core cells 3-6 on the nx = 8 grids)"
+
+["set:core-nicore2-range-dc"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 6, "bbb.incixc" = 1 }
+base = "set:core-nicore2"
+families = ["d_c"]
+reason = "the fixed-density range ixfixnc/incixc (1479) inside d_c's core cells 5-12: ix 6-7"
+
+["set:core-nicore2-range-slab"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 14, "bbb.incixc" = 1 }
+base = "set:core-nicore2"
+families = ["slab_phi"]
+reason = "the fixed-density range ixfixnc/incixc (1479) inside slab_phi's core cells 13-20: ix 14-15"
 
 ["set:core-nicore3"]
 assign = { "bbb.isnicore" = { value = 3, at = [0] } }
@@ -496,7 +514,7 @@ reason = "ngcore(2), read only under isngcore(2) = 1 (1910), varied with that br
 assign = { "bbb.isngcore" = { value = 2, at = [1] } }
 families = ["d_mols", "d_c"]
 issues = ["AIUE-272", "AIUE-278"]
-reason = "core diffusive-gas gradient length sqrt(tg/(m nuix nuiz)) (isngcore(2) = 2, 1910-1924; documented as not available, AIUE-272; relaxed with nurlxn, AIUE-278); the elementwise isngcore = 2 of overrides.toml stops on the inertial atoms"
+reason = "core diffusive-gas isngcore(2) = 2: allocate refuses isngcore = 2 for every gas (bbb/odesetup.m:193-199), so the gradient-length code (1910-1924) is unreachable; covers AIUE-272 as the code behaves today (expected INVALID)"
 
 ["set:core-gas-ngcore3"]
 assign = { "bbb.isngcore" = { value = 3, at = [1] } }
