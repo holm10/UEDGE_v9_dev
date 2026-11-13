@@ -1,0 +1,29 @@
+Mutation: owall_tewallo_sign
+Kind: boundary
+Equation: te
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, d_c
+Source: bbb/pandf_boundary.m:2634 (at b86d14b8)
+Description: sign of te in the fixed outer-wall electron temperature condition (istewcix = 1, owall_boundary).
+ istewc = 1 in d_only, ortho, d_mols and d_c; slab_phi (0) and the owner families (3) are quiet controls.
+ Owner-approved list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -2631,7 +2631,7 @@
+              yldot(iv1) = nurlxe*(feey(ix,ny)/(n0(1)*vpnorm*sy(ix,ny)))
+      .                                                      / (temp0*ev)
+            elseif (istewcix(ix) .eq. 1) then   # set to tewallo
+-             yldot(iv1) = nurlxe*(tewallo(ix)*ev-te(ix,ny+1))/(temp0*ev)
++             yldot(iv1) = nurlxe*(tewallo(ix)*ev+te(ix,ny+1))/(temp0*ev)
+            elseif (istewcix(ix) .eq. 2) then   # extrapolation
+              tbound = te(ix,ny) + gyf(ix,ny-1)*(te(ix,ny)-
+      .                           te(ix,ny-1))/gyf(ix,ny)

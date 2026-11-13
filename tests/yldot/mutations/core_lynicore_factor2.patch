@@ -1,0 +1,31 @@
+Mutation: core_lynicore_factor2
+Kind: boundary
+Equation: ni
+Fault: factor 2
+Check: yldot
+Configs: steady
+Blocks: d_only: primary ni[1]
+ ortho: primary ni[1]
+ d_mols: primary ni[1]
+ d_c: primary ni[1]
+ slab_phi: primary ni[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Variant: set:core-nicore5-lynicore
+Source: bbb/pandf_boundary.m:1510 (at b86d14b8)
+Description: factor 2 on the numerator of the midplane decay-length closure of the core density condition (isnicore
+ = 5, ix = ixmp, iwall_boundary). Checked through the stored SENSITIVE set:core-nicore5-lynicore in the five small
+ families; no default runs it. Owner-approved list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -1507,7 +1507,7 @@
+      .                                 ni(ixp1(ix,0),0,ifld) ) / n0(ifld)
+                      else  # close by setting midp gradient 1/lynicore
+                        yldot(iv1)=-nurlxn*( ni(ix,0,ifld) - ni(ix,1,ifld)*
+-     .                                 (2*gyf(ixmp,0)*lynicore(ifld)+1)/
++     .                                 (4*gyf(ixmp,0)*lynicore(ifld)+1)/
+      .                                 (2*gyf(ixmp,0)*lynicore(ifld)-1)- 
+      .                                     ncoremin(ifld) ) / n0(ifld)
+                      endif

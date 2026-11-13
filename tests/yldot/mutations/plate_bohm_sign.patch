@@ -1,0 +1,33 @@
+Mutation: plate_bohm_sign
+Kind: boundary
+Equation: up
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary up[1]
+ ortho: primary up[1]
+ d_mols: primary up[1]
+ d_c: primary up[1]
+ slab_phi: primary up[1]
+ dnull_imp2: primary up[1]
+ large_dd2c: primary up[1]
+ imp7: primary up[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, d_c, slab_phi, dnull_imp2, large_dd2c, imp7
+Source: bbb/pandf_boundary.m:3983 (at b86d14b8)
+Description: sign of the sound speed in the simple Bohm condition of the right plate, ions (isbohmms = 0,
+ right_boundary). isbohmms = 0 in every family (selector probe, AIUE-257), so all eight are active. Owner-approved
+ list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -3980,7 +3980,7 @@
+      .                vytan(ixt1,iy,ifld) ) / rrv(ixt1,iy) 
+               yldot(iv2) = -nurlxu*(sumb - 1.)  # multispecies Bohm
+               if (isbohmms==0) then          # simple Bohm condition
+-                yldot(iv2) = nurlxu * (cs-ueb-up(ixt1,iy,ifld))/vpnorm
++                yldot(iv2) = nurlxu * (-cs-ueb-up(ixt1,iy,ifld))/vpnorm
+               endif
+               if(isupss(ifld)==1 .and. up(ixt2,iy,ifld)+ueb .gt. cs)
+                                              # dup/dx=0 if supersonic

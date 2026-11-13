@@ -1,0 +1,32 @@
+Mutation: plate_te_fixed_wrong_side
+Kind: boundary
+Equation: te
+Fault: wrong multiplier
+Check: yldot
+Configs: steady
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Variant: set:ibctepl0-tepltl
+Source: bbb/pandf_boundary.m:3382 (at b86d14b8)
+Description: the fixed left-plate electron temperature (ibctepl = 0, left_boundary) uses the right plate's tepltr.
+ No default runs it; checked through the stored SENSITIVE set:ibctepl0-tepltl (tepltl x 1.5, so 3 eV against
+ tepltr's 2 eV) in the five small families; every family's defaults are quiet controls. Owner-approved list,
+ 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -3379,7 +3379,7 @@
+      .                                     )/(sx(ixt,iy)*vpnorm*ennorm)
+             endif
+           elseif (ibctepl .eq. 0) then
+-             yldot(iv1) = nurlxe*(tepltl*ev-te(ixt,iy))
++             yldot(iv1) = nurlxe*(tepltr*ev-te(ixt,iy))
+      .                                    * 1.5 * ne(ixt,iy)/ennorm
+           elseif (ibctepl .eq. 2) then
+              yldot(iv1) = nurlxe*(te(ixt1,iy)-te(ixt,iy))

@@ -1,0 +1,31 @@
+Mutation: pfwall_te_sheath_factor2
+Kind: boundary
+Equation: te
+Fault: factor 2
+Check: yldot
+Configs: steady
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ d_c: primary te[1]
+ slab_phi: primary te[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, d_c, slab_phi
+Variant: bbb.istepfc=4
+Source: bbb/pandf_boundary.m:1823 (at b86d14b8)
+Description: factor 2 on the sheath transmission factor bceew of the private-flux wall electron energy condition
+ (istepfcix = 4, iwall_boundary). Checked through the stored SENSITIVE bbb.istepfc=4 in the five small families; no
+ default runs it. Owner-approved list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -1820,7 +1820,7 @@
+      .                             0.5*(te(ix,1) + te(ix,0))/
+      .                              (gyf(ix,0)*lyteix(1,ix)) )/(temp0*ev)
+                elseif (istepfcix(ix) .eq. 4) then      
+-                 yldot(iv1) = -nurlxe*(feey(ix,0) - bceew*ne(ix,0)*
++                 yldot(iv1) = -nurlxe*(feey(ix,0) - 2*bceew*ne(ix,0)*
+      .                               vey(ix,0)*sy(ix,0)*te(ix,0)) /
+      .                              (vpnorm*ennorm*sy(ix,0))
+                endif

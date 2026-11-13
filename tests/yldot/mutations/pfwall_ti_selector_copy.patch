@@ -1,0 +1,29 @@
+Mutation: pfwall_ti_selector_copy
+Kind: boundary
+Equation: ti
+Fault: wrong selector
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ti[1]
+ ortho: primary ti[1]
+ d_mols: primary ti[1]
+Intermediate: none
+Families: d_only, ortho, d_mols
+Source: bbb/odesetup.m:576 (at b86d14b8)
+Description: setwallbcarrays copies the electron selector istepfc into the per-cell ion selector istipfcix
+ (ispfbcvsix = 0), the selector mix-up class of AIUE-269. Active where istepfc differs from istipfc (d_only, ortho,
+ d_mols: 3 and 0); d_c and slab_phi (0 and 0) and the owner families (3 and 3) are quiet controls. Owner-approved
+ list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/odesetup.m b/bbb/odesetup.m
+--- a/bbb/odesetup.m
++++ b/bbb/odesetup.m
+@@ -573,7 +573,7 @@
+         do ix = 0, nx+1
+           iphibcwiix(ix) = iphibcwi
+           istepfcix(ix) = istepfc
+-          istipfcix(ix) = istipfc
++          istipfcix(ix) = istepfc
+           lyteix(1,ix) = lyte(1)
+           lytiix(1,ix) = lyti(1)
+           lyphiix(1,ix) = lyphi(1)
