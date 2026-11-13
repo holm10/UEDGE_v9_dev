@@ -190,8 +190,8 @@ reason = "lyti(1), copied to lytiix(1,) and read only under istipfcix = 3 (1861)
 
 ["set:pfti4"]
 assign = { "bbb.istipfc" = 4 }
-issues = ["AIUE-276"]
-reason = "PF-wall Ti sheath-like flux bceiw*ion flux*ti + neutral terms (istipfcix = 4, 1861-1878); the outer wall uses the electron flux, AIUE-276"
+issues = ["AIUE-276", "AIUE-298"]
+reason = "PF-wall Ti sheath-like flux bceiw*ion flux*ti + neutral terms (istipfcix = 4, 1875-1882); the outer wall uses the electron flux, AIUE-276; tg read at the ion index iigsp (1881): out of bounds with one gas, AIUE-298"
 
 ["set:pfti4-bceiw"]
 assign = { "bbb.istipfc" = 4, "bbb.bceiw" = { scale = 1.5 } }
@@ -201,7 +201,8 @@ reason = "bceiw, read under istipfcix = 4 (1878), varied with that branch on"
 ["set:pfti4-neut"]
 assign = { "bbb.istipfc" = 4, "bbb.bcenw" = 1.0, "bbb.cgengw" = 1.0 }
 base = "set:pfti4"
-reason = "the neutral terms bcenw and cgengw (0 in the small families), read under istipfcix = 4 (1878), varied with that branch on"
+issues = ["AIUE-298"]
+reason = "the neutral terms bcenw and cgengw (0 in the small families), read under istipfcix = 4 (1880-1881), varied with that branch on; cgengw multiplies tg at the ion index iigsp, AIUE-298"
 
 ["set:pfnw1"]
 assign = { "bbb.isnwconi" = 1, "bbb.nwalli" = { value = 1.0e18 } }

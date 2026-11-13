@@ -402,14 +402,15 @@ def test_manifests_with_data():
     files (previews are never committed) and they were built in the pinned image (owner, AIUE-88 D1)."""
     from yldot.harness import variants
 
-    ids = {v.id for v in variants.plan()}
+    plan = variants.plan()
     for p in sorted((SUITE / "references").glob("*.manifest.json")):
         m = mf.load(p)
         if "datasets" not in m:
             continue
         with open(FAMILIES / m["family"] / "family.toml", "rb") as f:
             assert m["store"] == tomllib.load(f)["family"]["store"], p.name
-        assert set(m["variables"]) == ids, p.name
+        # the family's own plan: value lists and sets limited to some families (AIUE-257)
+        assert set(m["variables"]) == {v.id for v in plan if v.runs_in(m["family"])}, p.name
         assert m["provenance"]["flags"] == "--serial", p.name
         assert m["release"] is not None, p.name
         assert m["provenance"]["runner_image"].startswith("yldot-linux:24.04 sha256:"), p.name
