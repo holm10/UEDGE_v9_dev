@@ -106,7 +106,8 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
 `bbb/pandf_boundary.m`.
 
 1. AIUE-260: `bbb/pandf_boundary.m:3474` left plate, gas `recylb ≤ −2` writes `yldot(iv1)` (the Te row) with an ion-density difference; the gas
-   row is unwritten. The right plate (`bbb/pandf_boundary.m:4208`) is correct.
+   row is unwritten. The right plate (`bbb/pandf_boundary.m:4208`) is correct. The stale `ifld` is 3 in d_mols (`nisp = 2`):
+   the `--checkbounds` audit stops there (AIUE-257, run 43355786083; AIUE-260 comment 10364).
 2. AIUE-261: `bbb/pandf_boundary.m:1671` impurity core `isnicore=3` writes the stale `yldot(iv1)`, with the opposite sign to the hydrogen version.
 3. AIUE-262: `bbb/pandf_boundary.m:1688` impurity core `isnicore=5` writes the stale `iv1`, normalised by `n0(ifld)` (wrong index).
 4. AIUE-263: `bbb/pandf_boundary.m:2472` outer wall, `ishymol` atoms: `sy(ix,0)` where `sy(ix,ny)` is meant.
@@ -148,3 +149,6 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
     `bbb/pandf_boundary.m:4273`) is always true with physical sputtering on (`isph_sput >= 1`), so a negative `sputtr` never reaches the
     albedo (`bbb/pandf_boundary.m:3552`) or fixed-density (`bbb/pandf_boundary.m:3558`) branch and acts as a negative sputtering
     coefficient. Shown in d_c (AIUE-257 preview, 30c420d).
+27. AIUE-298: PF-wall Ti option 4 reads `tg(ix,0,iigsp)` (`bbb/pandf_boundary.m:1881`): `iigsp` is an ion index (`bbb/bbb.v:160`),
+    `tg` is indexed by gas, and the outer wall uses gas 1 (`bbb/pandf_boundary.m:2673`). With one gas the read is out of bounds
+    (`--checkbounds` stops; d_only, ortho, slab_phi); with two it takes gas 2's temperature (d_mols, d_c). AIUE-257 run 43355786083.
