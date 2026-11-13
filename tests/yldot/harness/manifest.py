@@ -86,6 +86,7 @@ def owner_family(family, suite=SUITE):
     return path(family, suite).is_file() and bool(family_assets(load(family, suite)))
 
 
+SET_PREFIX = "set:"  # a combination set's id (harness/variants.py load_sets, AIUE-257)
 ENCODED = {"dtype", "shape", "data"}
 RUNS = {"dtype", "shape", "runs"}
 MAX_RUN_VALUES = 10 ** 7  # an expanded runs form, at most (largest real value 25,344 at AIUE-190): the guard reads PR
@@ -337,17 +338,31 @@ def validate(m):
             if "/" in vid:
                 errors.append("{}: a variant id may not contain '/'".format(where))
             keys = {"class", "reason", "applied", "d", "phase", "config", "sha256", "block_l2", "jflag_block_l2"}
+            is_set = vid.startswith(SET_PREFIX)
+            if is_set:  # a combination set (AIUE-257): its keys and its base set, d and applied per key
+                keys |= {"keys", "base"}
             if not isinstance(v, dict) or set(v) != keys:
                 errors.append("{}: need exactly the keys {}".format(where, sorted(keys)))
                 continue
+            if is_set:
+                if not (isinstance(v["keys"], list) and v["keys"] and all(isinstance(k, str) for k in v["keys"])):
+                    errors.append("{}: keys must be a non-empty list of variable keys".format(where))
+                elif not all(x is None or (isinstance(x, dict) and sorted(x) == sorted(v["keys"])
+                                           and all(_encoded(e) and e is not None for e in x.values()))
+                             for x in (v["applied"], v["d"])):
+                    errors.append("{}: a set's applied and d must be null or {{key: variants.encode value}} over its "
+                                  "keys".format(where))
+                if not (v["base"] is None or (isinstance(v["base"], str) and v["base"].startswith(SET_PREFIX)
+                                              and v["base"] != vid)):
+                    errors.append("{}: base must be null or another set id".format(where))
+            elif not (_encoded(v["applied"]) and _encoded(v["d"])):
+                errors.append("{}: applied and d must be null or variants.encode values".format(where))
             if v["class"] not in CLASSES:
                 errors.append("{}: class {!r}, need one of {}".format(where, v["class"], CLASSES))
             if not isinstance(v["reason"], str):
                 errors.append("{}: reason must be a string".format(where))
             if v["phase"] not in PHASES or v["config"] not in CONFIG_NAMES:
                 errors.append("{}: phase {!r} / config {!r}".format(where, v["phase"], v["config"]))
-            if not (_encoded(v["applied"]) and _encoded(v["d"])):
-                errors.append("{}: applied and d must be null or variants.encode values".format(where))
             sha = v["sha256"]
             if v["class"] == "SENSITIVE" and not (isinstance(sha, str) and SHA_RE.match(sha)):
                 errors.append("{}: a SENSITIVE variant needs the SHA-256 of its stored data".format(where))

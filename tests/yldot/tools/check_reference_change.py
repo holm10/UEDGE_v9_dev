@@ -22,7 +22,7 @@ declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ti
     Test criteria: changed       any change to the guarded set (tests/yldot/** and the four workflows) other than
                                  manifests and new files under mutations/; with a justification
     Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma or stored sketch thresholds,
-                                 changed or removed overrides,
+                                 changed or removed overrides or combination sets,
                                  harness and test code, this guard, the non-monotone parameters, deleted files, and
                                  any key it cannot show to be tighter); with a justification, besides the changed
                                  line, and approval by a CODEOWNER of tests/yldot/** (branch protection, AIUE-104)
@@ -236,6 +236,8 @@ def path_class(path, status):
         return "tolerances"
     if rel == "overrides.toml":
         return "overrides"
+    if rel == "combinations.toml":
+        return "combinations"
     if FAMILY_TOML_RE.match(rel):
         return "family"
     return CHANGED
@@ -307,6 +309,25 @@ def diff_overrides(o0, o1, pruned):
             out.append((CHANGED, "[{}] removed with its pruned variable".format(key)))
         else:
             out.append((LOOSENED, "[{}] override {}".format(key, "removed" if b is None else "changed")))
+    return out
+
+
+def diff_sets(s0, s1, pruned):
+    """[(requirement, what)] for two parsed combinations.toml (AIUE-257): a new set is a new criterion (changed); a
+    changed set (its assignments, base, families, phase, config or reason) or a removed one is a loosening, except a
+    removed set whose entries this change prunes from every manifest (pruned: those set ids), which the manifests
+    judge."""
+    out = []
+    for sid in sorted(set(s0) | set(s1)):
+        a, b = s0.get(sid), s1.get(sid)
+        if same(a, b):
+            continue
+        if a is None:
+            out.append((CHANGED, "[{}] new set".format(sid)))
+        elif b is None and sid in pruned:
+            out.append((CHANGED, "[{}] removed with its pruned entries".format(sid)))
+        else:
+            out.append((LOOSENED, "[{}] set {}".format(sid, "removed" if b is None else "changed")))
     return out
 
 
@@ -385,7 +406,7 @@ def stored(m, config, vid):
     return {n[len(prefix):]: s for n, s in m.get("datasets", {}).items() if n.startswith(prefix)}
 
 
-RENAME_FIELDS = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2")
+RENAME_FIELDS = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2", "keys", "base")  # a set's too
 
 
 def rename_differences(m0, a, va, m1, b, vb):
@@ -393,7 +414,7 @@ def rename_differences(m0, a, va, m1, b, vb):
     variant SHA, which hashes the id), "stored datasets" if the stored data differ under the new id, and "locality
     pattern" if their locality slices differ (one stored and not the other, or another slice; AIUE-95). [] for a
     rename."""
-    out = [k for k in RENAME_FIELDS if not same(va[k], vb[k])]
+    out = [k for k in RENAME_FIELDS if not same(va.get(k), vb.get(k))]
     if stored(m0, va["config"], a) != stored(m1, vb["config"], b):
         out.append("stored datasets")
     if m0.get("locality_variants", {}).get(a) != m1.get("locality_variants", {}).get(b):
@@ -537,7 +558,7 @@ def guarded_paths(repo, base, head):
                 found.append(Finding(LOOSENED, path, "pytest section changed"))
         else:
             kinds[path] = (kind, status)
-    if any(k == "manifest" for k, _ in kinds.values()) or any(k == "overrides" for k, _ in kinds.values()):
+    if any(k in ("manifest", "overrides", "combinations") for k, _ in kinds.values()):
         before, after = manifests_at(repo, base), manifests_at(repo, head)
     else:
         before, after = {}, {}
@@ -589,6 +610,10 @@ def guarded_paths(repo, base, head):
             pruned = {k for k in set(t0) | set(t1)
                       if any(_names(m, k) for m in base_m.values()) and not any(_names(m, k) for m in head_m.values())}
             diffs = diff_overrides(t0, t1, pruned)
+        elif kind == "combinations":
+            pruned = {s for s in set(t0) - set(t1) if any(s in m.get("variables", {}) for m in base_m.values())
+                      and not any(s in m.get("variables", {}) for m in head_m.values())}
+            diffs = diff_sets(t0, t1, pruned)
         else:
             diffs = diff_family_toml(t0, t1)
         found += [Finding(req, path, what) for req, what in diffs] or [Finding(CHANGED, path, "text only")]

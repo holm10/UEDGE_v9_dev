@@ -317,6 +317,8 @@ def reqs(verdict):
     (G + "references/fam.manifest.json", "D", "manifest"),
     (G + "tolerances.toml", "M", "tolerances"),
     (G + "overrides.toml", "M", "overrides"),
+    (G + "combinations.toml", "M", "combinations"),
+    (G + "combinations.toml", "A", "combinations"),
     (G + "families/fam/family.toml", "M", "family"),
     (".github/workflows/reference-guard.yml", "M", "loosened"),
     (".github/workflows/build-test-wheel.yml", "M", "changed"),
@@ -456,6 +458,41 @@ def test_overrides_rules():
                    (tomllib.loads('["bbb.x"]\nwhen = "2026-11-10"\n'), tomllib.loads('["bbb.x"]\nwhen = 2026-11-10\n'))):
         assert {r for r, _ in guard.diff_overrides(b0, b1, set())} == {"loosened"}
     assert guard.diff_overrides(zero, json.loads(json.dumps(zero)), set()) == []
+
+
+def test_sets_rules():
+    """AIUE-257: a new combination set is a new criterion; a changed or removed one a loosening, unless its entries
+    are pruned with it; values compare by their canonical JSON text."""
+    import tomllib
+
+    base = tomllib.loads('["set:a"]\nassign = { "bbb.x" = 1 }\nreason = "r"\n')
+    new = dict(base, **{"set:b": {"assign": {"bbb.y": 2}, "reason": "r"}})
+    edited = {"set:a": {"assign": {"bbb.x": 1.0}, "reason": "r"}}
+    rebased = {"set:a": dict(base["set:a"], base="set:c")}
+    assert {r for r, _ in guard.diff_sets(base, new, set())} == {"changed"}
+    assert {r for r, _ in guard.diff_sets(base, edited, set())} == {"loosened"}
+    assert {r for r, _ in guard.diff_sets(base, rebased, set())} == {"loosened"}
+    assert {r for r, _ in guard.diff_sets(base, {}, set())} == {"loosened"}
+    assert {r for r, _ in guard.diff_sets(base, {}, {"set:a"})} == {"changed"}
+    assert guard.diff_sets(base, json.loads(json.dumps(base)), set()) == []
+
+
+def test_sets_in_a_pr(repo):
+    repo.write(G + "combinations.toml", '["set:a"]\nassign = { "bbb.x" = 1 }\nreason = "r"\n')
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed"} and "[set:a] new set" in text
+    repo.base = repo.commit("base with the set")
+    repo.write(G + "combinations.toml", '["set:a"]\nassign = { "bbb.x" = 2 }\nreason = "r"\n')
+    code, v, text = repo.check()
+    assert reqs(v) == {"changed", "loosened"} and "[set:a] set changed" in text
+
+
+def test_rename_compares_a_sets_keys_and_base():
+    va = {"class": "INERT", "applied": None, "d": None, "phase": "PRE", "config": "steady", "block_l2": {},
+          "jflag_block_l2": {}, "keys": ["bbb.x"], "base": None}
+    assert guard.rename_differences({}, "set:a", va, {}, "set:b", dict(va)) == []
+    assert guard.rename_differences({}, "set:a", va, {}, "set:b", dict(va, base="set:c")) == ["base"]
+    assert guard.rename_differences({}, "set:a", va, {}, "set:b", dict(va, keys=["bbb.y"])) == ["keys"]
 
 
 def test_override_removed_with_its_pruned_variable(repo):
