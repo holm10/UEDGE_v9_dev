@@ -48,6 +48,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94); `yldot-data-v13` (AIUE-101, `locality-only`
   on Intel) keeps every v9 default and variant bit for bit and adds the locality data. `yldot-data-v14` (seven
   families) and `v15` (imp7) are full sweeps with the scalar-math Linux build (AIUE-211), the same on any x86 CPU.
+  `yldot-data-v21` is a full dnull_imp2 sweep (run 43282441560 from 979fe041) for AIUE-254 (`add_timestep` skips
+  the internal boundary-condition rows) and AIUE-253 (the orthogonal cut-guard face), one regeneration for both.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Timeouts: `family.toml` `timeout_s` per child,
@@ -71,10 +73,12 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   entries that reach yldot count (owner, 2026-11-11, AIUE-176): with diagnostics on (and no locality), the child
   repeats step 8b's `pandf` with `isrscalf = 0` and marks a `res*` entry live where its yldot row equals `calc_rhs`'s
   copy bit for bit (`state.live_residuals`, `r.data["live"]`), and `Store.diagnostic_pair` zeroes the others on both
-  sides (`compare.mask_dead`). Unmasked, dnull_imp2 on macOS `-O3` named `resmo` at its plate face (Fortran
-  (36,34,2), algebraic, 1.9e-6 by FMA) and had NaN in `resei`/`reseg` at the cut guard ix = 37 from its round-off
-  `dxnog`, until AIUE-253 made that face orthogonal in `nphygeo` (older references still store it, dead); masked, all 8 families x 2 configurations name none (largest 3.0e-10). For a sketch store
-  `Store.diagnostic_pair` also cuts the new run's diagnostics to the stored `res*` names.
+  sides (`compare.mask_dead`). Unmasked, dnull_imp2 on macOS `-O3` used to name `resmo` at its plate face (Fortran
+  (36,34,2), algebraic, 1.9e-6 by FMA through `fmixy(37)`, which divided by `dxnog(36)+dxnog(37)`) and stored NaN
+  in `resei`/`reseg` at the cut guard ix = 37 from its round-off `dxnog`. AIUE-253 made that face orthogonal in
+  `nphygeo`; against `yldot-data-v21` it names none unmasked in either configuration (largest 2.9e-10, `resco`;
+  AIUE-254 probe, 2026-11-12). Masked, all 8 families x 2 configurations name none (largest 3.0e-10).
+  For a sketch store `Store.diagnostic_pair` also cuts the new run's diagnostics to the stored `res*` names.
 - **Variants** (PRD §7.2): `tests/yldot/harness/inputs.py` is the input inventory, read with Forthon's own `.v` parser
   (968 `+input`/`+maybeinput` variables; a line grep overcounts); `tests/yldot/harness/variants.py` holds the value
   rules, `plan()` and `apply()` (in the child: `d` read live, the applied value recorded exactly and replayable
