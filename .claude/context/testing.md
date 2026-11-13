@@ -353,10 +353,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   2665/4580 (58.19 %); the 220 branches only the old suite took (selector values other than one step from a family
   default, and the non-`+input` `ifixsrc`) are AIUE-245. The full run takes about 2.3 h at 10 workers on an M4 Pro.
   With AIUE-257's sets (`yldot-data-v22`/`v23`, run at b86d14b8 plus a top-up of large_dd2c's six sets, counts summed)
-  `bbb/pandf_boundary.F` takes 1537/2305 lines and 1227/1854 branches (from 1365 and 1110); the untaken rest is
-  family-level code (AIUE-171/172/173), gas temperature (AIUE-293), known issues (AIUE-259), error stops and the gaps
-  of AIUE-301. `coverage.sh report --base` refuses a base built before a change to `bbb/pandf.F`'s instrumented
-  lines (exit 2), so compare such runs per file.
+  the generated pandf_boundary.F takes 1537/2305 lines and 1227/1854 branches (from 1365 and 1110); the untaken rest
+  is family-level code (AIUE-171/172/173), gas temperature (AIUE-293), known issues (AIUE-259), error stops and the
+  gaps of AIUE-301. `coverage.sh report --base` refuses a base built before a change to the generated pandf.F's
+  instrumented lines (exit 2), so compare such runs per file.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
   without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and
   `build.run` stubbed; `argv` as pip passes `-C "--build-option=--<opt>"`) and records the `--fargs`/`--cargs` strings,
