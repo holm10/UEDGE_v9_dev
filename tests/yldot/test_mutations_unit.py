@@ -355,6 +355,19 @@ def test_locality_cases_collect_only_test_locality():
                    "tests/yldot/test_locality.py::test_locality[large_dd2c]"], ids
 
 
+@pytest.mark.parametrize("vid", ["bbb.istepfc=4", "set:pfvsix"])
+def test_variant_cases_collect_one_case_per_family(vid):
+    """A Variant mutation's cross-check collects exactly test_sensitive[<family>-<vid>]: an id with '=' (a -k
+    expression refused it, AIUE-257) and a set whose based sets extend its id (set:pfvsix-tewalli, ...)."""
+    root = Path(__file__).resolve().parents[2]
+    out = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
+                         + rm.variant_cases(["d_only", "d_c"], vid), cwd=root, capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    ids = [line for line in out.stdout.splitlines() if "::" in line]
+    assert ids == ["tests/yldot/test_variants.py::test_sensitive[d_only-{}]".format(vid),
+                   "tests/yldot/test_variants.py::test_sensitive[d_c-{}]".format(vid)], ids
+
+
 def test_skipped_test_default_is_flagged(tmp_path):
     v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
     assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v

@@ -811,10 +811,10 @@ class Scratch:
         """{family: {config: failed}} from test_variants.py's test_sensitive[<family>-<vid>], run with the built
         python. A BuildLimitWarning counts as a failure: on a macOS FMA build the test reports a mismatch instead of
         failing (owner, 2026-10-23, AIUE-96 D1), and the cross-check asks whether it noticed one. -W selects it by
-        its message (harness/build.py's REPORTED): pytest can't import yldot when it reads the option."""
-        expr = "test_sensitive and ({})".format(" or ".join("{}-{}".format(f, vid) for f in families))
-        cmd = [str(self.python), "-m", "pytest", "tests/yldot/test_variants.py", "-k", expr, "-q", "-p",
-               "no:cacheprovider", "-W", "error:{}:UserWarning".format(hb.REPORTED), "--junitxml", str(out)]
+        its message (harness/build.py's REPORTED): pytest can't import yldot when it reads the option. The cases are
+        named by node id (variant_cases): a -k expression can't hold a variant id with '=' (bbb.istepfc=4; AIUE-257)."""
+        cmd = [str(self.python), "-m", "pytest"] + variant_cases(families, vid) + [
+            "-q", "-p", "no:cacheprovider", "-W", "error:{}:UserWarning".format(hb.REPORTED), "--junitxml", str(out)]
         rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
         if rc not in (0, 1):
             raise Stop(2, "test_variants.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
@@ -828,6 +828,12 @@ class Scratch:
         if rc not in (0, 1):
             raise Stop(2, "test_locality.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
         return parse_junit_locality(out, families)
+
+
+def variant_cases(families, vid):
+    """The node ids of the families' test_sensitive[<family>-<vid>] cases. A -k expression refuses ids such as
+    bbb.istepfc=4, and would also select the based sets whose ids extend vid (set:pfvsix-tewalli)."""
+    return ["tests/yldot/test_variants.py::test_sensitive[{}-{}]".format(f, vid) for f in families]
 
 
 def locality_cases(families):
