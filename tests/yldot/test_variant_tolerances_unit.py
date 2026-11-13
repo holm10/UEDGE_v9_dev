@@ -2,8 +2,9 @@
 1, a NaN in one term, index arrays that differ, a missing side), and collect on d_only, whose replay on the same
 build reproduces the sample bit for bit (every ratio 0); replay of every SENSITIVE variant under
 make_references.variant_tolerance (a pass, an entry off by 2 x tol_i(variant), a NaN, a failed evaluation, another
-commit) and the installed references; replay of a sketch store (large_dd2c, two variants) through the sketch
-comparator under the new run's tol_i (AIUE-99 Q2). collect and replay need the built uedge (in the Runner's children).
+commit) and the installed references; replay of a sketch store (large_dd2c, two variants, built without its
+locality pass, AIUE-291) through the sketch comparator under the new run's tol_i (AIUE-99 Q2). collect and replay
+need the built uedge (in the Runner's children).
 """
 import json
 import sys
@@ -13,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from yldot.harness import compare, variants
+from yldot.harness import compare, locality, variants
 from yldot.harness.process import family_dir
 from yldot.harness.state import INDEX_ARRAYS
 
@@ -186,10 +187,19 @@ def test_replay_refuses_another_commit_and_missing_families(tmp_path, sampled):
 
 @pytest.fixture(scope="module")
 def sketched(tmp_path_factory):
-    """A two-variant sweep of the owner family large_dd2c (a sketch store; one steady, one timestep variant)."""
+    """A two-variant sweep of the owner family large_dd2c (a sketch store; one steady, one timestep variant), without
+    its locality pass: replay never reads locality data, and the pass is 228 of the sweep's 230 s on macOS (up to
+    720 s per build on the CI runner, where each xdist worker builds this fixture; AIUE-291)."""
     d = tmp_path_factory.mktemp("sketched")
     (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)", "runner_image": "t"}))
-    mr.child(["large_dd2c"], d / "references", d / "build.json", sweep=["bbb.cfvisx", "bbb.fdtnixy"])
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(locality, "load_config", lambda fdir: None)
+        mr.child(["large_dd2c"], d / "references", d / "build.json", sweep=["bbb.cfvisx", "bbb.fdtnixy"])
+    m = json.loads((d / "references" / "large_dd2c.json").read_text())
+    stored = [k for k in m["datasets"] if "/locality" in k]
+    assert not stored and not m.get("locality_variants"), (
+        "the sketch store holds locality data {}: make_references.child no longer reads [locality] through "
+        "locality.load_config, so this fixture runs the locality pass again (AIUE-291)".format(stored[:3]))
     return d
 
 
