@@ -340,5 +340,5 @@
  "tests/yldot/tools/make_references.py:607": "copying = bool(prune or pairs) # the kept entries' locality patterns are copied, not re-run (AIUE-95)",
  "tests/yldot/tools/measure_roundoff.py:66": "if __name__ == \"__main__\" and sys.argv[1:2] == [\"_worker\"]:",
  "tests/yldot/tools/measure_roundoff.py:70": "import uedge # noqa: F401",
- "tests/yldot/tools/run_mutations.py:804": "\"no:cacheprovider\", \"-W\", \"error:{}:UserWarning\".format(hb.REPORTED), \"--junitxml\", str(out)]"
+ "tests/yldot/tools/run_mutations.py:817": "\"-q\", \"-p\", \"no:cacheprovider\", \"-W\", \"error:{}:UserWarning\".format(hb.REPORTED), \"--junitxml\", str(out)]"
 }

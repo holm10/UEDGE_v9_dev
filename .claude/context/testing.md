@@ -50,6 +50,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   families) and `v15` (imp7) are full sweeps with the scalar-math Linux build (AIUE-211), the same on any x86 CPU.
   `yldot-data-v21` is a full dnull_imp2 sweep (run 43282441560 from 979fe041) for AIUE-254 (`add_timestep` skips
   the internal boundary-condition rows) and AIUE-253 (the orthogonal cut-guard face), one regeneration for both.
+  `yldot-data-v22` is a full sweep of the five small families with the boundary-condition sets and value lists (run
+  43355786083 from 003370ef, AIUE-257), `v23` adds large_dd2c's six sets (`--only`, run 43451194928 from b86d14b8).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Timeouts: `family.toml` `timeout_s` per child,
@@ -91,6 +93,22 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   charge, integers only: `chkziin` in `allocate` and `ueinit` refuses any other) takes the `charge` rule, d+1 on the
   hydrogenic ion slots (`ziin > 0` among the first `com.nhsp`, read live), atoms and impurity charge states
   unchanged (owner, 2026-10-23, AIUE-161).
+  `overrides.toml` also takes `families` (a `values` list runs only in those families; the others keep the key's
+  default-rule id) and `rest_exclude` (with `families`: EXCLUDED, with this reason, in the other families); the
+  boundary-condition selectors list every coded value in the five small families (owner, 2026-11-12, AIUE-257 D2),
+  `others` EXCLUDED with a reason that follows the code (no equation written, same as a coded value, or `xerrab`).
+  **Sets** (AIUE-257 D1): `tests/yldot/combinations.toml`, tables `["set:<name>"]`, each assigning several keys at once
+  (`variants.load_sets`, fields `assign`, `phase`, `config`, `families`, `base`, `reason`, `issues`). An `assign`
+  value is a scalar (elementwise) or a table with one of `value`, `scale` (d·x, reals) or `cycle` (a list cycled along
+  the 0:nx+1 axis), and optional `at` (a numpy index prefix, e.g. a species slot or the row of `ly*ix(2,0:nx+1)`).
+  Default families: the five small ones; `phase` POST if any key is dynamic. A per-cell wall array (`istepfcix`, …)
+  needs its `setwallbcarrays` switch (`ispfbcvsix`/`iswobcvsix`) = 1 in the same set, or `allocate` overwrites it;
+  `issues` names AIUE-259 keys. A set with `base = "set:<other>"` must assign every key of its base, and is
+  classified against the base set's result instead of the default (`make_references`: evaluated after its base; a base
+  that is not SENSITIVE, INERT or MARGINAL makes it EXCLUDED, "base set X is C"). A set's manifest entry carries
+  `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 113
+  sets, 50 of them based (89-104 per small family; six in large_dd2c for the `isnewpot = 1` potential branches,
+  nightly; `load_sets`, 2026-11-13).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
@@ -143,9 +161,12 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   within 3× of M_loc). The owner families run δ = 1e-6 on the special cells plus 300 seeded columns (8236 / 8252 /
   9036): D3 qualified no δ, their near-margin entries are the nonog signature (owner, 2026-10-25); the 3× rule
   calibrates δ on the default pattern only, variant patterns are stored and asserted as they are.
-- **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: 27 patches (AIUE-89, AIUE-90), a sign
-  flip, a factor 2 and a dropped term per equation, the X-point off-by-one, a wrong `cf*` multiplier, two range and
-  two flag-gating mutations. A `Key: value` header (`Mutation`, `Kind`, `Equation`, `Fault`, `Check`, `Configs`,
+- **Mutations** (PRD §7.8, decision 25) `tests/yldot/mutations/*.patch`: 38 patches. PRD §7.8's 27 (AIUE-89,
+  AIUE-90): a sign flip, a factor 2 and a dropped term per equation, the X-point off-by-one, a wrong `cf*` multiplier,
+  two range and two flag-gating mutations; `composition()` requires exactly those. Plus 11 `Kind: boundary`
+  mutations of `bbb/pandf_boundary.m` and `setwallbcarrays` (owner, 2026-11-13, AIUE-257), checked by yldot and
+  outside that composition, among them the fault `wrong selector` (a selector or its per-cell array read in place of
+  another, AIUE-269's class); four of them run through stored small-family sets or variants. A `Key: value` header (`Mutation`, `Kind`, `Equation`, `Fault`, `Check`, `Configs`,
   `Blocks` per family, optional `Cells`, `Intermediate`, `Families` with the inner-loop family first, optional
   `Pending`, optional `Variant`, `Source`, `Description`; a line starting with a space continues the previous key's value, e.g. one
   `Blocks` line per family as `<family>: primary <blocks>; coupled <blocks>`; the keys are documented in
@@ -153,7 +174,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   scratch worktree, never to a source on a branch. None is `Pending` since AIUE-96: `ishosor_flag_gating` (the
   `ishosor` integration, which no default runs) names `Variant: bbb.ishosor` and is checked through d_only's stored
   `bbb.ishosor` variant, its primary blocks those of the variant's stored flag difference (owner, 2026-10-23,
-  AIUE-96 D7); the gas-energy ones fire in large_dd2c's `tg[2]` since AIUE-92, which added
+  AIUE-96 D7); a `Variant` mutation checked by yldot needs its primary blocks among the variant's stored `block_l2`
+  (`STORED_BLOCKS`, AIUE-257); the gas-energy ones fire in large_dd2c's `tg[2]` since AIUE-92, which added
   the owner families to the headers (predicted before the run; appended in ascending `neq`, dnull_imp2, large_dd2c,
   imp7). The two range mutations
   (AIUE-100) are `initialize_ranges`' `i5` bound (`bbb/pandf.m:73`) and the point-wise `vsoree` copy
@@ -201,7 +223,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   null` (owner, 2026-10-22, AIUE-88); default families: the small ones
   (with `sigma.h5`, not owner families); an owner family only when named (swept like the others since AIUE-99, or
   `--defaults-only`), its `families/<f>/` assets checked against its manifest and carried into the new one with its
-  `sigma.h5` (AIUE-92); `CAPS_MB` 13 MB for each owner family (owner, 2026-10-24, AIUE-99);
+  `sigma.h5` (AIUE-92); `CAPS_MB` 13 MB for each owner family (owner, 2026-10-24, AIUE-99), 2/3/7/2/9 MB for
+  d_only/d_mols/d_c/ortho/slab_phi (d_mols 2 → 3: owner, 2026-11-12, AIUE-257);
   a sketch store also gets the sketch thresholds; refuses a `tests/yldot` that differs from SHA (references/
   excepted; also an ignored file in the families' directories or `data/` other than those owner assets), a
   `sigma.h5` that differs from `tolerances.toml`, a family whose manifest names another family's release assets and
@@ -289,7 +312,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   miss there stops the mutation) and then every other referenced family, cross-check with `test_default.py`, revert;
   a mutation with `Variant` runs that stored variant in its `Families` instead of the defaults (`_child --variant`:
   its applied value replayed, Store.check under tol_i(variant), that configuration only) with `test_variants.py`'s
-  `test_sensitive` as the cross-check there, a `BuildLimitWarning` counting as a failure (selected by its message,
+  `test_sensitive` as the cross-check there (by node id, `variant_cases`: a `-k` expression refuses an id with `=`,
+  AIUE-257), a `BuildLimitWarning` counting as a failure (selected by its message,
   `build.REPORTED`: pytest's `-W` cannot import `yldot`);
   a range mutation (Check `locality`) also gets the steady part `locality` (`_child --locality`) and
   `test_locality.py`'s `test_locality[<family>]` cases as its cross-check (by node id, `locality_cases`: a `-k`
@@ -328,6 +352,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `../uedge-wt/data/AIUE-107/`): branches taken, yldot PR + nightly tiers 3081/4580 (67.27 %) against the old suite's
   2665/4580 (58.19 %); the 220 branches only the old suite took (selector values other than one step from a family
   default, and the non-`+input` `ifixsrc`) are AIUE-245. The full run takes about 2.3 h at 10 workers on an M4 Pro.
+  With AIUE-257's sets (`yldot-data-v22`/`v23`, run at b86d14b8 plus a top-up of large_dd2c's six sets, counts summed)
+  `bbb/pandf_boundary.F` takes 1537/2305 lines and 1227/1854 branches (from 1365 and 1110); the untaken rest is
+  family-level code (AIUE-171/172/173), gas temperature (AIUE-293), known issues (AIUE-259), error stops and the gaps
+  of AIUE-301. `coverage.sh report --base` refuses a base built before a change to `bbb/pandf.F`'s instrumented
+  lines (exit 2), so compare such runs per file.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
   without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and
   `build.run` stubbed; `argv` as pip passes `-C "--build-option=--<opt>"`) and records the `--fargs`/`--cargs` strings,
@@ -374,7 +403,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   every compared field, the stored datasets and the locality slice to agree, `rename_differences`; the variant fields,
   the rename check and `overrides.toml` compare values by their canonical JSON text, `same()` as `manifest.runs`:
   -0.0 ≠ 0.0, 1 ≠ 1.0, NaN = NaN, a TOML date by its repr, while `tolerances.toml` and `family.toml` keep `==`,
-  owner, 2026-11-10, AIUE-199); it downloads the
+  owner, 2026-11-10, AIUE-199; `combinations.toml` has its own rule, `diff_sets`: a new set is a change, a changed
+  or removed set a loosening unless its entries are pruned in the same change, and a rename also compares `keys` and
+  `base`, AIUE-257); it downloads the
   release assets a
   changed manifest names and checks file and dataset SHA-256s. `history` reports the data releases (limit 200 MB), the
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
