@@ -1081,6 +1081,8 @@ def test_manifest_validates_a_set_entry(tmp_path):
 
 @pytest.mark.parametrize("over, message", [
     ({"keys": []}, "keys must be a non-empty list"),
+    ({"keys": ["bbb.x", 3]}, "keys must be a non-empty list"),
+    ({"d": {"bbb.x": {"dtype": "int64", "shape": [], "data": [1]}, "bbb.y": [1]}}, "applied and d must be null or"),
     ({"applied": {"bbb.x": {"dtype": "int64", "shape": [], "data": [1]}}}, "applied and d must be null or"),
     ({"base": "bbb.x"}, "base must be null or another set id"),
     ({"base": "set:s"}, "base must be null or another set id"),
