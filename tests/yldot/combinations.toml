@@ -243,17 +243,17 @@ reason = "PF material wall (matwsi = 1): atom and gas recycling with recycw inst
 ["set:pfmat-albedo"]
 assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.5, at = [0] } }
 base = "set:pfmat"
-reason = "PF material wall with recycw in [-1, 0]: albedo 1 + recycw (1450, 2013)"
+reason = "PF material wall with recycw in [-1, 0] for gas 1: inertial-atom albedo 1 + recycw (1450); gas 2's diffusive branch (2013) is AIUE-301"
 
 ["set:pfmat-backg"]
 assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] } }
 base = "set:pfmat"
-reason = "PF material wall with recycw < -1: ng = ngbackg (1448, 2010)"
+reason = "PF material wall with recycw < -1 for gas 1: inertial atoms ni = ngbackg (1448); gas 2's diffusive branch (2010) is AIUE-301"
 
 ["set:pfmat-backg-ng"]
 assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] }, "bbb.ngbackg" = { scale = 10.0 } }
 base = "set:pfmat"
-reason = "ngbackg, read under recycw < -1 on a material wall (1448, 2010), varied with that branch on"
+reason = "ngbackg, read under recycw < -1 on a material wall (inertial atoms, 1448), varied with that branch on"
 
 ["set:pfpuff"]
 assign = { "bbb.igasi" = { value = 1.0, at = [0] } }
@@ -356,11 +356,11 @@ reason = "lyup(2), read only under isupwoix = 3 (2559), varied with that branch 
 ["set:womat-albedo"]
 assign = { "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.5, at = [0] } }
 issues = ["AIUE-277"]
-reason = "outer material wall with recycw in [-1, 0]: albedo with ni(ny+1), not the harmonic mean (2483, 2768), AIUE-277"
+reason = "outer material wall with recycw in [-1, 0] for gas 1: inertial-atom albedo with ni(ny+1), not the harmonic mean (2483), AIUE-277; gas 2's diffusive branch (2768) is AIUE-301"
 
 ["set:womat-backg"]
 assign = { "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] } }
-reason = "outer material wall with recycw < -1: ng = ngbackg (2480, 2765)"
+reason = "outer material wall with recycw < -1 for gas 1: inertial atoms ni = ngbackg (2480); gas 2's diffusive branch (2765) is AIUE-301"
 
 ["set:wopuff"]
 assign = { "bbb.igaso" = { value = 1.0, at = [0] }, "bbb.matwso" = { value = 0, at = [0] } }

@@ -421,13 +421,13 @@ reason = "plate ni BC: 0 zero gradient, 1 limited extrapolation (3197, 3913); AI
 values = [0, 1]
 families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
 others = "same as 1: every value other than 0 keeps the per-cell PF arrays (setwallbcarrays, bbb/odesetup.m:571)"
-reason = "per-cell PF-wall BC arrays: 0 copied from the scalars, 1 as set after allocate, zero-filled (bbb/odesetup.m:548); AIUE-257 D2"
+reason = "per-cell PF-wall BC arrays: 0 copied from the scalars, 1 kept as they are (bbb/odesetup.m:571): zero-filled where the deck calls no allocate before the variant (d_c, slab_phi: SENSITIVE, INVALID), the deck's own allocate's scalar copies otherwise (d_only, d_mols, ortho: INERT); AIUE-257 D2"
 
 ["bbb.iswobcvsix"]
 values = [0, 1]
 families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
 others = "same as 1: every value other than 0 keeps the per-cell outer-wall arrays (setwallbcarrays, bbb/odesetup.m:597)"
-reason = "per-cell outer-wall BC arrays: 0 copied from the scalars, 1 as set after allocate, zero-filled (bbb/odesetup.m:548); AIUE-257 D2"
+reason = "per-cell outer-wall BC arrays: 0 copied from the scalars, 1 kept as they are (bbb/odesetup.m:597): zero-filled where the deck calls no allocate before the variant (d_c, slab_phi: SENSITIVE), the deck's own allocate's scalar copies otherwise (d_only, d_mols, ortho: INERT); AIUE-257 D2"
 
 # ---------------------------------------------------------------- timestep configuration (PRD section 6)
 
