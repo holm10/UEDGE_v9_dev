@@ -1,0 +1,31 @@
+Mutation: pfwall_te_gradient_sign
+Kind: boundary
+Equation: te
+Fault: sign
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ dnull_imp2: primary te[1]
+ large_dd2c: primary te[1]
+ imp7: primary te[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, dnull_imp2, large_dd2c, imp7
+Source: bbb/pandf_boundary.m:1819 (at b86d14b8)
+Description: sign of the decay-length term in the private-flux wall electron temperature gradient condition
+ (istepfcix = 3, iwall_boundary); finite lyte in every active family (0.03 small, 0.05 owner). d_c and slab_phi
+ (istepfc = 0) are quiet controls. Owner-approved list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -1816,7 +1816,7 @@
+                  tbound = max(tbound, tbmin*ev)
+                  yldot(iv1) = nurlxe *(tbound - te(ix,0))/(temp0*ev)
+                elseif (istepfcix(ix) .eq. 3) then         # specified gradient
+-                 yldot(iv1) = nurlxe*( (te(ix,1) - te(ix,0)) -
++                 yldot(iv1) = nurlxe*( (te(ix,1) - te(ix,0)) +
+      .                             0.5*(te(ix,1) + te(ix,0))/
+      .                              (gyf(ix,0)*lyteix(1,ix)) )/(temp0*ev)
+                elseif (istepfcix(ix) .eq. 4) then      

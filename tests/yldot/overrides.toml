@@ -11,6 +11,9 @@
 #                                    value of the integer scalar pkg.var; every other slot keeps d
 #   phase   = "PRE" | "POST"         force the phase (default: POST for dynamic arrays, PRE otherwise)
 #   config  = "steady" | "timestep"  the configuration the variant runs in (default: steady)
+#   families = ["d_only", ...]       with values: the families the listed values (and others) run in; every other
+#                                    family keeps the default rule's id for the key (AIUE-257, owner 2026-11-12)
+#   rest_exclude = "..."             with families: the other families get the key EXCLUDED with this reason instead
 # The meth* values are in the rules table of harness/variants.py, not here. Character variables are EXCLUDED by the
 # type rule there.
 #
@@ -130,8 +133,11 @@ exclude = true
 reason = "build-dependent: isoutwall=1 (outwallflux) crashes with SIGSEGV at -O0 in the owner families; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
 
 ["bbb.isch_sput"]
-exclude = true
-reason = "build-dependent: isch_sput with a slot at 8 gives ng guard entries of 7.7e25 at -O0 in large_dd2c; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
+values = [0, 1, 2, 3, 4, 5, 6, 7]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: sputchem has no else for other values and leaves the yield YCHEM unset (api/sputt.m:308-321), the cause of AIUE-195's build-dependent slot at 8"
+rest_exclude = "build-dependent: isch_sput with a slot at 8 gives ng guard entries of 7.7e25 at -O0 in large_dd2c; bug AIUE-195; owner 2026-10-24 (AIUE-99)"
+reason = "wall and plate chemical sputtering model: 0 off, 1-7 sputchem options (api/sputt.m:285-321; bbb/pandf_boundary.m:1947, 2702, 3522, 4255); owner 2026-11-12 (AIUE-257): the list runs in the small families, the owner families keep the AIUE-195 exclusion"
 
 ["bbb.ipsputt_s"]
 exclude = true
@@ -222,6 +228,206 @@ reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2
 ["bbb.iphibcwoix"]
 values = [0, 1, 3, 4]
 reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2026-10-20"
+
+# ---------------------------------------------------------------- boundary-condition selectors (owner D2, AIUE-257)
+# Every value the code handles (owner 2026-11-11, AIUE-257 D2); each value applies elementwise to an array selector
+# (owner rule 2026-10-20). The rest is EXCLUDED with what the code does with it: a value outside a list with no
+# else branch writes no equation for those guard rows, and the first Jacobian stops with "Jacobian row = 0 for eqn
+# iv = N" (probe probes/unwritten_bc.py on d_only, AIUE-257; AIUE-273). Options: .claude/context/boundary-conditions.md
+# (Confluence SD page 25067521). Lines are bbb/pandf_boundary.m at a62f121. The lists run in the five small families;
+# the owner families keep the d+-1 id (owner 2026-11-12: about 91 more ids each, imp7 ~840 s per evaluation on CI).
+
+["bbb.istepfc"]
+values = [0, 1, 2, 3, 4]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (PF Te, istepfcix has no else, 1808-1826; Jacobian row = 0, probe AIUE-257)"
+reason = "PF-wall Te BC: 0 zero flux, 1 tewalli, 2 extrapolation, 3 lyteix, 4 bceew (1808); AIUE-257 D2"
+
+["bbb.istipfc"]
+values = [0, 1, 2, 3, 4]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (PF Ti, istipfcix has no else, 1861; Jacobian row = 0, AIUE-273)"
+reason = "PF-wall Ti BC: 0 zero flux, 1 tiwalli, 2 extrapolation, 3 lytiix, 4 bceiw + ion flux (1861); AIUE-257 D2"
+
+["bbb.istewc"]
+values = [0, 1, 2, 3, 4]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (outer Te, istewcix has no else, 2630; Jacobian row = 0, probe AIUE-257)"
+reason = "outer-wall Te BC: 0 zero flux, 1 tewallo, 2 extrapolation, 3 lyteix, 4 bceew (2630); AIUE-257 D2"
+
+["bbb.istiwc"]
+values = [0, 1, 2, 3, 4]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (outer Ti, istiwcix has no else, 2653; Jacobian row = 0, AIUE-273)"
+reason = "outer-wall Ti BC: 0 zero flux, 1 tiwallo, 2 extrapolation, 3 lytiix, 4 bceiw + electron flux (2653); AIUE-257 D2"
+
+["bbb.isnwconi"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (PF ni, isnwconiix has no else, 1517; Jacobian row = 0, probe AIUE-257)"
+reason = "PF-wall ni BC: 0 zero flux or gradient, 1 nwalli, 2 extrapolation, 3 lyniix + nwimin (1517); AIUE-257 D2"
+
+["bbb.isnwcono"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (outer ni, isnwconoix has no else, 2495; Jacobian row = 0, AIUE-273)"
+reason = "outer-wall ni BC: 0 zero flux or gradient, 1 nwallo, 2 extrapolation, 3 lyniix + nwomin (2495); AIUE-257 D2"
+
+["bbb.isupwi"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value outside 1-3 takes the else branch, up = 0 (1624)"
+reason = "PF-wall up BC: 1 fmiy = 0, 2 dup/dy = 0, 3 lyup(1), else (0) up = 0 (1624); AIUE-257 D2"
+
+["bbb.isupwo"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value outside 1-3 takes the else branch, up = 0 (2550)"
+reason = "outer-wall up BC: 1 fmiy = 0, 2 dup/dy = 0, 3 lyup(2), else (0) up = 0 (2550); AIUE-257 D2"
+
+["bbb.istgpfc"]
+values = [0, 1, 2, 3, 4, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: > 5 stops with xerrab, < 0 writes no equation (PF Tg, 2061-2107; AIUE-273)"
+reason = "PF-wall Tg BC: 0 tgwall, 1 extrapolation, 2 lytg, 3 Maxwellian, 4 half-Maxwellian, 5 cftgtipfc (2061; option 5 tests the scalar, AIUE-269); AIUE-257 D2"
+
+["bbb.istgwc"]
+values = [0, 1, 2, 3, 4, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: > 5 stops with xerrab, < 0 writes no equation (outer Tg, 2786-2830; AIUE-273)"
+reason = "outer-wall Tg BC: 0 tgwall, 1 extrapolation (AIUE-266), 2 lytg, 3 Maxwellian, 4 half-Maxwellian, 5 cftgtiwc (2786; option 5 tests the scalar, AIUE-269); AIUE-257 D2"
+
+["bbb.istgcore"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 3: every value outside 0-2 takes the else branch, zero gradient (2037)"
+reason = "core Tg BC: 0 ti*cftgticore, 1 tgcore, 2 cfalbedo flux, else (3) zero gradient (2037); AIUE-257 D2"
+
+["bbb.isngcore"]
+values = [0, 1, 2, 3, 4]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation for the diffusive gas (1910), zero gradient for inertial atoms (1380; AIUE-273, AIUE-285)"
+reason = "core ng BC: 0 albedoc, 1 ngcore, 2 gradient length (diffusive gas; xerrab for inertial atoms, AIUE-272), 3 extrapolation, 4 zero gradient (1380, 1910); AIUE-257 D2"
+
+["bbb.isnicore"]
+values = [0, 1, 2, 3, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option for every slot: 4 is impurity-only (a combination set) and stops with xerrab on a hydrogenic slot; other values stop with xerrab (hydrogen) or write no equation (impurities) (1465; AIUE-273)"
+reason = "core ni BC: 1 ncore, 0 curcore flux, 2 flux + ncore on ixfixnc..+incixc, 3 const ni + integral flux, 5 lynicore/ncoremin (1465; impurity 3 and 5 are AIUE-261, AIUE-262); AIUE-257 D2"
+
+["bbb.isupcore"]
+values = [0, 1, 2, 3, 4, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: stops with xerrab 'Illegal setting of isupcore' (1620-1621)"
+reason = "core up BC: 0 upcore, 1 dup/dy = 0, 2 d2up/dy2 = 0, 3 fmiy = 0, 4 lzflux, 5 utorave (1575; 4/5 relax with nurlxe, AIUE-278); AIUE-257 D2"
+
+["bbb.iflcore"]
+values = [-1, 0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value other than 1 and -1 fixes tcoree/tcorei (1787-1804, 1834-1852)"
+reason = "core Te/Ti BC: 0 tcoree/tcorei, 1 pcoree/pcorei, -1 zero gradient (1787, 1834; Ti -1 relaxes with nurlxe, AIUE-278); AIUE-257 D2"
+
+["bbb.iphibcc"]
+values = [1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: stops with xerrab 'only iphibcc=1,2,3 available' (2275-2276; AIUE-271)"
+reason = "core phi BC at iy = 1 when isnewpot = 1: 1 d2ey/dy2 = 0, 2 te const, 3 phi const (2279-2290); AIUE-257 D2"
+
+["bbb.ibctepl"]
+values = [0, 1, 2]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (left-plate Te, 3362-3387; Jacobian row = 0, probe AIUE-257)"
+reason = "left-plate Te BC: 1 sheath transmission, 0 tepltl, 2 zero gradient (3362); AIUE-257 D2"
+
+["bbb.ibctipl"]
+values = [0, 1, 2]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (left-plate Ti, 3393-3437; AIUE-273)"
+reason = "left-plate Ti BC: 1 sheath transmission, 0 tipltl, 2 zero gradient (3393); AIUE-257 D2"
+
+["bbb.ibctepr"]
+values = [0, 1, 2]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (right-plate Te, 4090-4120; AIUE-273)"
+reason = "right-plate Te BC: 1 sheath transmission, 0 tepltr, 2 zero gradient (4090); AIUE-257 D2"
+
+["bbb.ibctipr"]
+values = [0, 1, 2]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: no equation (right-plate Ti, 4126-4172; AIUE-273)"
+reason = "right-plate Ti BC: 1 sheath transmission, 0 tipltr, 2 zero gradient (4126); AIUE-257 D2"
+
+["bbb.isupss"]
+values = [-3, -2, -1, 0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value outside -3..1 leaves the Bohm value (3261-3277, 3985-4002)"
+reason = "plate up BC: 0 Bohm, 1 supersonic allowed, -1 slip, -2 extrapolation, -3 modified Bohm (3261, 3985; -3 asymmetry AIUE-275); AIUE-257 D2"
+
+["bbb.ikapmod"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: leaves kappal unchanged (3305-3324, 4033-4052; AIUE-273)"
+reason = "sheath kappa: 0 log form with expkmx, 1 kappa() (3305, 4033); AIUE-257 D2"
+
+["bbb.istglb"]
+values = [0, 1, 3, 4, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: 2 is an xerrab placeholder and > 5 stops with xerrab (3570)"
+reason = "left-plate Tg BC: 0 tgwall, 1 extrapolation (AIUE-267), 3 Maxwellian, 4 half-Maxwellian (needs isupgon, else no equation), 5 ti*cftgtipltl (3570); AIUE-257 D2"
+
+["bbb.istgrb"]
+values = [0, 1, 3, 4, 5]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: 2 is an xerrab placeholder and > 5 stops with xerrab (4303)"
+reason = "right-plate Tg BC: 0 tgwall, 1 extrapolation, 3 Maxwellian, 4 half-Maxwellian (needs isupgon, else no equation), 5 ti*cftgtipltr (4303); AIUE-257 D2"
+
+["bbb.isph_sput"]
+values = [0, 1, 2, 3]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as a listed value: < 1 as 0, > 3 as 2 (tests >= 1, >= 2, == 3; 3505-3528, 4240-4272)"
+reason = "plate impurity-gas sputtering: 1 physical, 2 + chemical from ions, 3 + chemical from H neutrals (3505, 4240); AIUE-257 D2"
+
+["bbb.isnewpot"]
+values = [-2, -1, 0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "100 and 1000 are test hooks (3326, 4053; 2955-2969, dead code AIUE-286); other values take the isnewpot = 0 path"
+reason = "potential model and its BCs: -1 core ut0 = 0 (2124), -2 core phi const + icoreelec (2135), 1 new potential with iphibcc/iphibcwi (2254); AIUE-257 D2"
+
+["bbb.isphilbc"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value other than 1 takes the sheath potential (3326-3330)"
+reason = "left-plate phi BC: 1 phi0l, else the sheath phi0 + kappa*te (3328); AIUE-257 D2"
+
+["bbb.isphirbc"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 0: every value other than 1 takes the sheath potential (4053-4057)"
+reason = "right-plate phi BC: 1 phi0r, else the sheath phi0 + kappa*te (4055); AIUE-257 D2"
+
+["bbb.isbohmms"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 1: every value other than 0 takes the multispecies Bohm branch (3258, 3982)"
+reason = "plate up Bohm BC: 0 single species, 1 multispecies (3258, 3982); AIUE-257 D2"
+
+["bbb.isextrnp"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option: other values take the extrapolation branch (3197) but also widen the plate window ixlb + isextrnp (3153)"
+reason = "plate ni BC: 0 zero gradient, 1 limited extrapolation (3197, 3913); AIUE-257 D2"
+
+["bbb.ispfbcvsix"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 1: every value other than 0 keeps the per-cell PF arrays (setwallbcarrays, bbb/odesetup.m:571)"
+reason = "per-cell PF-wall BC arrays: 0 copied from the scalars, 1 kept as they are (bbb/odesetup.m:571): zero-filled where the deck calls no allocate before the variant (d_c, slab_phi: SENSITIVE, INVALID), the deck's own allocate's scalar copies otherwise (d_only, d_mols, ortho: INERT); AIUE-257 D2"
+
+["bbb.iswobcvsix"]
+values = [0, 1]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "same as 1: every value other than 0 keeps the per-cell outer-wall arrays (setwallbcarrays, bbb/odesetup.m:597)"
+reason = "per-cell outer-wall BC arrays: 0 copied from the scalars, 1 kept as they are (bbb/odesetup.m:597): zero-filled where the deck calls no allocate before the variant (d_c, slab_phi: SENSITIVE), the deck's own allocate's scalar copies otherwise (d_only, d_mols, ortho: INERT); AIUE-257 D2"
 
 # ---------------------------------------------------------------- timestep configuration (PRD section 6)
 

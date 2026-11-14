@@ -62,8 +62,8 @@ The selectors with no `else` are listed under issue #14 below.
 
 | Selector | Values |
 |---|---|
-| `isnicore` (ions; `bbb/pandf_boundary.m:1465`) | 1 `ncore`; 0 flux `curcore`; 2 as 0 + `ncore` on `ixfixnc..+incixc`; 3 const ni + integral `curcore − recycc·fngy`; 5 `lynicore`/`ncoremin`; 4 impurity-only `fnzysi`; else `xerrab` (hydrogen) or no equation (impurities) |
-| `isngcore` (inertial atoms `bbb/pandf_boundary.m:1380`; diffusive gas `bbb/pandf_boundary.m:1910`) | 0 albedo `albedoc`; 1 `ngcore`; 2 `xerrab` (inertial) or gradient length (diffusive); 3 limited extrapolation; 4 zero gradient (diffusive); else zero gradient (inertial) or no equation (diffusive) |
+| `isnicore` (ions; `bbb/pandf_boundary.m:1465`) | 1 `ncore`; 0 flux `curcore`; 2 as 0 + `ncore` on `ixfixnc..+incixc`; 3 const ni + integral `curcore − recycc·fngy`; 5 `lynicore`/`ncoremin`; 4 impurity-only `fnzysi`, refused when the impurities are ion species (#25); else `xerrab` (hydrogen) or no equation (impurities) |
+| `isngcore` (inertial atoms `bbb/pandf_boundary.m:1380`; diffusive gas `bbb/pandf_boundary.m:1910`) | 0 albedo `albedoc`; 1 `ngcore`; 2 refused by `allocate` for every gas (#13; the diffusive gradient-length code is unreachable); 3 limited extrapolation; 4 zero gradient (diffusive); else zero gradient (inertial) or no equation (diffusive) |
 | `isupcore` (`bbb/pandf_boundary.m:1575`) | 0 `upcore`; 1 dup/dy = 0; 2 d²up/dy² = 0; 3 `fmiy` = 0; 4 `lzflux`; 5 `utorave`; else `xerrab` |
 | `iflcore` (`bbb/pandf_boundary.m:1787`) | 0 `tcoree`/`tcorei`; 1 `pcoree`/`pcorei`; −1 zero gradient |
 | `istgcore` (`bbb/pandf_boundary.m:2037`) | 0 ti·`cftgticore`; 1 `tgcore`; 2 `cfalbedo` flux; else zero gradient |
@@ -96,7 +96,7 @@ The selectors with no `else` are listed under issue #14 below.
 | `recycmlb` (`bbb/pandf_boundary.m:3238`) | > −9.9 up = −Rm·up(ion); (−10.1, −9.9] zero gradient; < −10.1 thermal flux |
 | sheath (`bbb/pandf_boundary.m:3292`) | `ikapmod` 0 log κ / 1 `kappa()`; `isphilbc=1` phi = `phi0l`, else phi0 + κ·Te (`bctype`); `isnewpot=100` skips iy = 1, ny |
 | `ibctepl`/`ibctipl` (and `r`) (`bbb/pandf_boundary.m:3362`, `bbb/pandf_boundary.m:3393`) | 1 sheath transmission; 0 `tepltl`/`tipltl`; 2 zero gradient; else no equation |
-| `isph_sput`/`sputtlb` (`bbb/pandf_boundary.m:3505`, `bbb/pandf_boundary.m:3540`) | 1 physical, 2 + chemical from ions, 3 + chemical from H neutrals; sputt ≥ 0 flux balance, [−9.9, 0) albedo, < −9.9 `ngplatlb` |
+| `isph_sput`/`sputtlb` (`bbb/pandf_boundary.m:3505`, `bbb/pandf_boundary.m:3540`) | 1 physical, 2 + chemical from ions, 3 + chemical from H neutrals; sputt ≥ 0 flux balance, [−9.9, 0) albedo, < −9.9 `ngplatlb`; the last two only with `isph_sput = 0` (#26) |
 | `istglb`/`istgrb` (`bbb/pandf_boundary.m:3570`, `bbb/pandf_boundary.m:4303`) | 0 `tgwall`; 1 extrapolation; 2 `xerrab`; 3 Maxwellian; 4 half-Maxwellian (needs `isupgon`); 5 `cftgtipltl` (`+threadprivate`, not `+input`) |
 | `isfixlb`/`isfixrb` (`bbb/pandf_boundary.m:3019`, `bbb/pandf_boundary.m:3733`) | 1 fixed profiles, 2 symmetry point. Family-level: AIUE-173 |
 
@@ -106,7 +106,8 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
 `bbb/pandf_boundary.m`.
 
 1. AIUE-260: `bbb/pandf_boundary.m:3474` left plate, gas `recylb ≤ −2` writes `yldot(iv1)` (the Te row) with an ion-density difference; the gas
-   row is unwritten. The right plate (`bbb/pandf_boundary.m:4208`) is correct.
+   row is unwritten. The right plate (`bbb/pandf_boundary.m:4208`) is correct. The stale `ifld` is 3 in d_mols (`nisp = 2`):
+   the `--checkbounds` audit stops there (AIUE-257, run 43355786083; AIUE-260 comment 10364).
 2. AIUE-261: `bbb/pandf_boundary.m:1671` impurity core `isnicore=3` writes the stale `yldot(iv1)`, with the opposite sign to the hydrogen version.
 3. AIUE-262: `bbb/pandf_boundary.m:1688` impurity core `isnicore=5` writes the stale `iv1`, normalised by `n0(ifld)` (wrong index).
 4. AIUE-263: `bbb/pandf_boundary.m:2472` outer wall, `ishymol` atoms: `sy(ix,0)` where `sy(ix,ny)` is meant.
@@ -119,8 +120,9 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
 10. AIUE-269: `bbb/pandf_boundary.m:2103`, `bbb/pandf_boundary.m:2827` option 5 of `istgpfc`/`istgwc` tests the scalar, not the per-cell array.
 11. AIUE-270: `lyupix` and `isulyupx` are never read.
 12. AIUE-271: `bbb/pandf_boundary.m:2275` `iphibcc` outside 1-3 stops with `xerrab`, so `dphi_iy1` and `isutcore` (`bbb/pandf_boundary.m:2340-2351`) are unreachable.
-13. AIUE-272: `bbb/pandf_boundary.m:1392` inertial `isngcore=2` stops with `xerrab`; for the diffusive gas it is implemented, although `.v` says
-    "not available".
+13. AIUE-272: `bbb/pandf_boundary.m:1392` inertial `isngcore=2` stops with `xerrab`. The diffusive-gas code for 2
+    (`bbb/pandf_boundary.m:1910`) is unreachable too: `allocate` refuses `isngcore=2` for every gas (`bbb/odesetup.m:195`;
+    corrected 2026-11-12, AIUE-272 comment 10361), so `.v`'s "not available" holds for both.
 14. AIUE-273: No input check: the selectors with no `else` are `isnwconi`/`o`, impurity `isnicore`, `istepfc`/`istipfc`/
     `istewc`/`istiwc`, `iphibcwo`, `ibctep*`/`ibctip*`, diffusive `isngcore`, `istgpfc`/`istgwc` < 0, `istglb=4`
     without `isupgon`, and `ikapmod`.
@@ -139,3 +141,14 @@ Each is filed under the epic AIUE-259 (2026-11-12); the key follows the number. 
     names, `iphibcwi` needing `isnewpot`, `isphicore0`.
 24. AIUE-286: Dead code: `fluxsurfav2`/`fluxsurfav1` (`bbb/pandf_boundary.m:1038`, `bbb/pandf_boundary.m:1096`); the `isnewpot*isphion=1000` block (`bbb/pandf_boundary.m:2955`);
     the duplicate `isupwiix` loop in `setwallbcarrays`.
+25. AIUE-292: Impurity core `isnicore=4` is refused when the impurities are ion species (`isimpon` 6, 7): the first
+    core-ni loop runs over every ion (`bbb/pandf_boundary.m:1369`) and stops on 4 (`bbb/pandf_boundary.m:1515`), before the impurity loop
+    (`bbb/pandf_boundary.m:1646`) that codes it (`bbb/pandf_boundary.m:1684`); for the shared options the impurity loop writes the rows
+    again. Seen in d_c (AIUE-257 prototype, a62f121).
+26. AIUE-295: Plate impurity gas: the flux-balance test `sputtlb >= 0 .or. abs(sputflxlb) > 0` (`bbb/pandf_boundary.m:3540`, right
+    `bbb/pandf_boundary.m:4273`) is always true with physical sputtering on (`isph_sput >= 1`), so a negative `sputtr` never reaches the
+    albedo (`bbb/pandf_boundary.m:3552`) or fixed-density (`bbb/pandf_boundary.m:3558`) branch and acts as a negative sputtering
+    coefficient. Shown in d_c (AIUE-257 preview, 30c420d).
+27. AIUE-298: PF-wall Ti option 4 reads `tg(ix,0,iigsp)` (`bbb/pandf_boundary.m:1881`): `iigsp` is an ion index (`bbb/bbb.v:160`),
+    `tg` is indexed by gas, and the outer wall uses gas 1 (`bbb/pandf_boundary.m:2673`). With one gas the read is out of bounds
+    (`--checkbounds` stops; d_only, ortho, slab_phi); with two it takes gas 2's temperature (d_mols, d_c). AIUE-257 run 43355786083.

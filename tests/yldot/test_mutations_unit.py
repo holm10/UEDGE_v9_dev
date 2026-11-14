@@ -27,9 +27,11 @@ def stores():
 
 
 def test_set_is_valid(stores):
-    """Every header and diff, against the stored references, and the set's composition (27; PRD 7.8)."""
+    """Every header and diff, against the stored references, and the set's composition (27; PRD 7.8), plus the 11
+    boundary-condition mutations outside it (owner, 2026-11-13, AIUE-257)."""
     ms = rm.load_set(stores=stores)
-    assert len(ms) == 27
+    assert len(ms) == 38
+    assert sum(m.kind == "boundary" for m in ms) == 11
 
 
 @pytest.mark.parametrize("patch", PATCHES, ids=[p.stem for p in PATCHES])
@@ -353,6 +355,19 @@ def test_locality_cases_collect_only_test_locality():
                    "tests/yldot/test_locality.py::test_locality[large_dd2c]"], ids
 
 
+@pytest.mark.parametrize("vid", ["bbb.istepfc=4", "set:pfvsix"])
+def test_variant_cases_collect_one_case_per_family(vid):
+    """A Variant mutation's cross-check collects exactly test_sensitive[<family>-<vid>]: an id with '=' (a -k
+    expression refused it, AIUE-257) and a set whose based sets extend its id (set:pfvsix-tewalli, ...)."""
+    root = Path(__file__).resolve().parents[2]
+    out = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"]
+                         + rm.variant_cases(["d_only", "d_c"], vid), cwd=root, capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    ids = [line for line in out.stdout.splitlines() if "::" in line]
+    assert ids == ["tests/yldot/test_variants.py::test_sensitive[d_only-{}]".format(vid),
+                   "tests/yldot/test_variants.py::test_sensitive[d_c-{}]".format(vid)], ids
+
+
 def test_skipped_test_default_is_flagged(tmp_path):
     v = rm.verdict(mut(tmp_path), "d_only", result(BOTH), junit={"steady": True})
     assert any("test_default[d_only-timestep]" in f for f in v["flags"]), v
@@ -455,3 +470,65 @@ def test_parse_junit_variant(tmp_path):
     p.write_text(JUNIT_VARIANT.format('<testcase classname="t" name="test_sensitive[d_only-bbb.ishosor]"/>'))
     with pytest.raises(rm.Stop, match="collected twice"):
         rm.parse_junit_variant(p, ["d_only"], "bbb.ishosor")
+
+
+# ---------------------------------------------------------------- boundary-condition mutations (AIUE-257)
+
+BOUNDARY = {"Kind": "boundary", "Fault": "wrong selector"}
+
+
+def test_boundary_header(tmp_path, stores):
+    """Kind boundary is caught by yldot; the fault wrong selector is known (owner, 2026-11-13)."""
+    assert rm.problems(mut(tmp_path, **BOUNDARY), stores) == []
+
+
+@pytest.mark.parametrize("over, match", [
+    ({"Check": "flag difference"}, "a boundary mutation is caught by 'yldot'"),
+    ({"Equation": "all"}, "range and flag-gating only"),
+])
+def test_boundary_problems(tmp_path, stores, over, match):
+    found = rm.problems(mut(tmp_path, **{**BOUNDARY, **over}), stores)
+    assert any(re.search(match, p) for p in found), found
+
+
+def test_composition_ignores_boundary(stores):
+    """The boundary mutations are outside PRD 7.8's composition: without them the 27 still compose, and a boundary
+    sign, factor 2 or dropped term never stands in for a physics one."""
+    ms = rm.load_set(stores=stores)
+    physics = [m for m in ms if m.kind != "boundary"]
+    assert len(physics) == 27 and rm.composition(physics) == []
+    without = [m for m in physics if not (m.equation == "te" and m.fault == "sign")]
+    stand_in = [m for m in ms if m.kind == "boundary" and m.equation == "te" and m.fault == "sign"]
+    assert stand_in, "the set has a boundary te sign mutation"
+    assert any(p.startswith("te:") for p in rm.composition(without + stand_in))
+
+
+YLDOT_VARIANT = dict(VARIANT, Kind="boundary", Equation="te", Fault="factor 2", Check="yldot",
+                     Blocks="d_only: primary te[1]")
+YLDOT_ENTRY = {"class": "SENSITIVE", "config": "steady", "block_l2": {"te[1] guard": 3.0}, "jflag_block_l2": {}}
+
+
+def test_yldot_variant_reads_block_l2(tmp_path):
+    """A Check yldot Variant needs stored yldot blocks (block_l2), not flag-difference ones (AIUE-257)."""
+    m = mut(tmp_path, **YLDOT_VARIANT)
+    assert rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": YLDOT_ENTRY}}) == []
+
+
+@pytest.mark.parametrize("entry, over, match", [
+    (dict(YLDOT_ENTRY, block_l2={}, jflag_block_l2={"te[1] guard": 1.0}), {}, "with yldot blocks \\[\\], need"),
+    (YLDOT_ENTRY, {"Blocks": "d_only: primary ti[1]"}, r"primary \['ti\[1\]'\] outside the variant's stored yldot"),
+    (YLDOT_ENTRY, {"Kind": "range", "Equation": "all", "Fault": "loop bound", "Check": "locality"},
+     "Check 'locality' is not one a variant stores"),
+])
+def test_yldot_variant_problems(tmp_path, entry, over, match):
+    m = mut(tmp_path, **{**YLDOT_VARIANT, **over})
+    found = rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": entry}})
+    assert any(re.search(match, p) for p in found), found
+
+
+def test_flag_variant_ignores_block_l2(tmp_path):
+    """The flag-gating case still reads jflag_block_l2: stored yldot blocks alone don't satisfy it."""
+    m = mut(tmp_path, **VARIANT)
+    entry = dict(ENTRY, jflag_block_l2={}, block_l2={"ni[1] core": 1.0, "te[1] sol": 1.0})
+    found = rm.variant_problems(m, {"bbb.v"}, {"d_only": {"bbb.v": entry}})
+    assert any("flag difference blocks [], need SENSITIVE" in p for p in found), found

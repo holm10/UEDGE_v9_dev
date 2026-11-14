@@ -82,7 +82,7 @@ AIUE-216).
   warning's class before `tests/` is on the path, so `-W error::yldot.<module>.<Class>` fails ("Failed to import
   filter module 'yldot'"; AIUE-96, AIUE-189). Give such warnings a fixed message prefix and filter on it with a
   builtin category: `-W "error:<prefix>:UserWarning"` (`tests/yldot/harness/build.py:17-19`, `REPORTED`;
-  `tests/yldot/tools/run_mutations.py:804`).
+  `tests/yldot/tools/run_mutations.py:817`).
 - **A script that drives the yldot harness itself needs a `__main__` guard.** A script that calls
   `Runner(...).evaluate` outside pytest puts the calls under `if __name__ == "__main__":`. Under spawn
   (`YLDOT_START_METHOD=spawn`, which coverage runs need, `testing.md` → Coverage), the child re-imports the script,

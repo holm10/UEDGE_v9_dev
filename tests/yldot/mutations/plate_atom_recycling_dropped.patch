@@ -1,0 +1,31 @@
+Mutation: plate_atom_recycling_dropped
+Kind: boundary
+Equation: ni
+Fault: dropped term
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary ni[2]
+ ortho: primary ni[2]
+ d_c: primary ni[2]
+ slab_phi: primary ni[2]
+ dnull_imp2: primary ni[2]
+ imp7: primary ni[2]
+Intermediate: none
+Families: d_only, ortho, d_c, slab_phi, dnull_imp2, imp7
+Source: bbb/pandf_boundary.m:3177 (at b86d14b8)
+Description: drops the recycled ion flux recylb*fnix(,,1) from the left-plate inertial-atom density condition
+ (isupgon(1) = 1, recylb > 0, ishymol = 0, left_boundary). d_mols and large_dd2c (ishymol = 1) take the molecular
+ branch and are quiet controls. Owner-approved list, 2026-11-13 (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -3174,7 +3174,7 @@
+      .                 fngxslb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt,iy))
+                   else
+                   yldot(iv1) = -nurlxg *
+-     .             (fnix(ixt,iy,ifld) + recylb(iy,1,jx)*fnix(ixt,iy,1) -
++     .             (fnix(ixt,iy,ifld) -
+      .                                               fngxlb_use(iy,1,jx) +
+      .              (1-alblb(iy,1,jx))*ni(ixt1,iy,ifld)*vxn*areapl -
+      .                 fngxslb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt,iy))

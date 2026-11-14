@@ -1,0 +1,33 @@
+Mutation: plate_te_sheath_factor2
+Kind: boundary
+Equation: te
+Fault: factor 2
+Check: yldot
+Configs: steady, timestep
+Blocks: d_only: primary te[1]
+ ortho: primary te[1]
+ d_mols: primary te[1]
+ slab_phi: primary te[1]
+ dnull_imp2: primary te[1]
+ large_dd2c: primary te[1]
+ imp7: primary te[1]
+Intermediate: none
+Families: d_only, ortho, d_mols, slab_phi, dnull_imp2, large_dd2c, imp7
+Source: bbb/pandf_boundary.m:3370 (at b86d14b8)
+Description: factor 2 on the sheath energy term faceel*te of the left-plate electron energy condition (ibctepl = 1,
+ isphion+isphiofft = 1, left_boundary). Active in every family with isphion = 1 (selector probe of each input.py,
+ AIUE-257); d_c (isphion = 0) takes the other branch and is a quiet control. Owner-approved list, 2026-11-13
+ (AIUE-257 Task 9).
+
+diff --git a/bbb/pandf_boundary.m b/bbb/pandf_boundary.m
+--- a/bbb/pandf_boundary.m
++++ b/bbb/pandf_boundary.m
+@@ -3367,7 +3367,7 @@
+ 	    totfnex = ne(ixt,iy)*vex(ixt,iy)*sx(ixt,iy)
+             if (isphion+isphiofft==1) then
+               yldot(iv1) =-nurlxe*(totfeexl(iy,jx)
+-     .                        +faceel*te(ixt,iy)
++     .                        +2*faceel*te(ixt,iy)
+      .                        +faceel2*(te(ixt,iy)-te(ixt1,iy))
+      .                        -cmneut*fnix(ixt,iy,1)*recycp(1)*eedisspl*ev
+      .                                     )/(sx(ixt,iy)*vpnorm*ennorm)

@@ -1,0 +1,596 @@
+# Combination sets of the yldot suite (AIUE-257; owner D1, 2026-11-11; read by harness/variants.py load_sets).
+#
+# A set assigns several inputs at once, so a branch that only a combination reaches is taken in a stored, checked
+# configuration, and a parameter that only a non-default branch reads is varied while that branch is on. One table
+# per set, id "set:<name>" (lower case letters, digits, '_', '-', '.'). Fields:
+#   assign   = { "pkg.var" = <value>, ... }  required; every key's d is read first, then the values are assigned in
+#                                             this order. A value is
+#              a number                       at every element (elementwise, like a value of overrides.toml)
+#              { value = x, at = [i, ...] }   x at d[i, ...] (numpy indices: the Fortran index minus its lower bound)
+#              { scale = x, at = [...] }      d[at] * x (real variables only)
+#              { cycle = [a, b], at = [...] } along the 0:nx+1 axis of d[at], cell i takes entry i mod n of the list
+#                                             (the other axes broadcast); at must reach that axis
+#   reason   = "..."                          required: the branch the set takes (pandf_boundary.m lines)
+#   base     = "set:<name>"                   optional: classified against that set's result instead of the family
+#                                             default (the base has no base; full-store families only)
+#   families = ["d_only", ...]                default: the five small families (owner D3)
+#   phase    = "PRE" | "POST"                 default: POST if any key is a dynamic array, else PRE
+#   config   = "steady" | "timestep"          default: steady
+#   issues   = ["AIUE-260", ...]              the AIUE-259 issues the set covers as the code behaves today (owner D4)
+#
+# A per-cell wall array (bbb.istepfcix, bbb.lyteix, ...) needs its switch (bbb.ispfbcvsix or bbb.iswobcvsix) = 1 in
+# the same set: setwallbcarrays (bbb/odesetup.m:548) overwrites it from the scalar otherwise. A key that
+# overrides.toml EXCLUDES cannot be assigned. A based set assigns every key of its base (load_sets checks it), with
+# the base's values except the parameter it varies, so the base's branch stays on. Owner rule (decision 23): a set
+# that comes out INVALID is stored as INVALID with its reason; never tune its values to make it pass. A set whose
+# selector equals the family's value is EXCLUDED there ("value equals d"), and so are the sets based on it.
+#
+# Lines below are bbb/pandf_boundary.m at a62f121; options and issues: .claude/context/boundary-conditions.md
+# (Confluence SD page 25067521). Selector values themselves are in overrides.toml (owner D2); the sets here add the
+# combinations and the branch parameters. Not here, with their disposition:
+#   - the gas-temperature options (istgpfc, istgwc, istglb/istgrb, istgcore and lytg, cgengmw, recycwe, cfdiss,
+#     tgwall, tgcore, cfalbedo, cgengmpl): no small family evolves tg; a family with istgon = 1 is AIUE-293 (owner
+#     2026-11-12);
+#   - dnull_patch, limiter_patch, isfixlb/isfixrb: family stories AIUE-171, AIUE-172, AIUE-173;
+#   - outwallflux (isoutwall, export only; AIUE-195).
+
+# ================================================================ plates (left_boundary 2975, right_boundary 3691)
+
+["set:ibctepl0"]
+assign = { "bbb.ibctepl" = 0 }
+reason = "left-plate Te fixed at tepltl (ibctepl = 0, 3381)"
+
+["set:ibctepl0-tepltl"]
+assign = { "bbb.ibctepl" = 0, "bbb.tepltl" = { scale = 1.5 } }
+base = "set:ibctepl0"
+reason = "tepltl, read only under ibctepl = 0 (3382), varied with that branch on"
+
+["set:ibctipl0"]
+assign = { "bbb.ibctipl" = 0 }
+reason = "left-plate Ti fixed at tipltl (ibctipl = 0, 3431)"
+
+["set:ibctipl0-tipltl"]
+assign = { "bbb.ibctipl" = 0, "bbb.tipltl" = { scale = 1.5 } }
+base = "set:ibctipl0"
+reason = "tipltl, read only under ibctipl = 0 (3431), varied with that branch on"
+
+["set:ibctepr0"]
+assign = { "bbb.ibctepr" = 0 }
+reason = "right-plate Te fixed at tepltr (ibctepr = 0, 4114)"
+
+["set:ibctepr0-tepltr"]
+assign = { "bbb.ibctepr" = 0, "bbb.tepltr" = { scale = 1.5 } }
+base = "set:ibctepr0"
+reason = "tepltr, read only under ibctepr = 0 (4114), varied with that branch on"
+
+["set:ibctipr0"]
+assign = { "bbb.ibctipr" = 0 }
+reason = "right-plate Ti fixed at tipltr (ibctipr = 0, 4166)"
+
+["set:ibctipr0-tipltr"]
+assign = { "bbb.ibctipr" = 0, "bbb.tipltr" = { scale = 1.5 } }
+base = "set:ibctipr0"
+reason = "tipltr, read only under ibctipr = 0 (4166), varied with that branch on"
+
+["set:plate-albedo"]
+assign = { "bbb.recycp" = { value = -0.5, at = [0] } }
+reason = "plate atom albedo branch (recylb in [-1, 0], 3163)"
+
+["set:plate-albedo-r"]
+assign = { "bbb.recycp" = { value = -0.3, at = [0] } }
+base = "set:plate-albedo"
+reason = "the albedo 1 + recylb, varied with the albedo branch on (3163)"
+
+["set:plate-ngfix"]
+assign = { "bbb.recycp" = { value = -1.5, at = [0] } }
+reason = "plate atom density fixed at nglfix/ngrfix (-2 < recylb < -1, 3163)"
+
+["set:plate-ngfix-ng"]
+assign = { "bbb.recycp" = { value = -1.5, at = [0] }, "bbb.nglfix" = { scale = 2.0 }, "bbb.ngrfix" = { scale = 2.0 } }
+base = "set:plate-ngfix"
+reason = "nglfix/ngrfix, read under -2 < recylb < -1 (and isnglf = 1), varied with that branch on"
+
+["set:plate-zerograd"]
+assign = { "bbb.recycp" = { value = -2.5, at = [0] } }
+reason = "plate atom zero gradient (recylb <= -2, 3163)"
+
+["set:plate-mol-zerograd"]
+assign = { "bbb.recycp" = { value = -2.5, at = [1] } }
+families = ["d_mols"]
+issues = ["AIUE-260"]
+reason = "diffusive molecule gas at the plates with recylb <= -2 (3444); covers AIUE-260 as the code behaves today: the left plate writes yldot(iv1), the Te row, with an ion-density difference (3474-3475)"
+
+["set:plate-mom-zerograd"]
+assign = { "bbb.recycm" = -9.95 }
+reason = "plate atom parallel momentum zero gradient (recycm in (-10.1, -9.9], 3238)"
+
+["set:plate-mom-thermal"]
+assign = { "bbb.recycm" = -11.0 }
+reason = "plate atom thermal momentum flux (recycm < -10.1, 3238)"
+
+["set:plate-mom-thermal-cgmompl"]
+assign = { "bbb.recycm" = -11.0, "bbb.cgmompl" = { scale = 1.5 } }
+base = "set:plate-mom-thermal"
+reason = "cgmompl, read under recycm < -10.1 (3238), varied with that branch on"
+
+["set:plate-imp-negsputt"]
+assign = { "bbb.sputtr" = -0.5 }
+families = ["d_c"]
+issues = ["AIUE-268", "AIUE-295"]
+reason = "negative sputtr with physical sputtering on (d_c isph_sput(2) = 3): sputflxlb > 0 keeps the flux-balance branch (3540), where -sputtlb*hflux acts as a negative yield; the albedo branch is not reached. Covers the code as it behaves today (flux balance normalised by n0(igsp), AIUE-268)"
+
+["set:plate-imp-albedo"]
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -0.5 }
+families = ["d_c"]
+reason = "plate impurity-gas albedo (-9.9 <= sputtlb < 0, 3552): needs sputflxlb = 0, so physical sputtering off for the C gas (isph_sput(2) = 0)"
+
+["set:plate-imp-albedo-r"]
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -0.3 }
+base = "set:plate-imp-albedo"
+families = ["d_c"]
+reason = "the impurity-gas plate albedo 1 + sputtlb, varied with the albedo branch on (3552)"
+
+["set:plate-imp-fixed"]
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 1.0e15 }, "bbb.ngplatrb" = { value = 1.0e15 } }
+families = ["d_c"]
+reason = "plate impurity-gas density fixed at ngplatlb/ngplatrb (sputtlb < -9.9, 3558): needs isph_sput(2) = 0 (sputflxlb = 0)"
+
+["set:plate-imp-fixed-ng"]
+assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -10.0, "bbb.ngplatlb" = { value = 2.0e15 }, "bbb.ngplatrb" = { value = 2.0e15 } }
+base = "set:plate-imp-fixed"
+families = ["d_c"]
+reason = "ngplatlb/ngplatrb, read only under sputtlb < -9.9 (3559, 4292), varied with that branch on"
+
+# ================================================================ PF wall (iwall_boundary 1302, iy = 0, isixcore = 0)
+
+["set:pfte1"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 5.0 } }
+reason = "PF-wall Te fixed at tewalli (istepfcix = 1, 1812); tewalli is 0 in the small families, so 5 eV"
+
+["set:pfte1-tewalli"]
+assign = { "bbb.istepfc" = 1, "bbb.tewalli" = { value = 7.5 } }
+base = "set:pfte1"
+reason = "tewalli, read only under istepfcix = 1 (1812), varied with that branch on"
+
+["set:pfte3"]
+assign = { "bbb.istepfc" = 3 }
+reason = "PF-wall Te scale length lyteix (istepfcix = 3, 1808)"
+
+["set:pfte3-lyte"]
+assign = { "bbb.istepfc" = 3, "bbb.lyte" = { value = 0.05, at = [0] } }
+base = "set:pfte3"
+reason = "lyte(1), copied to lyteix(1,) and read only under istepfcix = 3 (1808), varied with that branch on"
+
+["set:pfte4"]
+assign = { "bbb.istepfc" = 4 }
+reason = "PF-wall Te sheath-like energy flux bceew*ne*vey*te (istepfcix = 4, 1808)"
+
+["set:pfte4-bceew"]
+assign = { "bbb.istepfc" = 4, "bbb.bceew" = { scale = 1.5 } }
+base = "set:pfte4"
+reason = "bceew, read under istepfcix = 4 (1808), varied with that branch on"
+
+["set:pfti1"]
+assign = { "bbb.istipfc" = 1, "bbb.tiwalli" = { value = 5.0 } }
+reason = "PF-wall Ti fixed at tiwalli (istipfcix = 1, 1861); tiwalli is 0 in the small families, so 5 eV"
+
+["set:pfti1-tiwalli"]
+assign = { "bbb.istipfc" = 1, "bbb.tiwalli" = { value = 7.5 } }
+base = "set:pfti1"
+reason = "tiwalli, read only under istipfcix = 1 (1861), varied with that branch on"
+
+["set:pfti3"]
+assign = { "bbb.istipfc" = 3 }
+reason = "PF-wall Ti scale length lytiix (istipfcix = 3, 1861)"
+
+["set:pfti3-lyti"]
+assign = { "bbb.istipfc" = 3, "bbb.lyti" = { value = 0.05, at = [0] } }
+base = "set:pfti3"
+reason = "lyti(1), copied to lytiix(1,) and read only under istipfcix = 3 (1861), varied with that branch on"
+
+["set:pfti4"]
+assign = { "bbb.istipfc" = 4 }
+issues = ["AIUE-276", "AIUE-298"]
+reason = "PF-wall Ti sheath-like flux bceiw*ion flux*ti + neutral terms (istipfcix = 4, 1875-1882); the outer wall uses the electron flux, AIUE-276; tg read at the ion index iigsp (1881): out of bounds with one gas, AIUE-298"
+
+["set:pfti4-bceiw"]
+assign = { "bbb.istipfc" = 4, "bbb.bceiw" = { scale = 1.5 } }
+base = "set:pfti4"
+reason = "bceiw, read under istipfcix = 4 (1878), varied with that branch on"
+
+["set:pfti4-neut"]
+assign = { "bbb.istipfc" = 4, "bbb.bcenw" = 1.0, "bbb.cgengw" = 1.0 }
+base = "set:pfti4"
+issues = ["AIUE-298"]
+reason = "the neutral terms bcenw and cgengw (0 in the small families), read under istipfcix = 4 (1880-1881), varied with that branch on; cgengw multiplies tg at the ion index iigsp, AIUE-298"
+
+["set:pfnw1"]
+assign = { "bbb.isnwconi" = 1, "bbb.nwalli" = { value = 1.0e18 } }
+reason = "PF-wall ni fixed at nwalli (isnwconiix = 1, 1517); nwalli is 0 in d_c and slab_phi, so 1e18"
+
+["set:pfnw1-nwalli"]
+assign = { "bbb.isnwconi" = 1, "bbb.nwalli" = { value = 2.0e18 } }
+base = "set:pfnw1"
+reason = "nwalli, read only under isnwconiix = 1 (1517), varied with that branch on"
+
+["set:pfnw3"]
+assign = { "bbb.isnwconi" = 3 }
+reason = "PF-wall ni scale length lyniix + nwimin (isnwconiix = 3, 1517)"
+
+["set:pfnw3-lyni"]
+assign = { "bbb.isnwconi" = 3, "bbb.lyni" = { value = 0.05, at = [0] } }
+base = "set:pfnw3"
+reason = "lyni(1), copied to lyniix(1,,) and read only under isnwconiix = 3 (1517), varied with that branch on"
+
+["set:pfnw3-nwimin"]
+assign = { "bbb.isnwconi" = 3, "bbb.lyni" = { value = 0.05, at = [0] }, "bbb.nwimin" = { scale = 1000.0 } }
+base = "set:pfnw3"
+reason = "nwimin, the density floor read only under isnwconiix = 3 (1517), varied with that branch on and a finite lyni(1)"
+
+["set:pfup3"]
+assign = { "bbb.isupwi" = 3 }
+reason = "PF-wall up scale length lyup(1) (isupwiix = 3, 1624-1633)"
+
+["set:pfup3-lyup"]
+assign = { "bbb.isupwi" = 3, "bbb.lyup" = { value = 0.05, at = [0] } }
+base = "set:pfup3"
+reason = "lyup(1), read only under isupwiix = 3 (1633), varied with that branch on"
+
+["set:pfmat"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] } }
+reason = "PF material wall (matwsi = 1): atom and gas recycling with recycw instead of the albedo (1430-1459, 1988-2022)"
+
+["set:pfmat-albedo"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.5, at = [0] } }
+base = "set:pfmat"
+reason = "PF material wall with recycw in [-1, 0] for gas 1: inertial-atom albedo 1 + recycw (1450); gas 2's diffusive branch (2013) is AIUE-301"
+
+["set:pfmat-backg"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] } }
+base = "set:pfmat"
+reason = "PF material wall with recycw < -1 for gas 1: inertial atoms ni = ngbackg (1448); gas 2's diffusive branch (2010) is AIUE-301"
+
+["set:pfmat-backg-ng"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] }, "bbb.ngbackg" = { scale = 10.0 } }
+base = "set:pfmat"
+reason = "ngbackg, read under recycw < -1 on a material wall (inertial atoms, 1448), varied with that branch on"
+
+["set:pfpuff"]
+assign = { "bbb.igasi" = { value = 1.0, at = [0] } }
+issues = ["AIUE-280"]
+reason = "PF gas puff igasi without a material wall: the puff replaces the whole wall equation (1459, 2022), AIUE-280"
+
+["set:pfpuff-mat"]
+assign = { "bbb.igasi" = { value = 1.0, at = [0] }, "bbb.matwsi" = { value = 1, at = [0] } }
+reason = "PF gas puff igasi on a material wall: the recycling equation stays (1459, 2022)"
+
+# ================================================================ outer wall (owall_boundary 2391, iy = ny+1)
+
+["set:wote1"]
+assign = { "bbb.istewc" = 1, "bbb.tewallo" = { value = 5.0 } }
+reason = "outer-wall Te fixed at tewallo (istewcix = 1, 2630); tewallo is 0 in the small families, so 5 eV"
+
+["set:wote1-tewallo"]
+assign = { "bbb.istewc" = 1, "bbb.tewallo" = { value = 7.5 } }
+base = "set:wote1"
+reason = "tewallo, read only under istewcix = 1 (2630), varied with that branch on"
+
+["set:wote3"]
+assign = { "bbb.istewc" = 3 }
+reason = "outer-wall Te scale length lyteix(2,) (istewcix = 3, 2630)"
+
+["set:wote3-lyte"]
+assign = { "bbb.istewc" = 3, "bbb.lyte" = { value = 0.05, at = [1] } }
+base = "set:wote3"
+reason = "lyte(2), copied to lyteix(2,) and read only under istewcix = 3 (2630), varied with that branch on"
+
+["set:wote4"]
+assign = { "bbb.istewc" = 4 }
+reason = "outer-wall Te sheath-like energy flux (istewcix = 4, 2630)"
+
+["set:wote4-bceew"]
+assign = { "bbb.istewc" = 4, "bbb.bceew" = { scale = 1.5 } }
+base = "set:wote4"
+reason = "bceew, read under istewcix = 4 (2630), varied with that branch on"
+
+["set:woti1"]
+assign = { "bbb.istiwc" = 1, "bbb.tiwallo" = { value = 5.0 } }
+reason = "outer-wall Ti fixed at tiwallo (istiwcix = 1, 2653); tiwallo is 0 in the small families, so 5 eV"
+
+["set:woti1-tiwallo"]
+assign = { "bbb.istiwc" = 1, "bbb.tiwallo" = { value = 7.5 } }
+base = "set:woti1"
+reason = "tiwallo, read only under istiwcix = 1 (2653), varied with that branch on"
+
+["set:woti3"]
+assign = { "bbb.istiwc" = 3 }
+reason = "outer-wall Ti scale length lytiix(2,) (istiwcix = 3, 2653)"
+
+["set:woti3-lyti"]
+assign = { "bbb.istiwc" = 3, "bbb.lyti" = { value = 0.05, at = [1] } }
+base = "set:woti3"
+reason = "lyti(2), copied to lytiix(2,) and read only under istiwcix = 3 (2653), varied with that branch on"
+
+["set:woti4"]
+assign = { "bbb.istiwc" = 4 }
+issues = ["AIUE-276"]
+reason = "outer-wall Ti sheath-like flux with the electron flux ne*vey (istiwcix = 4, 2653-2670), AIUE-276"
+
+["set:woti4-bceiw"]
+assign = { "bbb.istiwc" = 4, "bbb.bceiw" = { scale = 1.5 } }
+base = "set:woti4"
+reason = "bceiw, read under istiwcix = 4 (2670), varied with that branch on"
+
+["set:wonw1"]
+assign = { "bbb.isnwcono" = 1, "bbb.nwallo" = { value = 1.0e18 } }
+reason = "outer-wall ni fixed at nwallo (isnwconoix = 1, 2495); nwallo is 0 in d_c and slab_phi, so 1e18"
+
+["set:wonw1-nwallo"]
+assign = { "bbb.isnwcono" = 1, "bbb.nwallo" = { value = 2.0e18 } }
+base = "set:wonw1"
+reason = "nwallo, read only under isnwconoix = 1 (2495), varied with that branch on"
+
+["set:wonw3"]
+assign = { "bbb.isnwcono" = 3 }
+reason = "outer-wall ni scale length lyniix(2,,) + nwomin (isnwconoix = 3, 2495)"
+
+["set:wonw3-lyni"]
+assign = { "bbb.isnwcono" = 3, "bbb.lyni" = { value = 0.05, at = [1] } }
+base = "set:wonw3"
+reason = "lyni(2), copied to lyniix(2,,) and read only under isnwconoix = 3 (2495), varied with that branch on"
+
+["set:wonw3-nwomin"]
+assign = { "bbb.isnwcono" = 3, "bbb.lyni" = { value = 0.05, at = [1] }, "bbb.nwomin" = { scale = 1000.0 } }
+base = "set:wonw3"
+reason = "nwomin, the density floor read only under isnwconoix = 3 (2495), varied with that branch on and a finite lyni(2)"
+
+["set:woup3"]
+assign = { "bbb.isupwo" = 3 }
+reason = "outer-wall up scale length lyup(2) (isupwoix = 3, 2550-2559)"
+
+["set:woup3-lyup"]
+assign = { "bbb.isupwo" = 3, "bbb.lyup" = { value = 0.05, at = [1] } }
+base = "set:woup3"
+reason = "lyup(2), read only under isupwoix = 3 (2559), varied with that branch on"
+
+["set:womat-albedo"]
+assign = { "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.5, at = [0] } }
+issues = ["AIUE-277"]
+reason = "outer material wall with recycw in [-1, 0] for gas 1: inertial-atom albedo with ni(ny+1), not the harmonic mean (2483), AIUE-277; gas 2's diffusive branch (2768) is AIUE-301"
+
+["set:womat-backg"]
+assign = { "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [0] } }
+reason = "outer material wall with recycw < -1 for gas 1: inertial atoms ni = ngbackg (2480); gas 2's diffusive branch (2765) is AIUE-301"
+
+["set:wopuff"]
+assign = { "bbb.igaso" = { value = 1.0, at = [0] }, "bbb.matwso" = { value = 0, at = [0] } }
+issues = ["AIUE-280"]
+reason = "outer gas puff igaso without a material wall: the puff replaces the whole wall equation (2489, 2777), AIUE-280"
+
+# ================================================================ per-cell wall arrays (setwallbcarrays, odesetup.m:548)
+
+["set:pfvsix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+reason = "per-cell PF Te/Ti options 0, 1, 3 mixed along the wall (ispfbcvsix = 1; 1808, 1861), with non-uniform lyteix"
+
+["set:pfvsix-tewalli"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 7.5 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+base = "set:pfvsix"
+reason = "tewalli in the cells where istepfcix = 1, varied with the per-cell options on"
+
+["set:pfvsix-lyteix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.03, 0.07], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+base = "set:pfvsix"
+reason = "lyteix(1,) in the cells where istepfcix = 3, varied with the per-cell options on"
+
+["set:pfvsix-n"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
+reason = "per-cell PF ni options 0, 1, 3 and up options 1, 2, 3, 0 mixed along the wall (ispfbcvsix = 1; 1517, 1624)"
+
+["set:pfvsix-n-nwalli"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 2.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
+base = "set:pfvsix-n"
+reason = "nwalli in the cells where isnwconiix = 1, varied with the per-cell options on"
+
+["set:pfvsix-lyupix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] }, "bbb.lyupix" = { value = 0.05, at = [0] } }
+base = "set:pfvsix-n"
+issues = ["AIUE-270"]
+reason = "lyupix(1,,), which no routine reads (isupwiix = 3 reads the scalar lyup(1), 1633): expected INERT against its base, AIUE-270"
+
+["set:wovsix"]
+assign = { "bbb.iswobcvsix" = 1, "bbb.istewcix" = { cycle = [0, 1, 3] }, "bbb.istiwcix" = { cycle = [3, 0, 1] }, "bbb.tewallo" = { value = 5.0 }, "bbb.tiwallo" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [1] }, "bbb.lytiix" = { cycle = [0.05], at = [1] }, "bbb.isnwconoix" = { cycle = [0, 1, 3] }, "bbb.nwallo" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [1] }, "bbb.isupwoix" = { cycle = [1, 2, 3, 0] } }
+reason = "per-cell outer-wall Te/Ti, ni and up options mixed along the wall (iswobcvsix = 1; 2495, 2550, 2630, 2653)"
+
+["set:wovsix-tewallo"]
+assign = { "bbb.iswobcvsix" = 1, "bbb.istewcix" = { cycle = [0, 1, 3] }, "bbb.istiwcix" = { cycle = [3, 0, 1] }, "bbb.tewallo" = { value = 7.5 }, "bbb.tiwallo" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [1] }, "bbb.lytiix" = { cycle = [0.05], at = [1] }, "bbb.isnwconoix" = { cycle = [0, 1, 3] }, "bbb.nwallo" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [1] }, "bbb.isupwoix" = { cycle = [1, 2, 3, 0] } }
+base = "set:wovsix"
+reason = "tewallo in the cells where istewcix = 1, varied with the per-cell options on"
+
+# ================================================================ core (iy = 0, isixcore = 1)
+
+["set:core-flcore1"]
+assign = { "bbb.iflcore" = 1 }
+reason = "core Te/Ti from the power pcoree/pcorei (iflcore = 1, 1787, 1834)"
+
+["set:core-flcore1-pcore"]
+assign = { "bbb.iflcore" = 1, "bbb.pcoree" = { scale = 1.5 }, "bbb.pcorei" = { scale = 1.5 } }
+base = "set:core-flcore1"
+reason = "pcoree/pcorei, read only under iflcore = 1 (1787, 1834), varied with that branch on"
+
+["set:core-nicore0"]
+assign = { "bbb.isnicore" = { value = 0, at = [0] } }
+reason = "core D+ density flux curcore (isnicore = 0, 1469)"
+
+["set:core-nicore0-curcore"]
+assign = { "bbb.isnicore" = { value = 0, at = [0] }, "bbb.curcore" = { value = 1.0, at = [0] } }
+base = "set:core-nicore0"
+reason = "curcore(1) (0 in the small families), read under isnicore = 0 (1469), varied with that branch on"
+
+["set:core-nicore2"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] } }
+reason = "core D+ flux plus ni = ncore over ixfixnc..ixfixnc+incixc (isnicore = 2, 1474)"
+
+["set:core-nicore2-range"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 2, "bbb.incixc" = 1 }
+base = "set:core-nicore2"
+families = ["d_only", "d_mols", "ortho"]
+reason = "the fixed-density range ixfixnc/incixc, read only under isnicore = 2 (1479), varied with that branch on: ix 2-3 reaches core cell 3 (core cells 3-6 on the nx = 8 grids)"
+
+["set:core-nicore2-range-dc"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 6, "bbb.incixc" = 1 }
+base = "set:core-nicore2"
+families = ["d_c"]
+reason = "the fixed-density range ixfixnc/incixc (1479) inside d_c's core cells 5-12: ix 6-7"
+
+["set:core-nicore2-range-slab"]
+assign = { "bbb.isnicore" = { value = 2, at = [0] }, "bbb.ixfixnc" = 14, "bbb.incixc" = 1 }
+base = "set:core-nicore2"
+families = ["slab_phi"]
+reason = "the fixed-density range ixfixnc/incixc (1479) inside slab_phi's core cells 13-20: ix 14-15"
+
+["set:core-nicore3"]
+assign = { "bbb.isnicore" = { value = 3, at = [0] } }
+reason = "core D+ density constant poloidally, integrated flux curcore - recycc*fngy (isnicore = 3, 1483)"
+
+["set:core-nicore3-recycc"]
+assign = { "bbb.isnicore" = { value = 3, at = [0] }, "bbb.recycc" = { value = 0.5, at = [0] } }
+base = "set:core-nicore3"
+reason = "recycc(1), read only under isnicore = 3 (1483-1500), varied with that branch on"
+
+["set:core-nicore5"]
+assign = { "bbb.isnicore" = { value = 5, at = [0] } }
+reason = "core D+ density constant poloidally with a midplane gradient length lynicore (isnicore = 5, 1503)"
+
+["set:core-nicore5-lynicore"]
+assign = { "bbb.isnicore" = { value = 5, at = [0] }, "bbb.lynicore" = { value = 0.05, at = [0] } }
+base = "set:core-nicore5"
+reason = "lynicore(1), read only under isnicore = 5 (1503-1512), varied with that branch on"
+
+["set:core-nicore5-ncoremin"]
+assign = { "bbb.isnicore" = { value = 5, at = [0] }, "bbb.lynicore" = { value = 0.05, at = [0] }, "bbb.ncoremin" = { value = 1.0e19, at = [0] } }
+base = "set:core-nicore5"
+reason = "ncoremin(1), read only under isnicore = 5 (1512), varied with that branch on and a finite lynicore(1)"
+
+["set:core-upcore4"]
+assign = { "bbb.isupcore" = { value = 4, at = [0] } }
+issues = ["AIUE-278"]
+reason = "core D+ up: n*uz/R constant with the total flux lzflux (isupcore = 4, 1586), relaxed with nurlxe (AIUE-278)"
+
+["set:core-upcore4-lzflux"]
+assign = { "bbb.isupcore" = { value = 4, at = [0] }, "bbb.lzflux" = { value = 1.0e-3, at = [0] } }
+base = "set:core-upcore4"
+reason = "lzflux(1), read only under isupcore = 4/5 (1586-1616), varied with that branch on"
+
+["set:core-upcore5"]
+assign = { "bbb.isupcore" = { value = 5, at = [0] } }
+reason = "core D+ up: as 4 plus an average toroidal velocity utorave (isupcore = 5, 1616)"
+
+["set:core-upcore5-utorave"]
+assign = { "bbb.isupcore" = { value = 5, at = [0] }, "bbb.utorave" = { value = 1.0e3, at = [0] } }
+base = "set:core-upcore5"
+reason = "utorave(1), read only under isupcore = 5 (1616), varied with that branch on"
+
+["set:core-ngcore1"]
+assign = { "bbb.isngcore" = { value = 1, at = [0] } }
+reason = "core inertial-atom density fixed at ngcore (isngcore(1) = 1, 1380)"
+
+["set:core-ngcore1-ngcore"]
+assign = { "bbb.isngcore" = { value = 1, at = [0] }, "bbb.ngcore" = { scale = 10.0, at = [0] } }
+base = "set:core-ngcore1"
+reason = "ngcore(1), read only under isngcore(1) = 1 (1380), varied with that branch on"
+
+["set:core-gas-ngcore1"]
+assign = { "bbb.isngcore" = { value = 1, at = [1] } }
+families = ["d_mols", "d_c"]
+reason = "core diffusive-gas density fixed at ngcore (isngcore(2) = 1, 1910): molecules in d_mols, C gas in d_c"
+
+["set:core-gas-ngcore1-ngcore"]
+assign = { "bbb.isngcore" = { value = 1, at = [1] }, "bbb.ngcore" = { scale = 10.0, at = [1] } }
+base = "set:core-gas-ngcore1"
+families = ["d_mols", "d_c"]
+reason = "ngcore(2), read only under isngcore(2) = 1 (1910), varied with that branch on"
+
+["set:core-gas-ngcore2"]
+assign = { "bbb.isngcore" = { value = 2, at = [1] } }
+families = ["d_mols", "d_c"]
+issues = ["AIUE-272", "AIUE-278"]
+reason = "core diffusive-gas isngcore(2) = 2: allocate refuses isngcore = 2 for every gas (bbb/odesetup.m:193-199), so the gradient-length code (1910-1924) is unreachable; covers AIUE-272 as the code behaves today (expected INVALID)"
+
+["set:core-gas-ngcore3"]
+assign = { "bbb.isngcore" = { value = 3, at = [1] } }
+families = ["d_mols", "d_c"]
+reason = "core diffusive-gas limited extrapolation (isngcore(2) = 3, 1910)"
+
+["set:core-gas-ngcore4"]
+assign = { "bbb.isngcore" = { value = 4, at = [1] } }
+families = ["d_mols", "d_c"]
+reason = "core diffusive-gas zero gradient (isngcore(2) = 4, 1910)"
+
+# ---------------------------------------------------------------- impurity core (d_c: isimpon = 6, C+1..C+6 in slots 3-8)
+
+["set:core-imp-nicore0"]
+assign = { "bbb.isnicore" = { value = 0, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "impurity core flux curcore on the top C charge state (isnicore = 0; the nisp loop 1469 and the impurity loop 1656 both write the row, AIUE-292)"
+
+["set:core-imp-nicore1"]
+assign = { "bbb.isnicore" = { value = 1, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "impurity core density fixed at ncore on the top C charge state (isnicore = 1; 1466 and 1653, AIUE-292)"
+
+["set:core-imp-nicore2"]
+assign = { "bbb.isnicore" = { value = 2, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "impurity core flux plus ncore over a range on the top C charge state (isnicore = 2; 1474 and 1661, AIUE-292)"
+
+["set:core-imp-nicore4"]
+assign = { "bbb.isnicore" = { value = 4, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "impurity core ni flux fnzysi (isnicore = 4 on the top C charge state, slot 8; impurity-only option, 1684); covers AIUE-292 as the code behaves today: the first core loop over all nisp ions (1369) refuses 4 (1515)"
+
+["set:core-imp-nicore5"]
+assign = { "bbb.isnicore" = { value = 5, at = [7] } }
+families = ["d_c"]
+issues = ["AIUE-262", "AIUE-292"]
+reason = "impurity core dni/dy = 0 on the top C charge state (isnicore = 5); covers AIUE-262 as the code behaves today: the impurity loop writes the stale yldot(iv1) normalised by n0(ifld) (1688-1690); d_c's own isnicore = 3 there covers AIUE-261"
+
+# ================================================================ owner family large_dd2c (isnewpot = 1; sketch store: no base)
+# owner 2026-11-12: these branches need isnewpot = 1, which no small family runs; large_dd2c only (~423 s per
+# evaluation on a CI 7763), nightly.
+
+["set:lg-iphibcc1"]
+assign = { "bbb.iphibcc" = 1 }
+families = ["large_dd2c"]
+reason = "core phi at iy = 1: d2ey/dy2 = 0 (iphibcc = 1, 2279, 2334), isnewpot = 1"
+
+["set:lg-iphibcc2"]
+assign = { "bbb.iphibcc" = 2 }
+families = ["large_dd2c"]
+reason = "core phi at iy = 1: te constant, midplane ey = eycore (iphibcc = 2, 2283, 2338), isnewpot = 1"
+
+["set:lg-pfphi3"]
+assign = { "bbb.iphibcwi" = 3, "bbb.lyphi" = { value = 0.05, at = [0] } }
+families = ["large_dd2c"]
+issues = ["AIUE-274"]
+reason = "PF-wall phi scale length with a finite lyphi(1) (iphibcwi = 3, 2368-2376; identical to 0 at the default 1e20, AIUE-274), isnewpot = 1"
+
+["set:lg-pfphi4"]
+assign = { "bbb.iphibcwi" = 4, "bbb.phiwi" = { value = 10.0 } }
+families = ["large_dd2c"]
+reason = "PF-wall phi fixed at phiwi = 10 V (iphibcwi = 4, 2368; phiwi is 0 by default), isnewpot = 1"
+
+["set:lg-phicore0"]
+assign = { "bbb.isphicore0" = 1 }
+families = ["large_dd2c"]
+issues = ["AIUE-285"]
+reason = "isphicore0 = 1 sends the core cells to the PF-wall iphibcwi options (bouncon, 2368; .v documents it otherwise, AIUE-285), isnewpot = 1"
+
+["set:lg-pfphivsix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.iphibcwiix" = { cycle = [0, 1, 3, 4] }, "bbb.phiwi" = { value = 10.0 }, "bbb.lyphiix" = { cycle = [0.05], at = [0] } }
+families = ["large_dd2c"]
+reason = "per-cell PF phi options 0, 1, 3, 4 mixed along the wall with a finite lyphiix (ispfbcvsix = 1, 2368), isnewpot = 1"

@@ -37,11 +37,13 @@ The matrix (owner, 2026-10-22, AIUE-90 Q5) is a working document: summarise it o
 Header of a mutation patch (`Key: value`; a line starting with a space continues the previous key, one family per
 line for Blocks and Cells), a blank line, then the single-line `git diff` (git apply skips the header):
     Mutation      the file's stem
-    Kind          physics | range | flag-gating
+    Kind          physics | range | flag-gating | boundary (boundary: a boundary-condition mutation, outside PRD 7.8's
+                  composition; owner, 2026-11-13, AIUE-257)
     Equation      ni | up | te | ti | ng | tg | phi; or all (range and flag-gating only)
     Fault         sign | factor 2 | dropped term | off-by-one | wrong multiplier | loop bound | window coupling |
-                  gating
-    Check         yldot | flag difference | locality (physics: yldot; flag-gating: flag difference; range: locality)
+                  gating | wrong selector
+    Check         yldot | flag difference | locality (physics and boundary: yldot; flag-gating: flag difference;
+                  range: locality)
     Configs       the configurations where the check fires (steady, timestep)
     Blocks        <family>: primary <eq[sp]>, ...[; coupled <eq[sp]>, ...]: the blocks that must fire (primary) and
                   may fire (coupled); optional for a pending mutation
@@ -51,8 +53,10 @@ line for Blocks and Cells), a blank line, then the single-line `git diff` (git a
     Families      the families where the code is active, the inner-loop family first
     Pending       optional, AIUE-<n>[, AIUE-<n>] (<reason>): the ticket whose check will catch it
     Variant       optional, a variant id: in Families the mutation is checked through this stored SENSITIVE
-                  variant (its Jacobian-flag reference, for a flag-gating whose code no default runs; AIUE-96 D7),
-                  Configs its configuration, the primary blocks among its stored flag-difference blocks
+                  variant (its Jacobian-flag reference, for a flag-gating whose code no default runs; AIUE-96 D7;
+                  its yldot reference, for a boundary mutation whose code no default runs; AIUE-257), Configs its
+                  configuration, the primary blocks among the variant's stored blocks of the Check (yldot:
+                  block_l2, flag difference: jflag_block_l2)
     Source        <file>:<line> (at <sha>), the mutated line
     Description   free text
 Species are Fortran's 1-based ifld/igsp.
@@ -90,9 +94,12 @@ CONFIGS = ("steady", "timestep")
 PARTS = ("yldot", "flag difference", "locality")  # locality: steady only, for Check: locality (owner, AIUE-100 D4)
 DEFAULT_PARTS = PARTS[:2]  # the parts test_default.py decides
 EQ_NAMES = tuple(e for e, _, _ in EQUATIONS)
-KINDS = {"physics": "yldot", "flag-gating": "flag difference", "range": "locality"}  # kind -> its check
+# kind -> its check. boundary: the boundary-condition mutations, outside PRD 7.8's composition (owner, 2026-11-13,
+# AIUE-257)
+KINDS = {"physics": "yldot", "flag-gating": "flag difference", "range": "locality", "boundary": "yldot"}
 FAULTS = ("sign", "factor 2", "dropped term", "off-by-one", "wrong multiplier", "loop bound", "window coupling",
-          "gating")
+          "gating", "wrong selector")
+STORED_BLOCKS = {"yldot": "block_l2", "flag difference": "jflag_block_l2"}  # a Variant's stored blocks per Check
 REQUIRED = ("Mutation", "Kind", "Equation", "Fault", "Check", "Configs", "Intermediate", "Families", "Source",
             "Description")
 OPTIONAL = ("Blocks", "Cells", "Pending", "Variant")
@@ -274,7 +281,7 @@ def problems(m, stores=None):
         out.append("Kind {!r} not in {}".format(m.kind, sorted(KINDS)))
     elif m.check != KINDS[m.kind]:
         out.append("Check {!r}: a {} mutation is caught by {!r}".format(m.check, m.kind, KINDS[m.kind]))
-    if m.equation not in EQ_NAMES and not (m.equation == "all" and m.kind != "physics"):
+    if m.equation not in EQ_NAMES and not (m.equation == "all" and m.kind in ("range", "flag-gating")):
         out.append("Equation {!r} not in {} (all: range and flag-gating only)".format(m.equation, EQ_NAMES))
     if m.fault not in FAULTS:
         out.append("Fault {!r} not in {}".format(m.fault, FAULTS))
@@ -327,11 +334,16 @@ def problems(m, stores=None):
 def variant_problems(m, plan_ids, variables, kinds=None):
     """The defects of a mutation's Variant: plan_ids, the inventory's variant ids; variables: {family: the manifest's
     variables} of the referenced families; kinds: {family: its store kind}. A Variant needs full stores in its
-    Families: variant_child compares dense vectors, which a sketch store does not keep (AIUE-99)."""
+    Families: variant_child compares dense vectors, which a sketch store does not keep (AIUE-99). The primary blocks
+    must lie among the variant's stored blocks of the mutation's Check (STORED_BLOCKS; AIUE-257)."""
     if m.variant is None:
         return []
     if m.variant not in plan_ids:
         return ["Variant {}: not a variant of the inventory".format(m.variant)]
+    if m.check not in STORED_BLOCKS:
+        return ["Variant {}: Check {!r} is not one a variant stores ({})".format(m.variant, m.check,
+                                                                                ", ".join(STORED_BLOCKS))]
+    field_, what = STORED_BLOCKS[m.check], m.check
     out = []
     for f in m.families:
         if (kinds or {}).get(f, "full") != "full":
@@ -342,22 +354,23 @@ def variant_problems(m, plan_ids, variables, kinds=None):
         if e is None:
             out.append("Variant {}: {} stores no such variant".format(m.variant, f))
             continue
-        stored = sorted({label.split(" ")[0] for label in e["jflag_block_l2"]})  # "ni[1] core" -> ni[1]
+        stored = sorted({label.split(" ")[0] for label in e.get(field_) or {}})  # "ni[1] core" -> ni[1]
         if e["class"] != "SENSITIVE" or not stored:
-            out.append("Variant {}: {} stores it as {} with flag-difference blocks {}, need SENSITIVE with some".format(
-                m.variant, f, e["class"], stored))
+            out.append("Variant {}: {} stores it as {} with {} blocks {}, need SENSITIVE with some".format(
+                m.variant, f, e["class"], what, stored))
             continue
         if m.configs != [e["config"]]:
             out.append("Configs {}: the variant {} is checked in {} only".format(m.configs, m.variant, e["config"]))
         outside = sorted(set(m.blocks.get(f, {}).get("primary", [])) - set(stored))
         if outside:
-            out.append("Blocks {}: primary {} outside the variant's stored flag-difference blocks {}".format(
-                f, outside, stored))
+            out.append("Blocks {}: primary {} outside the variant's stored {} blocks {}".format(
+                f, outside, what, stored))
     return out
 
 
 def composition(ms):
-    """Defects of the set as a whole (PRD 7.8: 27 patches; 7 equations x sign, factor 2, dropped term)."""
+    """Defects of the set as a whole (PRD 7.8: 27 patches; 7 equations x sign, factor 2, dropped term). The boundary
+    mutations are outside it (owner, 2026-11-13, AIUE-257): no count is required of them."""
     out = []
     kinds = {k: sum(m.kind == k for m in ms) for k in COMPOSITION}
     if kinds != COMPOSITION:
@@ -798,10 +811,10 @@ class Scratch:
         """{family: {config: failed}} from test_variants.py's test_sensitive[<family>-<vid>], run with the built
         python. A BuildLimitWarning counts as a failure: on a macOS FMA build the test reports a mismatch instead of
         failing (owner, 2026-10-23, AIUE-96 D1), and the cross-check asks whether it noticed one. -W selects it by
-        its message (harness/build.py's REPORTED): pytest can't import yldot when it reads the option."""
-        expr = "test_sensitive and ({})".format(" or ".join("{}-{}".format(f, vid) for f in families))
-        cmd = [str(self.python), "-m", "pytest", "tests/yldot/test_variants.py", "-k", expr, "-q", "-p",
-               "no:cacheprovider", "-W", "error:{}:UserWarning".format(hb.REPORTED), "--junitxml", str(out)]
+        its message (harness/build.py's REPORTED): pytest can't import yldot when it reads the option. The cases are
+        named by node id (variant_cases): a -k expression can't hold a variant id with '=' (bbb.istepfc=4; AIUE-257)."""
+        cmd = [str(self.python), "-m", "pytest"] + variant_cases(families, vid) + [
+            "-q", "-p", "no:cacheprovider", "-W", "error:{}:UserWarning".format(hb.REPORTED), "--junitxml", str(out)]
         rc = self.stream(cmd, cwd=self.root, env=self.env, log=out.with_suffix(".log"))
         if rc not in (0, 1):
             raise Stop(2, "test_variants.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
@@ -815,6 +828,12 @@ class Scratch:
         if rc not in (0, 1):
             raise Stop(2, "test_locality.py exited {} (log: {})".format(rc, out.with_suffix(".log")))
         return parse_junit_locality(out, families)
+
+
+def variant_cases(families, vid):
+    """The node ids of the families' test_sensitive[<family>-<vid>] cases. A -k expression refuses ids such as
+    bbb.istepfc=4, and would also select the based sets whose ids extend vid (set:pfvsix-tewalli)."""
+    return ["tests/yldot/test_variants.py::test_sensitive[{}-{}]".format(f, vid) for f in families]
 
 
 def locality_cases(families):
