@@ -1058,6 +1058,40 @@ def test_manifest_validate_rejects(tmp_path, edit, message):
         mf.validate(m)
 
 
+def set_entry(m, **over):
+    """A combination set's manifest entry (AIUE-257): a variant entry plus keys and base, d and applied per key."""
+    enc = {"dtype": "int64", "shape": [], "data": [1]}
+    e = {"class": "INERT", "reason": "", "phase": "PRE", "config": "steady", "sha256": None, "block_l2": {},
+         "jflag_block_l2": {}, "keys": ["bbb.x", "bbb.y"], "base": None, "applied": {"bbb.x": enc, "bbb.y": enc},
+         "d": {"bbb.x": enc, "bbb.y": enc}}
+    e.update(over)
+    m["variables"]["set:s"] = e
+    return m
+
+
+def test_manifest_validates_a_set_entry(tmp_path):
+    """A set entry carries keys and base besides the variant keys (AIUE-257); a plain variant may not."""
+    mf.validate(set_entry(build(tmp_path, "sketch")))
+    mf.validate(set_entry(build(tmp_path, "sketch"), base="set:other"))
+    m = build(tmp_path, "sketch")
+    m["variables"]["bbb.cfvisx"].update(keys=["bbb.cfvisx"], base=None)
+    with pytest.raises(mf.ManifestError, match="need exactly the keys"):
+        mf.validate(m)
+
+
+@pytest.mark.parametrize("over, message", [
+    ({"keys": []}, "keys must be a non-empty list"),
+    ({"keys": ["bbb.x", 3]}, "keys must be a non-empty list"),
+    ({"d": {"bbb.x": {"dtype": "int64", "shape": [], "data": [1]}, "bbb.y": [1]}}, "applied and d must be null or"),
+    ({"applied": {"bbb.x": {"dtype": "int64", "shape": [], "data": [1]}}}, "applied and d must be null or"),
+    ({"base": "bbb.x"}, "base must be null or another set id"),
+    ({"base": "set:s"}, "base must be null or another set id"),
+])
+def test_manifest_validate_rejects_a_bad_set_entry(tmp_path, over, message):
+    with pytest.raises(mf.ManifestError, match=message):
+        mf.validate(set_entry(build(tmp_path, "sketch"), **over))
+
+
 # ---------------------------------------------------------------- fetch_data.py
 
 FILES = {"families/fam/base_state.h5": b"base state bytes", "references/fam.h5": b"reference bytes"}
