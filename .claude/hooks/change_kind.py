@@ -79,7 +79,7 @@ BUDGET_MAX_FILE_BYTES = 1_000_000  # any single added file
 CODE = re.compile(r"\.(m|v|F|F90|f|f90|c|h|py|sh)$")
 DATA_LIKE = re.compile(r"\.(npz|npy|hdf5|h5|pkl|pickle|log)$|^(?!\.claude/).*\.jsonl?$", re.IGNORECASE)
 BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated files in .claude/work/<KEY>/ or a scratch directory and "
-               "summarise them on the ticket page; if they really belong in the PR, say why in its description")
+               "summarise them in the ticket's record; if they really belong in the PR, say why in its description")
 
 # High-risk code (process-tiers.md -> Tiers, the L list): a diff touching any of it makes the ticket tier L.
 # Jacobian/preconditioner, whole files (AIUE-142): bbb/oderhs.m (jac_calc, jac_lu_decomp, psetnk, psolnk, ...),

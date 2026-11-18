@@ -1,9 +1,10 @@
 # UEDGE gotchas: traps that are by design, not bugs
 
 Behaviour that is intended (or at least not a defect to ticket) but has cost a ticket time because a model or a person
-assumed otherwise. The Confluence page `UEDGE gotchas` (SD space, page 9437185) is the copy for people. Add a new
-by-design trap of UEDGE itself to both, on a `feature/v9-ai-*` branch (owner, 2026-10-21); a trap of the repo's test
-tooling (Test tooling, below) is recorded here only (owner, 2026-10-22). Traps that can bite in any session (the MPPL
+assumed otherwise. This module is the only live copy, for agents and people; the Confluence page
+`UEDGE gotchas` (SD space, page 9437185) is a frozen archive copy as of 2026-11-18 (owner, tracker #5). Add a new
+by-design trap of UEDGE itself here, on a `feature/v9-ai-*` branch (owner, 2026-10-21); traps of the repo's
+test tooling go here too (Test tooling, below; owner, 2026-10-22). Traps that can bite in any session (the MPPL
 converter, hooks, the shell) stay in `CLAUDE.md` → Gotchas. Each entry cites its evidence (a probe, a run id or a
 `file:line`); a claim taken from a ticket or an earlier run and not re-checked says so (presumed, with its source;
 AIUE-216).
@@ -11,8 +12,7 @@ AIUE-216).
 ## Running UEDGE from Python
 
 - **Forthon runtime.** Reading an unallocated dynamic array raises `Array is unallocated` (it does not return an empty array). `allocate()` keeps a dynamic array's values when its dimensions are unchanged; when they change, `gchange` keeps the overlapping block and zero-fills the rest (probed on `Interp`, AIUE-141). Importing `Forthon` (e.g. `Forthon.interfaceparser`) parses `sys.argv` and exits with usage when argv has one entry, so set `sys.argv` first. Count `+input`/`+maybeinput` variables with Forthon's parser or the built module's `getvarattr`, not with grep (`.claude/context/variables-forthon.md`).
-- **A string-array element set from Python is NUL-padded in Fortran's memory** (AIUE-239; also on the Confluence page
-  `UEDGE gotchas`). A Forthon string array (`Filename` or `character*N`: `com.mcfilename`, `hdfilename`,
+- **A string-array element set from Python is NUL-padded in Fortran's memory** (AIUE-239). A Forthon string array (`Filename` or `character*N`: `com.mcfilename`, `hdfilename`,
   `api.inelrad`, `inelmc`, `inelrates`, …) reaches Python as a numpy view of the Fortran storage (`com.mcfilename` is
   `|S256`, `owndata` False). Assigning one element, `com.mcfilename[0] = "abc"` (as every impurity deck does,
   `tests/yldot/families/d_c/input.py:122`), is numpy's assignment: it stores `abc` and 253 NULs. Assigning the whole
@@ -27,12 +27,11 @@ AIUE-216).
     Errors and output; `api/fimp.m` `readmc`, `api/inelrates.m` `inelinput`).
   - `open(file=…)` works anyway: the impurity families open their rate files from such a name every run (`api/fimp.m`
     `readmc`).
-- **Several cases in one Python process** behave differently from a fresh process, by design (owner, 2026-10-21; also on the Confluence page `UEDGE gotchas`). Check a multi-case run against a fresh process:
+- **Several cases in one Python process** behave differently from a fresh process, by design (owner, 2026-10-21). Check a multi-case run against a fresh process:
   - A second deck's grid is read only if `bbb.newgeo = 1` is set before its `exmain`. `ueinit` sets `newgeo = 0` after reading a grid (`bbb/odesetup.m:1192-1194`) and the decks never set it, so without it the new state runs on the old mesh.
   - Settings the first deck sets and the second does not reset carry over. Example: nonog's `com.isnonog = 1` carried into orthogonal_unittest gives fnrm 1.35 vs 0.128 fresh, with the state copied exactly. When only the mesh should differ, use one deck for both cases.
   - With the default `isgindx = 1` (`bbb/bbb.v:3081`), the normalised mesh `xnrm`/`ynrm` is built from the indices only (`bbb/geometry.m:2795-2823`; `isgindx = 0` uses true distances). Two gridue files with the same nx, ny and X-point indices give identical `xnrm`/`ynrm`, however different their geometry. Interpolation onto a stretched mesh is not a supported path.
-  - To compare two decks' inputs, run `bbb.allocate()` on both first (owner, 2026-10-28, AIUE-191; also on the
-    Confluence page `UEDGE gotchas`). `allocate` runs `setwallbcarrays` (`bbb/odesetup.m:319`), which fills the
+  - To compare two decks' inputs, run `bbb.allocate()` on both first (owner, 2026-10-28, AIUE-191). `allocate` runs `setwallbcarrays` (`bbb/odesetup.m:319`), which fills the
     per-cell wall-BC arrays (`*ix`) from their scalars. A deck that allocates mid-way, such as d_only
     (`tests/yldot/families/d_only/input.py:58`), leaves those arrays holding the scalars from that point, so a raw
     comparison reports differences the run never sees (AIUE-106).
@@ -40,18 +39,18 @@ AIUE-216).
 
 ## Model layout
 
-- **Inertial neutrals (`isupgon(1) = 1`) live in the ion arrays** (owner, 2026-10-22; also on the Confluence page `UEDGE gotchas`). Indices here are Fortran (1-based):
+- **Inertial neutrals (`isupgon(1) = 1`) live in the ion arrays** (owner, 2026-10-22). Indices here are Fortran (1-based):
   - The hydrogenic atoms are ion species `iigsp`, the hydrogenic slot with `zi = 0` (`bbb/odesetup.m:927-928`; `ifld = 2` in large_dd2c, dnull_imp2 and imp7, probed). Their density is `ni(,,iigsp)` under `isnion(iigsp)`, their parallel velocity `up(,,iigsp)` under `isupon(iigsp)`.
   - `ng(,,1)` is a copy of `ni(,,iigsp)` (`bbb/convert.m:282-284`), so `isngon(1) = 0` does not mean the atoms are not evolved.
   - Atom temperature: `istgon(1) = 1` evolves `tg(,,1)` separately; `istgon(1) = 0` sets it from `ti`, whose equation is then a common ion and atom energy equation.
   - Saved states hold the copies: `ngs(,,1) = nis(,,iigsp)` and, with `istgon(1) = 0`, `tgs(,,1) = tis`, bit for bit (every yldot state checked, AIUE-91).
   - Never infer a species slot's meaning from its position: read `ziin`, `znuclin`, `isupgon`, `istgon` from the run, and say which index convention (Fortran or Python) a label uses.
-- **A continuity fault shows in the up, te and ti rows of `yldot` too** (owner, 2026-10-23, AIUE-158; also on the Confluence page `UEDGE gotchas`). With the defaults `isflxvar = 0` and `isrscalf = 1` (`bbb/bbb.v:1298,1301`), `pandf` calls `rscalf` (`bbb/pandf.m:724`), which turns the conservative residuals d(nv)/dt and d(nT)/dt into dv/dt and dT/dt (`bbb/oderhs.m:537-692`): `yldot(up)` subtracts `up·nbvdot`, built from `yldot(ni)` and the neighbour's `resco` (`bbb/oderhs.m:612,633`), te subtracts `te·` the charge-weighted sum of the ion density derivatives, and ti `ti·` their sum over ions (the inertial atoms enter only through `cftiexclg` when `isupgon(1) = 1`, the gas through `cngtgx(1)` otherwise; `bbb/oderhs.m:642-656`). AIUE-89's continuity sign flip fired `ni[1]` 32, `up[1]` 28, `te[1]` 32 and `ti[1]` 32 rows on d_only. A per-block expectation (a mutation header, a coverage matrix, localization by block) includes the coupled blocks; "fires outside its block" is not by itself a defect.
+- **A continuity fault shows in the up, te and ti rows of `yldot` too** (owner, 2026-10-23, AIUE-158). With the defaults `isflxvar = 0` and `isrscalf = 1` (`bbb/bbb.v:1298,1301`), `pandf` calls `rscalf` (`bbb/pandf.m:724`), which turns the conservative residuals d(nv)/dt and d(nT)/dt into dv/dt and dT/dt (`bbb/oderhs.m:537-692`): `yldot(up)` subtracts `up·nbvdot`, built from `yldot(ni)` and the neighbour's `resco` (`bbb/oderhs.m:612,633`), te subtracts `te·` the charge-weighted sum of the ion density derivatives, and ti `ti·` their sum over ions (the inertial atoms enter only through `cftiexclg` when `isupgon(1) = 1`, the gas through `cngtgx(1)` otherwise; `bbb/oderhs.m:642-656`). AIUE-89's continuity sign flip fired `ni[1]` 32, `up[1]` 28, `te[1]` 32 and `ti[1]` 32 rows on d_only. A per-block expectation (a mutation header, a coverage matrix, localization by block) includes the coupled blocks; "fires outside its block" is not by itself a defect.
 
 ## Platform
 
 - **On Linux x86-64, a build that calls glibc's vector math library gives results that follow the CPU vendor**
-  (owner, 2026-10-26, AIUE-210; fixed by AIUE-211; also on the Confluence page `UEDGE gotchas`). Since AIUE-211 the
+  (owner, 2026-10-26, AIUE-210; fixed by AIUE-211). Since AIUE-211 the
   Linux build adds `-nostdinc -fintrinsic-modules-path <finclude>` (`setup.py:815-827`), so gfortran no longer
   pre-includes glibc's `math-vector-fortran.h` and the math calls stay scalar (libm): Intel and AMD runners and
   Rosetta give bit-identical yldot references (`yldot-data-v14`, `v15`). `test_installed_no_vector_math` and

@@ -193,7 +193,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for `build-test-wheel.yml`'s matrix; `shard_of` is the rule `--yldot-shard` applies; `--check NAME…`; AIUE-103);
   `release_data.py` (the release command: checks the files, the tag number (no remote git tag either) and the
   target, prints `gh release create`; publishes only with `--publish`, which the owner runs or approves; it takes
-  only N = highest published + 1, so a hand publish (no `--renumber`) reserves its N on its ticket page once the
+  only N = highest published + 1, so a hand publish (no `--renumber`) reserves its N in its ticket's record once the
   owner agrees; a publish through `regenerate-references.yml` (`--renumber`, below) reserves none and records the N
   it got; planning reads the in-flight tickets' pages for both, `plan-feature` Phase 2 step 6 (AIUE-207). Every
   publish first creates the tag
@@ -260,7 +260,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (exit 3). A bounds abort reaches the harness as status `crash`, exit code 2, the message only in the log tail
   (probed, AIUE-95). `--no-audit` is for previews (refused with `--release`); `--defaults-only`, `--locality-only`
   and `--prune` never audit. On the five small families the macOS audit at c8431d5 took 70-91 s per family and
-  found seven bounds errors (AIUE-95 ticket page). Per family it prints the summary line (PRD §5 story 3, with
+  found seven bounds errors (AIUE-95, archived Confluence ticket page). Per family it prints the summary line (PRD §5 story 3, with
   marginal) and the cost, and writes the tolerance-inheritance sample `samples/<f>.npz`. An INVALID reason holds the
   exception's text; Fortran stops outside `grd/` and `flx/` pass their message to `xerrab` (AIUE-239, owner D1). For
   a bare `RuntimeError` (an `xerrab("")`) it holds the tail of the child's log, which is line-buffered and so in time
@@ -391,7 +391,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   without its comments and code fences) and prints which of `Default
   results: changed` (with every changed `<family>:<id>` below it), `Test criteria: changed` and `Test criteria:
   loosened` (plus CODEOWNER approval) the change needs, by path class and by the manifest, `tolerances.toml`,
-  `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 ticket page; `[locality]`, AIUE-100: a new
+  `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 archived ticket page; `[locality]`, AIUE-100: a new
   section is a change, `m_loc` monotone, `delta_loc` non-monotone, the record keys a change, and a changed or
   removed `locality/steady` key `Default results: changed`; a changed or removed `<config>/sketch_threshold` key is a
   loosening, as a changed σ, since a manifest cannot show it smaller, AIUE-92; a changed or removed
@@ -548,7 +548,7 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
   Going through `exmain` instead runs the Newton solve (`itermx = 0` means nksol's default of 200 iterations,
   `svr/nksol.m:973`), and after a converged solve `gridseq` overwrites the `Interp` meshes.
 - Raw outputs (logs, per-case tables, `.npz`/`.hdf5` dumps) go to `.claude/work/<KEY>/` or a scratch directory and
-  are summarised on the ticket page; they are never committed.
+  are summarised in the ticket's record; they are never committed.
 - **The OpenMP flow's output directory**: `tests/deterministic_omp/ci/run_omp_ci.sh` writes `./omp-ci-out/` (ignored by
   `.gitignore`) and refuses to start if it exists. Set `OMP_CI_OUT` to a new path in `.claude/work/<KEY>/` for each run,
   e.g. one for the base and one for the ticket build.
@@ -586,7 +586,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   unaffected. Such a PR still gets `claude-context-drift.yml`, `claude-review.yml` and the reference guard. A required
   check whose workflow a path filter skips stays pending and blocks the merge, so the one workflow meant to be
   required, `reference-guard.yml`, has no path filter.
-- **The reference guard in CI** (AIUE-104, ticket page 5111855): `.github/workflows/reference-guard.yml`, on
+- **The reference guard in CI** (AIUE-104, archived Confluence page 5111855): `.github/workflows/reference-guard.yml`, on
   `pull_request_target` (opened, synchronize, reopened, edited; any base branch), job name `reference guard` (the
   required-check context: rename it only together with the ruleset). GitHub takes a `pull_request_target` workflow
   and its checkout from the default branch (since 2025-12-08, GitHub changelog 2025-11-07), so `v9-develop`'s copy of
@@ -617,7 +617,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   Each leg logs its runner's CPU model: that run drew six (AMD EPYC 7763, 9V74, 9V45; Intel Xeon 8370C, 8573C,
   6973P-C), and the slowest test, imp7 `methi=44` at 1488 s on a Xeon 8370C, is only 1.2× under `--timeout 1800`
   (owner: keep 1800, 2026-11-10; a timeout goes back to the owner).
-- `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, ticket page 5308442): `build-serial`
+- `build-test-wheel.yml` runs the yldot PR tier (AIUE-103; owner, 2026-10-25, archived Confluence page 5308442): `build-serial`
   builds the `--serial` wheel once (`pip wheel`, Python 3.11, `numpy==1.26.4`, `runs-on: ubuntu-24.04`, not the
   AIUE-98 image: D1) and lists the shards with `tests/yldot/tools/shards.py`; nine `yldot-pr-tier` legs (one per family plus
   `common`, 4 vCPU each) install the wheel with the `test` extra, restore `tests/yldot/.data` from `actions/cache`

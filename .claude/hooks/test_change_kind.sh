@@ -23,7 +23,7 @@ echo d > "$R/doc/x.txt"; (cd "$R" && git add -f . && git -c core.hooksPath=/dev/
 echo "== A. change_kind.py --staged on a ticket branch"
 git -C "$R" checkout -q -b feature/v9-T-1-demo
 stage .claude/plans/x.md; ck --staged; ok $? 1 "A1 .claude/plans/x.md refused"
-grep -q 'working documents are never committed' "$W/out.txt"; ok $? 0 "A1 the message points to the working folder and the ticket page"
+grep -q 'working documents are never committed' "$W/out.txt"; ok $? 0 "A1 the message points to the working folder and the record"
 stage docs/reviews/x.md; ck --staged; ok $? 1 "A2 docs/reviews/x.md refused"
 stage .claude/work/T-1/plan.md; ck --staged; ok $? 1 "A3 .claude/work/T-1/plan.md refused"
 stage .claude/execution-reports/r.md; ck --staged; ok $? 1 "A4 .claude/execution-reports/ refused"

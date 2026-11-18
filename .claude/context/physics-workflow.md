@@ -13,8 +13,8 @@ a fixed agent pipeline defined in `.claude/agents/`:
 The spec is the one ticket document that is committed: `docs/physics_specs/<feature>.md` goes on the ticket branch
 with the physics change it specifies. The review reports and the implementer's responses are working documents in
 `.claude/work/<KEY>/reviews/` (never committed); each round's verdict, counts, one line per finding and the
-response go to the ticket page (`branching.md`). **Physics without a ticket record** (no Jira key, or
-`--no-tracker`): there is no page, so the main session puts that same review summary, for the spec rounds and the
+response go to the ticket's record (`branching.md`). **Physics without a ticket record** (no tracker ticket, or
+`--no-tracker`): there is no record, so the main session puts that same review summary, for the spec rounds and the
 implementation rounds, into the PR description; it is the only lasting copy of the implementation reviews (the spec
 keeps its own "Response to review round N" sections).
 
@@ -58,7 +58,7 @@ family whose manifest classifies variants (`tests/yldot/test_inventory.py`). Giv
    defaults bit for bit (exit 3 otherwise: the default moved). The new entries are an addition, which needs no PR
    declaration. A switch that is on by default changes the defaults: that is a full regeneration and needs
    `Default results: changed` with every moved `<family>:<id>` (`CLAUDE.md` → Hard rules).
-2. Reserve `N` on the ticket page once the owner agrees, and have the owner publish the release with
+2. Reserve `N` in the ticket's record once the owner agrees, and have the owner publish the release with
    `release_data.py` (`.claude/context/testing.md` → Tools).
 3. If the generic value rules don't fit the switch (an index, a cell range, an enumerated selector), it needs an
    `overrides.toml` entry with a reason, which needs `Test criteria: changed`. Ask the epic owner before adding it

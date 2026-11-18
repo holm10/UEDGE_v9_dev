@@ -45,7 +45,7 @@ uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N>
   backfilled ticket hasn't started, an escalated one is still open.) The note is one line in the header.
 - `sanitize [--repo <worktree>] [--max-chars <n>]`: stdin → stdout with local paths masked; secret-like strings, or
   more than `n` characters, are refused (exit 1). `rca` uses it for an RCA posted on a GitHub issue.
-- **Compatibility until tracker #4 adapts the callers:** `flush`, `queue …` (`--list` prints nothing) and `state …`
+- **Kept as no-ops (no skill calls them since tracker #4 and #9):** `flush`, `queue …` (`--list` prints nothing) and `state …`
   are no-ops, since nothing is queued. `find`, `ticket`, `render`, `verify` and `extract-plan` were retired with the
   Confluence route and exit 2.
 - `--dry-run` (callers pass it as `--tracker-dry-run`): print the helper command(s) the call would run; run nothing.
@@ -59,7 +59,7 @@ Jira ticket is worked after the import (tracker #6). The helper refuses any othe
 
 | Milestone | Who | Call |
 |---|---|---|
-| Ticket filed (or a backfill) | `spec` | `create` (a backfill: then `status Backfilled`) |
+| Ticket filed (or a backfill) | `spec` | `create` (a backfill of a To Do ticket: then `status Backfilled`; of an In Progress one: a `log Progress` entry instead, `spec` step 4) |
 | Plan (or RCA) written, revised or amended | `plan-feature`, `implement-fix`, the review loop | `publish`, `status Planning` / `Plan review` |
 | A review round closes (APPROVE, or REVISE once its response is written) | the review loop | `log Reviews` (verdict and response) |
 | End of `execute` | `execute` | **one** `log Progress` summary; `status Implementation review` |

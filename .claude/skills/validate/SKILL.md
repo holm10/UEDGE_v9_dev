@@ -33,7 +33,7 @@ RCA, validation record) committed on it (`.claude/context/branching.md`). Report
 PR size budget` line (too many files or lines outside product source and tests, a file over 1 MB, data-like files):
 not a failure, but move raw data out of the branch (summarise it in the ticket's record) or justify it in the PR. A ticket started before
 working documents left git fails here until they are removed: follow `branching.md` → "Tickets started before this
-rule" (their content to the page, the tag `archive/<KEY>-docs`, then `git rm`).
+rule" (their content to the record, the tag `archive/<KEY>-docs`, then `git rm`).
 
 ```bash
 uv run .claude/hooks/check_context_refs.py --changed origin/v9-develop
