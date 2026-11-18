@@ -278,23 +278,53 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     import change_kind as ck
 
     home = _git_common_dir(str(_project_root()))
+    # Branch switches (checkout -b, switch -c) with the checkout each runs in; one applies to every later commit in
+    # the same checkout, also past an intervening commit.
+    switches = [(b.start(), b.group("b"), _workdir_at(command, b, cwd)) for b in GIT_NEW_BRANCH.finditer(command)]
     problems, start = [], 0
     for m in commits:
-        workdir = cwd or str(_project_root())
-        for d in CD.finditer(command[:m.start()]):
-            if UNRESOLVABLE.search(d.group("d")):
-                return " ".join(problems) or None  # cannot tell where this commit runs; fail open from here
-            workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
-        if m.group("C"):
-            workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(m.group("C"))))
-        # The adds and branch switches that lead up to this commit: those since the previous commit.
+        workdir = _workdir_at(command, m, cwd)
+        if workdir is None:
+            return " ".join(problems) or None  # cannot tell where this commit runs; fail open from here
+        # The adds that lead up to this commit: those since the previous commit.
         segment, start = command[start:m.start()], m.end()
-        problems += _commit_problems(ck, m, segment, workdir, home, full)
+        top = _git_toplevel(workdir)
+        branch = None
+        for pos, b, wd in switches:
+            if pos < m.start() and wd is not None and top is not None and _git_toplevel(wd) == top:
+                branch = b
+        problems += _commit_problems(ck, m, segment, workdir, home, full, branch)
     return " ".join(problems) if problems else None
 
 
-def _commit_problems(ck, m, head, workdir, home, full):
-    """Branch-policy violations of one `git commit` (match `m`) run in `workdir`, after the commands in `head`."""
+def _workdir_at(command, match, cwd):
+    """The directory a git command (`match`, with its optional -C) runs in, from the `cd`s before it; None if a `cd`
+    can't be resolved statically."""
+    workdir = cwd or str(_project_root())
+    for d in CD.finditer(command[:match.start()]):
+        if UNRESOLVABLE.search(d.group("d")):
+            return None
+        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
+    if match.group("C"):
+        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(match.group("C"))))
+    return workdir
+
+
+def _git_toplevel(path):
+    """The resolved top-level directory of the checkout at `path`, or None."""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=path, capture_output=True, text=True,
+                           timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out = r.stdout.strip()
+    return os.path.realpath(out) if r.returncode == 0 and out and os.path.isabs(out) else None
+
+
+def _commit_problems(ck, m, head, workdir, home, full, switched=None):
+    """Branch-policy violations of one `git commit` (match `m`) run in `workdir`, after the commands in `head`;
+    `switched` is the branch an earlier `checkout -b`/`switch -c` in the same checkout moved to."""
     # The policy is this repository's: any checkout sharing its git directory (worktrees included). A commit in
     # another repository, such as the tracker, is not checked (owner, 2026-11-18, tracker #3).
     here = _git_common_dir(workdir)
@@ -303,9 +333,7 @@ def _commit_problems(ck, m, head, workdir, home, full):
     if home is not None and here != home:
         return []
 
-    branch = ck.current_branch(workdir)
-    for b in GIT_NEW_BRANCH.finditer(head):
-        branch = b.group("b")
+    branch = switched or ck.current_branch(workdir)
 
     ch = ck.staged_changes(workdir)
     for a in GIT_ADD.finditer(head):

@@ -198,6 +198,10 @@ git -C "$R" checkout -q -b feature/v9-ai-t8-demo v9-develop; stage .claude/skill
 pre "cd $O && git add docs/T1-x/T2-y/record.md && git commit -m record && cd $R && git commit -m skill"; ok $? 0 "T8 a later commit here is checked without the other repository's adds (docs/ would be product)"
 pre "cd $R && git add bbb/pandf.m && git commit -m x"; ok $? 2 "T8 control: the same add in this repository on an AI-layer branch is refused"
 clean
+git -C "$R" checkout -q v9-develop; stage doc/t9.txt
+pre "git checkout -b feature/v9-T9-demo && git commit -m a && git commit --allow-empty -m b"; ok $? 0 "T9 a branch created before two commits applies to both (round 2)"
+pre "git -C $O checkout -b feature/v9-T9-other && git commit -m a"; ok $? 2 "T9 a branch created in another repository doesn't apply here"
+clean
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
