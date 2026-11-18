@@ -25,23 +25,26 @@ Run the helper from the ticket's worktree; `--caller <skill>` names the writer i
 uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N> [...]
 ```
 
-- `create T<N>`: the record from the issue: the Ticket section is the issue body (headings demoted), the header has
+- `create T<N>`: the record from the issue: the Ticket section is the issue body (H1/H2 outside code fences demoted; title and body masked), the header has
   the issue type, the Project's Tier and status `Planned`. Placed under the issue's parent epic (`docs/T<E>-<slug>/`),
   or `docs/no-epic/`. An existing record is left as it is. `spec` calls it when it files a ticket; any skill that finds
   no record calls it first.
 - `publish T<N> [--plan <file> | --rca <file>]`: copy the working copy (default `.claude/work/T<N>/plan.md`) to
-  `plan.md` (or `rca.md`) next to the record, local paths masked; the header cites the publish date and sha256, a
+  `plan.md` (or `rca.md`) next to the record, local paths masked; the header cites the publish date and the sha256 of the published file, a
   Progress entry and a one-line issue comment say so. Run it when the plan is written and each time it is revised.
 - `log T<N> <Section> <text>`: one entry `- <date> (<caller>): <text>` at the end of `Progress`, `Validation`,
-  `Reviews` or `Findings and decisions`.
+  `Reviews` or `Findings and decisions`. Multi-line text (verbatim test output) keeps its first line on the bullet and
+  the rest in a code fence indented under it, so it can never open a section.
 - `progress T<N> <text>`: one line in the epic's `progress.md` (`- <date> T<N> (<caller>): <text>`). A ticket with no
   epic has none; the helper says so.
 - `status T<N> <status> [<note>]`: `Planned`, `Backfilled`, `Planning`, `Plan review`, `Executing`, `Validating`,
   `Implementation review`, `Approved`, `Escalated`, `Committed`. Sets the header and a Progress entry, and the
   Project Status: Planned/Backfilled → To Do; Planning/Executing/Validating/Escalated → In Progress; Plan review/
   Implementation review/Approved → In Review; Committed → Done, and the issue is closed with a comment linking the
-  record. Escalated also comments.
-- `sanitize`: stdin → stdout with local paths masked and secret-like strings refused (exit 1).
+  record. Escalated also comments. (Owner, 2026-11-18; Backfilled and Escalated are the agent's additions: a
+  backfilled ticket hasn't started, an escalated one is still open.) The note is one line in the header.
+- `sanitize [--repo <worktree>] [--max-chars <n>]`: stdin → stdout with local paths masked; secret-like strings, or
+  more than `n` characters, are refused (exit 1). `rca` uses it for an RCA posted on a GitHub issue.
 - **Compatibility until tracker #4 adapts the callers:** `flush`, `queue …` (`--list` prints nothing) and `state …`
   are no-ops, since nothing is queued. `find`, `ticket`, `render`, `verify` and `extract-plan` were retired with the
   Confluence route and exit 2.
@@ -79,14 +82,18 @@ per step.
 
 ## Process
 
-Each write: `git fetch` in the tracker checkout, then a rebase onto the remote, then the file edit, one commit
-(`T<N> <command>: …`) and `git push`. Then the GitHub side (Project Status, comment, close), so a refused write
+Each write holds a lock on the tracker checkout (`<git dir>/ticket-page.lock`) from start to push, so parallel calls
+in one checkout take turns. It checks that the checkout is clean (no uncommitted changes to tracked files) and on its
+default branch, runs `git fetch` and a rebase onto the remote, edits the file, makes one commit of the named paths
+(`T<N> <command>: …`) and pushes. Only then the GitHub side (Project Status, comment, close), so a refused write
 changes nothing on GitHub.
 
 - **Remote unreachable:** the fetch or push fails, the helper says so and exits 0; the commit stays in the tracker
   checkout and the next call pushes it. Removing a worktree loses nothing.
 - **Rebase conflict** (two sessions edited the same lines): the rebase is aborted, nothing is written, exit 2. Resolve
   it in the tracker checkout, then call again. Appends to different sections or files don't conflict.
+- **Dirty checkout or another branch** (a hand edit not committed, a feature branch left checked out): nothing is
+  written, exit 2, and the message names the files or the branch. Commit, discard or switch back, then call again.
 - **Refused text** (exit 1): rewrite it without the secret-like string; the error names only its kind.
 - Header edits (Branch, PR) the helper doesn't set are made by hand in the tracker checkout and committed the same
   way, with a Progress entry saying so.

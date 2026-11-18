@@ -5,22 +5,24 @@
 """
 Helper of the `ticket-page` skill (SKILL.md next to this file): keeps a tracker ticket's record, the issue plus
 `docs/<epic>/T<N>-<slug>/record.md` (and `plan.md` or `rca.md`) in the tracker checkout. Every write is one commit,
-pushed after `git pull --rebase`; there is no queue (owner, 2026-11-18, tracker #2). The tracker is named only in
-`.claude/tracker.toml`.
+pushed after a rebase onto the remote, under a lock on the checkout; there is no queue (owner, 2026-11-18, tracker #2).
+The tracker is named only in `.claude/tracker.toml`.
 
   create   T<N>                          the record (Ticket section from the issue), or the existing one's path
   publish  T<N> [--plan F | --rca F]     plan.md / rca.md next to the record, cited by date and sha256
-  log      T<N> <Section> <text>         one dated entry in an append-only section
+  log      T<N> <Section> <text>         one dated entry in an append-only section (multi-line text is fenced)
   status   T<N> <Status> [note]          header status, Project Status, issue closed on Committed
   progress T<N> <text>                   one line in the epic's progress.md
-  sanitize                               stdin -> stdout: local paths masked, secret-like strings refused
+  sanitize [--max-chars N]               stdin -> stdout: local paths masked, secret-like strings refused
   flush, queue, state                    no-ops (nothing is queued), kept for callers until tracker #4
 Global options (before the command): --caller <skill> (shown in the entry), --repo, --tracker-dir, --date.
 
-Exit codes: 0 ok (a failed push is reported, the commit stays and the next call pushes it); 1 refused (secret-like
-string); 2 could not run (bad key or section, two records, rebase conflict, retired subcommand).
+Exit codes: 0 ok (a failed fetch or push is reported; the commit stays and the next call pushes it); 1 refused
+(secret-like string, over --max-chars); 2 could not run (bad key, section or status, two records, a dirty checkout or
+one on another branch, a rebase conflict, a retired subcommand, any other error).
 """
 import argparse
+import fcntl
 import hashlib
 import json
 import re
@@ -31,6 +33,7 @@ from datetime import date
 from pathlib import Path
 
 SECTIONS = ["Progress", "Validation", "Reviews", "Findings and decisions"]
+# Owner, 2026-11-18 (tracker #2); Backfilled and Escalated are the agent's additions (Escalated: work stays open).
 STATUSES = {"Planned": "To Do", "Backfilled": "To Do", "Planning": "In Progress", "Executing": "In Progress",
             "Validating": "In Progress", "Plan review": "In Review", "Implementation review": "In Review",
             "Approved": "In Review", "Escalated": "In Progress", "Committed": "Done"}
@@ -108,6 +111,10 @@ def clean(text, a):
     return sanitize(text, a.repo)
 
 
+def one_line(text):
+    return " ".join(text.split())
+
+
 def run(cmd, cwd=None, check=True):
     r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if check and r.returncode:
@@ -123,6 +130,27 @@ def slug(title):
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", title.lower())).strip("-")[:40].rstrip("-")
 
 
+def demote(md):
+    """H1/H2 lines outside code fences become H3, so a body never ends a record section."""
+    out, fence = [], None
+    for ln in md.split("\n"):
+        m = re.match(r"^\s*(```+|~~~+)", ln)
+        if m and (fence is None or m.group(1)[0] == fence):
+            fence = m.group(1)[0] if fence is None else None
+        out.append(ln if fence or m else re.sub(r"^#{1,2}(\s)", r"###\1", ln))
+    return "\n".join(out)
+
+
+def entry(today, caller, text):
+    """`- <date> (<caller>): <first line>`; further lines go into an indented code fence (never a heading)."""
+    first, *rest = text.strip("\n").split("\n")
+    out = f"- {today} ({caller}): {first}"
+    if rest:
+        fence = "`" * max(3, 1 + max((len(x) for x in re.findall(r"`+", text)), default=0))
+        out += "\n" + "\n".join("  " + ln for ln in [fence + "text", *rest, fence])
+    return out
+
+
 class Tracker:
     def __init__(self, a):
         common = Path(run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=a.repo)
@@ -134,6 +162,9 @@ class Tracker:
         if not self.dir.exists():
             run(["gh", "repo", "clone", self.slug, str(self.dir)])
         self.today = a.date or date.today().isoformat()
+        self.lock = open(Path(run(["git", "rev-parse", "--absolute-git-dir"], cwd=self.dir).stdout.strip())
+                         / "ticket-page.lock", "w")
+        fcntl.flock(self.lock, fcntl.LOCK_EX)  # one write at a time in this checkout, from fetch to push
 
     def issue(self, n):
         q = ("query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){title body "
@@ -153,8 +184,16 @@ class Tracker:
         return hits[0] if hits else None
 
     def pull(self):
-        """`git pull --rebase` in two steps: unreachable remote -> write locally (the next call pushes); a rebase
-        conflict -> write nothing."""
+        """Checks, then `git pull --rebase` in two steps: an unreachable remote -> write locally (the next call
+        pushes); a rebase conflict -> write nothing."""
+        dirty = run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=self.dir).stdout.strip()
+        if dirty:
+            die(f"the tracker checkout has uncommitted changes; nothing written (commit or discard them):\n{dirty}")
+        head = run(["git", "symbolic-ref", "--short", "-q", "HEAD"], cwd=self.dir, check=False).stdout.strip()
+        main = run(["git", "symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"], cwd=self.dir,
+                   check=False).stdout.strip().removeprefix("origin/") or "main"
+        if head != main:
+            die(f"the tracker checkout is on '{head or 'a detached HEAD'}', not '{main}'; records go to '{main}'")
         fetch = run(["git", "fetch", "-q"], cwd=self.dir, check=False)
         if fetch.returncode:
             print(f"ticket_page: fetch failed, writing locally (pushed on the next call): {fetch.stderr.strip()}")
@@ -164,8 +203,9 @@ class Tracker:
             die("rebase onto the tracker's remote failed; nothing written (resolve it in the tracker checkout)")
 
     def commit(self, paths, message):
-        run(["git", "add", *[str(p) for p in paths]], cwd=self.dir)
-        run(["git", "commit", "-q", "-m", message], cwd=self.dir)
+        paths = [str(p) for p in paths]
+        run(["git", "add", "--", *paths], cwd=self.dir)
+        run(["git", "commit", "-q", "-m", message, "--", *paths], cwd=self.dir)
         sha = run(["git", "rev-parse", "--short", "HEAD"], cwd=self.dir).stdout.strip()
         push = run(["git", "push", "-q"], cwd=self.dir, check=False)
         if push.returncode:
@@ -177,8 +217,9 @@ class Tracker:
             print(f"ticket_page: the issue is not on Project {self.project}; Project Status not set")
             return
         fields = json.loads(gh("project", "field-list", str(self.project), "--owner", self.owner, "--format", "json"))
-        f = next(f for f in fields["fields"] if f["name"] == "Status")
-        opt = next(o["id"] for o in f["options"] if o["name"] == STATUSES[status])
+        f = next((f for f in fields["fields"] if f["name"] == "Status"), None) or die("the Project has no Status")
+        opt = next((o["id"] for o in f["options"] if o["name"] == STATUSES[status]), None) \
+            or die(f"the Project's Status has no option '{STATUSES[status]}'")
         pid = json.loads(gh("project", "view", str(self.project), "--owner", self.owner, "--format", "json"))["id"]
         gh("project", "item-edit", "--id", issue["item"]["id"], "--project-id", pid, "--field-id", f["id"],
            "--single-select-option-id", opt)
@@ -192,8 +233,8 @@ def key_number(key):
     return int(m.group(1))
 
 
-def add_entry(text, section, entry):
-    """Append `entry` as the last line of `## section` (before the next `## ` heading, or at the end)."""
+def add_entry(text, section, item):
+    """Append `item` as the last entry of `## section` (before the next `## ` heading, or at the end)."""
     lines = text.rstrip("\n").split("\n")
     if f"## {section}" not in lines:
         die(f"the record has no '## {section}' section")
@@ -201,7 +242,7 @@ def add_entry(text, section, entry):
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
     while end > start + 1 and not lines[end - 1].strip():
         end -= 1
-    new = [entry] if end > start + 1 else ["", entry]
+    new = [item] if end > start + 1 else ["", item]
     lines[end:end] = new
     if end + len(new) < len(lines) and lines[end + len(new)].startswith("## "):
         lines.insert(end + len(new), "")
@@ -209,7 +250,8 @@ def add_entry(text, section, entry):
 
 
 def set_row(text, row, value):
-    new, n = re.subn(rf"^\| {re.escape(row)} \|.*\|$", f"| {row} | {value} |", text, count=1, flags=re.M)
+    cell = one_line(value).replace("|", "\\|")
+    new, n = re.subn(rf"^\| {re.escape(row)} \|.*\|$", lambda m: f"| {row} | {cell} |", text, count=1, flags=re.M)
     return new if n else die(f"the record has no '{row}' header row")
 
 
@@ -228,6 +270,7 @@ def cmd_create(a, t, n):
         print(f"ticket_page: record exists: {rec.relative_to(t.dir)}")
         return
     issue = t.issue(n)
+    title = one_line(clean(issue["title"], a))
     if issue["parent"]:
         e = issue["parent"]
         epic = next(iter(sorted(t.dir.glob(f"docs/T{e['number']}-*/"))), None) \
@@ -235,18 +278,17 @@ def cmd_create(a, t, n):
         epic_cell = f"#{e['number']} `docs/{epic.name}/`"
     else:
         epic, epic_cell = t.dir / "docs" / "no-epic", "none"
-    rec = epic / f"T{n}-{slug(issue['title'])}" / "record.md"
+    rec = epic / f"T{n}-{slug(title)}" / "record.md"
     tier = ((issue["item"] or {}).get("tier") or {}).get("name", "")
     kind = (issue["issueType"] or {}).get("name", "")
-    body = re.sub(r"^#{1,2}(\s)", r"###\1", clean(issue["body"] or "", a), flags=re.M)
     rows = [("Issue", f"#{n}"), ("Epic", epic_cell), ("Type / tier", f"{kind} / {tier}"), ("Branch", ""), ("PR", ""),
             ("Status", "Planned"), ("Plan", "not written yet"), ("Last update", t.today)]
-    text = (f"# T{n}: {issue['title']}\n\n| | |\n|---|---|\n" + "".join(f"| {k} | {v} |\n" for k, v in rows)
+    text = (f"# T{n}: {title}\n\n| | |\n|---|---|\n" + "".join(f"| {k} | {v} |\n" for k, v in rows)
             + "\n_Records are written by agents through the owner's account; attribution follows the README._\n\n"
-            + f"## Ticket\n\n{body.strip()}\n\nSource: issue #{n} as filed ({t.today}).\n\n"
-            + "".join(f"## {s}\n\n" for s in SECTIONS))
+            + f"## Ticket\n\n{demote(clean(issue['body'] or '', a)).strip()}\n\nSource: issue #{n} as filed "
+            + f"({t.today}).\n\n" + "".join(f"## {s}\n\n" for s in SECTIONS))
     rec.parent.mkdir(parents=True, exist_ok=True)
-    write_record(t, rec, add_entry(text, "Progress", f"- {t.today} ({a.caller}): record created."), f"T{n} create")
+    write_record(t, rec, add_entry(text, "Progress", entry(t.today, a.caller, "record created.")), f"T{n} create")
     print(f"ticket_page: record created: {rec.relative_to(t.dir)}")
 
 
@@ -254,12 +296,12 @@ def cmd_publish(a, t, n):
     kind = "rca" if a.rca else "plan"
     src = Path(a.rca or a.plan or Path(a.repo) / ".claude" / "work" / f"T{n}" / "plan.md")
     body = clean(src.read_text(), a)
+    sha = hashlib.sha256(body.encode()).hexdigest()[:12]  # of the published (masked) text
     t.pull()
     rec = need_record(t, n)
-    sha = hashlib.sha256(src.read_bytes()).hexdigest()[:12]
     (rec.parent / f"{kind}.md").write_text(body)
     text = set_row(rec.read_text(), "Plan", f"`{kind}.md`, published {t.today}, sha256 {sha}")
-    text = add_entry(text, "Progress", f"- {t.today} ({a.caller}): {kind} published (sha256 {sha}).")
+    text = add_entry(text, "Progress", entry(t.today, a.caller, f"{kind} published (sha256 {sha})."))
     write_record(t, rec, text, f"T{n} publish: {kind}", [rec.parent / f"{kind}.md"])
     path = f"{rec.parent.relative_to(t.dir)}/{kind}.md"
     gh("issue", "comment", str(n), "-R", t.slug, "--body",
@@ -270,21 +312,21 @@ def cmd_publish(a, t, n):
 def cmd_log(a, t, n):
     if a.section not in SECTIONS:
         die(f"unknown section '{a.section}'; one of: {', '.join(SECTIONS)}")
-    entry = f"- {t.today} ({a.caller}): {clean(' '.join(a.text), a)}"
+    item = entry(t.today, a.caller, clean(" ".join(a.text), a))
     t.pull()
     rec = need_record(t, n)
-    sha = write_record(t, rec, add_entry(rec.read_text(), a.section, entry), f"T{n} log: {a.section}")
+    sha = write_record(t, rec, add_entry(rec.read_text(), a.section, item), f"T{n} log: {a.section}")
     print(f"ticket_page: {a.section} entry added ({sha})")
 
 
 def cmd_status(a, t, n):
     if a.status not in STATUSES:
         die(f"unknown status '{a.status}'; one of: {', '.join(STATUSES)}")
-    note = clean(" ".join(a.note), a)
+    note = one_line(clean(" ".join(a.note), a))
     t.pull()
     rec = need_record(t, n)
     text = set_row(rec.read_text(), "Status", a.status + (f" ({note})" if note else ""))
-    text = add_entry(text, "Progress", f"- {t.today} ({a.caller}): status {a.status}" + (f": {note}" if note else ""))
+    text = add_entry(text, "Progress", entry(t.today, a.caller, f"status {a.status}" + (f": {note}" if note else "")))
     sha = write_record(t, rec, text, f"T{n} status: {a.status}")
     t.set_status(t.issue(n), a.status)
     what = f"{a.status}{': ' + note if note else ''}. Record: `{rec.relative_to(t.dir)}`. {AGENT}"
@@ -296,6 +338,7 @@ def cmd_status(a, t, n):
 
 
 def cmd_progress(a, t, n):
+    line = f"- {t.today} T{n} ({a.caller}): {one_line(clean(' '.join(a.text), a))}"
     t.pull()
     rec = need_record(t, n)
     if rec.parent.parent.name == "no-epic":
@@ -303,15 +346,16 @@ def cmd_progress(a, t, n):
         return
     log = rec.parent.parent / "progress.md"
     old = log.read_text() if log.exists() else f"# {rec.parent.parent.name}: progress\n\n"
-    log.write_text(old.rstrip("\n") + f"\n- {t.today} T{n} ({a.caller}): {clean(' '.join(a.text), a)}\n")
+    log.write_text(old.rstrip("\n") + f"\n{line}\n")
     print(f"ticket_page: epic progress line added ({t.commit([log], f'T{n} progress')})")
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] in ("flush", "queue", "state"):
+    argv = sys.argv[1:]
+    if argv and argv[0] in ("flush", "queue", "state"):
         return  # nothing is queued: every call is already a commit (owner, 2026-11-18, tracker #2)
-    if len(sys.argv) > 1 and sys.argv[1] in RETIRED:
-        die(f"'{sys.argv[1]}' was retired with the Confluence route (tracker #2): see ticket-page SKILL.md")
+    if argv and (argv[0] in RETIRED or (argv[0] == "progress" and "--new" in argv)):
+        die(f"'{' '.join(argv[:2])}' was retired with the Confluence route (tracker #2): see ticket-page SKILL.md")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", default=".", help="the UEDGE checkout (worktree) the call comes from")
     ap.add_argument("--tracker-dir", help="the tracker checkout (default: next to the main checkout)")
@@ -333,14 +377,23 @@ def main():
             p.add_argument("note", nargs="*")
         elif name == "progress":
             p.add_argument("text", nargs="+")
-    sub.add_parser("sanitize")
+    p = sub.add_parser("sanitize")
+    p.add_argument("--repo", default=argparse.SUPPRESS)  # callers pass it after the command (rca)
+    p.add_argument("--max-chars", type=int)
     a = ap.parse_args()
     if a.cmd == "sanitize":
         text = sys.stdin.read()
         refuse_secrets(text, "stdin")
-        sys.stdout.write(sanitize(text, a.repo))
+        out = sanitize(text, a.repo)
+        if a.max_chars and len(out) > a.max_chars:
+            die(f"{len(out)} chars is over the cap of {a.max_chars}; summarise", 1)
+        sys.stdout.write(out)
         return
-    globals()[f"cmd_{a.cmd}"](a, Tracker(a), key_number(a.key))
+    n = key_number(a.key)
+    try:
+        globals()[f"cmd_{a.cmd}"](a, Tracker(a), n)
+    except (OSError, KeyError, ValueError, json.JSONDecodeError) as e:
+        die(f"{type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":

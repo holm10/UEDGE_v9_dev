@@ -156,21 +156,18 @@ path is relative to the current directory, and from inside a ticket worktree `..
 - **Ticket work always runs in an explicit worktree** (`git worktree add … ../uedge-wt/<KEY>`, above), also when a
   subagent does it. Never use the Agent tool's `isolation: "worktree"` for ticket work: Claude Code removes such a
   worktree by itself when the subagent finishes without committed changes, and sweeps old ones later, and gitignored
-  working documents don't stop either. The working folder and the unsent `ticket-page` entries would go with it.
-  Give the subagent the worktree path instead. A subagent doing ticket work flushes the ticket page and checks that
-  `queue --list` (and `queue --epic --list`) prints nothing before it returns; if a flush fails, it says so with the
-  worktree path, and the caller flushes later.
-- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`. **Flush first**: the working
-  folder `.claude/work/<KEY>/` and the `ticket-page` outbox go with the worktree, so run `ticket-page <KEY> flush`
-  and check that nothing is queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list` prints nothing).
-  Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
+  working documents don't stop either. The working folder would go with it. Give the subagent the worktree path
+  instead. (`ticket-page` writes go straight to the tracker checkout, outside the worktree, so nothing is left to
+  flush; a subagent reports any `push failed` line it saw, and the next `ticket-page` call pushes the commit.)
+- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/T12`. The working folder
+  `.claude/work/<KEY>/` goes with the worktree, so what must outlive it is in the record first. Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
   as `plan-feature` → `execute` (not `end-to-end-feature`) runs `execution-report` and `system-review` before its
   worktree is removed, while `.claude/work/<KEY>/` still holds the plan; for an S ticket only when the run diverged
   (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
-  For a Jira ticket, after the PR merges: `ticket-page <KEY> status Committed` with the merge sha, then transition
-  the ticket to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`), then flush and remove. The owner's
-  merge is the confirmation, so a ticket's Done needs no extra question, unlike `close-epic`'s for an epic, which
-  never transitions the children itself (AIUE-201; `plan-feature` Phase 6 moves it to In Progress).
+  For a tracker ticket, after the PR merges: `ticket-page T<N> status Committed <merge sha>` (Project Status Done,
+  issue closed), then remove the worktree. The owner's merge is the confirmation, so a ticket's Done needs no extra
+  question, unlike `close-epic`'s for an epic, which never closes the children itself (AIUE-201; `plan-feature`
+  Phase 6 moves it to In Progress).
 
 ## Improving the AI layer while doing ticket work
 
