@@ -26,8 +26,11 @@ case "$1 $2" in
   "project view") echo '{"id":"PVT_test"}' ;;
   "issue list") cat "$GH_DIR/list.json" 2>/dev/null || echo '[]' ;;
   "issue create") python3 -I "$GH_DIR/create.py" "$GH_DIR" "$@" ;;
-  "project item-add") echo "ITEM-ADDED" ;;
-  "project item-list") echo '{"items":[]}' ;;
+  "project item-add") # issue 22 was added by the Project itself in the meantime (a race seen on the real import)
+    case "$*" in *issues/22\ *) echo '{"items":[{"id":"ITEM-AUTO22","content":{"number":22,"repository":"acme/tracker"}}]}' > "$GH_DIR/items.json"
+      echo "GraphQL: Content already exists in this project (addProjectV2ItemById)" >&2; exit 1 ;; esac
+    echo "ITEM-ADDED" ;;
+  "project item-list") cat "$GH_DIR/items.json" 2>/dev/null || echo '{"items":[]}' ;;
   "api repos/"*) echo '[]' ;;
 esac
 EOF
@@ -204,6 +207,7 @@ R21=$(ls "$ED"/T21-*/record.md 2>/dev/null)
 grep -q '^| Status | Backfilled (Ticket section: imported from Jira J-3' "$R21" && grep -q 'Owner (Jira J-3 comment 31, 2026-01-01; quoted in the Ticket section): Owner, 2026-01-01: do option 1.' "$R21" \
   && ls "$ED"/T22-*/record.md >/dev/null 2>&1; ok $? 0 "J5 records under the epic: Backfilled, the owner comment in Findings"
 [ "$(grep -c 'issue edit 22 -R acme/tracker --add-blocked-by 21' "$GH_LOG")" = 1 ]; ok $? 0 "J6 blocked-by between imported tickets, set once"
+grep -q 'item-edit --id ITEM-AUTO22 .*F_JIRA --text J-2' "$GH_LOG"; ok $? 0 "J6 an item the Project added itself: found by the item list, fields set on it"
 n=$(heads); JI --snapshot "$W/j/snap.json" --out "$W/j/m.json" >"$W/j/o3" 2>&1; e=$?
 ok "$e:$(heads):$(grep -c 'issue create' "$GH_LOG")" "0:$n:3" "J7 a re-run: no create, no commit"
 snap 'Third.' 3 > "$W/j/bad.json"; n=$(heads)

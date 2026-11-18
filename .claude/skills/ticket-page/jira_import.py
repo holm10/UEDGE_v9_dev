@@ -23,6 +23,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -174,9 +175,32 @@ def main():
     for name in ("Status", "Tier", "Jira key"):
         fields.get(name) or die(f"the Project has no '{name}' field")
     pid = json.loads(tp.gh("project", "view", str(t.project), "--owner", t.owner, "--format", "json"))["id"]
-    items = {it["content"]["number"]: it for it in json.loads(tp.gh(
-        "project", "item-list", str(t.project), "--owner", t.owner, "--format", "json", "--limit", "1000"))["items"]
-        if (it.get("content") or {}).get("repository") == t.slug and "number" in it["content"]}
+    def item_list():
+        return {it["content"]["number"]: it for it in json.loads(tp.gh(
+            "project", "item-list", str(t.project), "--owner", t.owner, "--format", "json", "--limit", "1000"))["items"]
+            if (it.get("content") or {}).get("repository") == t.slug and "number" in it["content"]}
+    items = item_list()
+
+    def item_for(n, url):
+        """The issue's Project item. The Project may add a new issue itself between the create and the item-add,
+        which then fails with "already exists" (seen on the AIUE-299 import): read the item list again."""
+        if n in items:
+            return items[n]
+        if r.dry:
+            r.gh("project", "item-add", str(t.project), "--owner", t.owner, "--url", url)
+            return {"id": f"ITEM-{n}"}
+        res = tp.run(["gh", "project", "item-add", str(t.project), "--owner", t.owner, "--url", url, "--format",
+                      "json", "--jq", ".id"], check=False)
+        if res.returncode == 0:
+            return {"id": res.stdout.strip()}
+        if "already exists" not in res.stderr:
+            die(f"gh project item-add failed: {res.stderr.strip()}")
+        for _ in range(5):  # the item list can lag behind the Project's own add by seconds (#20 on AIUE-299)
+            items.update(item_list())
+            if n in items:
+                return items[n]
+            time.sleep(2)
+        die(f"#{n}: item-add says it is on the Project, but the item list still lacks it; re-run in a minute")
 
     def opt(field, name):
         return next((o["id"] for o in fields[field]["options"] if o["name"] == name), None) \
@@ -201,11 +225,7 @@ def main():
             url = r.gh(*args).strip().split("\n")[-1] or f"#new-{r.new}"
             n, created = (int(url.rstrip("/").rsplit("/", 1)[1]) if not r.dry else f"new-{r.new}"), True
         num[k] = n
-        item = items.get(n)
-        if not item:
-            iid = r.gh("project", "item-add", str(t.project), "--owner", t.owner, "--url", url, "--format", "json",
-                       "--jq", ".id").strip() or f"ITEM-{n}"
-            item = {"id": iid}
+        item = item_for(n, url)
         if not item.get("status"):
             edit(item["id"], "Status", single_select_option_id=opt("Status", "To Do"))
         if i is not epic and tier(i) and not item.get("tier"):
