@@ -202,6 +202,17 @@ git -C "$R" checkout -q v9-develop; stage doc/t9.txt
 pre "git checkout -b feature/v9-T9-demo && git commit -m a && git commit --allow-empty -m b"; ok $? 0 "T9 a branch created before two commits applies to both (round 2)"
 pre "git -C $O checkout -b feature/v9-T9-other && git commit -m a"; ok $? 2 "T9 a branch created in another repository doesn't apply here"
 clean
+# T10: a newline separates commands like ; and && do, so a cd on a later line moves the commits after it (tracker #8).
+git -C "$R" checkout -q v9-develop; stage doc/t10.txt
+pre $'git status\ncd '"$O"$' && git commit -m record'; ok $? 0 "T10 a second line that cds into another repository and commits: not checked"
+pre $'cd '"$O"$' && git commit -m record\ncd '"$R"$' && git commit -m x'; ok $? 2 "T10 another repository first, then a later line back here on v9-develop: blocked"
+grep -q "protected" "$W/err.txt"; ok $? 0 "T10 the reason names the protected branch"
+pre $'cd '"$R"$' && cat <<\'EOF\' > /dev/null\nbody\nEOF\ncd '"$O"$' && git commit -m record'; ok $? 0 "T10 a cd on the line after a here-document applies (the tracker #2 incident)"
+pre $'cd '"$O"$' && cat <<EOF > /dev/null\ncd '"$R"$'\nEOF\ngit commit -m x'; ok $? 0 "T10 a cd inside a here-document body is text, not a command"
+pre $'cd '"$O"$'\n  cd '"$R"$'\ngit commit -m x'; ok $? 2 "T10 an indented cd on a later line applies"
+pre $'cd '"$O"$' && \\\n  cd '"$R"$' && git commit -m x'; ok $? 2 "T10 a cd continued onto the next line with a backslash applies"
+pre $'cd '"$O"$' && echo a \\\ncd '"$R"$'\ngit commit -m x'; ok $? 0 "T10 a backslash-continued 'cd' is an argument of the line before, not a command"
+clean
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
