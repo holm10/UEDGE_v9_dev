@@ -58,12 +58,11 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
 - **Physics specs stay in the repo.** `docs/physics_specs/<feature>.md` is product documentation: the approved spec
   is committed on the ticket branch with the physics change it specifies (`CLAUDE.md` → Hard rules,
   `physics-workflow.md`). Its review reports are working documents like any other.
-- **Robustness.** Confluence or Jira being down never blocks code work: the working files and the `ticket-page`
-  outbox and sent log (in the worktree's git directory) keep the record until the next flush. **Both are lost when the
-  worktree is removed** (`git worktree remove`), so flush the ticket page (`ticket-page <KEY> flush`, and
-  `queue --list` empty) before removing a worktree; anything not on the page by then is gone. For the same reason
-  ticket work never runs in a worktree that something else can remove (see Worktrees), and a subagent doing ticket
-  work flushes and checks that `queue --list` is empty before it returns.
+- **Robustness.** A tracker ticket's record has nothing queued: each `ticket-page` call is a commit in the tracker
+  checkout, which sits outside every worktree, and a failed push is retried on the next call (tracker #2). The
+  working folder `.claude/work/<KEY>/` is lost with the worktree (`git worktree remove`), so whatever must outlive it
+  is in the record or `../uedge-wt/data/<KEY>/` first. For the same reason ticket work never runs in a worktree that
+  something else can remove (see Worktrees). (A `flush` or `queue --list` that a skill still runs is a no-op.)
 - **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
   any branch, pointing to the ticket page. The hook applies the branch policy to commits in this repository only
   (any checkout sharing its git directory, worktrees included); a commit in another repository is not checked.
@@ -93,9 +92,9 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   above) covers this repository only, so it doesn't check commits in the tracker (owner, 2026-11-18, tracker #3).
 - `.claude/work/<KEY>/` stays the local, untracked scratch folder for probes, drafts and raw data. Its lasting content
   goes to the record (owner, 2026-11-18, tracker #3).
-- Until `ticket-page` is ported to the tracker (tracker #2) and the skills follow (#4), the skills keep the records of
-  Jira tickets on Confluence and Jira as described above, and a `T<N>` record is written with git by hand. Jira
-  tickets already In Progress finish in Jira.
+- `ticket-page` writes `T<N>` records (tracker #2); its Confluence/Jira route is retired. Skills whose steps still
+  describe Confluence pages are adapted in tracker #4; until then their `ticket-page` calls go to the tracker record.
+  Jira tickets already In Progress finish in Jira, with their `PIV record` comments written by hand.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
