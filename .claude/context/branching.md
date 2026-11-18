@@ -80,6 +80,15 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
      documents are archived in tag archive/<KEY>-docs" --flush`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
   4. `git rm` them in one commit ("Removes the <KEY> working documents from git"; deletions are allowed).
 
+**The GitHub tracker (being built; AIUE-287).**
+- The owner decided to move ticket tracking and the records above to a private GitHub tracker repo. Its issues will
+  hold tickets and its `docs/` directory the records.
+- `.claude/tracker.toml` is the only place in this repo that names the tracker (owner, repo, Project number). Nothing
+  else hard-codes them.
+- Its ticket key will be `T<N>` (the issue number), with branches `feature/v9-T<N>-<slug>`.
+- Until the tracker's build-out epic is done, Jira and Confluence remain the record as described above. Jira tickets
+  already In Progress finish there.
+
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
 `mppl-fortran.md` wrong), the matching AI-layer edit ships **with that ticket**, so the docs and the code

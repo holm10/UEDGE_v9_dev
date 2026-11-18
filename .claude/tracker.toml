@@ -1,0 +1,8 @@
+# The private ticket tracker (AIUE-287). This is the only place in this repo that names it: skills, hooks and scripts
+# read the owner, repo and Project number from here and hard-code none of them. Moving the tracker to another
+# organisation (a repo transfer plus `gh project copy`) changes only this file. Ticket keys are `T<N>`, the tracker's
+# issue number, which a transfer keeps. The local checkout sits next to `uedge-wt/`: `<parent of uedge-wt>/<repo>`.
+[tracker]
+owner = "uedge-sandbox"
+repo = "uedge-tracker"
+project = 1
