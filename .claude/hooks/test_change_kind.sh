@@ -190,6 +190,13 @@ grep -q "protected" "$W/err.txt"; ok $? 0 "T5 the reason names the protected bra
 git -C "$R" worktree remove --force "$W/wt"; git -C "$R" branch -q -D develop
 git -C "$R" checkout -q v9-develop; stage doc/t6.txt
 pre "git commit -m x"; ok $? 2 "T6 this repository on v9-develop: still blocked"
+pre "cd $O && git commit -m record && cd $R && git commit -m x"; ok $? 2 "T7 another repository's commit first, then this repository on v9-develop: blocked (every commit is checked)"
+grep -q "protected" "$W/err.txt"; ok $? 0 "T7 the reason names the protected branch"
+pre "git -C $O commit -m record; git commit -m x"; ok $? 2 "T7 the same with git -C: blocked"
+clean
+git -C "$R" checkout -q -b feature/v9-ai-t8-demo v9-develop; stage .claude/skills/x/SKILL.md
+pre "cd $O && git add docs/T1-x/T2-y/record.md && git commit -m record && cd $R && git commit -m skill"; ok $? 0 "T8 a later commit here is checked without the other repository's adds (docs/ would be product)"
+pre "cd $R && git add bbb/pandf.m && git commit -m x"; ok $? 2 "T8 control: the same add in this repository on an AI-layer branch is refused"
 clean
 
 echo "RESULT: $PASS passed, $FAIL failed"

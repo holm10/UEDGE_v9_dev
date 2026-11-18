@@ -19,13 +19,13 @@ Three guarantees ship here:
      repo, or any target that can't be resolved statically ($VARS, `cmd`,
      xargs, find -exec), is blocked.
 
-  3. A `git commit` in this repository (any checkout sharing its git directory, worktrees
+  3. Every `git commit` in this repository (any checkout sharing its git directory, worktrees
      included) must respect the branch policy (`.claude/context/branching.md`, checked by
-     `change_kind.py`); a commit in another repository, such as the tracker, is not checked:
-     nothing on protected branches, no ticket or epic working
+     `change_kind.py`): nothing on protected branches, no ticket or epic working
      documents on any branch (they live in the gitignored `.claude/work/` and on Confluence),
      no product files on AI-layer branches, no AI-layer process files on ticket branches
-     unless the message carries the `AI-layer: code-facts` trailer.
+     unless the message carries the `AI-layer: code-facts` trailer. A commit in another
+     repository, such as the tracker, is not checked.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
 exits 0, so a bug in this script can never brick your session.
@@ -257,38 +257,51 @@ def _git_common_dir(path):
                            capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
-    return os.path.realpath(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else None
+    out = r.stdout.strip()
+    # git < 2.31 doesn't know --path-format and prints a relative path: treat that as unknown, not as another repo.
+    if r.returncode != 0 or not out or "\n" in out or not os.path.isabs(out):
+        return None
+    return os.path.realpath(out)
 
 
 def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
-    """Reason string if a `git commit` would break the branch policy (.claude/context/branching.md)."""
+    """Reason string if a `git commit` would break the branch policy (.claude/context/branching.md).
+    Every `git commit` in the command is checked, each in the directory it runs in."""
     if tool_name != "Bash":
         return None
     full = tool_input.get("command", "")
     command = strip_heredocs(full)
-    m = GIT_COMMIT.search(command)
-    if not m:
+    commits = list(GIT_COMMIT.finditer(command))
+    if not commits:
         return None
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import change_kind as ck
 
-    head = command[:m.start()]
-    workdir = cwd or str(_project_root())
-    for d in CD.finditer(head):
-        if UNRESOLVABLE.search(d.group("d")):
-            return None  # cannot tell where the commit runs; fail open
-        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
-    if m.group("C"):
-        workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(m.group("C"))))
+    home = _git_common_dir(str(_project_root()))
+    problems, start = [], 0
+    for m in commits:
+        workdir = cwd or str(_project_root())
+        for d in CD.finditer(command[:m.start()]):
+            if UNRESOLVABLE.search(d.group("d")):
+                return " ".join(problems) or None  # cannot tell where this commit runs; fail open from here
+            workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
+        if m.group("C"):
+            workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(m.group("C"))))
+        # The adds and branch switches that lead up to this commit: those since the previous commit.
+        segment, start = command[start:m.start()], m.end()
+        problems += _commit_problems(ck, m, segment, workdir, home, full)
+    return " ".join(problems) if problems else None
 
+
+def _commit_problems(ck, m, head, workdir, home, full):
+    """Branch-policy violations of one `git commit` (match `m`) run in `workdir`, after the commands in `head`."""
     # The policy is this repository's: any checkout sharing its git directory (worktrees included). A commit in
     # another repository, such as the tracker, is not checked (owner, 2026-11-18, tracker #3).
     here = _git_common_dir(workdir)
     if here is None:
-        return None  # not a git repository (yet): git commit fails by itself
-    home = _git_common_dir(str(_project_root()))
+        return []  # not a git repository yet (e.g. a directory the same command creates): fail open
     if home is not None and here != home:
-        return None
+        return []
 
     branch = ck.current_branch(workdir)
     for b in GIT_NEW_BRANCH.finditer(head):
@@ -314,8 +327,7 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
                                      for x in commit_args if not x.startswith("-m")):
         ch.add(ck.modified_tracked_changes(workdir))
 
-    problems = ck.violations(branch, ch.paths, full, ch.deleted, ch.renamed)
-    return " ".join(problems) if problems else None
+    return ck.violations(branch, ch.paths, full, ch.deleted, ch.renamed)
 
 
 def main() -> None:
