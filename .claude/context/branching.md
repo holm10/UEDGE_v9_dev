@@ -93,7 +93,8 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
 - `.claude/work/<KEY>/` stays the local, untracked scratch folder for probes, drafts and raw data. Its lasting content
   goes to the record (owner, 2026-11-18, tracker #3).
 - `ticket-page` writes `T<N>` records (tracker #2); its Confluence/Jira route is retired. Skills whose steps still
-  describe Confluence pages are adapted in tracker #4; until then their `ticket-page` calls go to the tracker record.
+  describe Confluence pages are being adapted: the ticket-level skills in tracker #4 (done), `spec`, `create-prd` and
+  `close-epic` in #9; until #9 lands, those three still describe Confluence epic pages.
   Jira tickets already In Progress finish in Jira, with their `PIV record` comments written by hand.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
