@@ -1,25 +1,28 @@
 ---
 name: prime
-description: Primes the agent with UEDGE project context — CLAUDE.md, the relevant .claude/context modules, current branch state, and (optionally) Jira/Confluence task context. Use at the start of a session or before planning or implementing.
-argument-hint: [task description | jira-issue-keys] [confluence-page-ids]
+description: Primes the agent with UEDGE project context — CLAUDE.md, the relevant .claude/context modules, current branch state, and (optionally) a tracker ticket's context (issue and record). Use at the start of a session or before planning or implementing.
+argument-hint: [task description | tracker keys T<N>]
 ---
 
 # Prime: Load UEDGE Context
 
 ## Step 0: External task context (optional)
 
-Only if Jira keys (e.g. `UEDGE-12`, comma-separated) or numeric Confluence page ids are passed **and** the
-Atlassian MCP server is connected:
+If `.claude/work/<KEY>/handoff.md` exists in the worktree, read it first: it is the state the last agent left (what
+works, open items, how to verify), the starting point for a fresh fixer or session.
 
-1. `mcp__atlassian__getAccessibleAtlassianResources` → `cloudId`.
-2. Each Jira key: `mcp__atlassian__getJiraIssue` (`responseContentFormat: "markdown"`).
-3. Each page id: `mcp__atlassian__getConfluencePage` (`contentFormat: "markdown"`).
+Only if tracker keys `T<N>` (comma-separated) are passed, for each one:
 
-If a Jira issue has a ticket page (a `Ticket page:` comment, or `Plan page:` on older tickets, with its Confluence
-page id), read the page too: its Ticket section is the scope as filed by `spec`, and its log sections record the
-ticket's progress, validation, reviews and decisions so far (`ticket-page` skill). A ticket under an epic without a
-PRD page keeps the same record as `PIV record` Jira comments.
-Summarise the goal and acceptance criteria. If the server is not connected, say so and continue.
+1. `gh issue view <N> -R <owner>/<repo> --comments`, with owner and repo from `.claude/tracker.toml` (the issue: title,
+   type, parent epic, and the comments that carry handovers and owner decisions).
+2. In the tracker checkout (`<parent of the main checkout>/<repo>`; `ticket-page` → Configuration), read
+   `docs/*/T<N>-*/record.md` and the `plan.md` (or `rca.md`) next to it. The record's `## Ticket` section is the scope
+   as filed by `spec`; its log sections record the ticket's progress, validation, reviews and decisions so far
+   (`ticket-page` skill).
+
+Summarise the goal and acceptance criteria. If `gh` or the checkout is missing, say so and continue.
+Jira keys (`AIUE-<n>`) and Confluence page ids belong to the read-only archive: read them only if the Atlassian MCP
+happens to be connected, and say that they are the archive, not the ticket's record.
 If the argument is a plain task description, use it as the task context instead.
 
 ## Step 1: Global rules
@@ -49,10 +52,8 @@ git log --oneline v9-develop..HEAD
 
 Also list open work products: physics specs (`docs/physics_specs/`, committed) and the local working folder
 (`ls .claude/work/`: plans, reviews, RCAs and other working documents in progress; gitignored, so `git status` doesn't
-show them). For a ticket worktree, check the `ticket-page` outbox (`uv run
-.claude/skills/ticket-page/ticket_page.py queue --repo . --key <KEY> --list`): queued entries are not on the page yet
-and must be flushed before the worktree is removed. If `.claude/work/<KEY>/handoff.md` exists, read it first: it is the
-state the last agent left (what works, open items, how to verify), the starting point for a fresh fixer or session.
+show them). For a ticket worktree, check the tracker checkout with `git -C <tracker checkout> status -sb`: "ahead"
+means record commits not yet pushed, which the next `ticket-page` call pushes. The handoff note was read in Step 0.
 
 Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
 (`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and report any
@@ -62,13 +63,13 @@ violations (the wrong kind of change on this branch).
 
 Keep it short and scannable:
 
-- **Task context** — goal, acceptance criteria, source (Jira/Confluence/description), or "none given".
+- **Task context** — goal, acceptance criteria, source (tracker issue / record / description), or "none given".
 - **Relevant area** — packages, files, routines, `.v` groups, with `file:line`.
 - **Rules that bite here** — the specific hard rules / gotchas / context-module points that apply
   (e.g. threadprivate, refactor-vs-physics defaults, MPPL hazards), including each `uedge-gotchas.md` trap the task
   can hit.
 - **Branch state** — branch and its kind (protected / AI layer / ticket), ahead of `v9-develop` by N, uncommitted
-  changes, worktrees, open specs and working documents, queued ticket-page entries, branch-policy violations. If the
+  changes, worktrees, open specs and working documents, unpushed tracker commits, branch-policy violations. If the
   task doesn't match the branch kind
   (product work on an AI-layer branch or the reverse), say which branch and worktree to switch to.
 - **Suggested next step** — `plan-feature`, the physics pipeline, `rca`, or a direct small change.
