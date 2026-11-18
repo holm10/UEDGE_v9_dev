@@ -21,6 +21,7 @@ import argparse
 import fcntl
 import json
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -33,6 +34,9 @@ import ticket_page as tp  # noqa: E402
 HELPER = Path(__file__).resolve().parent / "ticket_page.py"
 TYPES = {"Story": "Feature", "Task": "Task", "Bug": "Bug", "Epic": "Epic", "Sub-task": "Task", "Subtask": "Task"}
 FIRST = re.compile(r"_Imported from Jira ([A-Z][A-Z0-9]*-\d+) ")
+TIER = re.compile(r"\bTier[: ]+\**([SML])\b(?!\s*(?:or|/|-)\s*[SML]\b)")  # "Tier M or L", "Tier S/M": no tier
+OWNER = re.compile(r"[\s*_]*Owner(?:[,:]|\s*\(|\s+decisions?\b)")  # not "Owner's ...", "Owner question"
+PIV = re.compile(r"\W*PIV record\b")
 
 
 def die(msg, code=2):
@@ -74,7 +78,7 @@ def ai(i):
 
 def tier(i):
     text = (i["fields"].get("description") or "") + "\n" + "\n".join(c["body"] for c in comments(i))
-    hits = re.findall(r"\bTier[: ]+\**([SML])\b", text)
+    hits = TIER.findall(text)
     return hits[-1] if hits else ""
 
 
@@ -180,6 +184,9 @@ def main():
             "project", "item-list", str(t.project), "--owner", t.owner, "--format", "json", "--limit", "1000"))["items"]
             if (it.get("content") or {}).get("repository") == t.slug and "number" in it["content"]}
     items = item_list()
+    for it in items.values():  # the body's first line may have been edited: the Jira key field also counts
+        if it.get("jira key") and it["jira key"] not in seen:
+            seen[it["jira key"]] = {"number": it["content"]["number"], "url": it["content"].get("url", "")}
 
     def item_for(n, url):
         """The issue's Project item. The Project may add a new issue itself between the create and the item-add,
@@ -248,9 +255,15 @@ def main():
     fcntl.flock(t.lock, fcntl.LOCK_EX)
     if not r.dry:
         t.pull()
-    edir = next(iter(sorted(t.dir.glob(f"docs/T{E}-*/"))), None) or t.dir / "docs" / f"T{E}-{tp.slug(rows[0]['title'])}"
-    if r.dry:
+    found = next(iter(sorted(t.dir.glob(f"docs/T{E}-*/"))), None)
+    edir = found or t.dir / "docs" / f"T{E}-{tp.slug(rows[0]['title'])}"
+    if r.dry:  # the preview starts from the existing documents, so it shows only what would change
         edir = out.parent / "epic"
+        edir.mkdir(parents=True, exist_ok=True)
+        for nm in ("epic.md", "breakdown.md", "progress.md"):
+            (edir / nm).unlink(missing_ok=True)
+            if found and (found / nm).exists():
+                shutil.copy(found / nm, edir / nm)
     edir.mkdir(parents=True, exist_ok=True)
     changed = epic_docs(a, edir, E, rows, others)
     if changed and not r.dry:
@@ -260,19 +273,22 @@ def main():
 
     for row in rows[1:]:  # each ticket's record, through ticket_page.py
         i, n = row["issue"], row["number"]
-        if not r.dry and t.record(n):
-            row["record"] = str(t.record(n).relative_to(t.dir))
-            continue
+        rec = t.record(n)  # a record that exists is completed, not skipped: each missing call is made again
+        text = rec.read_text() if rec else ""
         cs = comments(i)
-        r.helper("create", f"T{n}")
-        r.helper("status", f"T{n}", "Backfilled", f"Ticket section: imported from Jira {row['jira']} on {a.date} "
-                 f"(description and {len(cs)} comments), not as filed; Tier "
-                 + (f"{tier(i)} (stated in the Jira text)" if tier(i) else "not stated, set at plan-feature"))
+        if not rec:
+            r.helper("create", f"T{n}")
+        if f"imported from Jira {row['jira']} on" not in text:
+            r.helper("status", f"T{n}", "Backfilled", f"Ticket section: imported from Jira {row['jira']} on {a.date} "
+                     f"(description and {len(cs)} comments), not as filed; Tier "
+                     + (f"{tier(i)} (stated in the Jira text)" if tier(i) else "not stated, set at plan-feature"))
         for c in cs:
-            if re.match(r"\W*Owner\b", c["body"]):
+            if re.search(rf"\bcomment {c['id']}\b", text):
+                continue
+            if OWNER.match(c["body"]):
                 r.helper("log", f"T{n}", "Findings and decisions", f"Owner (Jira {row['jira']} comment {c['id']}, "
                          f"{c['created'][:10]}; quoted in the Ticket section): {first_line(c['body'])}")
-            elif re.match(r"\W*PIV record\b", c["body"]):
+            elif PIV.match(c["body"]):
                 r.helper("log", f"T{n}", "Progress", f"Jira PIV record comment {c['id']} ({c['created'][:10]}): "
                          f"{first_line(c['body'])}")
         rec = None if r.dry else t.record(n)
@@ -297,10 +313,10 @@ def epic_docs(a, edir, E, rows, others):
     em = edir / "epic.md"
     if not em.exists():
         owner = [f"- {c['created'][:10]} Owner: {first_line(c['body'])} (Jira {a.epic} comment {c['id']})"
-                 for c in comments(epic["issue"]) if re.match(r"\W*Owner\b", c["body"])]
+                 for c in comments(epic["issue"]) if OWNER.match(c["body"])]
         done = [f"{i['key']} ({i['fields']['status']['name']})" for i in others]
         em.write_text(
-            f"# T{E}: {epic['title']}\n\n| | |\n|---|---|\n| Issue | #{E} (type Epic) |\n| Status | In progress |\n"
+            f"# T{E}: {epic['title']}\n\n| | |\n|---|---|\n| Issue | #{E} (type Epic) |\n| Status | Draft (imported from Jira; no success criteria yet) |\n"
             f"| Breakdown | `breakdown.md` |\n| Progress | `progress.md` |\n| Last update | {a.date} |\n\n"
             f"## Goal\n\nImported from Jira {a.epic} on {a.date}; its description follows verbatim (Scope).\n\n"
             f"## Scope\n\n{tp.demote(tp.sanitize((f.get('description') or 'none').strip(), a.repo))}\n\n"

@@ -66,17 +66,21 @@ One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pil
    file whole; that file, or the JSON written out, is the snapshot. Keep it in `../uedge-wt/data/<KEY>/`.
 2. **Import**, from the worktree: `uv run .claude/skills/ticket-page/jira_import.py --snapshot <file> --epic <EPIC>
    [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Run `--dry-run` first: it reads only, prints each write and
-   renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`).
+   renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`, started from the epic's existing ones, so
+   only the changes show). It skips tickets whose record is complete. Like every ticket-page call it clones the tracker
+   if its checkout is missing.
    - The epic becomes an Epic issue and each To Do child a sub-issue, with the label `from-jira` (`ai-layer` when Jira
      has it). Each is on the Project with Status To Do, the `Jira key` field and the Tier its Jira text states (the last
-     `Tier S|M|L`; otherwise empty, and `plan-feature` assigns it). "is blocked by" links between imported tickets
+     `Tier S|M|L` with no other letter after it: "Tier M or L" and "Tier S/M" state none; otherwise empty, and
+     `plan-feature` assigns it). "is blocked by" links between imported tickets
      become relations; other links are listed in the body.
    - The body is the Jira description and comments verbatim, after the line `_Imported from Jira <KEY> …_`, which makes
-     a re-run skip what exists.
+     a re-run skip what exists (or, if that line was edited, the Project item's `Jira key`).
    - One commit writes the epic's `epic.md` (the Jira description, owner comments under Decisions, the children not
      imported), `breakdown.md` (the Jira key → `T<N>` table and an entry per ticket) and `progress.md`.
    - Each ticket's record comes from `create`, then `status Backfilled` (the Ticket section is the import, not as
-     filed). A comment opening with `Owner` becomes a Findings and decisions entry; one opening with `PIV record`
+     filed). A re-run completes a record that lacks the Backfilled entry or a comment's entry (matched by `comment <id>`).
+     A comment opening with `Owner,` / `Owner:` / `Owner (` / `Owner decision(s)` (not "Owner's ...") becomes a Findings and decisions entry; one opening with `PIV record`
      becomes a Progress entry.
    - The script refuses (exit 2) a snapshot whose comments are incomplete, and refuses (exit 1) secret-like text, both
      before anything is written.

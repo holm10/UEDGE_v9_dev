@@ -218,6 +218,37 @@ snap 'Third. token = abcdefghijkl' 2 > "$W/j/sec.json"
 JI --snapshot "$W/j/sec.json" --out "$W/j/y.json" 2>"$W/err"; e=$?
 ok "$e:$(grep -c 'Jira J-3 contains' "$W/err")" "1:1" "J9 secret-like text: refused, names the ticket"
 
+# A second epic (J-5): which comments count as owner decisions, which Tier wins, a PIV record comment, a resume.
+snap2(){ echo "{\"isLast\":true,\"issues\":[$(iss J-5 Epic "$(st 'To Do' new)" null 'Epic two.' '' 0 ''),
+$(iss J-6 Story "$(st 'To Do' new)" '{"key":"J-5"}' 'Tier S first. Later Tier M.' "$(cm 61 "Owner's note: x"),$(cm 62 'Owner question: y'),$(cm 63 '**PIV record: plan** (done).'),$(cm 64 '**Owner decision, 2026-01-01: go.**')" 4 ''),
+$(iss J-7 Task "$(st 'To Do' new)" '{"key":"J-5"}' 'Tier M or L: new paths.' '' 0 '')]}"; }
+snap2 > "$W/j/snap2.json"
+JI2(){ uv run -q "$J" --repo "$W/wt" --tracker-dir "$TR" --date 2026-01-02 --epic J-5 --snapshot "$W/j/snap2.json" --out "$W/j/m2.json"; }
+JI2 >"$W/j/o4" 2>&1; ok $? 0 "J10 second epic imported"
+E2=$(ls -d "$TR"/docs/T23-*/ 2>/dev/null | head -1); R24=$(ls "$E2"/T24-*/record.md 2>/dev/null)
+fnd(){ awk '$0=="## Findings and decisions"{f=1;next} /^## /{f=0} f' "$R24"; }
+[ "$(fnd | grep -c 'Owner (Jira')" = 1 ] && fnd | grep -q 'comment 64' && ! grep -q "Owner (Jira J-6 comment 6[123]" "$R24"; ok $? 0 "J10 only 'Owner decision' counts: \"Owner's note\", \"Owner question\" are not decisions"
+grep -q '^| J-6 | T24 | Feature | M | none |$' "$E2/breakdown.md" && grep -q '^| J-7 | T25 | Task | not stated | none |$' "$E2/breakdown.md" \
+  && grep -q '^Tier: not stated' "$W/j/bodies/J-7.md"; ok $? 0 "J11 the last unambiguous Tier wins (S then M: M); \"Tier M or L\" states none"
+grep -q '^- 2026-01-02 (jira-import): Jira PIV record comment 63 (2026-01-01): PIV record: plan' "$R24"; ok $? 0 "J12 a 'PIV record' comment becomes a Progress entry"
+grep -v 'status Backfilled' "$R24" | grep -v 'comment 64' | sed 's/^| Status | .*/| Status | Planned |/' > "$W/j/rec.new"; cp "$W/j/rec.new" "$R24"
+g -C "$TR" commit -qam "break T24"; git -C "$TR" push -q 2>/dev/null; n=$(heads)
+JI2 >"$W/j/o5" 2>&1; e=$?
+ok "$e:$(heads)" "0:$((n + 2))" "J13 resume: the lost Status call and the lost Findings entry are made again, one commit each"
+grep -q '^| Status | Backfilled' "$R24" && fnd | grep -q 'comment 64' && [ "$(grep -c 'comment 63' "$R24")" = 1 ]; ok $? 0 "J13 the row and the entry are back, what was there is not doubled"
+n=$(heads); JI2 >"$W/j/o6" 2>&1; ok "$(heads)" "$n" "J13 and a complete import makes no commit"
+# the body's first line was edited away: the Project's Jira key field still identifies the issue
+python3 - "$GH_DIR" <<'EOF'
+import json, sys
+d = sys.argv[1] + "/"
+rows = [r for r in json.load(open(d + "list.json")) if "J-3" not in r["body"][:40]]
+json.dump(rows, open(d + "list.json", "w"))
+json.dump({"items": [{"id": "ITEM21", "jira key": "J-3", "content": {"number": 21, "repository": "acme/tracker",
+           "url": "https://github.com/acme/tracker/issues/21"}}]}, open(d + "items.json", "w"))
+EOF
+c=$(grep -c 'issue create' "$GH_LOG"); JI --snapshot "$W/j/snap.json" --out "$W/j/m.json" >"$W/j/o7" 2>&1
+ok "$?:$(grep -c 'issue create' "$GH_LOG")" "0:$c" "J14 a lost body marker: the Jira key field prevents a duplicate"
+
 echo "== I. no hard-coded tracker"
 ! grep -n 'uedge-sandbox\|uedge-tracker\|holm10\|atlassian.net' "$H" "$J"; ok $? 0 "I1 the helpers name no owner, repo or Jira site"
 
