@@ -21,13 +21,10 @@ never committed).
   reverse; `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` reports it,
   `.claude/context/branching.md`; AIUE-193)
 - **No plan file?** In a fresh worktree or on another machine the working copy isn't there (it is never committed).
-  For a Jira ticket, rebuild it from the ticket page: read the page with `fetch` (`ticket-page` step 3.1, saved; it
-  returns the body and its `metadata.version` together), then `uv run .claude/skills/ticket-page/ticket_page.py
-  extract-plan --current <saved page> --out .claude/work/<KEY>/plan.md`, and record it as the published copy
-  (`ticket_page.py state --repo <worktree> --key <KEY> --save-plan .claude/work/<KEY>/plan.md --plan-title Plan --set
-  page_id=<id> plan_source="page version <N>"`, `N` = that `metadata.version`). Say in the report that the plan was
-  rebuilt from the page. Exit 3 (the page has no plan yet), no page, or no ticket: stop and ask for the plan (or run
-  `plan-feature`)
+  For a tracker ticket `T<N>`, read the published plan next to its record in the tracker checkout
+  (`docs/*/T<N>-*/plan.md`; the record header cites its publish date and sha256) and copy it to
+  `.claude/work/T<N>/plan.md`. Say in the report that the plan came from the record. No `plan.md` there, or no ticket:
+  stop and ask for the plan (or run `plan-feature`)
 - Read the ENTIRE plan carefully
 - Read `CLAUDE.md` and every `.claude/context/` module the plan references
 - Note the plan's **type** (physics / refactor / numerics / bug fix / Python-build) and whether default results
@@ -70,28 +67,23 @@ For EACH task in "Step by Step Tasks":
   source for any error reported in the generated `.F`
 - Run the task's VALIDATE command before moving on
 
-#### d. Ticket record (Jira tickets; `--no-tracker` skips it, `--tracker-dry-run` only shows it)
-- At the start: `ticket-page <KEY> status Executing`. Per task, nothing is sent; keep notes for the summary.
-- A deviation from the plan or an unexpected finding: `ticket-page <KEY> log "Findings and decisions" "Agent: …"`
-  (queued). An owner decision: the same with `Owner: … (source)` and `--flush`.
-- Every flush checks for other writers as `ticket-page` step 3.1 says: the parent listing's `lastModified`
-  (`render --local --listing`), and `fetch` + `--current` when that refuses. Never a page version from
-  `getConfluencePage` or CQL, nor a method remembered from before a rebase: the skill text is current.
+#### d. Ticket record (tracker tickets `T<N>`; `--no-tracker` skips it, `--tracker-dry-run` only shows it)
+Each call (`ticket-page T<N> …`, i.e. `uv run .claude/skills/ticket-page/ticket_page.py --caller execute <command>
+T<N> …` from the worktree) is one commit in the tracker checkout, outside the worktree; nothing is queued.
+- At the start: `ticket-page T<N> status Executing`. Per task, nothing is logged; keep notes for the summary.
+- A deviation from the plan or an unexpected finding: `ticket-page T<N> log "Findings and decisions" "Agent: …"`.
+  An owner decision: the same with `Owner: … (source)`.
 - If the plan has to change (an amendment), revise the working copy first (never commit it), then `log Progress
-  "Plan amended: <why>"` and `ticket-page <KEY> publish` (the page records the new date and sha256).
-- At the end (after step 4): `ticket-page <KEY> progress "execute done: tasks <list>, commits <first>..<last>"` (one
-  line for the epic's progress page) and **one** `ticket-page <KEY> log Progress "execute: tasks <list> done, commits
-  <first>..<last>; <deviations or none>"`. It stays queued with the validate entries, and the review verdict's flush
-  in step 6 sends them all (`ticket-page` → "When to flush"). Add `--flush` if the review won't run in this session
-  (no reviewer can be spawned, or this skill runs as a subagent that returns first).
+  "Plan amended: <why>"` and `ticket-page T<N> publish` (the record cites the new date and sha256).
+- At the end (after step 4): `ticket-page T<N> progress "execute done: tasks <list>, commits <first>..<last>"` (one
+  line for the epic's `progress.md`) and **one** `ticket-page T<N> log Progress "execute: tasks <list> done, commits
+  <first>..<last>; <deviations or none>"`.
 - Run in the ticket's explicit worktree (never an Agent `isolation: "worktree"` one, `branching.md` → Worktrees). If
-  this skill runs as a subagent, it checks before returning that `queue --list` and `queue --epic --list` print
-  nothing (flush if not); a flush that fails is reported with the worktree path.
-- Run `validate` with `--ticket <KEY>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is
-  queued with the end-of-execute summary (sent by the review verdict's flush, or by its `--flush` fallback).
-- A failed ticket-page call never stops execution: note it in the report; the entries stay queued, and with the
-  working files they are the record until the next flush. Both are lost if the worktree is removed, so never remove
-  it before a flush that leaves nothing queued.
+  this skill runs as a subagent, it reports any `push failed` line a call printed (the commit is in the tracker
+  checkout, and the next call pushes it).
+- Run `validate` with `--ticket T<N>` (and `--no-tracker` / `--tracker-dry-run` if given), so its result is a
+  `log Validation` entry in the same record.
+- A failed ticket-page call never stops execution: note it in the report with its error verbatim.
 
 #### e. Owner questions and handovers (also without a ticket record)
 - A probe that shows stored suite data is wrong (an INVALID reason, a manifest field, a release asset, a tolerance's
@@ -100,9 +92,9 @@ For EACH task in "Step by Step Tasks":
   ticket). Never offer it as an optional follow-up (AIUE-241: imp7's stored `bbb.newapi` INVALID reason named a
   non-fatal remark; now AIUE-239).
 - Before an irreversible or shared step (a `regenerate-references.yml` dispatch, a publish, opening the PR), re-read
-  the ticket's Jira comments since the plan's publish date and the owner-decision records of the sibling tickets the
-  plan names (their pages' Findings and decisions, the memory index). A handover into this ticket (work another
-  ticket moved here) amends the plan first (`ticket-page publish`), or goes to the owner if its precondition is not
+  the ticket's issue comments since the plan's publish date and the owner-decision records of the sibling tickets the
+  plan names (their records' Findings and decisions, the memory index). A handover into this ticket (work another
+  ticket moved here) amends the plan first (`ticket-page T<N> publish`), or goes to the owner if its precondition is not
   met (AIUE-240: AIUE-226's dispatch missed AIUE-224's handed-over `bbb.isphioffxy` update).
 
 ### 3. Implement Testing Strategy
@@ -187,7 +179,8 @@ the plan; for an S ticket only when the run diverged (`branching.md` → worktre
 
 ## Output Report
 
-Provide summary (and the ticket record's status: page URL or Jira comments, and any entries still queued):
+Provide summary (and the ticket record's status: its path `docs/<epic>/T<N>-<slug>/record.md` in the tracker, and any
+`push failed` line):
 
 ### Completed Tasks
 - List of all tasks completed

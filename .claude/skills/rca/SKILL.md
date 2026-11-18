@@ -1,7 +1,7 @@
 ---
 name: rca
 description: Investigates a GitHub issue, identifies the root cause, and writes a structured RCA document for later implementation. Use when you need to diagnose a bug reported as a GitHub issue before fixing it.
-argument-hint: [github-issue-id] [jira-key] [--no-tracker] [--tracker-dry-run]
+argument-hint: [github-issue-id] [T<N>] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Root Cause Analysis: GitHub Issue #$ARGUMENTS
@@ -20,7 +20,7 @@ Investigate GitHub issue #$ARGUMENTS from this repository, identify the root cau
   (`git worktree add -b <branch> ../uedge-wt/issue-$ARGUMENTS origin/v9-develop`, see
   `.claude/context/branching.md`) before writing the RCA. The RCA is a working document: it is written to that
   worktree's working folder `.claude/work/issue-$ARGUMENTS/` (gitignored) and never committed. Its lasting copy goes
-  to the ticket page or the GitHub issue (see "Publish the RCA")
+  to the ticket's record or the GitHub issue (see "Publish the RCA")
 
 ## Investigation Process
 
@@ -259,13 +259,17 @@ This RCA document should be used by the `implement-fix` skill.
 
 The local file is lost with the worktree, so give it a lasting copy right away:
 
-- **The issue maps to a Jira ticket** (the user or the issue names the key): `ticket-page <KEY> publish --rca
-  .claude/work/issue-$ARGUMENTS/rca.md`. It mirrors the RCA under `## RCA` on the ticket's page (or posts a short
-  `PIV record: plan` Jira comment when the epic has no PRD page). Pass on `--no-tracker` / `--tracker-dry-run`.
+- **The issue maps to a tracker ticket `T<N>`** (the user or the issue names the key): from the worktree,
+  ```bash
+  uv run .claude/skills/ticket-page/ticket_page.py --caller rca create T<N>
+  uv run .claude/skills/ticket-page/ticket_page.py --caller rca publish T<N> --rca .claude/work/issue-$ARGUMENTS/rca.md
+  ```
+  `create` makes the record only if there is none; `publish` writes `rca.md` next to it, cited by publish date and
+  sha256 (one commit in the tracker checkout). Pass on `--no-tracker` / `--tracker-dry-run`.
 - **A GitHub issue only:** post the RCA as a comment on the issue, where the issue lives: `gh issue comment
   $ARGUMENTS [-R LLNL/UEDGE] --body-file <file>`, the file being the RCA preceded by one line, "RCA written by an
   agent (rca skill) for the fix on branch `<branch>`; not reviewed yet." Build that file through the ticket-page
-  helper first, as a page entry is: `uv run .claude/skills/ticket-page/ticket_page.py sanitize --repo <worktree>
+  helper first, as a record entry is: `uv run .claude/skills/ticket-page/ticket_page.py sanitize --repo <worktree>
   --max-chars 60000 < <header + rca> > <scratch>/rca-comment.md`. It replaces local absolute paths with placeholders,
   refuses secret-like strings (exit 1: rewrite the RCA, never post the raw file) and stays under GitHub's 65 536
   character comment limit (exit 1 over 60 000: shorten it). Posting is a public write: when the issue
@@ -273,4 +277,4 @@ The local file is lost with the worktree, so give it a lasting copy right away:
   fails, say plainly in the output that the RCA exists only in this worktree and will be lost with it, and suggest
   putting its root cause and fix strategy in the PR description.
 
-Report which of these happened (page URL, comment URL, or "local only").
+Report which of these happened (the record's path, comment URL, or "local only").

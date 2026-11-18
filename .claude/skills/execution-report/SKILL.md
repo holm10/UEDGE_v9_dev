@@ -23,16 +23,16 @@ working document: gitignored, never committed (`.claude/context/branching.md`). 
 fraction of that): divergences and lessons, not a retelling of the plan; omit sections with nothing to say
 (`.claude/context/process-tiers.md` → Report caps).
 
-For a Jira ticket, put its lasting content on the ticket page once it is written: `ticket-page <KEY> log "Findings and
-decisions" "Agent: execution report: <each divergence in a line: planned / actual / why>; skipped: <items or none>;
-deferred MINORs: <ids or none>; recommendations: <one line each>"`. It stays queued: the `system-review` that follows
-flushes it with the commit entry (`ticket-page` → "When to flush"); run on its own, add `--flush`. `--no-tracker`
-skips it. Without a ticket record the report stays local: say so, and put anything a
+For a tracker ticket `T<N>`, put its lasting content in the ticket's record once it is written: `ticket-page T<N>
+log "Findings and decisions" "Agent: execution report: <each divergence in a line: planned / actual / why>; skipped:
+<items or none>; deferred MINORs: <ids or none>; recommendations: <one line each>"` (`uv run
+.claude/skills/ticket-page/ticket_page.py --caller execution-report log T<N> "Findings and decisions" "…"` from the
+worktree; one commit in the tracker checkout). `--no-tracker` skips it. Without a ticket record the report stays local: say so, and put anything a
 later reader needs in the PR description.
 
 ### Meta Information
 
-- Plan file: [path to the plan's working copy, and its published sha256 on the ticket page if any]
+- Plan file: [path to the plan's working copy, and the published sha256 from the record header's Plan row, if any]
 - Files added: [list with paths]
 - Files modified: [list with paths]
 - Lines changed: +X -Y

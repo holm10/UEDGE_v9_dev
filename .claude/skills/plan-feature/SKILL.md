@@ -41,12 +41,12 @@ code is written. The tier sets the plan's budget:
 
 Each ticket gets its own branch and worktree (`.claude/context/branching.md`). Do this before writing anything:
 
-1. Name it. Use `feature/v9-<KEY>-<slug>` for a Jira ticket (take the key and the branch from the ticket's `Branch:`
-   line in its breakdown entry, i.e. the Ticket section of its page or the epic's breakdown page, if `spec` wrote one),
-   `bugfix/v9-<KEY>-<slug>` for a Jira bug,
+1. Name it. Use `feature/v9-T<N>-<slug>` for a tracker ticket `T<N>` (take the branch from the ticket's `Branch:`
+   line in its breakdown entry, i.e. the `## Ticket` section of its record or the epic's `breakdown.md` in the
+   tracker, if `spec` wrote one), `bugfix/v9-T<N>-<slug>` for a tracker bug,
    `bugfix/v9-issue-<N>-<slug>` for a GitHub issue, and `feature/v9-<slug>` when there is no ticket.
    **If the request changes the AI layer itself** (skills, agents, hooks, settings), use `feature/v9-ai-<slug>`
-   and note that the plan is process work.
+   (the issue carries the label `ai-layer`) and note that the plan is process work.
 2. If the current branch already is that branch, continue. Otherwise create a worktree from the base: `origin/v9-develop`, or
    the parent ticket's branch for a stacked ticket. Until the AI layer is merged, use the AI-layer tip (see Bootstrap in
    `branching.md`).
@@ -64,9 +64,10 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 
 ## Phase 1: Understand the request
 
-- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High). For a Jira ticket,
-  the scope and acceptance criteria as filed are in the Ticket section of its page (from the epic's breakdown page on
-  Confluence) and its Jira description; `prime` reads the page.
+- Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High). For a tracker
+  ticket, the scope and acceptance criteria as filed are in the `## Ticket` section of its `record.md` and in the
+  issue (`gh issue view <N> -R <owner>/<repo> --comments`, owner and repo from `.claude/tracker.toml`); `prime` reads
+  both.
 - Affected packages and equations (`isnion`, `isupon`, `isteon`, `istion`, `isngon`, `istgon`, `isphion`).
 - Whether default results are expected to change, and if so which cases.
 
@@ -93,11 +94,11 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    expected conflict and the merge order in Notes (the second to merge rebases and re-runs its tests).
    A ticket that publishes a `yldot-data-vN` release through `regenerate-references.yml` doesn't reserve a number:
    its N is the next free one when the owner approves the publish job (`release_data.py --renumber`; in AIUE-98's A4
-   the second dispatch got v11), and it records the N it got on its ticket page. A hand publish with
+   the second dispatch got v11), and it records the N it got in its record. A hand publish with
    `release_data.py` (no `--renumber`) still reserves N = highest + 1 as a Findings and decisions entry once the owner
    agrees (AIUE-161 planned v8 while AIUE-174 held v7 with no manifests yet). Planning reads the in-flight tickets'
-   pages for both (`testing.md` → Tools, `release_data.py`; AIUE-207). Read the sibling tickets' Findings and
-   decisions and the Jira comments for work handed over to this ticket: a handover is planned, or asked about
+   records for both (`testing.md` → Tools, `release_data.py`; AIUE-207). Read the sibling tickets' Findings and
+   decisions and the issue comments for work handed over to this ticket: a handover is planned, or asked about
    (AIUE-240).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
@@ -221,8 +222,9 @@ literature belongs in the physics spec, not here.
 
 Save to `.claude/work/<KEY>/plan.md` in the worktree (create the directory if needed; `<slug>` instead of `<KEY>`
 without a ticket), using the template below. It is a **working document**: gitignored, never committed
-(`.claude/context/branching.md`). For a Jira ticket its lasting copy is the Plan section of the ticket page (Phase
-6); without a ticket record it lives only in this worktree, so whatever must outlive it goes in the PR description.
+(`.claude/context/branching.md`). For a tracker ticket its lasting copy is `plan.md` next to the ticket's record in
+the tracker (Phase 6); without a ticket record it lives only in this worktree, so whatever must outlive it goes in the
+PR description.
 
 ```markdown
 # Feature: <name>
@@ -235,7 +237,7 @@ Validate the patterns and file references below before implementing.
 **Default results**: Unchanged | Changed — <which defaults, why, which reference cases move>
 **Packages / files**: <list>
 **Branch / worktree**: <branch> @ <worktree path> (base: <base>)
-**Jira**: <KEY> | none
+**Ticket**: T<N> (tracker) | none
 
 ## Problem and solution
 <What is wrong or missing; how this change addresses it.>
@@ -305,30 +307,31 @@ with each one's wall-time estimate (AIUE-235).
 
 1. **Don't commit the plan.** It stays in `.claude/work/<KEY>/` (gitignored; `change_kind.py` refuses it on every
    branch). Nothing is committed in this phase.
-2. For a Jira ticket, run the `ticket-page` skill: `<KEY> status Planning` (`Plan review` if the review below is
-   required), then `<KEY> publish` (it mirrors `.claude/work/<KEY>/plan.md`). Pass on `--no-tracker` (skip the
-   record) or `--tracker-dry-run` (as `--dry-run`: show the record without writing it; the plan is still written).
-   Under an epic with a PRD page it fills **the ticket's existing page**, `Plan: <KEY> - <summary>` under `Ticket
-   plans: <EPIC>`, which `spec` created when it filed the ticket: it finds it from the worktree's state file, the
-   ticket's `Ticket page:` link comment, or the title search under the container (`title ~ "Plan: <KEY>"` filtered on
-   the `Plan: <KEY> - ` prefix), and creates it (the same skeleton `spec` makes) only when `find` concludes there is
-   none, never a second one. It records the page id in its state file and mirrors the plan into the page's Plan
-   section, cited by publish date and sha256; the Ticket section and any earlier entries stay. Without an epic PRD
-   page it posts a short `PIV record: plan` comment instead. A failure there is noted in the report and retried at
-   the next flush (the plan and the queued entries stay local until then); it never stops planning.
-3. A Jira ticket still in To Do moves to In Progress (`getTransitionsForJiraIssue`, then `transitionJiraIssue`; not
-   with `--no-tracker` or `--tracker-dry-run`). Done follows the merge (`branching.md` → worktree removal; AIUE-201).
+2. For a tracker ticket `T<N>`, run the `ticket-page` skill from the worktree:
+   ```bash
+   uv run .claude/skills/ticket-page/ticket_page.py --caller plan-feature create T<N>
+   uv run .claude/skills/ticket-page/ticket_page.py --caller plan-feature status T<N> Planning
+   uv run .claude/skills/ticket-page/ticket_page.py --caller plan-feature publish T<N>
+   ```
+   `create` leaves the record `spec` made as it is and makes one only when there is none, never a second one.
+   `status Planning` (`Plan review` if the review below is required) also sets the Project Status (To Do → In
+   Progress), so nothing else moves the ticket. `publish` copies `.claude/work/T<N>/plan.md` to `plan.md` next to the
+   record, cited by publish date and sha256; the Ticket section and any earlier entries stay. Pass on `--no-tracker`
+   (skip the record) or `--tracker-dry-run` (as `--dry-run`: show the calls without running them; the plan is still
+   written). Each call is one commit in the tracker checkout; a failed push is noted in the report and goes out with
+   the next call. It never stops planning.
+3. Done follows the merge (`status T<N> Committed <merge sha>`; `branching.md` → worktree removal; AIUE-201).
 
 ## Adversarial plan review (L tier only)
 
 If the plan touches the `pandf` tree, `ppp/`, Jacobian or preconditioner code, a `.v` file, or the build
 (`setup.py`, `Makefile.Forthon`), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage: plan` before any code is written.
 Every other plan (S, and M outside those areas) skips this review: it is published and executed.
-The loop records each round on the ticket record. A revision is published, not committed: `ticket-page <KEY> log
-Progress "Plan revised: <what changed>"`, then `ticket-page <KEY> publish` (the page records the new date and
-sha256), which is that round's flush.
+The loop records each round in the ticket's record. A revision is published, not committed: `ticket-page T<N> log
+Progress "Plan revised: <what changed>"`, then `ticket-page T<N> publish` (the record cites the new date and
+sha256).
 
 ## Report
 
 Plan path (local working copy, not committed), type, tier, length in lines and complexity, whether defaults change, key risks, the ticket
-record (page URL, Jira comment, or why it was skipped), and a confidence score (#/10) for one-pass execution.
+record (its path, `docs/<epic>/T<N>-<slug>/record.md` in the tracker, or why it was skipped), and a confidence score (#/10) for one-pass execution.

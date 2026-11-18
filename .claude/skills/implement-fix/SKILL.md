@@ -2,7 +2,7 @@
 name: implement-fix
 description: Implements a UEDGE bug fix for a GitHub issue from its RCA document, verifies it on the reproducing case, and runs the validate gate. Use after an RCA document exists and you are ready to fix the issue.
 argument-hint: [github-issue-id] [--no-tracker] [--tracker-dry-run]
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*), Bash(uv:*), mcp__atlassian__getAccessibleAtlassianResources, mcp__atlassian__getJiraIssue, mcp__atlassian__searchConfluenceUsingCql, mcp__atlassian__getConfluencePage, mcp__atlassian__getConfluencePageDescendants, mcp__atlassian__fetch
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(pytest:*), Bash(make:*), Bash(uv:*)
 ---
 
 # Implement Fix: GitHub Issue #$ARGUMENTS
@@ -10,23 +10,22 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 ## Prerequisites
 
 - RCA at `.claude/work/issue-$ARGUMENTS/rca.md` in the issue's worktree (a local working copy, never committed;
-  create it with the `rca` skill first). If the worktree has no copy (a fresh worktree, another machine), rebuild it
-  from its published copy: with a Jira key, read the ticket page with `fetch` (`ticket-page` step 3.1, saved), then
-  `ticket_page.py extract-plan --current <saved page> --out <that path>` (the page's RCA section), then
-  `ticket_page.py state --repo <worktree> --key <KEY> --save-plan <that path> --plan-title RCA --set
-  plan_source="page version <N>"` (`N` = the fetch's `metadata.version`); otherwise from the RCA comment on the
-  GitHub issue (`gh issue view $ARGUMENTS --comments`). Neither exists → run `rca` again.
+  create it with the `rca` skill first). If the worktree has no copy (a fresh worktree, another machine), take it
+  from its published copy: with a tracker key `T<N>`, copy `rca.md` next to the ticket's record in the tracker
+  checkout (`docs/*/T<N>-*/rca.md`) to that path; otherwise from the RCA comment on the GitHub issue (`gh issue view
+  $ARGUMENTS --comments`). Neither exists → run `rca` again.
 - On the issue's own branch `bugfix/v9-issue-<N>-<slug>` and worktree (created by `rca`; create it now as in
   `.claude/context/branching.md` if missing), never on `v9-develop` or an AI-layer branch.
-- Ticket record: only if the issue maps to a Jira ticket (the RCA or the user names the key); a GitHub issue with no
-  Jira key gets no record (its RCA is a comment on the GitHub issue, posted by `rca`). With an epic PRD page, the RCA
-  is this ticket's plan: `rca` has normally published it already; if not (or after a revision), run `ticket-page
-  <KEY> publish --rca .claude/work/issue-$ARGUMENTS/rca.md` (it fills the ticket's page that `spec` created, or
-  creates it if there is none; the page mirrors the RCA under `## RCA`, cited by publish date and sha256; nothing is
-  committed). Without one, the same call posts a short `PIV record: plan` comment summarising the RCA.
-  `--no-tracker` skips the record; `--tracker-dry-run` only shows it. The allowed tools above
-  pre-approve the helper and the Atlassian reads; writes to Jira and Confluence still go through the normal
-  permission prompt.
+- Ticket record: only if the issue maps to a tracker ticket `T<N>` (the RCA or the user names the key); a GitHub
+  issue with no tracker key gets no record (its RCA is a comment on the GitHub issue, posted by `rca`). The RCA is
+  this ticket's plan: `rca` has normally published it already; if not (or after a revision), run from the worktree
+  ```bash
+  uv run .claude/skills/ticket-page/ticket_page.py --caller implement-fix create T<N>
+  uv run .claude/skills/ticket-page/ticket_page.py --caller implement-fix publish T<N> --rca .claude/work/issue-$ARGUMENTS/rca.md
+  ```
+  (`create` leaves an existing record alone and makes one only when there is none; `publish` writes `rca.md` next
+  to the record, cited by publish date and sha256). Each call is one commit in the tracker checkout; nothing is
+  committed on the branch. `--no-tracker` skips the record; `--tracker-dry-run` only shows it.
 - Optional: `gh` authenticated. Issues may live upstream — use `gh issue view $ARGUMENTS -R LLNL/UEDGE` if the
   issue is not on `origin`.
 
@@ -71,9 +70,8 @@ review, but is at least M: its implementation review runs on Opus (`FORTRAN: yes
 
 Do not proceed while anything is ❌. Never loosen tolerances or skip suites.
 
-With a Jira key, queue the reproduction before/after (`log Progress`), and run `validate` with `--ticket <KEY>` (the
-issue branch name has no key), so it queues its result. They go out
-with the implementation review's flush (4c) or the end-of-ticket flush (step 6).
+With a tracker key, log the reproduction before/after (`ticket-page T<N> log Progress "…"`), and run `validate` with
+`--ticket T<N>` (the issue branch name has no key), so it logs its result in the same record.
 
 ## 4b. AI-layer facts
 
@@ -86,7 +84,7 @@ trailer `AI-layer: code-facts`.
 Write the handoff note `.claude/work/issue-$ARGUMENTS/handoff.md` (≤60 lines: state, branch and tip, done, open items,
 how to verify). Then run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage:
 implementation`. The reference is the RCA document (root cause, the fix it proposes, the reproduction) and, for a
-Jira ticket, its acceptance criteria. The fix is done only after APPROVE on the final diff. Fix rounds follow the
+tracker ticket, its acceptance criteria. The fix is done only after APPROVE on the final diff. Fix rounds follow the
 loop: plain MINORs fixed by the loop's runner, BLOCKER/MAJOR fixes by a fresh small agent from the handoff note (never
 by resuming the long agent), rounds 2+ as verification rounds.
 
@@ -122,19 +120,17 @@ Fixes <short description> (#$ARGUMENTS)
 
 Optional follow-ups with `gh` (comment, labels, close) only when the user asks.
 
-**Where the record goes without a Jira key.** The review reports and responses are local working files
-(`.claude/work/issue-$ARGUMENTS/reviews/`, never committed), and there is no ticket page. Put the review outcome
+**Where the record goes without a tracker key.** The review reports and responses are local working files
+(`.claude/work/issue-$ARGUMENTS/reviews/`, never committed), and there is no ticket record. Put the review outcome
 (verdict, rounds, open or deferred findings, criteria not independently verified) and the reproduction before/after
 in the PR description; post it on the issue only when the user asks.
 
 ## 5b. Ticket record after the commit
 
-With a Jira key, after the fix is committed: `ticket-page <KEY> status Committed`, `ticket-page <KEY> progress
-"committed <sha>"` and `ticket-page <KEY> log Progress "Committed <sha>: <subject>"`, queued: step 6's
-`system-review` flushes it (`ticket-page` → "When to flush"); add `--flush` if step 6 won't run in this session. If
-this skill runs as a
-subagent, it runs in the issue's explicit worktree (never an Agent `isolation: "worktree"` one) and checks before
-returning that `queue --list` and `queue --epic --list` print nothing.
+With a tracker key, after the fix is committed: `ticket-page T<N> progress "committed <sha>"` and `ticket-page T<N>
+log Progress "Committed <sha>: <subject>"`. After the merge: `ticket-page T<N> status Committed <merge sha>` (Project
+Done, issue closed). If this skill runs as a subagent, it runs in the issue's explicit worktree (never an Agent
+`isolation: "worktree"` one) and reports any `push failed` line a call printed.
 
 ## 6. Process lessons
 
@@ -144,7 +140,6 @@ issues (see `system-review`), never edits on this branch.
 ## Notes
 
 - If the RCA turns out to be wrong, update the working copy with the new findings before changing more code, and
-  publish the revision (`ticket-page <KEY> publish --rca …`, or, for a GitHub issue only, a new comment on the issue
+  publish the revision (`ticket-page T<N> publish --rca …`, or, for a GitHub issue only, a new comment on the issue
   that starts "Revises the RCA above:", asking first as `rca` does).
-- Flush the ticket page (nothing queued) before the worktree is removed: the working folder goes with it.
 - Extra problems found along the way go into separate issues/RCAs, not this fix.
