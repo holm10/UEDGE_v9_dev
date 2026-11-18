@@ -183,7 +183,9 @@ Don't apply any of these actions yourself. Each one is a **process change** and 
 
 1. If `gh` is available and authenticated, find the parent issue "AI-layer improvements" by its title
    (`.claude/context/branching.md` → Guard rails):
-   `gh issue list -R <owner>/<repo> --label ai-layer --search "AI-layer improvements in:title" --json number,title`.
+   `gh issue list -R <owner>/<repo> --label ai-layer --state open --search "AI-layer improvements in:title" --json
+   number,title --jq '[.[] | select(.title == "AI-layer improvements")]'`. The search matches words, so keep the
+   exact title only; anything but exactly one match is a stop: file nothing and use the fallback below.
    Then, for each action:
    - Search for duplicates: `gh issue list -R <owner>/<repo> --label ai-layer --state open --search "<2-4 key words>"
      --json number,title`. If an open issue already covers it, add a comment with this review's evidence (`gh issue

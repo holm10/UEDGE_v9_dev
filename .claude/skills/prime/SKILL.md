@@ -52,8 +52,11 @@ git log --oneline v9-develop..HEAD
 
 Also list open work products: physics specs (`docs/physics_specs/`, committed) and the local working folder
 (`ls .claude/work/`: plans, reviews, RCAs and other working documents in progress; gitignored, so `git status` doesn't
-show them). For a ticket worktree, check the tracker checkout with `git -C <tracker checkout> status -sb`: "ahead"
-means record commits not yet pushed, which the next `ticket-page` call pushes. The handoff note was read in Step 0.
+show them). For a ticket worktree, check the tracker checkout (`git status -sb` run in it; a worktree-isolated
+session that refuses `git -C <other checkout>` runs it as `cd <tracker checkout> && git status -sb` in its own
+command). "ahead" means record commits not yet pushed, which the next `ticket-page` call pushes. Uncommitted
+changes to tracked files, or a branch other than the default one, block every `ticket-page` write (exit 2): report
+them. The handoff note was read in Step 0.
 
 Classify the branch (`.claude/context/branching.md`): protected, AI layer, or ticket. List active worktrees
 (`git worktree list`). Run `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and report any

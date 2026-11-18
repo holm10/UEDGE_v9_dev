@@ -169,5 +169,6 @@ description). With a key, run `ticket-page T<N> log Validation "<entry>"` from t
 with the branch tip, and for each ❌ the failing output verbatim, trimmed to the failing part (the first error, the
 mismatching fnrm or variable lines). When `validate` was run on its own, also `ticket-page T<N> progress "validate:
 <Overall line>"`. Each call is one commit in the tracker checkout.
-`--no-tracker` skips it; `--tracker-dry-run` passes `--dry-run` (nothing is written; the calls are shown). A failed
+`--no-tracker` skips it; `--tracker-dry-run` shows the helper commands instead of running them (the helper itself
+has no dry-run flag; nothing is written). A failed
 call is noted under the report and never changes the verdict.
