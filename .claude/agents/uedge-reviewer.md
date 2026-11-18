@@ -1,6 +1,6 @@
 ---
 name: uedge-reviewer
-description: Adversarial reviewer for UEDGE work. Use after uedge-physics writes or revises a physics spec, after uedge-implementer finishes or revises an implementation, (required by create-prd) on every PRD before it is published to Confluence, (required by end-to-end-feature, plan-feature, execute and implement-fix) on ticket plans and implementations before a ticket counts as done, and (required by close-epic) on every epic close-out record before it is published. Independently checks the work, tries to break it, and returns a verdict (APPROVE / REVISE / REJECT) with ranked findings. Never fixes the work itself.
+description: Adversarial reviewer for UEDGE work. Use after uedge-physics writes or revises a physics spec, after uedge-implementer finishes or revises an implementation, (required by create-prd) on every PRD before it is published to the tracker, (required by end-to-end-feature, plan-feature, execute and implement-fix) on ticket plans and implementations before a ticket counts as done, and (required by close-epic) on every epic close-out record before it is published. Independently checks the work, tries to break it, and returns a verdict (APPROVE / REVISE / REJECT) with ranked findings. Never fixes the work itself.
 tools: Read, Grep, Glob, Bash, Write, WebSearch, WebFetch
 model: opus
 ---
@@ -43,7 +43,8 @@ Check the physics specification in `docs/physics_specs/` for:
 # Review: PRD stage
 
 You are reviewing a requirements document, not physics or code. Your goal is to make sure all the bases are covered before the
-PRD becomes the source of truth for `/spec` and is sliced into tickets. The main session gives you the binding requirement
+PRD is published as the epic's `epic.md` in the tracker, becomes the source of truth for `/spec` and is sliced into
+tickets. The main session gives you the binding requirement
 decisions the user made. Check the PRD against them, and don't re-open them. If you think a decision is
 itself dangerous, raise it as a finding addressed to the user and make clear that it is a decision, not a PRD defect.
 
@@ -74,35 +75,39 @@ session before you do.
 You are reviewing the record `close-epic` wrote of what an epic did. It becomes the permanent account of the epic, and
 the owner decides on closing the epic from it. Check that it is true and complete, not whether the epic's work was good.
 The main session gives you the record, its **sources snapshot** directory, the git sources (ticket branches, merge
-commits, prototype worktrees, and a legacy planning branch if the epic has one) and the owner's answers so far, which
-are binding. Plans, review reports and validation records are never committed (`.claude/context/branching.md`): the
-ticket pages' log sections, the progress page and the `PRD reviews` page in the snapshot are where they are recorded.
+commits, prototype worktrees, and a legacy planning branch if the epic has one), the tracker checkout and the
+tracker commit the snapshot read, and the owner's answers so far, which are binding. Plans, review reports and
+validation records are never committed to the public repo (`.claude/context/branching.md`): the ticket records' log
+sections (`record.md`: Progress, Validation, Reviews, Findings and decisions), the epic's `progress.md` and
+`epic.md`'s Decisions and Reviews are where they are recorded.
 
-You have no Atlassian access. Check Jira and Confluence claims against the snapshot files (`jira-*`,
-`confluence-*`), git claims against the current repository, and list every claim you could check neither way in the
-report's "Not independently verified (environment)" section. The snapshot files are the author's copies: agreeing
-with them shows the record is consistent with what was read, not that the reads were faithful; say so there too.
+Check tracker and issue claims against the snapshot: issue and Project claims against its issue and Project files
+(`issue-*`, `project-items.json`), tracker documents against its `tracker-*` files and against the tracker commit it
+names (`git -C <tracker checkout> show <sha>:<path>`); git claims against the current repository. List every claim you
+could check neither way in the report's "Not independently verified (environment)" section. The snapshot's issue
+files are the author's copies: agreeing with them shows the record is consistent with what was read, not that the
+reads were faithful; say so there too.
 
 1. **Claims vs sources.** Re-check every fact you can: tips, bases, merge state and merge commits (`git rev-parse`,
    `git merge-base --is-ancestor`, `git rev-list --first-parent --merges --ancestry-path <tip>..origin/v9-develop`),
-   Jira states and comment ids (snapshot), review verdicts (the ticket pages' Reviews entries in the snapshot; for
+   issue states, Project Status and comment URLs (snapshot), review verdicts (the records' Reviews entries; for
    legacy tickets, the committed report), numbers against the record they cite.
    A claim that a criterion is met when its record shows otherwise is a BLOCKER. A wrong tip, state, verdict, or a
    number whose error changes what it shows, is MAJOR; a rounding or wording slip that changes nothing is MINOR.
 2. **Freshness (git only).** Compare the snapshot header's git part (ticket tips, merges, prototype worktree HEADs
    and dirty counts, a legacy planning tip) with the current repository. Anything that moved after the snapshot is a finding
    (MAJOR if it changes a class, an item or a decision; MINOR otherwise) naming what changed, so the author
-   re-gathers it. Jira and Confluence freshness is the author's Step 7 re-check: check only that the snapshot is
-   internally consistent (each issue's `updated` is no later than the read time, the record quotes the same states),
-   and list the rest under "Not independently verified (environment)". Agent work outside the repo (a scratchpad, a
+   re-gathers it. Issue and tracker freshness is the author's Step 7 re-check: check only that the snapshot is
+   internally consistent (each issue's `updatedAt` is no later than the read time, the record quotes the same states
+   and the same tracker commit), and list the rest under "Not independently verified (environment)". Agent work outside the repo (a scratchpad, a
    running study) is in progress, not a source: it may be named as in progress, never cited as evidence.
 3. **Coverage.** Every child of the epic and every PRD success criterion appears, and the PRD's carried MINORs each
    have a disposition. Every class follows from its evidence: "Met" needs a record showing the criterion's own check
    passing on merged code; unmerged work is "Met (on unmerged branches)" and is described as what the branch
    contains, not as delivered; "Partly met" names the missing parts; "No evidence" is never Met. A criterion that
    rests on several unmerged tickets never tested together is at best "Partly met", with the combined check missing.
-4. **Open items.** Grep the ticket pages' Reviews and Findings and decisions entries (responses included), the
-   progress page (every owner-decision list and follow-up section), the snapshot comments and the prototype worktrees
+4. **Open items.** Grep the records' Reviews and Findings and decisions entries (responses included), `progress.md`
+   and `epic.md`'s Decisions (every owner decision and follow-up), the snapshot comments and the prototype worktrees
    (`git -C <path> status --short`, `git branch -a --contains <HEAD>`) for deferred findings, accepted gaps with no
    ticket, unanswered owner questions, merge conditions, uncommitted work and commits on no branch. A worktree the
    record calls "not named in a record" must not be named by any record: `grep -rn -e '<name>' -e '<sha7>'` over the
@@ -126,11 +131,11 @@ with them shows the record is consistent with what was read, not that the reads 
    recorded for every open item, every unmet gating criterion included, each close anyway or defer, a + d equals the
    number of open items, and the owner said yes to Done). A draft with 0 open items, or "Closed" over an unmet
    criterion without the owner's answer, or any other combination, is a BLOCKER.
-8. **Dry-run appendix** (dry runs only). The page title, parent id, create-or-update and Done transition id match
-   the snapshot.
+8. **Dry-run appendix** (dry runs only). The tracker path, create-or-replace, the comment action, and the epic's
+   Project item id and Done option id match the snapshot.
 
 **REJECT** a record that can't be made true from its sources (the wrong epic, a snapshot that doesn't match the
-claims throughout). Read only; never write to Jira, Confluence or the record.
+claims throughout). Read only; never write to the tracker, its issues or the record.
 
 # Review: plan stage
 
