@@ -13,7 +13,7 @@ Summary. Decide by **what the change touches**, not by effort. When in doubt, ta
 
 | Tier | Typical tickets | Plan | Plan review | Implementation review | Validation |
 |---|---|---|---|---|---|
-| **S** | investigation, characterisation, doc/tooling, AI-layer changes, small fixes outside the high-risk areas and the Fortran sources | ≤150 lines, written straight to the ticket page (`ticket-page publish`) | none | one round (round 2 only for an open BLOCKER/MAJOR) | `validate` with the suites the change can affect |
+| **S** | investigation, characterisation, doc/tooling, AI-layer changes, small fixes outside the high-risk areas and the Fortran sources | ≤150 lines, published straight to the ticket's record (`ticket-page publish`) | none | one round (round 2 only for an open BLOCKER/MAJOR) | `validate` with the suites the change can affect |
 | **M** | Python layer, CI, refactors outside the high-risk areas, bug fixes with a clear RCA; **any Fortran source outside the L list** (at least M) | ≤300 lines | only if high-risk (below) | as below; on Opus for a Fortran source | `validate`; serial bitwise check for a Fortran source |
 | **L** | the `pandf` tree, Jacobian/preconditioner and the Newton-Krylov solver (the whole files `bbb/oderhs.m`, `bbb/odesetup.m`, `svr/nksol.m`, `svr/svrut1.m`, `svr/svrut3.m`, `svr/svrut4.m`), `ppp/`, `.v` files, the build (`setup.py`, `pyproject.toml`, `Makefile.Forthon`), new physics | ≤300 lines (up to 500 with a one-line reason in the plan) | **required** | as below | full `validate`, OpenMP check, serial bitwise check |
 
@@ -28,7 +28,7 @@ results only the cases the plan names move). Owner decisions 2026-10-21 (AIUE-13
 `uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD` and read its `HIGH-RISK:` and `FORTRAN:` lines
 (patterns `HIGH_RISK` and `FORTRAN` in that file: the L list above, and every other Fortran source).
 - `HIGH-RISK: yes` on an S or M ticket: **re-tier to L**. Run the plan review if it did not run, review the
-  implementation in full on Opus, and add one Findings-and-decisions entry to the ticket page ("re-tiered S/M -> L:
+  implementation in full on Opus, and add one Findings-and-decisions entry to the ticket's record ("re-tiered S/M -> L:
   diff touches <paths>").
 - `FORTRAN: yes` (and `HIGH-RISK: no`): an S ticket is **re-tiered to M**, with the same entry ("re-tiered S -> M:
   diff touches <paths>"). On S or M, the implementation review runs in full on Opus and the serial bitwise check
@@ -88,7 +88,7 @@ Agent frontmatter fixes the model where an agent is always one kind of work (`ue
 
 - Review report ≤150 lines; each finding is one line plus an evidence pointer (`file:line`, command, output line).
 - Review response: one line per finding (fixed where / rebutted why / declined).
-- Validation entry on the ticket page: the verdict lines and failures verbatim; no logs, no tables of passing cases.
+- Validation entry in the ticket's record: the verdict lines and failures verbatim; no logs, no tables of passing cases.
 - Execution report ≤100 lines; handoff note ≤60 lines.
 - Raw run data (logs, `.npz`/`.hdf5`, JSON records, per-case tables) stays in `.claude/work/<KEY>/` or a scratch
   directory and is summarised, never committed. `change_kind.py --range` warns when a branch exceeds the PR size

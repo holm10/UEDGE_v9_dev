@@ -14,89 +14,82 @@ physics, and leaves feature branches depending on unmerged tooling. This module 
 | **product** | everything else: `*/*.m`/`.F`/`.v`/`.F90`, `setup.py`, `Makefile.Forthon`, `src/uedge/`, CI, `doc/`, and `docs/physics_specs/**` | a ticket branch |
 | **shared** | `.gitignore` | any branch |
 
-## Working documents live outside git; the record lives on Confluence and Jira
+## Working documents live outside git; the record lives in the tracker
 
-Ticket and epic documentation lives on Confluence and Jira, never in the repo. (Before this rule, plans, reviews and
-epic documents were committed on the ticket and planning branches; PR #2 removed 1 282 of them, kept in the tag
-`archive/AIUE-8-docs`.)
+Ticket and epic documentation lives in the private tracker repository, never in this repo. `.claude/tracker.toml` is
+the only place in this repo that names it (owner, repo, Project number); nothing else hard-codes them, and its local
+checkout sits next to `uedge-wt/` (AIUE-287, tracker epic #1). Jira and Confluence are the read-only archive of the work
+before the tracker: AIUE keys and page ids are cited as history, and nothing new is written there. (Before the
+working-documents rule, plans, reviews and epic documents were committed on the ticket and planning branches; PR #2
+removed 1 282 of them, kept in the tag `archive/AIUE-8-docs`.)
 
+- **The record of a ticket.** A tracker ticket's key is `T<N>`, its issue number. Its record is the issue (status,
+  Project fields, short discussion) plus `docs/<epic>/T<N>-<slug>/` in the tracker: `record.md` (Ticket, then the
+  append-only Progress, Validation, Reviews, and Findings and decisions sections) and `plan.md` or `rca.md`. The
+  layout is in the tracker's README. `ticket-page` writes it; each call is one commit straight to the tracker's `main`
+  after `git pull --rebase`. The branch policy (Enforcement, below) covers this repository only, so it doesn't check
+  commits in the tracker (owner, 2026-11-18, tracker #3).
 - **Ticket working documents** (the plan, review reports and responses, validation records and run protocols, the
   RCA, the code review, the execution report, the system-review notes and the probe scripts a plan cites, under
   `probes/`, AIUE-238) are written to the ticket's **working
   folder** `<worktree>/.claude/work/<KEY>/` (`issue-<N>` for a GitHub issue, the slug for work without a ticket). It
-  is gitignored and never committed. Their lasting content goes to the ticket's Confluence page through the
-  `ticket-page` skill: the plan (or RCA) is mirrored into the Plan (or RCA) section; each review round's verdict,
-  counts, findings (one line each) and the response go to Reviews; validation results, failures quoted verbatim, go
-  to Validation; decisions and anything a later reader needs go to Findings and decisions. A ticket with no epic PRD
-  page keeps only a capped summary: at most 8-9 `PIV record` Jira comments of at most 1500 characters, MINOR detail
-  dropped (`ticket-page` → Jira fallback). A GitHub issue with no Jira ticket gets its RCA as a comment on the issue
-  (`rca`). **Work with no ticket record** (no Jira key, `--no-tracker`, or physics without a ticket) has no page: the
-  review summary it would have had (each round's verdict, counts, one line per finding, the response) goes into the
-  **PR description**, as does whatever else must outlive the worktree. The full working files are disposable.
+  is gitignored and never committed. Their lasting content goes to the record through `ticket-page`: the plan (or
+  RCA) is published as `plan.md` (or `rca.md`) next to `record.md`; each review round's verdict, counts, findings (one
+  line each) and the response go to Reviews; validation results, failures quoted verbatim, go to Validation;
+  decisions and anything a later reader needs go to Findings and decisions. A GitHub issue with no tracker ticket gets
+  its RCA as a comment on the issue (`rca`). **Work with no ticket record** (no tracker ticket, `--no-tracker`, or
+  physics without a ticket) has no record: the review summary it would have had (each round's verdict, counts, one
+  line per finding, the response) goes into the **PR description**, as does whatever else must outlive the worktree.
+  The full working files are disposable.
 - **Raw data a later ticket must re-read** (measurement collections, build records) is not a working document.
   Before the worktree is removed, copy it to `../uedge-wt/data/<KEY>/` (local, outside every worktree) or publish it
-  as a release asset, and record where it is on the ticket page and in a comment on the dependent ticket. AIUE-87's
+  as a release asset, and record where it is in the record and in a comment on the dependent ticket. AIUE-87's
   collections are kept in `../uedge-wt/data/AIUE-87/` (AIUE-148); AIUE-92 re-collected all eight families and used
   them as a bitwise cross-check, and its own collections, which a later `measure_roundoff.py analyze --write`
   needs, are in `../uedge-wt/data/AIUE-92/`.
-- **Epic documents** live on Confluence, under the PRD page: the PRD itself (the page is the source; `create-prd`
-  keeps a local working copy), `PRD reviews: <EPIC>` (each review round summarised), `Spec: <epic> - Ticket
-  Breakdown` (the breakdown, with each ticket's key and page id), `Progress: <EPIC>` (the progress log: dated,
-  append-only lines, owner decisions attributed as in `close-epic`; `spec` creates it, `execute`, `validate`, the
-  review loop, `end-to-end-feature` and `implement-fix` append a line per milestone through `ticket-page progress`,
-  `close-epic` reads it), `Ticket plans: <EPIC>` with one page per
-  ticket, and `Close-out: <EPIC> - …`. Local working copies (the PRD draft, review reports, the breakdown draft, the
-  close-out record and its sources snapshot) go in `.claude/work/<EPIC>/` of the checkout the skill runs in.
-- **No planning branch.** An epic no longer has a `feature/v9-<EPIC>-planning` branch: nothing it held is committed
-  any more. Existing planning branches are left as they are; `close-epic` may read one, or its archive tag, as a
-  historical source. **Before a planning branch is ever deleted**: tag its tip `archive/<EPIC>-planning` and push the
-  tag (`git tag archive/<EPIC>-planning <branch> && git push origin archive/<EPIC>-planning`), and write its PRD review
-  rounds (verdict, counts, one line per finding, the response) to `PRD reviews: <EPIC>`, citing the tag. Done for all
-  three: the planning branches of AIUE-5, AIUE-8 and AIUE-9 are deleted, and live on as the pushed tags
-  `archive/AIUE-5-planning`, `archive/AIUE-8-planning` and `archive/AIUE-9-planning` (AIUE-5's and AIUE-9's review
-  rounds are on `PRD reviews: AIUE-5` and `PRD reviews: AIUE-9`).
+- **Epic documents** live in the tracker under `docs/T<E>-<slug>/`: `epic.md` (the PRD, with its review rounds in its
+  Reviews section; `create-prd`), `breakdown.md` and `progress.md` (`spec` creates them; the progress log is dated,
+  append-only lines, owner decisions attributed as in `close-epic`; `execute`, `validate`, the review loop,
+  `end-to-end-feature` and `implement-fix` append a line per milestone through `ticket-page progress`), the tickets'
+  record directories, and `closeout.md` (`close-epic`). The epic is an issue of type Epic, its tickets sub-issues.
+  Local working copies (the PRD draft, review reports, the breakdown draft, the close-out record and its sources
+  snapshot) go in `.claude/work/<EPIC>/` of the checkout the skill runs in. The Confluence PRD, `PRD reviews`,
+  `Spec`, `Progress`, `Ticket plans` and `Close-out` pages of the Jira epics are archive.
+- **No planning branch.** An epic has no `feature/v9-<EPIC>-planning` branch: nothing it held is committed any more.
+  `close-epic` may read an old one, or its archive tag, as a historical source. **Before a planning branch is ever
+  deleted**: tag its tip `archive/<EPIC>-planning` and push the tag (`git tag archive/<EPIC>-planning <branch> && git
+  push origin archive/<EPIC>-planning`). Done for all three: the planning branches of AIUE-5, AIUE-8 and AIUE-9 are
+  deleted, and live on as the pushed tags `archive/AIUE-5-planning`, `archive/AIUE-8-planning` and
+  `archive/AIUE-9-planning` (AIUE-5's and AIUE-9's review rounds are on the archived Confluence pages `PRD reviews:
+  AIUE-5` and `PRD reviews: AIUE-9`).
 - **Physics specs stay in the repo.** `docs/physics_specs/<feature>.md` is product documentation: the approved spec
   is committed on the ticket branch with the physics change it specifies (`CLAUDE.md` → Hard rules,
   `physics-workflow.md`). Its review reports are working documents like any other.
-- **Robustness.** A tracker ticket's record has nothing queued: each `ticket-page` call is a commit in the tracker
-  checkout, which sits outside every worktree, and a failed push is retried on the next call (tracker #2). The
-  working folder `.claude/work/<KEY>/` is lost with the worktree (`git worktree remove`), so whatever must outlive it
-  is in the record or `../uedge-wt/data/<KEY>/` first. For the same reason ticket work never runs in a worktree that
-  something else can remove (see Worktrees). (A `flush` or `queue --list` that a skill still runs is a no-op.)
+- **Robustness.** A record has nothing queued: each `ticket-page` call is a commit in the tracker checkout, which sits
+  outside every worktree, and a failed push is retried on the next call (tracker #2). The working folder
+  `.claude/work/<KEY>/` is lost with the worktree (`git worktree remove`), so whatever must outlive it is in the record
+  or `../uedge-wt/data/<KEY>/` first. For the same reason ticket work never runs in a worktree that something else can
+  remove (see Worktrees).
 - **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
-  any branch, pointing to the ticket page. The hook applies the branch policy to commits in this repository only
-  (any checkout sharing its git directory, worktrees included); a commit in another repository is not checked.
+  any branch, pointing to the working folder and the record. The hook applies the branch policy to commits in this
+  repository only (any checkout sharing its git directory, worktrees included); a commit in another repository is not
+  checked.
 - **Renames.** Moving a working document into a product path (`git mv`) is refused like adding it. A document that
   really belongs in the repo (a physics spec) is added as a new file on purpose, with the reason in the commit.
 - **Tickets started before this rule** may track a plan, reviews or other working documents on their branch
   (`.claude/plans/`, `docs/reviews/`, …). They **must be removed before `validate` and the PR**: the range check
   (`validate` step 0, and CI) refuses the branch until they are gone. Before removing them:
-  1. copy the plan to `.claude/work/<KEY>/plan.md` and work on that copy (`ticket-page <KEY> publish` mirrors it);
-  2. put each review round that the page records only as a path on the ticket page: one `ticket-page <KEY> log
-     Reviews` entry per round with its verdict, counts, one line per finding and the response (marked "backfilled
-     from <path> at <sha>"), then `flush`;
+  1. copy the plan to `.claude/work/<KEY>/plan.md` and work on that copy (`ticket-page T<N> publish` publishes it);
+  2. put each review round that is recorded only as a path into the record: one `ticket-page T<N> log Reviews` entry
+     per round with its verdict, counts, one line per finding and the response (marked "backfilled from <path> at
+     <sha>"); for a legacy Jira ticket (In Progress at the switch), a `PIV record` comment written by hand;
   3. tag the branch tip `archive/<KEY>-docs` and push the tag (`git tag archive/<KEY>-docs && git push origin
-     archive/<KEY>-docs`), and cite the tag on the page (`log "Findings and decisions" "Agent: the committed working
-     documents are archived in tag archive/<KEY>-docs" --flush`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
+     archive/<KEY>-docs`), and cite the tag in the record (`log T<N> "Findings and decisions" "Agent: the committed
+     working documents are archived in tag archive/<KEY>-docs"`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
   4. `git rm` them in one commit ("Removes the <KEY> working documents from git"; deletions are allowed).
-
-**The tracker: the record of a `T<N>` ticket** (AIUE-287; the tracker's build-out epic is in progress).
-- Ticket tracking is moving to a private GitHub tracker repository. `.claude/tracker.toml` is the only place in this
-  repo that names it (owner, repo, Project number); nothing else hard-codes them. Its local checkout sits next to
-  `uedge-wt/`.
-- A tracker ticket's key is `T<N>`, its issue number. Its record is the issue (status, Project fields, short
-  discussion) plus `docs/<epic>/T<N>-<slug>/` in the tracker: `record.md` (Ticket, then the append-only Progress,
-  Validation, Reviews, and Findings and decisions sections) and `plan.md` or `rca.md`. The layout is in the tracker's
-  README.
-- Records are committed directly to the tracker's `main` after `git pull --rebase`. The branch policy (Enforcement,
-  above) covers this repository only, so it doesn't check commits in the tracker (owner, 2026-11-18, tracker #3).
-- `.claude/work/<KEY>/` stays the local, untracked scratch folder for probes, drafts and raw data. Its lasting content
-  goes to the record (owner, 2026-11-18, tracker #3).
-- `ticket-page` writes `T<N>` records (tracker #2); its Confluence/Jira route is retired. The skills use the tracker:
-  the ticket-level ones since tracker #4; `create-prd` (`epic.md`), `spec` (sub-issues, `breakdown.md`, records) and
-  `close-epic` (`closeout.md`, from the tracker and git only) since #9. Other Confluence wording in this file and the
-  context modules goes in #5.
-  Jira tickets already In Progress finish in Jira, with their `PIV record` comments written by hand.
+- **Jira tickets at the switch.** Jira tickets already In Progress when the tracker started finish in Jira, with their
+  `PIV record` comments written by hand (owner, 2026-11-18). To Do Jira tickets are imported as tracker issues (label
+  `from-jira`, the old key in the Project's `Jira key` field; tracker #6) and worked as `T<N>` tickets.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
@@ -117,15 +110,15 @@ branch.
 |---|---|---|---|
 | Protected | `main`, `develop`, `v9-main`, `v9-develop` | — | **nothing directly**; PRs only |
 | AI layer | `feature/v9-ai-<slug>` (legacy: `v9-agentic`) | `v9-develop` | process |
-| Jira ticket | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, incl. an approved physics spec (+ code-facts) |
-| Tracker ticket | `feature/v9-T<N>-<slug>` (or `bugfix/v9-T<N>-<slug>`), `<N>` the tracker issue number | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, as a Jira ticket |
+| Tracker ticket | `feature/v9-T<N>-<slug>`, e.g. `feature/v9-T12-freeze-bbb` (or `bugfix/v9-T<N>-<slug>`), `<N>` the tracker issue number | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, incl. an approved physics spec (+ code-facts) |
+| Jira ticket (legacy: In Progress at the switch) | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | as a tracker ticket | product, as a tracker ticket |
 | GitHub issue | `bugfix/v9-issue-<N>-<slug>` | `v9-develop` | product |
 
 An epic has no branch of its own (no planning branch; see above).
 
 Names must match the mandatory patterns in `doc/workflow.md` (`feature/v9-*`, `bugfix/v9-*`). `<slug>` is
-kebab case and at most about 40 characters. Putting the Jira key in the branch name makes Jira link the branch,
-commits and PR to the ticket automatically.
+kebab case and at most about 40 characters. The `T<N>` key in the branch name names the tracker issue that the branch,
+its commits and its PR belong to.
 
 **One branch per ticket, not per epic.** An epic is the set of its ticket PRs. Use an epic integration branch
 (`feature/v9-<EPIC>-integration`) only when tickets really can't land on `v9-develop` one by one. Say so
@@ -143,8 +136,8 @@ refused for #73, #74 and #75 in AIUE-211).
 
 ```bash
 git fetch origin
-git worktree add -b feature/v9-AIUE-12-freeze-bbb ../uedge-wt/AIUE-12 origin/v9-develop
-cd ../uedge-wt/AIUE-12
+git worktree add -b feature/v9-T12-freeze-bbb ../uedge-wt/T12 origin/v9-develop
+cd ../uedge-wt/T12
 python -m venv .venv && . .venv/bin/activate      # own env: `pip install .` installs compiled modules
 pip install . -C "--build-option=--serial"
 ```
@@ -165,20 +158,20 @@ path is relative to the current directory, and from inside a ticket worktree `..
   `.claude/work/<KEY>/` goes with the worktree, so what must outlive it is in the record first. Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
   as `plan-feature` → `execute` (not `end-to-end-feature`) runs `execution-report` and `system-review` before its
   worktree is removed, while `.claude/work/<KEY>/` still holds the plan; for an S ticket only when the run diverged
-  (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
+  (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the archived Confluence ticket page.
   For a tracker ticket, after the PR merges: `ticket-page T<N> status Committed <merge sha>` (Project Status Done,
   issue closed), then remove the worktree. The owner's merge is the confirmation, so a ticket's Done needs no extra
   question, unlike `close-epic`'s for an epic, which never closes the children itself (AIUE-201; `plan-feature`
   Phase 6 moves it to In Progress). A Jira ticket that finishes in Jira (In Progress at the switch) still gets its
-  `PIV record` comment by hand and its transition to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`)
-  after its PR merges, until tracker #5/#6 retire the Jira steps.
+  `PIV record` comment by hand and its transition to Done (through the Atlassian MCP's transition tools) after its
+  PR merges: the only Jira writes left.
 
 ## Improving the AI layer while doing ticket work
 
 Don't fix a skill, agent or hook on a ticket branch, even when the ticket exposed the problem.
 
 1. Note it in the ticket's execution report (`execution-report` → `.claude/work/<KEY>/execution-report.md`, local; its
-   divergences and recommendations go to the ticket page's Findings and decisions).
+   divergences and recommendations go to the record's Findings and decisions).
 2. Run `system-review` on it. Apply its recommendations on a `feature/v9-ai-<slug>` branch in its own PR.
 3. If the problem blocks the ticket, merge the AI-layer PR first, then rebase the ticket branch.
 
@@ -234,5 +227,5 @@ and the trailer is checked on `git commit`; `--staged --message "<message>"` che
 `--range` also checks the **PR size budget** and prints `WARNING: PR size budget …` lines (never a failure): more
 than 40 added files or 3,000 added lines outside product source and tests, any added file over 1 MB, or data-like
 files (`*.npz`, `*.hdf5`/`*.h5`, `*.log`, JSON records). Raw run data belongs in `.claude/work/<KEY>/` or a scratch
-directory and is summarised on the ticket page; a file that really belongs in the PR is justified in its
+directory and is summarised in the ticket's record; a file that really belongs in the PR is justified in its
 description. (PR #2 carried 1,282 generated files.)

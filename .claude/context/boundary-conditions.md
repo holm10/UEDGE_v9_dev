@@ -1,11 +1,11 @@
 # Boundary conditions: options, models and known issues
 
-The agent copy of the Confluence page `UEDGE boundary conditions: options, models and known issues` (SD space, page
-25067521), which is the copy for people. The two name each other: a change to either updates the other (owner,
-2026-11-11, AIUE-257 D-doc2; story AIUE-258). Compiled from code reading at `v9-develop` 4ff060d and **not yet reviewed
+The only live copy, for agents and people. The Confluence page `UEDGE boundary conditions: options, models and known
+issues` (SD space, page 25067521) is a frozen archive copy as of 2026-11-18: it is no longer updated (owner, 2026-11-18,
+tracker #5; until then the two named each other, AIUE-257 D-doc2). Compiled from code reading at `v9-develop` 4ff060d and **not yet reviewed
 by the owner**: an issue marked *bug candidate* is unconfirmed. Before fixing one, or relying on what an option
-means, ask the owner (CLAUDE.md, decision 23). Whether the yldot suite takes each branch is on the page, and AIUE-257
-updates it as its coverage lands.
+means, ask the owner (CLAUDE.md, decision 23). The branch each yldot combination set takes is
+its `reason` in `tests/yldot/combinations.toml` (AIUE-257); the archived page has the per-branch table as of then.
 
 ## Dispatch and guard cells
 

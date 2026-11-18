@@ -22,7 +22,7 @@ Three guarantees ship here:
   3. Every `git commit` in this repository (any checkout sharing its git directory, worktrees
      included) must respect the branch policy (`.claude/context/branching.md`, checked by
      `change_kind.py`): nothing on protected branches, no ticket or epic working
-     documents on any branch (they live in the gitignored `.claude/work/` and on Confluence),
+     documents on any branch (they live in the gitignored `.claude/work/` and in the tracker record),
      no product files on AI-layer branches, no AI-layer process files on ticket branches
      unless the message carries the `AI-layer: code-facts` trailer. A commit in another
      repository, such as the tracker, is not checked.
