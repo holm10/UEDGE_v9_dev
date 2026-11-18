@@ -1,7 +1,7 @@
 ---
 name: validate
 description: Run UEDGE's quality gate — serial build (as CI), import smoke test, the yldot suite (`tests/yldot`), the AIUE-8 OpenMP test flow when RHS/Jacobian code changed, and the serial old-vs-new bitwise check when Fortran, `.v` or `ppp/` changed — and report health with ✅/❌. Use before opening a PR and at the end of execute/implement-fix.
-argument-hint: [nightly] [--omp] [--ticket <KEY>] [--no-tracker] [--tracker-dry-run]
+argument-hint: [nightly] [--omp] [--ticket T<N>] [--no-tracker] [--tracker-dry-run]
 ---
 
 # Validate
@@ -31,7 +31,7 @@ uv run .claude/hooks/change_kind.py --range origin/v9-develop...HEAD
 ❌ if it reports a VIOLATION, i.e. the wrong kind of change on this branch, or a working document (plan, review,
 RCA, validation record) committed on it (`.claude/context/branching.md`). Report it verbatim. ⚠️ for a `WARNING:
 PR size budget` line (too many files or lines outside product source and tests, a file over 1 MB, data-like files):
-not a failure, but move raw data out of the branch (summarise it on the ticket page) or justify it in the PR. A ticket started before
+not a failure, but move raw data out of the branch (summarise it in the ticket's record) or justify it in the PR. A ticket started before
 working documents left git fails here until they are removed: follow `branching.md` → "Tickets started before this
 rule" (their content to the page, the tag `archive/<KEY>-docs`, then `git rm`).
 
@@ -155,19 +155,19 @@ Overall: ✅ READY / ❌ NOT READY
 Quote failing output verbatim. Never loosen tolerances or skip a suite to get green.
 
 Longer validation records and run protocols (full logs, per-case tables) go in the ticket's working folder
-`.claude/work/<KEY>/validation/` (`<slug>` without a ticket): local, never committed. What must last goes on the
-ticket page (below): the report block and every failure verbatim.
+`.claude/work/<KEY>/validation/` (`<slug>` without a ticket): local, never committed. What must last goes in the
+ticket's record (below): the report block and every failure verbatim.
 
 ## Ticket record
 
-The Jira key comes from `--ticket <KEY>` (callers pass it: `execute`, `implement-fix` and `end-to-end-feature`
-always do, since a `bugfix/v9-issue-<N>-…` branch has none), else from the branch name (`feature/v9-<KEY>-…`,
-`bugfix/v9-<KEY>-…`), else from the `**Jira**` line or the H1 of the plan or RCA in the worktree's working folder
-(`.claude/work/*/`). No key: no record (the report block then belongs in the PR description). With a key, run
-`ticket-page <KEY> log Validation "<entry>"`: the report block's lines with the branch tip, and for each ❌ the failing
-output verbatim, trimmed to the failing part (the first error, the mismatching fnrm or variable lines). Add `--flush`
-only when `validate` was run on its own, and then also `ticket-page <KEY> progress "validate: <Overall line>"`;
-inside `execute`, `implement-fix` or `end-to-end-feature` the entry goes out with the flush that ends that step
-(`ticket-page` → "When to flush").
-`--no-tracker` skips it; `--tracker-dry-run` passes `--dry-run` (nothing is queued; the entry is shown). A failed call
-is noted under the report and never changes the verdict.
+The tracker key `T<N>` comes from `--ticket T<N>` (callers pass it: `execute`, `implement-fix` and
+`end-to-end-feature` always do, since a `bugfix/v9-issue-<N>-…` branch has none), else from the branch name
+(`feature/v9-T<N>-…`, `bugfix/v9-T<N>-…`), else from the `**Ticket**` line or the H1 of the plan or RCA in the
+worktree's working folder (`.claude/work/*/`). No key: no record (the report block then belongs in the PR
+description). With a key, run `ticket-page T<N> log Validation "<entry>"` from the worktree (`uv run
+.claude/skills/ticket-page/ticket_page.py --caller validate log T<N> Validation "<entry>"`): the report block's lines
+with the branch tip, and for each ❌ the failing output verbatim, trimmed to the failing part (the first error, the
+mismatching fnrm or variable lines). When `validate` was run on its own, also `ticket-page T<N> progress "validate:
+<Overall line>"`. Each call is one commit in the tracker checkout.
+`--no-tracker` skips it; `--tracker-dry-run` passes `--dry-run` (nothing is written; the calls are shown). A failed
+call is noted under the report and never changes the verdict.
