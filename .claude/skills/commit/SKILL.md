@@ -14,7 +14,7 @@ description: Creates a git commit for the current work with an explicit file lis
    - a working document on any branch (anything in `.claude/work/`, a plan, review report or response, validation
      record, RCA, execution or system review, PRD copy, breakdown, progress log or close-out record, also under the
      old paths `.claude/plans/`, `docs/{prds,specs,reviews,rca}/`) → unstage it. It is never committed: its lasting
-     content belongs on the ticket page (`ticket-page`) or the epic's Confluence pages. Physics specs
+     content belongs in the ticket's record (`ticket-page`) or the epic's documents in the tracker. Physics specs
      (`docs/physics_specs/`) are product files and are committed with the physics change;
    - product files on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`) → unstage them and commit them on their
      ticket branch;
@@ -63,8 +63,8 @@ was a process change (AI-layer branch) or a code-facts update (ticket branch, tr
 
 This skill doesn't open PRs, but the description that goes with this branch's PR carries what the working documents
 can't keep:
-- with a ticket record: a link to the ticket page, the criteria not independently verified, and which default results
-  changed (`CLAUDE.md` → Hard rules);
-- **without a ticket record** (no Jira key, `--no-tracker`, physics without a ticket): also the review summary, i.e.
+- with a ticket record: a link to the ticket's record (`docs/<epic>/T<N>-<slug>/record.md` in the tracker), the
+  criteria not independently verified, and which default results changed (`CLAUDE.md` → Hard rules);
+- **without a ticket record** (no tracker key, `--no-tracker`, physics without a ticket): also the review summary, i.e.
   each round's verdict, counts, one line per finding and the response, and the validate report block, since nothing
   else keeps them once the worktree is removed (`.claude/context/branching.md`).

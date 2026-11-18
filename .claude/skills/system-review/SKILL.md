@@ -109,7 +109,7 @@ code-facts correction (allowed on the ticket branch with the trailer `AI-layer: 
 ## Output Format
 
 Save your analysis to: `.claude/work/<KEY>/system-review.md` (`<slug>` without a ticket). It is a working document:
-gitignored, never committed. Its lasting content is the filed `ai-layer` issues and the ticket page entry below.
+gitignored, never committed. Its lasting content is the filed `ai-layer` issues and the record entry below.
 
 ### Report Structure:
 
@@ -178,27 +178,35 @@ Based on analysis, recommend specific actions:
 #### File the actions (required)
 
 Don't apply any of these actions yourself. Each one is a **process change** and goes through its own
-`feature/v9-ai-<slug>` branch and PR (`.claude/context/branching.md`). Queue them so they aren't lost:
+`feature/v9-ai-<slug>` branch and PR (`.claude/context/branching.md`). File them in the tracker so they aren't lost
+(owner, repo and Project number from `.claude/tracker.toml`; never hard-code them):
 
-1. If the Atlassian MCP server is connected (`mcp__atlassian__getAccessibleAtlassianResources`), for each action:
-   - Search for duplicates: `project = AIUE AND labels = ai-layer AND statusCategory != Done AND summary ~ "<2-4 key words>"`.
-     If an open issue already covers it, add a comment with this review's evidence instead of a new issue.
-   - Otherwise create a `Task` in project `AIUE` under the epic `AIUE-222` (AI-layer improvements: `parent` AIUE-222,
-     `.claude/context/branching.md` → Guard rails) with label `ai-layer`, summary `AI layer: <action>`, and a
-     description holding the evidence (the divergence, plan and report paths), the target file(s), and the proposed
-     change.
-2. If Jira isn't available, append the actions to `.claude/work/<KEY>/ai-layer-backlog.md` (local, never committed)
-   with date, feature, target file and proposed change, and queue them on the ticket page (below), which keeps them
-   until Atlassian is back; file them as issues at the next session that has Jira. Without a ticket record, give
-   them to the user in the output: the local file is lost with the worktree.
+1. If `gh` is available and authenticated, find the parent issue "AI-layer improvements" by its title
+   (`.claude/context/branching.md` → Guard rails):
+   `gh issue list -R <owner>/<repo> --label ai-layer --search "AI-layer improvements in:title" --json number,title`.
+   Then, for each action:
+   - Search for duplicates: `gh issue list -R <owner>/<repo> --label ai-layer --state open --search "<2-4 key words>"
+     --json number,title`. If an open issue already covers it, add a comment with this review's evidence (`gh issue
+     comment <n> -R <owner>/<repo> --body-file <file>`) instead of a new issue.
+   - Otherwise write the body to a file in the working folder (the evidence: the divergence, plan and report paths;
+     the target file(s); the proposed change) and create a sub-issue of the parent:
+     `gh issue create -R <owner>/<repo> --type Task --label ai-layer --parent <parent n> --title "AI layer: <action>"
+     --body-file <file>` (`--type Bug` for a defect in a skill, hook or helper). It prints the issue URL.
+   - Add it to the Project with Tier S: `gh project item-add <project> --owner <owner> --url <issue URL> --format json
+     --jq .id` gives the item id; then `gh project item-edit --id <item id> --project-id <project node id> --field-id
+     <Tier field id> --single-select-option-id <S option id>`, with the ids from `gh project view <project> --owner
+     <owner> --format json --jq .id` and `gh project field-list <project> --owner <owner> --format json`.
+2. Without `gh` (or if a call fails), append the actions to `.claude/work/<KEY>/ai-layer-backlog.md` (local, never
+   committed) with date, feature, target file and proposed change, and put them in the ticket's record (the Findings
+   and decisions entry below), which keeps them; file them as issues at the next session that has `gh`. Without a
+   ticket record, give them to the user in the output: the local file is lost with the worktree.
 3. Code-facts corrections (a context module that is simply wrong about the code) are the exception: fix them on the
    current branch with the trailer `AI-layer: code-facts`, and list them here as done.
 
-List the filed issue keys (or backlog entries) in the report. For a Jira ticket, record them on the ticket page:
-`ticket-page <KEY> log "Findings and decisions" "Agent: system review <score>/10; ai-layer issues <keys> (or not
-filed yet: <one line per action>)" --flush`. This is the end-of-ticket flush of `end-to-end-feature` and
-`implement-fix`: it also sends the commit and execution-report entries queued before it. Then check that `queue
---list` and `queue --epic --list` print nothing.
+List the filed issue numbers (or backlog entries) in the report. For a tracker ticket `T<N>`, record them in the
+ticket's record: `ticket-page T<N> log "Findings and decisions" "Agent: system review <score>/10; ai-layer issues
+#<n>, … (or not filed yet: <one line per action>)"` (`uv run .claude/skills/ticket-page/ticket_page.py --caller
+system-review log T<N> "Findings and decisions" "…"` from the worktree; one commit in the tracker checkout).
 
 #### Key Learnings
 
