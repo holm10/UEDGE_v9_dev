@@ -27,7 +27,9 @@ here; this skill does not re-draft it.
 (`main`); otherwise write nothing and report the files or the branch. Then `git -C <T> pull --rebase -q` (a conflict:
 `git -C <T> rebase --abort`, write nothing, report; an unreachable remote: write locally and say the push is pending),
 write the files, `git -C <T> add -- <paths>`, `git -C <T> commit -q -m "T<E> spec: <what>" -- <paths>` and `git -C <T>
-push -q` (a failed push is reported; the next write pushes it). One commit per milestone.
+push -q` (a failed push is reported; the next write pushes it). One commit per milestone. A `ticket-page` call that
+runs in this checkout between the write and the commit is refused (exit 2, uncommitted changes) and is simply re-run;
+if these checks find a file another call is writing, wait a few seconds and check again.
 
 **Project fields.** Read once per run: the Project id (`gh project view <P> --owner <o> --format json --jq .id`) and
 the field and option ids of Status (To Do) and Tier (S, M, L) (`gh project field-list <P> --owner <o> --format
@@ -51,8 +53,9 @@ Detect `$1` in this order:
 Below, **the epic** means `T<E>` from `$1` or the token after a local path, whichever was given.
 
 Flags (anywhere in the arguments):
-- `--records-only`: the epic is already sliced and filed. Skip Steps 2-5 and the filing in Step 6 (6.1-6.6 and 6.8);
-  run Step 6b for every sub-issue of the epic. Use it to give an existing epic's tickets their records, or after a
+- `--records-only`: the epic is already sliced and filed. Skip Steps 2-5 and the filing in Step 6 (6.1, the creates
+  of 6.3, 6.4-6.6 and 6.8); run 6.2, the Project check of existing sub-issues in 6.3, and Step 6b for every sub-issue
+  of the epic. Use it to give an existing epic's tickets their records, or after a
   run whose record step failed partway. Here an epic without `epic.md` is not a stop (Step 1): each record's Ticket
   section is its issue's body, as always. It never rewrites `breakdown.md`.
 - `--no-tracker`: no ticket records (Step 6b is skipped; say so). The breakdown and the issues are written as usual.
@@ -75,14 +78,17 @@ The PRD is the source of truth for this entire decomposition. Load it before doi
    stop. If its type is not `Epic`, tell the user and ask whether to continue.
 2. Its sub-issues: `gh api repos/<o>/<r>/issues/<E>/sub_issues --paginate` (number, title, state, type, labels).
 3. Bring `<T>` up to date (the checks and the pull of **Tracker writes**; nothing is written) and find the epic
-   directory.
+   directory. If the checks fail (uncommitted changes, another branch), stop and report the files or the branch:
+   Step 5 could not write either.
 
 **If `$1` is the epic:** the PRD is `docs/T<E>-*/epic.md` in `<T>`. Say which file you are using. **No `epic.md`:**
 stop (unless `--records-only`). Tell the user to run `/create-prd T<E>` first, or to pass a local doc path followed by
 `T<E>`. Do not slice the bare issue body, because it is not a PRD.
 
 **If `$1` is a file path:** read the file directly and use its contents as the PRD. With an epic, treat the issue
-(body, comments, sub-issues) as supplementary context; if it and the doc conflict, the doc wins.
+(body, comments, sub-issues) as supplementary context; if it and the doc conflict, the doc wins. If that epic has no
+`epic.md`, the doc would be kept nowhere and `close-epic` would have no success criteria to judge against: recommend
+publishing it first with `/create-prd T<E>` and continue only if the user says so.
 
 Read the loaded PRD fully: the goal, user stories, architectural impact, acceptance criteria, out-of-scope.
 
@@ -116,7 +122,7 @@ without an epic), in the shape of the tracker's breakdown template plus the slic
 ```
 # T<E>: <epic title>, ticket breakdown
 
-The source is `epic.md`. Each ticket is a sub-issue of #<E>. Dependencies are also set as "blocked by" relations on
+The source is `epic.md` | `<local doc path>` (local, not in the tracker). Each ticket is a sub-issue of #<E>. Dependencies are also set as "blocked by" relations on
 the issues.
 
 ## Epic summary
@@ -181,11 +187,13 @@ real:
    (title, and scope where titles differ).
    - If a sub-issue already covers that slice, **skip it** and report it as already existing (with its number).
    - Only create the slices that are genuinely missing. Never create a near-duplicate of an existing sub-issue.
-2. Read the Project ids once (**Project fields**).
+2. Read the Project ids once (**Project fields**) and the Project's items (the listing of Step 6b.1, with each
+   item's Status and Tier).
 3. **Create the missing ones in dependency order** (a ticket after the tickets it depends on, so their numbers are
    known). Per ticket, a body file `<scratch>/T<E>-ticket-<i>.md` in the tracker's Ticket form shape: `## Scope`
    (the scope, the files likely touched, and `Source: breakdown of T<E> (docs/T<E>-<slug>/breakdown.md)`), `##
-   Acceptance criteria`, and the line `Depends on: #<M>, … | none`. Then
+   Acceptance criteria`, and the lines `Tier: <S|M|L> (<why>)`, `Branch: <branch> (base <base>)` and `Depends on:
+   #<M>, … | none` (`plan-feature` reads Tier and Branch there first). Then
 
    ```bash
    gh issue create -R <o>/<r> --type <Feature|Task|Bug> --title "<title>" --body-file <scratch>/T<E>-ticket-<i>.md \
@@ -194,6 +202,11 @@ real:
 
    The URL it prints gives `<N>`. Then put it on the Project and set Tier and Status To Do (**Project fields**: one
    item-add and two item-edits).
+
+   **Existing sub-issues** get the same Project check, so a partial run (an item-add or item-edit that failed) or the
+   Project's auto-add of sub-issues (which sets no Status) leaves no gap: from the listing of 6.2, one
+   not on the Project gets the item-add, an empty Tier is set from its breakdown entry (none there: report it), and
+   an empty Status is set to To Do. Report each repair.
 4. **Blocked by.** For every ticket with dependencies (created now or existing):
    `gh issue edit <N> -R <o>/<r> --add-blocked-by <M>[,<M2>…]`, only for the relations not already there
    (`gh api repos/<o>/<r>/issues/<N>/dependencies/blocked_by --jq '.[].number'`).
@@ -219,13 +232,14 @@ commit closes it (`.claude/skills/ticket-page/SKILL.md`). `--tracker-dry-run` pr
 the step.
 
 **Which tickets.** Every ticket created in Step 6, and every existing sub-issue of the epic whose Project Status is
-**To Do or In Progress** that has no record yet. Sub-issues in **In Review, Done** (or closed) are skipped and listed
+**To Do or In Progress** (an empty Status, which 6.3 repairs, counts as To Do) that has no record yet. Sub-issues in **In Review, Done** (or closed) are skipped and listed
 in the report as "skipped (status <s>)": their work is largely recorded elsewhere, and a record made now could only
 say so (owner decision, 2026-10-16). A record for an existing sub-issue is a **backfill**: it claims nothing about the
 ticket's past.
 
 1. **Statuses** come from the Project: `gh project item-list <P> --owner <o> --format json --limit 1000`, the items
-   whose `content.repository` is `<o>/<r>` and whose `content.number` is a sub-issue, with their `status`.
+   whose `content.repository` is `<o>/<r>` and whose `content.number` is a sub-issue, with their `status` and `tier`
+   (`null` when empty).
 2. **Existing records:** after the pull, `docs/*/T<N>-*/record.md` in `<T>`. One → the ticket has a record (from an
    earlier `spec` run or from another skill that found none): leave it as it is and report it; add its `Record` line
    to the working copy if it is missing (not with `--records-only`). Two → report the ticket and write nothing for it
@@ -235,10 +249,12 @@ ticket's past.
    issue's body, the header has the issue type, the Project's Tier and status `Planned`, and the record sits under the
    epic directory. It is one commit in `<T>`, pushed. Put the path it prints, relative to the epic directory, in the
    ticket's `Record` line of the working copy.
-4. **A backfill** of a **To Do** sub-issue then runs `status T<N> Backfilled` (it hasn't started; the Project Status
-   stays To Do). An **In Progress** sub-issue gets no status call, because `Backfilled` would move its Project Status
-   back to To Do: it gets one `log T<N> Progress "record backfilled by spec; the ticket was In Progress, its status is
-   left as it is"` instead.
+4. **A backfill** of a **To Do** sub-issue then runs `status T<N> Backfilled "Ticket section: the issue body as read
+   on <date>, not as filed"` (it hasn't started; the Project Status stays To Do). An **In Progress** sub-issue gets no
+   status call, because `Backfilled` would move its Project Status back to To Do: it gets one `log T<N> Progress
+   "record backfilled by spec: the ticket was In Progress, so its Project Status is left as it is and the header Status
+   still reads Planned; the Ticket section is the issue body as read on <date>, not as filed"` instead. (`create`
+   writes "as filed" and `Planned` for every record; a backfill corrects both through these entries.)
 5. A failure (GitHub down, a refused write, a dirty tracker checkout) never stops the run: report the ticket and the
    error verbatim; a re-run (or `--records-only`) creates only what is still missing.
 
@@ -249,7 +265,8 @@ Per batch: the Project field listing, the sub-issue listing before and after, an
 > Order matters: write the breakdown working copy first (Step 4), commit it to the tracker (Step 5), then create the
 > issues, then their records (Step 6b), then commit the breakdown with the numbers (Step 6.8). If issue or record
 > creation fails partway, the breakdown still exists and the run is re-runnable: Step 6.1 and Step 6b.2 skip what
-> already exists, so a re-run never adds a second issue or record. Two runs at the same time can still create two
+> already exists, so a re-run never adds a second issue or record, and 6.3 completes the Project fields of what
+> exists. Two runs at the same time can still create two
 > issues for one ticket; the listing after the batch detects it, and it is reported for a person to resolve.
 
 ## Output

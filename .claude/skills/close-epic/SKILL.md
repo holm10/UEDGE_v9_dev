@@ -47,7 +47,7 @@ Four rules hold throughout:
 | Tracker | `.claude/tracker.toml` in the main checkout: `owner`, `repo`, `project`. Below, `<o>/<r>` is owner/repo and `<P>` the Project number; never write them out in this skill |
 | Tracker checkout `<T>` | `<parent of the main checkout>/<repo>`, as `ticket-page` uses it (the main checkout is the parent of `git rev-parse --path-format=absolute --git-common-dir`) |
 | Public repo `<pub>` | owner/repo of the UEDGE checkout's `origin` remote (`git remote get-url origin`), for `gh pr` calls |
-| Epic directory | `docs/T<E>-*/` in `<T>` (exactly one; none → stop and say so) |
+| Epic directory | `docs/T<E>-<slug>/` in `<T>`: the one line of `git -C <T> ls-tree --name-only origin/main docs/ \| grep "^docs/T<E>-"` (after the fetch of **Tracker reads**; the hyphen keeps `T1` from matching `T10`). Two → stop and say so. None → continue as without `epic.md` (Step 1); Step 7 then creates it, `<slug>` from the epic title as `ticket-page` makes it (lower case, every run of other characters one `-`, at most 40 characters) |
 | Record (local working copy) | `.claude/work/T<E>/closeout.md` in the current checkout |
 | Sources snapshot (local) | `.claude/work/T<E>/closeout-sources/` |
 | Review reports (local) | `.claude/work/T<E>/reviews/T<E>-closeout-round<N>.md` and `-response.md` |
@@ -63,13 +63,17 @@ commit read, issue `updatedAt` values, comment ids) so the sources can be read a
 
 **Tracker reads** never change the checkout: `git -C <T> fetch -q`, then list with `git -C <T> ls-tree -r --name-only
 origin/main -- <epic directory>` and read with `git -C <T> show origin/main:<path>` (use the default branch's name if
-it is not `main`). The snapshot names the commit read (`git -C <T> rev-parse origin/main`).
+it is not `main`). The snapshot names the commit read (`git -C <T> rev-parse origin/main`). If `git -C <T> rev-list
+--count origin/main..main` is above 0, record commits that `ticket-page` made but could not push are not read: say so
+in section 10 and list it as an open item (the next `ticket-page` call, or a `git -C <T> push`, sends them).
 
 **Tracker writes** (Step 7 only; the same rule as `ticket-page`): `git -C <T> status --porcelain
 --untracked-files=no` must be empty and `git -C <T> symbolic-ref --short HEAD` the default branch; otherwise write
 nothing and report. Then `git -C <T> pull --rebase -q` (a conflict: `git -C <T> rebase --abort`, write nothing,
 report), write the file, `git -C <T> add -- <paths>`, `git -C <T> commit -q -m "T<E> close-epic: <what>" -- <paths>`
-and `git -C <T> push -q`.
+and `git -C <T> push -q`. A `ticket-page` call that runs in this checkout between the write and the commit is refused
+(exit 2, uncommitted changes) and is simply re-run; if these checks find a file another call is writing, wait a few
+seconds and check again.
 
 ## Input
 
@@ -94,7 +98,7 @@ the owner a draft of an epic still in progress. In a dry run:
 - The draft's status is `Dry run - not reviewed, not published`.
 - The adversarial review (Step 5) runs only if the user asks; the reviewer then writes its report next to the draft.
 - Step 6 lists the questions it *would* ask the owner, without waiting for answers. Step 7 lists what it *would*
-  do: the tracker path, create or replace, the commit message, add or update the epic comment, and the epic's Project
+  do: the tracker path, create or replace, the commit messages, add or update the epic comment, and the epic's Project
   item id and the Status option id of Done. Put both lists in a final appendix of the draft, "Dry run: what a real
   run would do", with each value's source in the snapshot, and in the output.
 
@@ -113,10 +117,10 @@ in the fields you use (no paraphrase; avatar and `url` fields of authors may be 
 | `issue-children.json` | every sub-issue: number, title, type, labels, state and state reason, createdAt, updatedAt, closedAt, and its "blocked by" numbers |
 | `issue-comments.md` | every sub-issue comment used: issue number, comment URL, createdAt, body verbatim (markdown avoids JSON-escaping long bodies) |
 | `project-items.json` | the Project items of the epic and its sub-issues (and the PRs added to the Project): item id, issue number, Status, Tier, `Jira key`; plus the Status field id and its Done option id |
-| `tracker-files.txt` | the commit read (`origin/main` sha) and the `ls-tree` listing of the epic directory, with each file's last commit (`git -C <T> log -1 --format='%h %ad' origin/main -- <path>`) |
+| `tracker-files.txt` | the commit read (`origin/main` sha) and the `ls-tree` listing of the epic directory and of every record directory read from outside it, with each file's last commit (`git -C <T> log -1 --format='%h %ad' origin/main -- <path>`) |
 | `tracker-epic.md`, `tracker-breakdown.md`, `tracker-progress.md` | the epic documents as read |
 | `tracker-records.md` | per ticket record: its path, the header, the Ticket section and the four log sections verbatim (Progress, Validation, Reviews, Findings and decisions). `plan.md`/`rca.md` are left out unless a criterion depends on them (then quote the part used): record the publish date and sha256 the header cites |
-| `prs.json` | the public PRs the records and comments name: `gh pr view <N> -R <pub> --json number,title,state,headRefName,baseRefName,mergeCommit,mergedAt,url`. A public PR is one written `<pub>#<N>` or a PR URL of `<pub>`, or one in a record's `PR` row; a bare `#<N>` or `PR #<N>` in the tracker is the tracker's own issue or PR |
+| `prs.json` | the public PRs the records and comments name: `gh pr view <N> -R <pub> --json number,title,state,headRefName,baseRefName,mergeCommit,mergedAt,url`. A public PR is one written `<pub>#<N>` or a PR URL of `<pub>`, or one in a record's `PR` row. A bare `#<N>` or `PR #<N>` next to a public merge commit or branch (a `Committed` entry, a `(commit)` progress line) is checked against both repos (`gh pr view <N> -R <pub>`, `gh issue view <N> -R <o>/<r>`) and taken as the one whose merge commit or branch matches; any other bare number is the tracker's own issue or PR |
 | `snapshot.md` | header: UTC time of the gather; the tracker commit read; `origin/v9-develop` sha; a legacy planning branch tip, if one exists; every ticket branch, merge commit or prototype worktree with its tip and `git status --short` line count; each issue's `updatedAt` |
 
 The record states its snapshot (section 10). Facts that change after it are the reviewer's to flag, not errors.
@@ -147,7 +151,7 @@ An unverified statement is never listed as an owner decision. Step 6 asks the ow
 
 **Tracker documents** (Tracker reads; save each as the snapshot table says):
 
-1. `epic.md`, the PRD (as in `spec`). No `epic.md` → continue, but Step 3 can only use the breakdown and the tickets'
+1. `epic.md`, the PRD (as in `spec`). No `epic.md` (or no epic directory) → continue, but Step 3 can only use the breakdown and the tickets'
    own acceptance criteria; say so. Extract: the success criteria (`## Success criteria`), the binding decisions
    (`## Decisions`), the default-results statement (`## Physics & Numerics Impact`, if the PRD has it), the
    out-of-scope list (`## Scope`), the review history (`## Reviews`), and the MINORs the PRD carried to the tickets.
@@ -449,17 +453,17 @@ recorded owner answers pass a self-check: every open item in section 8 has an an
 or keep open); for "Closed by the owner", accepted + deferred = n and no item is kept open; every decision credited to
 the owner was confirmed in Step 6. If the check fails, fix the record or go back to Step 6. And the sources haven't
 moved: compare the ticket tips (and a legacy planning tip) and the prototype worktrees with the snapshot, each
-issue's `updatedAt` (`gh issue view <N> -R <o>/<r> --json updatedAt`) with the snapshot's, and the epic directory's
-last tracker commit after a fetch (`git -C <T> log -1 --format=%h origin/main -- <epic directory>`) with the commit
-the snapshot read. If anything changed, re-gather what moved, update the record and the snapshot, and go back
+issue's `updatedAt` (`gh issue view <N> -R <o>/<r> --json updatedAt`) with the snapshot's, and, after a fetch, ask
+whether any tracker commit since the snapshot touches what it read: `git -C <T> log --format=%h <snapshot
+sha>..origin/main -- <epic directory> <each record directory read from outside it>` must print nothing (commits to
+other epics don't count). If anything changed, re-gather what moved, update the record and the snapshot, and go back
 through Step 5.
 
 1. **Nothing is committed to the public repo.** The record, the snapshot and the review reports stay in
    `.claude/work/T<E>/` (gitignored); keep them until `closeout.md` is committed, pushed and its content checked.
 2. **The tracker file.** Put `closeout.md` in the record's "This file" field, then write it as **Tracker writes**
    says: one commit of `closeout.md` (a re-run replaces it; never a second file), `T<E> close-epic: closeout.md
-   (<status line>)`. If the owner said yes to Done, the same commit sets `epic.md`'s header Status to `Done` and its
-   Last update to today.
+   (<status line>)`. `epic.md` is not touched yet (item 5).
 3. **Epic comment:** `gh issue comment <E> -R <o>/<r> --body-file <file>` with
 
    ```markdown
@@ -468,15 +472,21 @@ through Step 5.
    ```
 
    If an earlier close-epic comment exists on the epic (it links `closeout.md`), update it instead: `gh api -X PATCH
-   repos/<o>/<r>/issues/comments/<comment id> -F body=@<file>`. If that update fails, add a new comment that starts
+   repos/<o>/<r>/issues/comments/<comment id> -F body=@<file>`, where `<comment id>` is the number after
+   `#issuecomment-` in the comment's URL (`gh issue view <E> -R <o>/<r> --json comments --jq '.comments[].url'`; the
+   `id` field there is a node id the REST path doesn't take). If that update fails, add a new comment that starts
    "Supersedes <comment URL>" instead of stopping.
 4. **Close the epic** only if the owner said yes in Step 6: `gh issue close <E> -R <o>/<r> --reason completed`, then
    its Project Status to Done (`gh project item-edit --id <epic's item id> --project-id <project id> --field-id
    <Status field id> --single-select-option-id <Done option id>`, ids from Step 1). Re-read the epic (`gh issue view
    <E> -R <o>/<r> --json state,projectItems`) to confirm it is closed and Done. Children are not touched.
+5. **`epic.md` Done**, only once item 4's re-read confirms closed and Done: as **Tracker writes** says, one commit
+   `T<E> close-epic: epic.md Done` that sets `epic.md`'s header Status to `Done` and its Last update to today (no
+   `epic.md`: skip). So `epic.md` never says Done on an open epic; if item 4 failed, it still says what it said.
 
 If any tracker or `gh` write fails, report the error verbatim, point to the local record (not committed; the only copy
-until `closeout.md` is pushed, so keep it), and stop.
+until `closeout.md` is pushed, so keep it), and stop. A re-run picks up where it stopped: it replaces the same
+`closeout.md`, updates the same comment, and closes and marks Done only what isn't yet.
 
 ## Output
 

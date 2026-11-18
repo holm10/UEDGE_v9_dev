@@ -35,7 +35,9 @@ person files, it is only the epic's identity.)
 otherwise write nothing and report the files or the branch. Then `git -C <T> pull --rebase -q` (a conflict: `git -C
 <T> rebase --abort`, write nothing, report; an unreachable remote: write locally and say the push is pending), write
 the files, `git -C <T> add -- <paths>`, `git -C <T> commit -q -m "T<E> create-prd: <what>" -- <paths>` and `git -C
-<T> push -q` (a failed push is reported; the next write pushes it). One commit per publish.
+<T> push -q` (a failed push is reported; the next write pushes it). One commit per publish. A `ticket-page` call that
+runs in this checkout between the write and the commit is refused (exit 2, uncommitted changes) and is simply re-run;
+if these checks find a file another call is writing, wait a few seconds and check again.
 
 ## Input
 
@@ -151,7 +153,10 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
    - If its type is not `Epic`, tell the user and ask whether to continue.
 2. Its sub-issues: `gh api repos/<o>/<r>/issues/<E>/sub_issues --paginate` (number, title, state).
 3. Look for an existing epic document. Bring `<T>` up to date (the checks and the pull of **Tracker writes**; nothing
-   is written), then look for `docs/T<E>-*/epic.md`.
+   is written), then look for `docs/T<E>-*/epic.md`. If the checks fail (uncommitted changes, another branch), don't
+   pull: `git -C <T> fetch -q`, read with `git -C <T> show origin/main:<path>` (list with `git -C <T> ls-tree
+   --name-only origin/main docs/ | grep "^docs/T<E>-"`), and tell the user that Step 6 can't write until the checkout
+   is fixed.
    - If one exists (written by an earlier run, or by hand), read it. Treat this run as a **revision** of it, not a
      new PRD: keep what is still valid and change only what the conversation changed.
 
@@ -160,7 +165,10 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 1. If the conversation has not discussed the requirements, ask the key questions first (below).
 2. Propose an epic title from the conversation and ask the owner to confirm or change it. Create nothing before the
    owner confirms.
-3. Create the issue: `gh issue create -R <o>/<r> --type Epic --title "<title>" --body-file <scratch>/epic-body.md`
+3. Look for it first (an earlier run may have created it and stopped): `gh issue list -R <o>/<r> --state open
+   --search '<title> in:title' --json number,title,issueType`. An Epic with that exact title → it is `<E>`: say so,
+   add only what an earlier run left undone (the Records line, step 4), and continue as with `T<E>` above. Otherwise
+   create the issue: `gh issue create -R <o>/<r> --type Epic --title "<title>" --body-file <scratch>/epic-body.md`
    (add `--label ai-layer` for AI-layer work). The body has the tracker's Epic form shape: `## Goal` (two or three
    lines from the conversation), `## Scope` and `## Success criteria` ("in `epic.md` once the PRD is approved"). The
    URL it prints gives `<E>`. Then add the line `Records: docs/T<E>-<slug>/` to the body (`gh issue edit <E> -R
