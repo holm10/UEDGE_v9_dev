@@ -58,12 +58,11 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
 - **Physics specs stay in the repo.** `docs/physics_specs/<feature>.md` is product documentation: the approved spec
   is committed on the ticket branch with the physics change it specifies (`CLAUDE.md` → Hard rules,
   `physics-workflow.md`). Its review reports are working documents like any other.
-- **Robustness.** Confluence or Jira being down never blocks code work: the working files and the `ticket-page`
-  outbox and sent log (in the worktree's git directory) keep the record until the next flush. **Both are lost when the
-  worktree is removed** (`git worktree remove`), so flush the ticket page (`ticket-page <KEY> flush`, and
-  `queue --list` empty) before removing a worktree; anything not on the page by then is gone. For the same reason
-  ticket work never runs in a worktree that something else can remove (see Worktrees), and a subagent doing ticket
-  work flushes and checks that `queue --list` is empty before it returns.
+- **Robustness.** A tracker ticket's record has nothing queued: each `ticket-page` call is a commit in the tracker
+  checkout, which sits outside every worktree, and a failed push is retried on the next call (tracker #2). The
+  working folder `.claude/work/<KEY>/` is lost with the worktree (`git worktree remove`), so whatever must outlive it
+  is in the record or `../uedge-wt/data/<KEY>/` first. For the same reason ticket work never runs in a worktree that
+  something else can remove (see Worktrees). (A `flush` or `queue --list` that a skill still runs is a no-op.)
 - **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
   any branch, pointing to the ticket page. The hook applies the branch policy to commits in this repository only
   (any checkout sharing its git directory, worktrees included); a commit in another repository is not checked.
@@ -93,9 +92,9 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   above) covers this repository only, so it doesn't check commits in the tracker (owner, 2026-11-18, tracker #3).
 - `.claude/work/<KEY>/` stays the local, untracked scratch folder for probes, drafts and raw data. Its lasting content
   goes to the record (owner, 2026-11-18, tracker #3).
-- Until `ticket-page` is ported to the tracker (tracker #2) and the skills follow (#4), the skills keep the records of
-  Jira tickets on Confluence and Jira as described above, and a `T<N>` record is written with git by hand. Jira
-  tickets already In Progress finish in Jira.
+- `ticket-page` writes `T<N>` records (tracker #2); its Confluence/Jira route is retired. Skills whose steps still
+  describe Confluence pages are adapted in tracker #4; until then their `ticket-page` calls go to the tracker record.
+  Jira tickets already In Progress finish in Jira, with their `PIV record` comments written by hand.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
@@ -157,21 +156,20 @@ path is relative to the current directory, and from inside a ticket worktree `..
 - **Ticket work always runs in an explicit worktree** (`git worktree add … ../uedge-wt/<KEY>`, above), also when a
   subagent does it. Never use the Agent tool's `isolation: "worktree"` for ticket work: Claude Code removes such a
   worktree by itself when the subagent finishes without committed changes, and sweeps old ones later, and gitignored
-  working documents don't stop either. The working folder and the unsent `ticket-page` entries would go with it.
-  Give the subagent the worktree path instead. A subagent doing ticket work flushes the ticket page and checks that
-  `queue --list` (and `queue --epic --list`) prints nothing before it returns; if a flush fails, it says so with the
-  worktree path, and the caller flushes later.
-- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/AIUE-12`. **Flush first**: the working
-  folder `.claude/work/<KEY>/` and the `ticket-page` outbox go with the worktree, so run `ticket-page <KEY> flush`
-  and check that nothing is queued (`ticket_page.py queue --repo <worktree> --key <KEY> --list` prints nothing).
-  Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
+  working documents don't stop either. The working folder would go with it. Give the subagent the worktree path
+  instead. (`ticket-page` writes go straight to the tracker checkout, outside the worktree, so nothing is left to
+  flush; a subagent reports any `push failed` line it saw, and the next `ticket-page` call pushes the commit.)
+- Remove a worktree after its PR merges: `git worktree remove ../uedge-wt/T12`. The working folder
+  `.claude/work/<KEY>/` goes with the worktree, so what must outlive it is in the record first. Raw data a later ticket re-reads goes to `../uedge-wt/data/<KEY>/` first (Working documents, above). A ticket run
   as `plan-feature` → `execute` (not `end-to-end-feature`) runs `execution-report` and `system-review` before its
   worktree is removed, while `.claude/work/<KEY>/` still holds the plan; for an S ticket only when the run diverged
   (as `end-to-end-feature` Step 5). AIUE-161's retrospective had to read its plan back from the ticket page.
-  For a Jira ticket, after the PR merges: `ticket-page <KEY> status Committed` with the merge sha, then transition
-  the ticket to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`), then flush and remove. The owner's
-  merge is the confirmation, so a ticket's Done needs no extra question, unlike `close-epic`'s for an epic, which
-  never transitions the children itself (AIUE-201; `plan-feature` Phase 6 moves it to In Progress).
+  For a tracker ticket, after the PR merges: `ticket-page T<N> status Committed <merge sha>` (Project Status Done,
+  issue closed), then remove the worktree. The owner's merge is the confirmation, so a ticket's Done needs no extra
+  question, unlike `close-epic`'s for an epic, which never closes the children itself (AIUE-201; `plan-feature`
+  Phase 6 moves it to In Progress). A Jira ticket that finishes in Jira (In Progress at the switch) still gets its
+  `PIV record` comment by hand and its transition to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`)
+  after its PR merges, until tracker #5/#6 retire the Jira steps.
 
 ## Improving the AI layer while doing ticket work
 

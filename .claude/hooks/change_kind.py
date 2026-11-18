@@ -27,8 +27,9 @@ Path classes
             .claude/execution-reports/**, .claude/system-reviews/**, .claude/code-reviews/**,
             docs/{prds,specs,reviews,rca}/**. Ticket and epic working documents: plans, review reports and
             responses, validation records, RCAs, execution and system reviews, PRD copies, breakdowns, progress logs,
-            close-out records. Never committed, on any branch: their lasting content goes to the ticket's Confluence
-            page (`ticket-page` skill) or the epic's Confluence pages. Deleting one that is still tracked is allowed.
+            close-out records. Never committed, on any branch: their lasting content goes to the ticket's record in
+            the tracker (`ticket-page` skill) or the epic's documents there. Deleting one that is still tracked is
+            allowed.
   process   CLAUDE.md, .mcp.json, .claude/** (skills, agents, context, hooks, settings), .githooks/**,
             .github/workflows/claude-*.yml. Changes how agents work.
   shared    .gitignore. Allowed on any branch.
@@ -62,9 +63,9 @@ WORKING = re.compile(r"^(\.claude/(work|plans|execution-reports|system-reviews|c
                      r"docs/(prds|specs|reviews|rca)/)")
 WORKING_HINT = ("working documents are never committed (plans, reviews and responses, validation records, RCAs, "
                 "execution and system reviews, PRD copies, breakdowns, progress logs, close-out records). Keep "
-                "them in the gitignored working folder .claude/work/<KEY>/ and put their lasting content on the "
-                "ticket's Confluence page with the ticket-page skill (epic documents: the PRD page and its "
-                "children). Physics specs belong in docs/physics_specs/ (.claude/context/branching.md)")
+                "them in the gitignored working folder .claude/work/<KEY>/ and put their lasting content in the "
+                "ticket's record in the tracker with the ticket-page skill (epic documents: the epic's directory "
+                "there). Physics specs belong in docs/physics_specs/ (.claude/context/branching.md)")
 # The only process paths a ticket branch may touch, and only with the code-facts trailer: descriptions of the code.
 CODE_FACTS = re.compile(r"^(CLAUDE\.md$|\.claude/context/)")
 PROCESS = re.compile(r"^(CLAUDE\.md$|\.mcp\.json$|\.claude/|\.githooks/|\.github/workflows/claude-[^/]*\.ya?ml$)")
