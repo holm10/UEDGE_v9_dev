@@ -211,7 +211,12 @@ GIT = r"\bgit\s+(?:-C\s+(?P<C>\S+)\s+)?"
 GIT_COMMIT = re.compile(GIT + r"commit\b(?P<args>[^\n;&|]*)")
 GIT_ADD = re.compile(GIT + r"add\s+(?P<args>[^\n;&|]*)")
 GIT_NEW_BRANCH = re.compile(GIT + r"(?:checkout\s+-[bB]|switch\s+-[cC])\s+(?P<b>[^\s;&|]+)")
-CD = re.compile(r"(?:^|[;&|]\s*)cd\s+(?P<d>[^\s;&|]+)")
+# A newline separates commands like ; and && do, so a cd at the start of a later line counts (tracker #8).
+CD = re.compile(r"(?:^|[;&|\n])\s*cd\s+(?P<d>[^\s;&|]+)")
+# A backslash-newline continues a line (bash removes it), so `cd a && \` + `cd b` reaches b and `echo a \` + `cd b`
+# passes cd to echo. Joined only after the here-document bodies are dropped, so a body line ending in \ can't swallow
+# its terminator.
+CONTINUATION = re.compile(r"(?<!\\)\\\n")
 # A here-document body (<<EOF ... EOF, <<'EOF', <<-EOF): text, not commands, so it is dropped before matching the git
 # commands above. Only the body goes: the rest of the opening line (cat <<EOF | git commit -F -) is a command and is
 # kept. A herestring (<<<) is not a here-document, and an empty body (the terminator on the next line) is matched, so
@@ -270,7 +275,9 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     if tool_name != "Bash":
         return None
     full = tool_input.get("command", "")
-    command = strip_heredocs(full)
+    # Every regex below runs on this one text, so the positions _workdir_at compares agree; `full` stays raw for the
+    # trailer check (a commit message in a here-document).
+    command = CONTINUATION.sub(" ", strip_heredocs(full))
     commits = list(GIT_COMMIT.finditer(command))
     if not commits:
         return None
