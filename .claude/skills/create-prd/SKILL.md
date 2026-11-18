@@ -255,8 +255,8 @@ round first.
 
 1. **The document.** `epic.md` in the epic directory (Configuration), in the template's shape:
    - `# T<E>: <epic title>`, then the header table: Issue `#<E> (type Epic)`; Status `Approved` (or the Step 5.6
-     draft status); Breakdown `breakdown.md` (`none yet: /spec T<E>` until `spec` writes it); Progress
-     `progress.md`; Adversarial review `<VERDICT> (round <N>, <B> blocker / <M> major / <m> minor raised in total)`;
+     draft status); Breakdown `breakdown.md` and Progress `progress.md`
+     (`spec` writes both); Adversarial review `<VERDICT> (round <N>, <B> blocker / <M> major / <m> minor raised in total)`;
      Last update `<date>`.
    - `## Goal`: the Executive Summary and the Mission (sections 1-2).
    - `## Scope`: the MVP Scope (section 4), in and out of scope.
