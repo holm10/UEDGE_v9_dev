@@ -43,6 +43,9 @@ Branch classes
             (= the edit only keeps the AI layer factually in line with the code this branch changes);
             other process paths (skills, agents, hooks, settings) never.
   Working documents are refused on every branch (deletions of tracked ones excepted).
+  Tracker ticket branches (feature/v9-T<N>-<slug>, bugfix/v9-T<N>-<slug>) are ticket branches like Jira ones.
+  The hook (pre_tool_use.py) applies these rules only to commits in this repository, i.e. any checkout sharing its
+  git directory; a commit in another repository, such as the tracker, is not checked (owner, 2026-11-18, tracker #3).
 """
 
 import argparse
