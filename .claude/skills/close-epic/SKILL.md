@@ -47,7 +47,7 @@ Four rules hold throughout:
 | Tracker | `.claude/tracker.toml` in the main checkout: `owner`, `repo`, `project`. Below, `<o>/<r>` is owner/repo and `<P>` the Project number; never write them out in this skill |
 | Tracker checkout `<T>` | `<parent of the main checkout>/<repo>`, as `ticket-page` uses it (the main checkout is the parent of `git rev-parse --path-format=absolute --git-common-dir`) |
 | Public repo `<pub>` | owner/repo of the UEDGE checkout's `origin` remote (`git remote get-url origin`), for `gh pr` calls |
-| Epic directory | `docs/T<E>-<slug>/` in `<T>`: the one line of `git -C <T> ls-tree --name-only origin/main docs/ \| grep "^docs/T<E>-"` (after the fetch of **Tracker reads**; the hyphen keeps `T1` from matching `T10`). Two → stop and say so. None → continue as without `epic.md` (Step 1); Step 7 then creates it, `<slug>` from the epic title as `ticket-page` makes it (lower case, every run of other characters one `-`, at most 40 characters) |
+| Epic directory | `docs/T<E>-<slug>/` in `<T>`: the one line of `git -C <T> ls-tree --name-only origin/main docs/ \| grep "^docs/T<E>-"` (after the fetch of **Tracker reads**; the hyphen keeps `T1` from matching `T10`). Two → stop and say so. None → continue as without `epic.md` (Step 1); Step 7 then creates it, `<slug>` from the epic title as `ticket-page` makes it (lower case, every run of other characters one `-`, no `-` at either end, at most 40 characters) |
 | Record (local working copy) | `.claude/work/T<E>/closeout.md` in the current checkout |
 | Sources snapshot (local) | `.claude/work/T<E>/closeout-sources/` |
 | Review reports (local) | `.claude/work/T<E>/reviews/T<E>-closeout-round<N>.md` and `-response.md` |
