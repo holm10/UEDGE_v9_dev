@@ -24,6 +24,11 @@ case "$1 $2" in
   "api graphql") for x in "$@"; do case "$x" in n=*) cat "$GH_DIR/issue-${x#n=}.json";; esac; done ;;
   "project field-list") cat "$GH_DIR/fields.json" ;;
   "project view") echo '{"id":"PVT_test"}' ;;
+  "issue list") cat "$GH_DIR/list.json" 2>/dev/null || echo '[]' ;;
+  "issue create") python3 -I "$GH_DIR/create.py" "$GH_DIR" "$@" ;;
+  "project item-add") echo "ITEM-ADDED" ;;
+  "project item-list") echo '{"items":[]}' ;;
+  "api repos/"*) echo '[]' ;;
 esac
 EOF
 chmod +x "$W/bin/gh"
@@ -36,7 +41,25 @@ EOF
 cat > "$W/gh/issue-3.json" <<'EOF'
 {"data":{"repository":{"issue":{"title":"Quotes a record","body":"A pasted record:\n\n```\n## Progress\n- old\n```\n\nAnd an unclosed one:\n\n````md\n## Reviews\n","issueType":{"name":"Task"},"parent":{"number":1,"title":"Epic one"},"projectItems":{"nodes":[]}}}}}
 EOF
-echo '{"fields":[{"id":"F_STATUS","name":"Status","options":[{"id":"O_TODO","name":"To Do"},{"id":"O_PROG","name":"In Progress"},{"id":"O_REV","name":"In Review"},{"id":"O_DONE","name":"Done"}]}]}' > "$W/gh/fields.json"
+echo '{"fields":[{"id":"F_STATUS","name":"Status","options":[{"id":"O_TODO","name":"To Do"},{"id":"O_PROG","name":"In Progress"},{"id":"O_REV","name":"In Review"},{"id":"O_DONE","name":"Done"}]},{"id":"F_TIER","name":"Tier","options":[{"id":"O_S","name":"S"},{"id":"O_M","name":"M"},{"id":"O_L","name":"L"}]},{"id":"F_JIRA","name":"Jira key"}]}' > "$W/gh/fields.json"
+# `gh issue create` (section J): the next number from 20, the issue's graphql answer and a `gh issue list` row.
+cat > "$W/gh/create.py" <<'EOF'
+import json, sys
+from pathlib import Path
+d, args = Path(sys.argv[1]), sys.argv[2:]
+opt = lambda k: args[args.index(k) + 1] if k in args else None
+n = int((d / "next").read_text()) if (d / "next").exists() else 20
+(d / "next").write_text(str(n + 1))
+body, par = Path(opt("--body-file")).read_text(), opt("--parent")
+parent = {"number": int(par), "title": json.loads((d / f"issue-{par}.json").read_text())["data"]["repository"]["issue"]["title"]} if par else None
+issue = {"title": opt("--title"), "body": body, "issueType": {"name": opt("--type")}, "parent": parent,
+         "projectItems": {"nodes": [{"id": f"ITEM{n}", "project": {"number": 7}, "tier": None}]}}
+(d / f"issue-{n}.json").write_text(json.dumps({"data": {"repository": {"issue": issue}}}))
+url = f"https://github.com/acme/tracker/issues/{n}"
+rows = json.loads((d / "list.json").read_text()) if (d / "list.json").exists() else []
+(d / "list.json").write_text(json.dumps(rows + [{"number": n, "body": body, "url": url}]))
+print(url)
+EOF
 export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH"
 
 # The tracker: a bare remote and a checkout with one epic directory. tracker.toml exists only in the main checkout.
@@ -148,8 +171,51 @@ T log AIUE-1 Progress x 2>/dev/null; ok $? 2 "H3 a Jira key: refused"
 printf 'see /Users/someone/z\n' | uv run -q "$H" sanitize --repo "$W/wt" --max-chars 100 | grep -q '{local}/z'; ok $? 0 "H4 sanitize --repo --max-chars (rca's call)"
 printf '%0200d\n' 0 | uv run -q "$H" sanitize --repo "$W/wt" --max-chars 100 >/dev/null 2>&1; ok $? 1 "H4 over the cap: refused"
 
+echo "== J. jira_import.py: a Jira epic's To Do tickets into the tracker"
+J="$(dirname "$H")/jira_import.py"; mkdir -p "$W/j"
+st(){ echo "{\"name\":\"$1\",\"statusCategory\":{\"key\":\"$2\"}}"; }
+cm(){ echo "{\"id\":\"$1\",\"created\":\"2026-01-01T00:00:00.000-0800\",\"body\":\"$2\"}"; }
+iss(){ # key type status-json parent description comments-json-list total links-json
+  echo "{\"key\":\"$1\",\"fields\":{\"summary\":\"Summary of $1\",\"issuetype\":{\"name\":\"$2\"},\"status\":$3,\"parent\":$4,\"labels\":[],\"created\":\"2026-01-01T00:00:00.000-0800\",\"description\":\"$5\",\"comment\":{\"total\":$7,\"comments\":[$6]},\"issuelinks\":[$8]}}"; }
+BLK='{"type":{"inward":"is blocked by","outward":"blocks"},"inwardIssue":{"key":"J-3","fields":{"status":{"name":"To Do"}}}}'
+snap(){ echo "{\"isLast\":true,\"issues\":[$(iss J-1 Epic "$(st 'To Do' new)" null 'The epic.' "$(cm 11 '**Owner decision: go.**')" 1 ''),
+$(iss J-2 Story "$(st 'To Do' new)" '{"key":"J-1"}' 'Second.' '' 0 "$BLK"),
+$(iss J-3 Task "$(st 'To Do' new)" '{"key":"J-1"}' "$1" "$(cm 31 '**Owner, 2026-01-01: do option 1.**\n\nMore.'),$(cm 32 'A note.')" "$2" ''),
+$(iss J-4 Story "$(st Done done)" '{"key":"J-1"}' 'Done one.' '' 0 '')]}"; }
+snap 'Third. Tier S (small).' 2 > "$W/j/snap.json"
+JI(){ uv run -q "$J" --repo "$W/wt" --tracker-dir "$TR" --date 2026-01-02 --epic J-1 --first J-3 "$@"; }
+n=$(heads); c=$(grep -c 'issue create' "$GH_LOG")
+JI --snapshot "$W/j/snap.json" --out "$W/j/dry/m.json" --dry-run >"$W/j/o1" 2>&1; e=$?
+ok "$e:$(heads):$(grep -c 'issue create' "$GH_LOG"):$(ls "$W/j/dry/bodies" | wc -l | tr -d ' ')" "0:$n:$c:3" "J1 dry run: exit 0, no commit, no create, 3 bodies rendered"
+JI --snapshot "$W/j/snap.json" --out "$W/j/m.json" >"$W/j/o2" 2>&1; ok $? 0 "J2 import: exit 0"
+grep 'issue create' "$GH_LOG" | sed -n '1p' | grep -q -- '--type Epic' \
+  && grep 'issue create' "$GH_LOG" | sed -n '2p' | grep -q -- '--type Task --title Summary of J-3 .*--label from-jira --parent 20' \
+  && grep 'issue create' "$GH_LOG" | sed -n '3p' | grep -q -- '--type Feature --title Summary of J-2'; ok $? 0 "J2 epic first, --first next, types mapped, label and parent"
+[ "$(grep -c 'issue create' "$GH_LOG")" = 3 ]; ok $? 0 "J2 the Done child is not imported"
+B="$W/j/bodies/J-3.md"
+head -1 "$B" | grep -q '^_Imported from Jira J-3 (Task, To Do, created 2026-01-01) on 2026-01-02' && grep -q '^Third. Tier S' "$B" \
+  && grep -q '^#### Comment 31 (2026-01-01)$' "$B" && grep -q '^Tier: S (stated in the Jira text)$' "$B" && grep -q '^Jira links: none$' "$B"; ok $? 0 "J3 body: key line, description and comments verbatim, Tier and links lines"
+grep -q 'F_TIER --single-select-option-id O_S' "$GH_LOG" && grep -q 'F_JIRA --text J-3' "$GH_LOG"; ok $? 0 "J3 Project: Tier S and the Jira key set"
+ED=$(ls -d "$TR"/docs/T20-*/ 2>/dev/null | head -1)
+grep -q 'Owner: Owner decision: go. (Jira J-1 comment 11)' "$ED/epic.md" && grep -q 'J-4 (Done)' "$ED/epic.md" \
+  && grep -q '^| J-3 | T21 | Task | S | none |$' "$ED/breakdown.md" && grep -q '^| J-2 | T22 | Feature | not stated | T21 |$' "$ED/breakdown.md" \
+  && grep -q '^## T22: Summary of J-2$' "$ED/breakdown.md"; ok $? 0 "J4 epic.md (owner decision, Done child) and breakdown.md (mapping, entries)"
+R21=$(ls "$ED"/T21-*/record.md 2>/dev/null)
+grep -q '^| Status | Backfilled (Ticket section: imported from Jira J-3' "$R21" && grep -q 'Owner (Jira J-3 comment 31, 2026-01-01; quoted in the Ticket section): Owner, 2026-01-01: do option 1.' "$R21" \
+  && ls "$ED"/T22-*/record.md >/dev/null 2>&1; ok $? 0 "J5 records under the epic: Backfilled, the owner comment in Findings"
+[ "$(grep -c 'issue edit 22 -R acme/tracker --add-blocked-by 21' "$GH_LOG")" = 1 ]; ok $? 0 "J6 blocked-by between imported tickets, set once"
+n=$(heads); JI --snapshot "$W/j/snap.json" --out "$W/j/m.json" >"$W/j/o3" 2>&1; e=$?
+ok "$e:$(heads):$(grep -c 'issue create' "$GH_LOG")" "0:$n:3" "J7 a re-run: no create, no commit"
+snap 'Third.' 3 > "$W/j/bad.json"; n=$(heads)
+JI --snapshot "$W/j/bad.json" --out "$W/j/x.json" 2>"$W/err"; e=$?
+ok "$e:$(heads)" "2:$n" "J8 a snapshot missing comments: refused, nothing written"
+grep -q 'J-3: 2 of 3 comments' "$W/err"; ok $? 0 "J8 says which ticket and how many"
+snap 'Third. token = abcdefghijkl' 2 > "$W/j/sec.json"
+JI --snapshot "$W/j/sec.json" --out "$W/j/y.json" 2>"$W/err"; e=$?
+ok "$e:$(grep -c 'Jira J-3 contains' "$W/err")" "1:1" "J9 secret-like text: refused, names the ticket"
+
 echo "== I. no hard-coded tracker"
-! grep -n 'uedge-sandbox\|uedge-tracker\|holm10' "$H"; ok $? 0 "I1 the helper names no owner or repo"
+! grep -n 'uedge-sandbox\|uedge-tracker\|holm10\|atlassian.net' "$H" "$J"; ok $? 0 "I1 the helpers name no owner, repo or Jira site"
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

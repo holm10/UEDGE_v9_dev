@@ -53,7 +53,36 @@ uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N>
 
 **Keys.** Only tracker keys `T<N>` (the issue number). The Jira/Confluence route is retired (owner, 2026-11-18,
 tracker #2): an In Progress Jira ticket finishes in Jira and its `PIV record` comments are written by hand; a To Do
-Jira ticket is worked after the import (tracker #6). The helper refuses any other key (exit 2).
+Jira ticket is imported (below) and then worked as its own `T<N>`, found by the Project's `Jira key` field or the
+first line of its issue body. The helper refuses any other key (exit 2).
+
+## Importing from Jira (`jira_import.py`)
+
+One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pilot AIUE-299 first, the rest after it).
+
+1. **Snapshot** (the agent, through the Atlassian MCP; no script calls Jira): `searchJiraIssuesUsingJql` with `jql =
+   parent = <EPIC> OR key = <EPIC>`, fields `summary, description, comment, status, issuetype, parent, labels,
+   issuelinks, created`, `responseContentFormat: markdown`, `maxResults: 100`. A result over the token cap is saved to a
+   file whole; that file, or the JSON written out, is the snapshot. Keep it in `../uedge-wt/data/<KEY>/`.
+2. **Import**, from the worktree: `uv run .claude/skills/ticket-page/jira_import.py --snapshot <file> --epic <EPIC>
+   [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Run `--dry-run` first: it reads only, prints each write and
+   renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`).
+   - The epic becomes an Epic issue and each To Do child a sub-issue, with the label `from-jira` (`ai-layer` when Jira
+     has it). Each is on the Project with Status To Do, the `Jira key` field and the Tier its Jira text states (the last
+     `Tier S|M|L`; otherwise empty, and `plan-feature` assigns it). "is blocked by" links between imported tickets
+     become relations; other links are listed in the body.
+   - The body is the Jira description and comments verbatim, after the line `_Imported from Jira <KEY> …_`, which makes
+     a re-run skip what exists.
+   - One commit writes the epic's `epic.md` (the Jira description, owner comments under Decisions, the children not
+     imported), `breakdown.md` (the Jira key → `T<N>` table and an entry per ticket) and `progress.md`.
+   - Each ticket's record comes from `create`, then `status Backfilled` (the Ticket section is the import, not as
+     filed). A comment opening with `Owner` becomes a Findings and decisions entry; one opening with `PIV record`
+     becomes a Progress entry.
+   - The script refuses (exit 2) a snapshot whose comments are incomplete, and refuses (exit 1) secret-like text, both
+     before anything is written.
+3. **Jira pointer** (the agent, MCP `addCommentToJiraIssue`, one per `mapping.json` entry): "Moved to the tracker
+   (<date>): this ticket continues as T<N> (tracker issue #<N>). Jira is now its read-only archive." The Jira status is
+   left as it is (owner, 2026-11-18).
 
 ## When to write (milestones)
 
