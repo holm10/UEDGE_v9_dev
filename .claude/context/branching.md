@@ -195,16 +195,18 @@ Ticket branches based on `v9-develop` don't have `.claude/` yet. Until the AI-la
   more than 300 lines of tooling code or more than 40 test cases states a one-line justification in its PR
   (`.claude/context/process-tiers.md` → Simplicity budget). AI-layer changes get one review round plus their tests;
   round 2 only for an open BLOCKER/MAJOR.
-- **Agents never apply process changes automatically.** `system-review` files them as `ai-layer` Jira issues
-  (fallback without Jira: `.claude/work/<KEY>/ai-layer-backlog.md`, local, plus a Findings and decisions entry on the
-  ticket page, filed as issues at the next session that has Jira). They land through a `feature/v9-ai-*` PR that a
-  person reviews.
-- **Every AI-layer issue lives under the epic AIUE-222** (AI-layer improvements; owner, 2026-10-28): a fix, gotcha,
-  tooling or process ticket for the AI layer, whoever files it, is a Task, Story or Bug with `parent` AIUE-222 and
-  the label `ai-layer`, never an epic of its own (AIUE-72 was converted to a story under it). A GitHub `ai-layer`
-  issue (the weekly drift check's, below) that is turned into a Jira ticket goes there too. The one exception is an
-  AI-layer slice of another epic's breakdown (`spec`), such as AIUE-17 (AIUE-5) and AIUE-102/AIUE-108 (AIUE-9): it
-  keeps that epic as its parent and carries the label.
+- **Agents never apply process changes automatically.** `system-review` files them as `ai-layer` issues in the
+  tracker (`.claude/tracker.toml`) under the parent issue "AI-layer improvements" (fallback without `gh`:
+  `.claude/work/<KEY>/ai-layer-backlog.md`, local, plus a Findings and decisions entry in the ticket's record, filed
+  as issues at the next session that has `gh`). They land through a `feature/v9-ai-*` PR that a person reviews.
+- **Every AI-layer issue lives under the parent issue "AI-layer improvements"** in the tracker (label `ai-layer`;
+  found by its title, never by a hard-coded number): a fix, gotcha, tooling or process ticket for the AI layer,
+  whoever files it, is a Task, Feature or Bug sub-issue of it with the label `ai-layer`, never an epic of its own.
+  History: the owner's rule of 2026-10-28 put them under the Jira epic AIUE-222 (AIUE-72 was converted to a story
+  under it); the tracker's parent took its place (tracker #4). A GitHub `ai-layer` issue (the weekly drift check's,
+  below) that is turned into a ticket goes there too. The one exception is an AI-layer slice of another epic's
+  breakdown (`spec`), such as AIUE-17 (AIUE-5) and AIUE-102/AIUE-108 (AIUE-9): it keeps that epic as its parent and
+  carries the label.
 - **The code-facts trailer is narrow.** It covers only `CLAUDE.md` and `.claude/context/**`. The hook blocks
   skills, agents, hooks and settings on ticket branches even with the trailer.
 - **Facts are checked, not trusted.** `check_context_refs.py` compares every cited `path:line` with the locked

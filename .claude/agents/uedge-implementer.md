@@ -95,7 +95,7 @@ agent that wrote the code). When given a review file:
 - Address every BLOCKER and MAJOR finding: fix the code/tests or give a reasoned rebuttal with evidence (test output, code reference, spec section). MINOR findings may be fixed or declined briefly.
 - If a finding is really about the physics in the spec, do not change the physics; flag it as "for uedge-physics".
 - Rebuild and rerun the affected tests after fixing, and report the new results.
-- Write your response next to the review report, in the local working folder the main session names (normally `<worktree>/.claude/work/<KEY>/reviews/<KEY>-implementation-round<N>-response.md`), one line per finding ID (fixed where / rebutted why / declined). Update the handoff note. It is a working document: never stage or commit it; the main session puts its content on the ticket page, or, for work without a ticket record, in the PR description. Work in the explicit worktree the main session gives you (never an automatically removed one); if you queued ticket-page entries, check that `queue --list` prints nothing before you return.
+- Write your response next to the review report, in the local working folder the main session names (normally `<worktree>/.claude/work/<KEY>/reviews/<KEY>-implementation-round<N>-response.md`), one line per finding ID (fixed where / rebutted why / declined). Update the handoff note. It is a working document: never stage or commit it; the main session puts its content in the ticket's record, or, for work without a ticket record, in the PR description. Work in the explicit worktree the main session gives you (never an automatically removed one); if a `ticket-page` call you made printed a `push failed` line, say so in your report.
 
 # Rules
 
