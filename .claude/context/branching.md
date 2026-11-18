@@ -167,7 +167,9 @@ path is relative to the current directory, and from inside a ticket worktree `..
   For a tracker ticket, after the PR merges: `ticket-page T<N> status Committed <merge sha>` (Project Status Done,
   issue closed), then remove the worktree. The owner's merge is the confirmation, so a ticket's Done needs no extra
   question, unlike `close-epic`'s for an epic, which never closes the children itself (AIUE-201; `plan-feature`
-  Phase 6 moves it to In Progress).
+  Phase 6 moves it to In Progress). A Jira ticket that finishes in Jira (In Progress at the switch) still gets its
+  `PIV record` comment by hand and its transition to Done (`getTransitionsForJiraIssue`, then `transitionJiraIssue`)
+  after its PR merges, until tracker #5/#6 retire the Jira steps.
 
 ## Improving the AI layer while doing ticket work
 

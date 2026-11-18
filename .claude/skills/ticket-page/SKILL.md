@@ -82,8 +82,8 @@ per step.
 
 ## Process
 
-Each write holds a lock on the tracker checkout (`<git dir>/ticket-page.lock`) from start to push, so parallel calls
-in one checkout take turns. It checks that the checkout is clean (no uncommitted changes to tracked files) and on its
+Each write holds a lock on the tracker checkout (`<git dir>/ticket-page.lock`) from its checks to the push, so
+parallel calls in one checkout take turns (a waiting call says so); the GitHub calls after the push run unlocked. It checks that the checkout is clean (no uncommitted changes to tracked files) and on its
 default branch, runs `git fetch` and a rebase onto the remote, edits the file, makes one commit of the named paths
 (`T<N> <command>: …`) and pushes. Only then the GitHub side (Project Status, comment, close), so a refused write
 changes nothing on GitHub.

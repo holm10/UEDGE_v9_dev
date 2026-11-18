@@ -33,6 +33,9 @@ EOF
 cat > "$W/gh/issue-9.json" <<'EOF'
 {"data":{"repository":{"issue":{"title":"Loose end in /Users/someone/y","body":"Small.","issueType":{"name":"Bug"},"parent":null,"projectItems":{"nodes":[]}}}}}
 EOF
+cat > "$W/gh/issue-3.json" <<'EOF'
+{"data":{"repository":{"issue":{"title":"Quotes a record","body":"A pasted record:\n\n```\n## Progress\n- old\n```\n\nAnd an unclosed one:\n\n````md\n## Reviews\n","issueType":{"name":"Task"},"parent":{"number":1,"title":"Epic one"},"projectItems":{"nodes":[]}}}}}
+EOF
 echo '{"fields":[{"id":"F_STATUS","name":"Status","options":[{"id":"O_TODO","name":"To Do"},{"id":"O_PROG","name":"In Progress"},{"id":"O_REV","name":"In Review"},{"id":"O_DONE","name":"Done"}]}]}' > "$W/gh/fields.json"
 export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH"
 
@@ -63,6 +66,9 @@ mkdir -p "$TR/docs/T5-x/T9-dup"; cp "$R9" "$TR/docs/T5-x/T9-dup/"
 T log T9 Progress x 2>"$W/err"; ok $? 2 "A4 two records for one key: refused"
 grep -q 'has 2 records' "$W/err"; ok $? 0 "A4 the message names both"
 rm -rf "$TR/docs/T5-x"
+T create T3 >/dev/null && T log T3 Reviews "rv-3" >/dev/null; ok $? 0 "A5 an issue body quoting record headings in fences (one unclosed)"
+R3=$(ls "$TR"/docs/T1-epic-one/T3-*/record.md); last(){ grep -n "^## $1\$" "$R3" | tail -1 | cut -d: -f1; }
+[ "$(grep -n 'record created' "$R3" | cut -d: -f1)" -gt "$(last Progress)" ] && [ "$(grep -n 'rv-3' "$R3" | cut -d: -f1)" -gt "$(last Reviews)" ]; ok $? 0 "A5 entries land in the record's own sections, not in the quoted ones"
 
 echo "== B. publish"
 printf '# Plan\n\nRun in /Users/someone/work/repo.\n' > "$W/wt/.claude/work/T2/plan.md"

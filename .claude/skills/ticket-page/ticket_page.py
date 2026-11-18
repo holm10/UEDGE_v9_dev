@@ -130,15 +130,27 @@ def slug(title):
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", title.lower())).strip("-")[:40].rstrip("-")
 
 
-def demote(md):
-    """H1/H2 lines outside code fences become H3, so a body never ends a record section."""
+def fenced(lines):
+    """Per line: inside (or on) a code fence; and the fence still open at the end. A fence closes on the same character
+    at least as long (CommonMark)."""
     out, fence = [], None
-    for ln in md.split("\n"):
-        m = re.match(r"^\s*(```+|~~~+)", ln)
-        if m and (fence is None or m.group(1)[0] == fence):
-            fence = m.group(1)[0] if fence is None else None
-        out.append(ln if fence or m else re.sub(r"^#{1,2}(\s)", r"###\1", ln))
-    return "\n".join(out)
+    for ln in lines:
+        m = re.match(r"^\s*(`{3,}|~{3,})", ln)
+        if m and (fence is None or (m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence))):
+            fence = m.group(1) if fence is None else None
+            out.append(True)
+        else:
+            out.append(fence is not None)
+    return out, fence
+
+
+def demote(md):
+    """H1/H2 lines outside code fences become H3, and an unclosed fence is closed, so a body never ends or hides a
+    record section."""
+    lines = md.split("\n")
+    inside, fence = fenced(lines)
+    out = [ln if f else re.sub(r"^#{1,2}(\s)", r"###\1", ln) for ln, f in zip(lines, inside)]
+    return "\n".join(out + ([fence] if fence else []))
 
 
 def entry(today, caller, text):
@@ -164,7 +176,11 @@ class Tracker:
         self.today = a.date or date.today().isoformat()
         self.lock = open(Path(run(["git", "rev-parse", "--absolute-git-dir"], cwd=self.dir).stdout.strip())
                          / "ticket-page.lock", "w")
-        fcntl.flock(self.lock, fcntl.LOCK_EX)  # one write at a time in this checkout, from fetch to push
+        try:  # one write at a time in this checkout, from the checks to the push (released in commit)
+            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("ticket_page: waiting for another ticket-page call on the tracker checkout", file=sys.stderr)
+            fcntl.flock(self.lock, fcntl.LOCK_EX)
 
     def issue(self, n):
         q = ("query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){title body "
@@ -208,6 +224,7 @@ class Tracker:
         run(["git", "commit", "-q", "-m", message, "--", *paths], cwd=self.dir)
         sha = run(["git", "rev-parse", "--short", "HEAD"], cwd=self.dir).stdout.strip()
         push = run(["git", "push", "-q"], cwd=self.dir, check=False)
+        fcntl.flock(self.lock, fcntl.LOCK_UN)  # the GitHub calls that follow don't hold up other writers
         if push.returncode:
             print(f"ticket_page: committed {sha}, push failed (retried on the next call): {push.stderr.strip()}")
         return sha
@@ -236,10 +253,12 @@ def key_number(key):
 def add_entry(text, section, item):
     """Append `item` as the last entry of `## section` (before the next `## ` heading, or at the end)."""
     lines = text.rstrip("\n").split("\n")
-    if f"## {section}" not in lines:
+    heads = [i for i, (ln, f) in enumerate(zip(lines, fenced(lines)[0])) if not f and ln.startswith("## ")]
+    hits = [i for i in heads if lines[i] == f"## {section}"]
+    if not hits:
         die(f"the record has no '## {section}' section")
-    start = lines.index(f"## {section}")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    start = hits[-1]  # the record's own heading: the log sections follow the Ticket section
+    end = next((i for i in heads if i > start), len(lines))
     while end > start + 1 and not lines[end - 1].strip():
         end -= 1
     new = [item] if end > start + 1 else ["", item]
