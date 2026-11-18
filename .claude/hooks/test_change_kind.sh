@@ -9,7 +9,8 @@ CK="uv run -q $HOOKS/change_kind.py"; PRE="uv run -q $HOOKS/pre_tool_use.py"
 W="${1:-$(mktemp -d)}"; mkdir -p "$W"; echo "workdir: $W"; PASS=0; FAIL=0
 ok(){ if [ "$1" = "$2" ]; then PASS=$((PASS+1)); echo "PASS $3"; else FAIL=$((FAIL+1)); echo "FAIL $3 (exit $1, want $2)"; fi; }
 ck(){ (cd "$R" && $CK "$@" >"$W/out.txt" 2>&1); }
-pre(){ printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[1],"tool_input":{"command":sys.stdin.read()}}))' "$R" | $PRE 2>"$W/err.txt"; }
+# The hook checks only commits in its project's repository: the throwaway repo $R is "this repository" here.
+pre(){ printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"tool_name":"Bash","cwd":sys.argv[1],"tool_input":{"command":sys.stdin.read()}}))' "$R" | CLAUDE_PROJECT_DIR="$R" $PRE 2>"$W/err.txt"; }
 stage(){ git -C "$R" reset -q; for f in "$@"; do mkdir -p "$R/$(dirname "$f")"; [ -e "$R/$f" ] || echo x > "$R/$f"; git -C "$R" add -f -- "$f"; done; }
 clean(){ git -C "$R" reset -q --hard; git -C "$R" clean -qfdx -e .gitignore; }
 
@@ -163,6 +164,32 @@ echo x > "$R/tests/deterministic_omp/ci/jac_bound.py"; echo x > "$R/svr/daspk.m"
 git -C "$R" add -f tests/deterministic_omp/ci/jac_bound.py svr/daspk.m; git -C "$R" -c core.hooksPath=/dev/null commit -qm tool; ck --range v9-develop...HEAD
 grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G6 a test tool named jac_* and svr/daspk.m are not high-risk"
 grep -q '^FORTRAN: yes (svr/daspk.m)$' "$W/out.txt"; ok $? 0 "G6 svr/daspk.m is another Fortran source"
+clean
+
+echo "== T. tracker ticket keys and repository scope (tracker #3)"
+git -C "$R" checkout -q -b feature/v9-T3-demo v9-develop
+stage bbb/pandf.m; ck --staged; ok $? 0 "T1 feature/v9-T<N>-<slug>: product allowed"
+stage .claude/skills/x/SKILL.md; ck --staged; ok $? 1 "T1 feature/v9-T<N>-<slug>: a skill refused"
+grep -q "is a ticket branch" "$W/out.txt"; ok $? 0 "T1 feature/v9-T<N>-<slug> is a ticket branch"
+git -C "$R" checkout -q -b bugfix/v9-T3-demo v9-develop
+stage bbb/pandf.m; ck --staged; ok $? 0 "T2 bugfix/v9-T<N>-<slug>: product allowed"
+stage .claude/skills/x/SKILL.md; ck --staged; ok $? 1 "T2 bugfix/v9-T<N>-<slug>: a skill refused"
+git -C "$R" checkout -q -b bugfix/v9-issue-7-demo v9-develop
+stage bbb/pandf.m; ck --staged; ok $? 0 "T3 bugfix/v9-issue-<N>-<slug>: product allowed (unchanged)"
+clean
+O="$W/other"; git init -q -b main "$O"; git -C "$O" config user.email t@t; git -C "$O" config user.name t
+echo r > "$O/README.md"; git -C "$O" add README.md; git -C "$O" -c core.hooksPath=/dev/null commit -qm base
+mkdir -p "$O/docs/T1-x/T2-y" "$O/.claude/work"; echo r > "$O/docs/T1-x/T2-y/record.md"; echo w > "$O/.claude/work/x.md"
+git -C "$O" add -f docs .claude/work
+pre "cd $O && git commit -m record"; ok $? 0 "T4 a commit to main of another repository (cd): not checked"
+pre "git -C $O commit -m record"; ok $? 0 "T4 a commit to main of another repository (git -C): not checked"
+git -C "$R" worktree add -q -b develop "$W/wt" v9-develop
+echo x > "$W/wt/doc/wt.txt"; git -C "$W/wt" add doc/wt.txt
+pre "cd $W/wt && git commit -m x"; ok $? 2 "T5 a worktree of this repository on a protected branch: blocked"
+grep -q "protected" "$W/err.txt"; ok $? 0 "T5 the reason names the protected branch"
+git -C "$R" worktree remove --force "$W/wt"; git -C "$R" branch -q -D develop
+git -C "$R" checkout -q v9-develop; stage doc/t6.txt
+pre "git commit -m x"; ok $? 2 "T6 this repository on v9-develop: still blocked"
 clean
 
 echo "RESULT: $PASS passed, $FAIL failed"

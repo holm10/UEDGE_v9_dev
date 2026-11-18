@@ -65,7 +65,8 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
   ticket work never runs in a worktree that something else can remove (see Worktrees), and a subagent doing ticket
   work flushes and checks that `queue --list` is empty before it returns.
 - **Enforcement.** `.gitignore` lists every working path, and `change_kind.py` refuses a staged working document on
-  any branch, pointing to the ticket page.
+  any branch, pointing to the ticket page. The hook applies the branch policy to commits in this repository only
+  (any checkout sharing its git directory, worktrees included); a commit in another repository is not checked.
 - **Renames.** Moving a working document into a product path (`git mv`) is refused like adding it. A document that
   really belongs in the repo (a physics spec) is added as a new file on purpose, with the reason in the commit.
 - **Tickets started before this rule** may track a plan, reviews or other working documents on their branch
@@ -80,14 +81,21 @@ epic documents were committed on the ticket and planning branches; PR #2 removed
      documents are archived in tag archive/<KEY>-docs" --flush`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
   4. `git rm` them in one commit ("Removes the <KEY> working documents from git"; deletions are allowed).
 
-**The GitHub tracker (being built; AIUE-287).**
-- The owner decided to move ticket tracking and the records above to a private GitHub tracker repo. Its issues will
-  hold tickets and its `docs/` directory the records.
-- `.claude/tracker.toml` is the only place in this repo that names the tracker (owner, repo, Project number). Nothing
-  else hard-codes them.
-- Its ticket key will be `T<N>` (the issue number), with branches `feature/v9-T<N>-<slug>`.
-- Until the tracker's build-out epic is done, Jira and Confluence remain the record as described above. Jira tickets
-  already In Progress finish there.
+**The tracker: the record of a `T<N>` ticket** (AIUE-287; the tracker's build-out epic is in progress).
+- Ticket tracking is moving to a private GitHub tracker repository. `.claude/tracker.toml` is the only place in this
+  repo that names it (owner, repo, Project number); nothing else hard-codes them. Its local checkout sits next to
+  `uedge-wt/`.
+- A tracker ticket's key is `T<N>`, its issue number. Its record is the issue (status, Project fields, short
+  discussion) plus `docs/<epic>/T<N>-<slug>/` in the tracker: `record.md` (Ticket, then the append-only Progress,
+  Validation, Reviews, and Findings and decisions sections) and `plan.md` or `rca.md`. The layout is in the tracker's
+  README.
+- Records are committed directly to the tracker's `main` after `git pull --rebase`. The branch policy (Enforcement,
+  above) covers this repository only, so it doesn't check commits in the tracker (owner, 2026-11-18, tracker #3).
+- `.claude/work/<KEY>/` stays the local, untracked scratch folder for probes, drafts and raw data. Its lasting content
+  goes to the record (owner, 2026-11-18, tracker #3).
+- Until `ticket-page` is ported to the tracker (tracker #2) and the skills follow (#4), the skills keep the records of
+  Jira tickets on Confluence and Jira as described above, and a `T<N>` record is written with git by hand. Jira
+  tickets already In Progress finish in Jira.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
@@ -109,6 +117,7 @@ branch.
 | Protected | `main`, `develop`, `v9-main`, `v9-develop` | — | **nothing directly**; PRs only |
 | AI layer | `feature/v9-ai-<slug>` (legacy: `v9-agentic`) | `v9-develop` | process |
 | Jira ticket | `feature/v9-<KEY>-<slug>`, e.g. `feature/v9-AIUE-12-freeze-bbb` (or `bugfix/v9-<KEY>-<slug>`) | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, incl. an approved physics spec (+ code-facts) |
+| Tracker ticket | `feature/v9-T<N>-<slug>` (or `bugfix/v9-T<N>-<slug>`), `<N>` the tracker issue number | `v9-develop`, or the branch of the ticket it depends on (stacked) | product, as a Jira ticket |
 | GitHub issue | `bugfix/v9-issue-<N>-<slug>` | `v9-develop` | product |
 
 An epic has no branch of its own (no planning branch; see above).

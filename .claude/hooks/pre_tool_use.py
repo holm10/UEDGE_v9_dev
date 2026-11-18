@@ -19,8 +19,10 @@ Three guarantees ship here:
      repo, or any target that can't be resolved statically ($VARS, `cmd`,
      xargs, find -exec), is blocked.
 
-  3. A `git commit` must respect the branch policy (`.claude/context/branching.md`,
-     checked by `change_kind.py`): nothing on protected branches, no ticket or epic working
+  3. A `git commit` in this repository (any checkout sharing its git directory, worktrees
+     included) must respect the branch policy (`.claude/context/branching.md`, checked by
+     `change_kind.py`); a commit in another repository, such as the tracker, is not checked:
+     nothing on protected branches, no ticket or epic working
      documents on any branch (they live in the gitignored `.claude/work/` and on Confluence),
      no product files on AI-layer branches, no AI-layer process files on ticket branches
      unless the message carries the `AI-layer: code-facts` trailer.
@@ -247,6 +249,17 @@ def _porcelain_z(workdir):
     return ch
 
 
+def _git_common_dir(path):
+    """The absolute git common directory of the repository at `path` (shared by all its worktrees), or None."""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=path,
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return os.path.realpath(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else None
+
+
 def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
     """Reason string if a `git commit` would break the branch policy (.claude/context/branching.md)."""
     if tool_name != "Bash":
@@ -267,6 +280,15 @@ def commit_hygiene_reason(tool_name: str, tool_input: dict, cwd):
         workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(d.group("d"))))
     if m.group("C"):
         workdir = os.path.normpath(os.path.join(workdir, os.path.expanduser(m.group("C"))))
+
+    # The policy is this repository's: any checkout sharing its git directory (worktrees included). A commit in
+    # another repository, such as the tracker, is not checked (owner, 2026-11-18, tracker #3).
+    here = _git_common_dir(workdir)
+    if here is None:
+        return None  # not a git repository (yet): git commit fails by itself
+    home = _git_common_dir(str(_project_root()))
+    if home is not None and here != home:
+        return None
 
     branch = ck.current_branch(workdir)
     for b in GIT_NEW_BRANCH.finditer(head):
