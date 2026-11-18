@@ -246,7 +246,8 @@ def key_number(key):
     m = re.fullmatch(r"T(\d+)", key)
     if not m:
         die(f"'{key}' is not a tracker key (T<N>). Jira tickets: the record route is retired (tracker #2); an In "
-            "Progress Jira ticket is recorded by hand as `PIV record` comments, a To Do one after the import (#6)")
+            "Progress Jira ticket is recorded by hand as `PIV record` comments; a To Do one is imported by "
+            "jira_import.py and has its own T<N> (its `Jira key` Project field)")
     return int(m.group(1))
 
 
