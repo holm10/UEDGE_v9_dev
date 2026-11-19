@@ -1,13 +1,15 @@
 """Reference and base states for the yldot families (epic AIUE-9, PRD section 7.1).
 
 Usage (from anywhere; paths in --state/--source are absolute or relative to the family directory):
-    python make_base_state.py check <family> [--state FILE]
+    python make_base_state.py check <family> [--state FILE] [--fixed-point-only]
     python make_base_state.py make <family> --source FILE --seed N [--sigmas 0.02,0.03,0.05]
 
 check  evaluates the family at a state (default reference_state.h5) with issfon=1 and prints nksol's
        convergence norm max|sfscal*yldot| next to the case's ftol and the L2 fnrm, and whether the state is
        a round-trip fixed point (below). Report only: the reference states are the pytests templates, not
-       reconverged, converged or not (owner, 2026-10-19).
+       reconverged, converged or not (owner, 2026-10-19). With --fixed-point-only it skips nksol's scaling,
+       whose Jacobian takes most of the time: an issfon=0 evaluation only checks that yldot is finite, then
+       the round trip (test_states.py; owner, 2026-11-18, tracker T12).
 make   restores --source and writes it, re-saved after one exmain, as reference_state.h5, then perturbs it
        with a seeded draw (log-normal on nis, tes, tis, ngs, tgs; sound-speed-scaled noise on ups; sigma*Te
        on phis) and writes that, re-saved the same way, as base_state.h5. It takes the smallest sigma at
@@ -358,6 +360,14 @@ def limiter_count(res):
 def cmd_check(args, log):
     family_dir = FAMILIES / args.family
     state = resolve(family_dir, args.state)
+    if args.fixed_point_only:
+        res = run_child(family_dir, {"mode": "eval", "state": str(state), "issfon": 0}, log)
+        if not np.all(np.isfinite(res["yldot"])):
+            raise Stop(2, "{}: non-finite yldot at {}".format(args.family, state.name))
+        n = sum(changes(roundtrip(family_dir, state, log)).values())
+        print("{:9s} state={} neq={} yldot_finite=true fixed_point={} roundtrip_changes={}".format(
+            args.family, state.name, int(res["neq"]), str(n == 0).lower(), n))
+        return 0
     res = run_child(family_dir, {"mode": "eval", "state": str(state), "issfon": 1}, log)
     fmax, fnrm = norms(res)
     ftol = float(res["ftol_case"])
@@ -485,6 +495,8 @@ def main(argv):
     p = sub.add_parser("check", help="report nksol's convergence norm at a state")
     p.add_argument("family")
     p.add_argument("--state", default="reference_state.h5")
+    p.add_argument("--fixed-point-only", action="store_true",
+                   help="no nksol scaling: an issfon=0 finite check of yldot, then the round trip (test_states.py)")
     p = sub.add_parser("make", help="write reference_state.h5 and base_state.h5")
     p.add_argument("family")
     p.add_argument("--source", required=True)

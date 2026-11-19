@@ -4,8 +4,9 @@ changes no saved entry.
 exmain builds yl from the saved state and pandf converts it back; that round trip is not exact, and after a
 converged call gridseq re-saves its result. From a state that has not been through it, a second exmain starts from
 slightly different saved arrays and its yldot can differ by an ulp (dnull_imp2: 2 Ti rows). make_base_state.py make
-writes only fixed points; this test checks the committed states with its check command, which runs every
-evaluation in a fresh child.
+writes only fixed points; this test checks the committed states with its check --fixed-point-only command, which runs
+every evaluation in a fresh child: an issfon=0 evaluation that fails on a non-finite yldot at the state, then the
+round trip. It runs no issfon=1 evaluation, whose nksol norms the test never used (owner, 2026-11-18, tracker T12).
 """
 import subprocess
 import sys
@@ -22,7 +23,7 @@ FAMILY_NAMES = sorted(p.name for p in FAMILIES.iterdir() if (p / "input.py").is_
 @pytest.mark.parametrize("state", ["reference_state.h5", "base_state.h5"])
 @pytest.mark.parametrize("family", FAMILY_NAMES)
 def test_state_is_roundtrip_fixed_point(family, state):
-    proc = subprocess.run([sys.executable, str(TOOL), "check", family, "--state", state],
+    proc = subprocess.run([sys.executable, str(TOOL), "check", family, "--state", state, "--fixed-point-only"],
                           capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     line = proc.stdout.strip().splitlines()[-1]

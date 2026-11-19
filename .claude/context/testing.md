@@ -180,8 +180,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   imp7). The two range mutations
   (AIUE-100) are `initialize_ranges`' `i5` bound (`bbb/pandf.m:73`) and the point-wise `vsoree` copy
   (`bbb/pandf_plasma_energy.m:646`, a weak `te` self-coupling; owner, D1, after the `j5p` site proved window padding).
-- **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `make`, which
-  re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
+- **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `check
+  --fixed-point-only`, an `issfon = 0` finite check of yldot and the round trip only, which `test_states.py` runs (T12);
+  `make`, which re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
   scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
   W and P from exmain/pandf repeats in fresh processes, the -1 → +1 → -1 flag sequence, steady +1 vs -1 with the
   `ishosor = 0` counterfactual, a reuse sequence in one process, child costs and the sweep estimate, as a TOML
@@ -418,8 +419,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   (runtime per shard: the ticket's Validation record)
   and 47 min on `--noopt`, one process; update these figures only when a ticket moves the count or the runtime by more than
   about 10 %, the exact count goes in the ticket's Validation record; about 7 min of the runtime are
-  `test_variants.py`, about 250 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs;
-  with `-n 8`: 325 s wall on that machine, 2026-10-25, AIUE-103):
+  `test_variants.py`, about 35 s the three owner families' `test_states`, `test_index_truth` and `test_history` runs
+  (about 250 s before T12 dropped their unused `issfon = 1` evaluations; the PR tier then: 6,766 tests, 14.5 min
+  serial, 152 s wall with `-n 8`, serial build, Darwin arm64, 2026-11-18, T12); with `-n 8` before T12: 325 s wall on
+  that machine, 2026-10-25, AIUE-103):
   `tests/yldot/test_default.py` the live steady and timestep defaults of every family whose manifest names a
   reference file against the stored ones, the Jacobian-flag difference under the same tolerance, the story-1
   headline, and `test_timestep_exercised` (timestep − steady equals minus the stored timestep flag difference bit
