@@ -22,7 +22,10 @@ cat > "$W/bin/gh" <<'EOF'
 echo "$(git -C "$GH_TRACKER" rev-list --count HEAD) $*" >> "$GH_LOG"
 case "$1 $2" in
   "api graphql") for x in "$@"; do case "$x" in n=*) cat "$GH_DIR/issue-${x#n=}.json";; esac; done ;;
-  "project field-list") cat "$GH_DIR/fields.json" ;;
+  "project field-list") # section K: $GH_DIR/fail holds one error to answer once (a rate limit or another failure)
+    if [ -f "$GH_DIR/fail" ]; then cat "$GH_DIR/fail" >&2; rm -f "$GH_DIR/fail"; exit 1; fi
+    cat "$GH_DIR/fields.json" ;;
+  "api rate_limit") date +%s ;;
   "project view") echo '{"id":"PVT_test"}' ;;
   "issue list") cat "$GH_DIR/list.json" 2>/dev/null || echo '[]' ;;
   "issue create") python3 -I "$GH_DIR/create.py" "$GH_DIR" "$@" ;;
@@ -63,7 +66,7 @@ rows = json.loads((d / "list.json").read_text()) if (d / "list.json").exists() e
 (d / "list.json").write_text(json.dumps(rows + [{"number": n, "body": body, "url": url}]))
 print(url)
 EOF
-export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH"
+export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH" TICKET_PAGE_MAX_WAIT=0
 
 # The tracker: a bare remote and a checkout with one epic directory. tracker.toml exists only in the main checkout.
 git init -q --bare -b main "$W/remote.git"; git clone -q "$W/remote.git" "$TR" 2>/dev/null
@@ -248,6 +251,53 @@ json.dump({"items": [{"id": "ITEM21", "jira key": "J-3", "content": {"number": 2
 EOF
 c=$(grep -c 'issue create' "$GH_LOG"); JI --snapshot "$W/j/snap.json" --out "$W/j/m.json" >"$W/j/o7" 2>&1
 ok "$?:$(grep -c 'issue create' "$GH_LOG")" "0:$c" "J14 a lost body marker: the Jira key field prevents a duplicate"
+
+# tracker #28: an empty description (the MCP leaves the key out), an epic with no To Do children, --epic none.
+python3 - "$W/j" <<'EOF'
+import json, sys
+d = sys.argv[1] + "/"
+s = json.load(open(d + "snap2.json"))
+ep = json.loads(json.dumps(s["issues"][0])); ep["key"], ep["fields"]["summary"] = "J-8", "Summary of J-8"
+kid = json.loads(json.dumps(s["issues"][2])); kid["key"], kid["fields"]["summary"] = "J-9", "Summary of J-9"
+kid["fields"]["parent"] = {"key": "J-8"}; del kid["fields"]["description"]
+lone = json.loads(json.dumps(ep)); lone["key"], lone["fields"]["summary"] = "J-10", "Summary of J-10"
+json.dump({"isLast": True, "issues": [ep, kid]}, open(d + "snap3.json", "w"))
+json.dump({"isLast": True, "issues": [lone]}, open(d + "snap4.json", "w"))
+def mk(k, t, cat, parent):
+    i = json.loads(json.dumps(s["issues"][2])); f = i["fields"]
+    i["key"], f["summary"], f["issuetype"], f["parent"] = k, f"Summary of {k}", {"name": t}, parent
+    f["status"] = {"name": "Done" if cat == "done" else "To Do", "statusCategory": {"key": cat}}
+    return i
+json.dump({"isLast": True, "issues": [mk("J-11", "Task", "new", None), mk("J-12", "Bug", "new", None),
+           mk("J-13", "Epic", "new", None), mk("J-14", "Story", "done", None), mk("J-15", "Task", "new", {"key": "J-1"})]},
+          open(d + "snap5.json", "w"))
+EOF
+JX(){ uv run -q "$J" --repo "$W/wt" --tracker-dir "$TR" --date 2026-01-02 "$@"; }
+JX --epic J-8 --snapshot "$W/j/snap3.json" --out "$W/j/m3.json" >"$W/j/o8" 2>&1; e=$?
+awk '/^## Jira description$/{f=1;next} f&&NF{print;exit}' "$W/j/bodies/J-9.md" | grep -qx none; ok "$e:$?" "0:0" "J15 a child with no description key: imported, the description reads none"
+JX --epic J-10 --snapshot "$W/j/snap4.json" --out "$W/j/m4.json" >"$W/j/o9" 2>&1; e=$?
+E4=$(grep -l 'Summary of J-10' "$TR"/docs/T*/epic.md | head -1)
+ok "$e:$(grep -c '^| Breakdown | none (no To Do children in Jira) |$' "$E4"):$(ls "$(dirname "$E4")" | tr '\n' ' ')" "0:1:epic.md progress.md " "J17 an epic with no To Do children: Breakdown none, no breakdown.md"
+grep -q '^| Breakdown | `breakdown.md` |$' "$E2/epic.md"; ok $? 0 "J17 an epic with children still names its breakdown.md"
+c=$(grep -c 'issue create' "$GH_LOG"); n=$(heads)
+JX --epic none --snapshot "$W/j/snap5.json" --out "$W/j/m5.json" >"$W/j/o10" 2>&1; ok $? 0 "J16 --epic none: exit 0"
+NE="$TR/docs/no-epic"
+grep 'issue create' "$GH_LOG" | tail -n +$((c + 1)) > "$W/j/c5"
+ok "$(wc -l < "$W/j/c5" | tr -d ' '):$(grep -c -- '--parent' "$W/j/c5"):$(grep -o 'Summary of J-1[0-9]' "$W/j/c5" | tr '\n' ' ')" "2:0:Summary of J-11 Summary of J-12 " "J16 only the parentless To Do non-epics, created without --parent"
+ls "$NE"/T*-summary-of-j-11/record.md "$NE"/T*-summary-of-j-12/record.md >/dev/null 2>&1 \
+  && [ "$(grep -c '^| J-1[12] | T[0-9]* | ' "$NE/breakdown.md")" = 2 ] && [ ! -e "$NE/epic.md" ] && [ ! -e "$NE/progress.md" ]; ok $? 0 "J16 records and the mapping in docs/no-epic/, no epic.md or progress.md"
+n=$(heads); c=$(grep -c 'issue create' "$GH_LOG"); JX --epic none --snapshot "$W/j/snap5.json" --out "$W/j/m5.json" >"$W/j/o11" 2>&1
+ok "$?:$(heads):$(grep -c 'issue create' "$GH_LOG")" "0:$n:$c" "J16 a re-run: no create, no commit"
+
+echo "== K. a GitHub rate limit is waited out (tracker #28)"
+KS(){ : > "$GH_LOG"; T status T2 Executing 2>"$W/err" >/dev/null; }  # T2 is on the Project (ITEM2)
+echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/fail"; KS; e=$?
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG"):$(grep -c 'GitHub rate limit; waiting 0 s (retry 1/4)' "$W/err")" "0:2:1:1" "K1 a primary rate limit: reset read, waited, retried once"
+echo "You have exceeded a secondary rate limit. Please wait." > "$GH_DIR/fail"; KS; e=$?
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG")" "0:2:0" "K2 a secondary rate limit: waited and retried, no reset query"
+echo "HTTP 404: Not Found (https://api.github.com/graphql)" > "$GH_DIR/fail"; KS; e=$?
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG")" "2:1:0" "K3 any other failure: no retry, exit 2"
+grep -q 'gh project field-list failed: HTTP 404' "$W/err"; ok $? 0 "K3 the message names the call and the error"
 
 echo "== I. no hard-coded tracker"
 ! grep -n 'uedge-sandbox\|uedge-tracker\|holm10\|atlassian.net' "$H" "$J"; ok $? 0 "I1 the helpers name no owner, repo or Jira site"

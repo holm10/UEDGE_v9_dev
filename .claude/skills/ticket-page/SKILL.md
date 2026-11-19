@@ -59,13 +59,21 @@ first line of its issue body. The helper refuses any other key (exit 2).
 ## Importing from Jira (`jira_import.py`)
 
 One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pilot AIUE-299 first, the rest after it).
+`--epic none` imports the To Do issues with no epic instead, and an epic with no To Do children is imported alone
+(tracker #28).
 
 1. **Snapshot** (the agent, through the Atlassian MCP; no script calls Jira): `searchJiraIssuesUsingJql` with `jql =
-   parent = <EPIC> OR key = <EPIC>`, fields `summary, description, comment, status, issuetype, parent, labels,
+   parent = <EPIC> OR key = <EPIC>` (for `--epic none`: `project = AIUE AND parent is EMPTY AND issuetype != Epic AND
+   statusCategory = "To Do"`), fields `summary, description, comment, status, issuetype, parent, labels,
    issuelinks, created`, `responseContentFormat: markdown`, `maxResults: 100`. A result over the token cap is saved to a
-   file whole; that file, or the JSON written out, is the snapshot. Keep it in `../uedge-wt/data/<KEY>/`.
+   file whole; that file, or the JSON written out, is the snapshot. Keep it in `../uedge-wt/data/<KEY>/`. The MCP
+   leaves out an empty description (probed on AIUE-6, tracker #28); the script reads it as empty, and refuses only a
+   missing `comment` field.
 2. **Import**, from the worktree: `uv run .claude/skills/ticket-page/jira_import.py --snapshot <file> --epic <EPIC>
-   [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Run `--dry-run` first: it reads only, prints each write and
+   [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Check the GraphQL budget first (`gh api rate_limit --jq
+   .resources.graphql.remaining`; every session on the account shares it) and run no other `gh`-heavy session alongside.
+   Every `gh` call of both scripts waits out a rate limit and retries (`ticket_page.gh_run`: until the reset, or 60 s
+   per attempt for a secondary limit; at most 4 retries). Run `--dry-run` first: it reads only, prints each write and
    renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`, started from the epic's existing ones, so
    only the changes show). It skips tickets whose record is complete. Like every ticket-page call it clones the tracker
    if its checkout is missing.
@@ -77,14 +85,19 @@ One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pil
    - The body is the Jira description and comments verbatim, after the line `_Imported from Jira <KEY> …_`, which makes
      a re-run skip what exists (or, if that line was edited, the Project item's `Jira key`).
    - One commit writes the epic's `epic.md` (the Jira description, owner comments under Decisions, the children not
-     imported), `breakdown.md` (the Jira key → `T<N>` table and an entry per ticket) and `progress.md`.
+     imported), `breakdown.md` (the Jira key → `T<N>` table and an entry per ticket) and `progress.md`. An epic with no
+     To Do children gets no `breakdown.md` (its `epic.md` says so). With `--epic none` the issues get no parent, their
+     records go to `docs/no-epic/`, and the commit writes only `docs/no-epic/breakdown.md`.
+   - A tracker epic that already exists for a Jira epic (T10 for AIUE-222) is reused once its Project item's `Jira key`
+     is set to the Jira epic: its `epic.md` is kept, `breakdown.md` and `progress.md` are added to.
    - Each ticket's record comes from `create`, then `status Backfilled` (the Ticket section is the import, not as
      filed). A re-run completes a record that lacks the Backfilled entry or a comment's entry (matched by `comment <id>`).
      A comment opening with `Owner,` / `Owner:` / `Owner (` / `Owner decision(s)` (not "Owner's ...") becomes a Findings and decisions entry; one opening with `PIV record`
      becomes a Progress entry.
    - The script refuses (exit 2) a snapshot whose comments are incomplete, and refuses (exit 1) secret-like text, both
      before anything is written.
-3. **Jira pointer** (the agent, MCP `addCommentToJiraIssue`, one per `mapping.json` entry): "Moved to the tracker
+3. **Jira pointer** (the agent, MCP `addOrEditJiraIssueComment`, `addCommentToJiraIssue` in older MCP versions, one per
+   `mapping.json` entry): "Moved to the tracker
    (<date>): this ticket continues as T<N> (tracker issue #<N>). Jira is now its read-only archive." The Jira status is
    left as it is (owner, 2026-11-18).
 

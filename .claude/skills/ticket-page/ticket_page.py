@@ -26,8 +26,10 @@ import fcntl
 import hashlib
 import json
 import re
+import os
 import subprocess
 import sys
+import time
 import tomllib
 from datetime import date
 from pathlib import Path
@@ -122,8 +124,34 @@ def run(cmd, cwd=None, check=True):
     return r
 
 
+RATE = re.compile(r"rate limit", re.I)
+
+
+def gh_run(args, check=True):
+    """Runs `gh`, waiting out a GitHub rate limit (tracker #28): a secondary limit 60 s per attempt, a primary one until
+    its reset (`gh api rate_limit` itself costs nothing). At most 4 retries; TICKET_PAGE_MAX_WAIT caps each wait (s).
+    Any other failure is returned (check=False) or fatal, as before."""
+    cap = float(os.environ.get("TICKET_PAGE_MAX_WAIT", "3700"))
+    for k in range(1, 6):
+        r = run(["gh", *args], check=False)
+        if r.returncode == 0 or not RATE.search(r.stderr) or k == 5:
+            break
+        if "secondary" in r.stderr.lower():
+            wait = 60.0 * k
+        else:
+            q = run(["gh", "api", "rate_limit", "--jq", "[.resources.graphql.reset,.resources.core.reset]|max"],
+                    check=False)
+            wait = float(q.stdout.strip()) - time.time() + 5 if q.returncode == 0 and q.stdout.strip() else 60.0
+        wait = min(max(wait, 0.0), cap)
+        print(f"ticket_page: GitHub rate limit; waiting {wait:.0f} s (retry {k}/4)", file=sys.stderr)
+        time.sleep(wait)
+    if check and r.returncode:
+        die(f"gh {' '.join(args[:2])} failed: {r.stderr.strip()}")
+    return r
+
+
 def gh(*args):
-    return run(["gh", *args]).stdout
+    return gh_run(list(args)).stdout
 
 
 def slug(title):
