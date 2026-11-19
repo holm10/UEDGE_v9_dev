@@ -72,8 +72,13 @@ One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pil
 2. **Import**, from the worktree: `uv run .claude/skills/ticket-page/jira_import.py --snapshot <file> --epic <EPIC>
    [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Check the GraphQL budget first (`gh api rate_limit --jq
    .resources.graphql.remaining`; every session on the account shares it) and run no other `gh`-heavy session alongside.
-   Every `gh` call of both scripts waits out a rate limit and retries (`ticket_page.gh_run`: until the reset, or 60 s
-   per attempt for a secondary limit; at most 4 retries). Run `--dry-run` first: it reads only, prints each write and
+   Every `gh` call of both scripts waits out a rate limit and retries (`ticket_page.gh_run`: until the reset of the
+   exhausted resource, graphql or core, or 60 s for a primary limit with neither at zero; 60 s times the attempt for a
+   secondary limit; at most 4 retries; each wait is capped by `TICKET_PAGE_MAX_WAIT`, default 3700 s, and the printed
+   line shows the computed wait). A wait can exceed a 10-minute foreground shell call: run a real import in the
+   background (or set `TICKET_PAGE_MAX_WAIT`). `gh issue create` is never retried (it is not idempotent: gh may have
+   created the issue before it hit the limit, and a retry would duplicate it): a rate limit there stops the run; wait
+   for the reset, check that the last created issue has its parent epic, and re-run (re-runs are idempotent). Run `--dry-run` first: it reads only, prints each write and
    renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`, started from the epic's existing ones, so
    only the changes show). It skips tickets whose record is complete. Like every ticket-page call it clones the tracker
    if its checkout is missing.

@@ -121,11 +121,11 @@ class Run:
         self.a, self.t, self.dry, self.failed = a, t, a.dry_run, False
         self.new = 0
 
-    def gh(self, *args, read=False):
+    def gh(self, *args, read=False, retry=True):
         if self.dry and not read:
             print("would run: gh " + " ".join(args))
             return ""
-        return tp.gh(*args)
+        return tp.gh(*args, retry=retry)
 
     def helper(self, *args):
         cmd = [sys.executable, str(HELPER), "--repo", self.a.repo, "--date", self.t.today, "--caller", "jira-import"]
@@ -239,7 +239,7 @@ def main():
             args += ["--label", "ai-layer"] if ai(i) else []
             args += ["--parent", str(num[a.epic])] if epic and i is not epic else []
             r.new += 1
-            url = r.gh(*args).strip().split("\n")[-1] or f"#new-{r.new}"
+            url = r.gh(*args, retry=False).strip().split("\n")[-1] or f"#new-{r.new}"
             n, created = (int(url.rstrip("/").rsplit("/", 1)[1]) if not r.dry else f"new-{r.new}"), True
         num[k] = n
         item = item_for(n, url)

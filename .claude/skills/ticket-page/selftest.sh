@@ -24,11 +24,14 @@ case "$1 $2" in
   "api graphql") for x in "$@"; do case "$x" in n=*) cat "$GH_DIR/issue-${x#n=}.json";; esac; done ;;
   "project field-list") # section K: $GH_DIR/fail holds one error to answer once (a rate limit or another failure)
     if [ -f "$GH_DIR/fail" ]; then cat "$GH_DIR/fail" >&2; rm -f "$GH_DIR/fail"; exit 1; fi
+    if [ -f "$GH_DIR/failall" ]; then cat "$GH_DIR/failall" >&2; exit 1; fi   # answered on every call
     cat "$GH_DIR/fields.json" ;;
-  "api rate_limit") date +%s ;;
+  "api rate_limit") # the answer after the caller's --jq: one "remaining reset" line each for graphql and core
+    if [ -f "$GH_DIR/rl" ]; then cat "$GH_DIR/rl"; else echo "0 $(date +%s)"; echo "5000 $(date +%s)"; fi ;;
   "project view") echo '{"id":"PVT_test"}' ;;
   "issue list") cat "$GH_DIR/list.json" 2>/dev/null || echo '[]' ;;
-  "issue create") python3 -I "$GH_DIR/create.py" "$GH_DIR" "$@" ;;
+  "issue create") if [ -f "$GH_DIR/failcreate" ]; then cat "$GH_DIR/failcreate" >&2; exit 1; fi
+    python3 -I "$GH_DIR/create.py" "$GH_DIR" "$@" ;;
   "project item-add") # issue 22 was added by the Project itself in the meantime (a race seen on the real import)
     case "$*" in *issues/22\ *) echo '{"items":[{"id":"ITEM-AUTO22","content":{"number":22,"repository":"acme/tracker"}}]}' > "$GH_DIR/items.json"
       echo "GraphQL: Content already exists in this project (addProjectV2ItemById)" >&2; exit 1 ;; esac
@@ -292,12 +295,59 @@ ok "$?:$(heads):$(grep -c 'issue create' "$GH_LOG")" "0:$n:$c" "J16 a re-run: no
 echo "== K. a GitHub rate limit is waited out (tracker #28)"
 KS(){ : > "$GH_LOG"; T status T2 Executing 2>"$W/err" >/dev/null; }  # T2 is on the Project (ITEM2)
 echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/fail"; KS; e=$?
-ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG"):$(grep -c 'GitHub rate limit; waiting 0 s (retry 1/4)' "$W/err")" "0:2:1:1" "K1 a primary rate limit: reset read, waited, retried once"
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG"):$(grep -c 'GitHub rate limit; waiting 0 s (computed' "$W/err")" "0:2:1:1" "K1 a primary rate limit: reset read, waited, retried once"
 echo "You have exceeded a secondary rate limit. Please wait." > "$GH_DIR/fail"; KS; e=$?
 ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG")" "0:2:0" "K2 a secondary rate limit: waited and retried, no reset query"
 echo "HTTP 404: Not Found (https://api.github.com/graphql)" > "$GH_DIR/fail"; KS; e=$?
 ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'api rate_limit' "$GH_LOG")" "2:1:0" "K3 any other failure: no retry, exit 2"
 grep -q 'gh project field-list failed: HTTP 404' "$W/err"; ok $? 0 "K3 the message names the call and the error"
+# the bound: a limit on every call is retried 4 times, the 5th failure is fatal and names the call
+echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/failall"; KS; e=$?
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'GitHub rate limit; waiting' "$W/err")" "2:5:4" "K4 a persistent rate limit: 5 attempts, 4 waits, exit 2"
+grep -q 'gh project field-list failed: GraphQL: API rate limit' "$W/err"; ok $? 0 "K4 the final message names the call"
+# a secondary limit waits 60 s x retry (the line shows the wait before TICKET_PAGE_MAX_WAIT caps it)
+echo "You have exceeded a secondary rate limit. Please wait." > "$GH_DIR/failall"; KS
+ok "$(grep -o 'computed [0-9]* s, retry [0-9]/4' "$W/err" | sed 's/ s, retry / \//; s/computed //' | tr '\n' ' ')" "60 /1/4 120 /2/4 180 /3/4 240 /4/4 " "K5 a secondary limit: 60 s per retry"
+# a primary limit waits until the reset (+5 s) of the exhausted resource: graphql, core, the later of both, or 60 s
+echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/failall"
+w1(){ now=$(date +%s); printf '%s %s\n%s %s\n' "$1" $((now + $2)) "$3" $((now + $4)) > "$GH_DIR/rl"; KS  # remaining, reset offset: graphql, core
+  grep -o 'computed [0-9]* s, retry 1/4' "$W/err" | sed 's/computed \([0-9]*\) s.*/\1/'; }
+w=$(w1 0 100 5000 500); [ "$w" -ge 104 ] && [ "$w" -le 105 ]; ok $? 0 "K6 graphql exhausted: its reset + 5 s ($w s)"
+w=$(w1 5000 500 0 100); [ "$w" -ge 104 ] && [ "$w" -le 105 ]; ok $? 0 "K6 only core exhausted: the core reset, not the later graphql one ($w s)"
+w=$(w1 0 100 0 200); [ "$w" -ge 204 ] && [ "$w" -le 205 ]; ok $? 0 "K6 both exhausted: the later reset ($w s)"
+w=$(w1 10 100 10 200); ok "$w" 60 "K6 neither exhausted: 60 s"
+rm -f "$GH_DIR/failall" "$GH_DIR/rl"
+# `gh issue create` is not idempotent: a rate limit there is never retried
+snap6(){ echo "{\"isLast\":true,\"issues\":[$(iss J-20 Epic "$(st 'To Do' new)" null 'Epic twenty.' '' 0 '')]}"; }
+snap6 > "$W/j/snap6.json"; echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/failcreate"
+: > "$GH_LOG"; n=$(heads); JX --epic J-20 --snapshot "$W/j/snap6.json" --out "$W/j/m6.json" >"$W/j/o12" 2>&1; e=$?
+ok "$e:$(grep -c 'issue create' "$GH_LOG"):$(grep -c 'waiting' "$W/j/o12"):$(heads)" "2:1:0:$n" "K7 a rate limit on issue create: one call, no retry, exit 2, nothing written"
+grep -q 'not retried' "$W/j/o12" && grep -q 're-run' "$W/j/o12" && grep -q 'parent epic' "$W/j/o12"; ok $? 0 "K7 says to wait, re-run and check the last issue's parent"
+rm -f "$GH_DIR/failcreate"
+# a snapshot issue without the comment field is refused (only the description may be absent)
+python3 - "$W/j" <<'EOF'
+import json, sys
+d = sys.argv[1] + "/"
+s = json.load(open(d + "snap4.json")); del s["issues"][0]["fields"]["comment"]
+json.dump(s, open(d + "snap7.json", "w"))
+EOF
+n=$(heads); JX --epic J-10 --snapshot "$W/j/snap7.json" --out "$W/j/m7.json" >"$W/j/o13" 2>&1; e=$?
+ok "$e:$(heads):$(grep -c 'J-10: the snapshot lacks the comment field' "$W/j/o13")" "2:$n:1" "K8 a snapshot without the comment field: refused, names the ticket, nothing written"
+# an epic already in the tracker (epic.md, no breakdown.md; its Project item carries the Jira key) gets no new issue
+mkdir -p "$TR/docs/T50-existing"; printf '# T50: existing epic\n\nHand-written.\n' > "$TR/docs/T50-existing/epic.md"
+printf '# T50: progress\n\n- 2026-01-01 earlier line\n' > "$TR/docs/T50-existing/progress.md"
+g -C "$TR" add docs/T50-existing; g -C "$TR" commit -qm "an epic of its own"; git -C "$TR" push -q 2>/dev/null
+cp "$TR/docs/T50-existing/epic.md" "$W/j/epic50.md"; cp "$GH_DIR/items.json" "$W/j/items.keep" 2>/dev/null
+cp "$GH_DIR/issue-9.json" "$GH_DIR/issue-50.json"
+echo '{"items":[{"id":"ITEM50","jira key":"J-30","content":{"number":50,"repository":"acme/tracker","url":"https://github.com/acme/tracker/issues/50"}}]}' > "$GH_DIR/items.json"
+echo "{\"isLast\":true,\"issues\":[$(iss J-30 Epic "$(st 'To Do' new)" null 'Epic thirty.' '' 0 ''),
+$(iss J-31 Task "$(st 'To Do' new)" '{"key":"J-30"}' 'Child.' '' 0 '')]}" > "$W/j/snap8.json"
+: > "$GH_LOG"; JX --epic J-30 --snapshot "$W/j/snap8.json" --out "$W/j/m8.json" >"$W/j/o14" 2>&1; e=$?
+ok "$e:$(grep -c 'issue create' "$GH_LOG"):$(grep 'issue create' "$GH_LOG" | grep -c -- '--type Epic'):$(grep 'issue create' "$GH_LOG" | grep -c -- '--parent 50')" "0:1:0:1" "K9 an existing tracker epic: no epic issue, the child created with --parent 50"
+cmp -s "$W/j/epic50.md" "$TR/docs/T50-existing/epic.md"; ok $? 0 "K9 epic.md unchanged byte for byte"
+grep -q '^| J-31 | T[0-9]* | Task | not stated | none |$' "$TR/docs/T50-existing/breakdown.md" \
+  && grep -q 'earlier line' "$TR/docs/T50-existing/progress.md" && grep -q 'T50 (jira-import): imported 1 tickets from Jira J-30' "$TR/docs/T50-existing/progress.md"; ok $? 0 "K9 breakdown.md created with the mapping, progress.md appended to"
+if [ -f "$W/j/items.keep" ]; then cp "$W/j/items.keep" "$GH_DIR/items.json"; else rm -f "$GH_DIR/items.json"; fi
 
 echo "== I. no hard-coded tracker"
 ! grep -n 'uedge-sandbox\|uedge-tracker\|holm10\|atlassian.net' "$H" "$J"; ok $? 0 "I1 the helpers name no owner, repo or Jira site"
