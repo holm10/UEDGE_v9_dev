@@ -1,9 +1,11 @@
 """Inventory tests of the yldot families (PRD section 6; AIUE-83 adds index truth, AIUE-93 adds the input inventory,
 AIUE-96 the manifest and source checks).
 
-Per family, from a live evaluation (intake configuration): the idx* inverse is a bijection onto 1..neq that agrees
-with igyl, the owner-confirmed [regions] of family.toml fit the live grid and give their recorded cell counts, and
-a deliberately permuted map is rejected. Every diagnostic array is placed for the first-difference report.
+Per family, from a live evaluation (the steady configuration, which returns the same index data as every other
+and builds no nksol Jacobian, issfon = 0; owner, 2026-11-18, tracker T12): the idx* inverse is a bijection onto
+1..neq that agrees with igyl, the owner-confirmed [regions] of family.toml fit the live grid and give their recorded
+cell counts, and a deliberately permuted map is rejected. Every diagnostic array is placed for the first-difference
+report.
 
 From the git-tracked files alone (PRD sections 6, 7.2 and 7.6): every manifest holds exactly the variants of the
 inventory (variants.plan()), with no stale entry, the inventory's EXCLUDED ones as EXCLUDED, an owner family's too
@@ -38,12 +40,12 @@ NOT_IN_INPUT = ("hdf5_restore", "exmain")  # input.py never loads a state or run
 
 
 @pytest.fixture(scope="module")
-def intake(runner):
+def live(runner):
     cache = {}
 
     def get(family):
         if family not in cache:
-            res = runner.evaluate(family, config=INTAKE)
+            res = runner.evaluate(family, config="steady")
             assert res.ok, "{}: {} {}\n{}".format(family, res.status, res.message, res.log_tail)
             cache[family] = res.data
         return cache[family]
@@ -51,8 +53,8 @@ def intake(runner):
 
 
 @pytest.mark.parametrize("family", FAMILY_NAMES)
-def test_index_truth(intake, family):
-    data = intake(family)
+def test_index_truth(live, family):
+    data = live(family)
     regions = load_regions(family)
     imap = index_map(data, regions)
     assert imap.neq == data["neq"]
@@ -65,9 +67,9 @@ def test_index_truth(intake, family):
 
 
 @pytest.mark.parametrize("family", FAMILY_NAMES)
-def test_permuted_map_rejected(intake, family):
+def test_permuted_map_rejected(live, family):
     """Two active rows of different cells exchanged in the live idx* arrays (the deliberately permuted map)."""
-    data = dict(intake(family))
+    data = dict(live(family))
     idxte = np.array(data["idxte"]).copy()
     cells = np.argwhere(idxte > 0)
     (a, b), (c, d) = cells[0], cells[-1]
