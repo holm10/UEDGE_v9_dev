@@ -308,7 +308,7 @@ grep -q 'gh project field-list failed: GraphQL: API rate limit' "$W/err"; ok $? 
 # a secondary limit waits 60 s x retry (the line shows the wait before TICKET_PAGE_MAX_WAIT caps it)
 echo "You have exceeded a secondary rate limit. Please wait." > "$GH_DIR/failall"; KS
 ok "$(grep -o 'computed [0-9]* s, retry [0-9]/4' "$W/err" | sed 's/ s, retry / \//; s/computed //' | tr '\n' ' ')" "60 /1/4 120 /2/4 180 /3/4 240 /4/4 " "K5 a secondary limit: 60 s per retry"
-# a primary limit waits until the reset (+5 s) of the exhausted resource: graphql, core, the later of both, or 60 s
+# a primary limit waits until the reset (+5 s) of the exhausted resource: graphql, core, the later of both, or 120 s x retry with neither at zero
 echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/failall"
 w1(){ now=$(date +%s); printf '%s %s\n%s %s\n' "$1" $((now + $2)) "$3" $((now + $4)) > "$GH_DIR/rl"; KS  # remaining, reset offset: graphql, core
   grep -o 'computed [0-9]* s, retry 1/4' "$W/err" | sed 's/computed \([0-9]*\) s.*/\1/'; }

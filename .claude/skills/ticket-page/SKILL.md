@@ -77,7 +77,7 @@ One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pil
    secondary limit; at most 4 retries; each wait is capped by `TICKET_PAGE_MAX_WAIT`, default 3700 s, and the printed
    line shows the computed wait). GitHub also has a burst limit that `gh api rate_limit` does not show: its replies
    read "API rate limit exceeded for user ID …" with points left, `gh project` reports it as "unknown owner type"
-   (also retried), and it lasted about 5-10 minutes in the T28 import. `jira_import.py` waits `JIRA_IMPORT_PACE` s
+   (also retried, so a mistyped owner in `tracker.toml` fails only after about 20 minutes of waits), and it lasted about 5-10 minutes in the T28 import. `jira_import.py` waits `JIRA_IMPORT_PACE` s
    (default 3) between the issues it creates, and only one import or dry run runs at a time (two at once set it off
    in T28). A wait can exceed a 10-minute foreground shell call: run a real import in the
    background (or set `TICKET_PAGE_MAX_WAIT`). `gh issue create` is never retried (it is not idempotent: gh may have
