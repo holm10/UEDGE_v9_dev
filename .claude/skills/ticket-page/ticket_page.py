@@ -151,7 +151,7 @@ def gh_run(args, check=True, retry=True):
         else:
             q = run(["gh", "api", "rate_limit", "--jq", RATE_JQ], check=False)
             rows = [ln.split() for ln in q.stdout.split("\n")] if q.returncode == 0 else []
-            resets = [float(x[1]) for x in rows if len(x) == 2 and float(x[0]) == 0]  # the exhausted resources
+            resets = [float(x[1]) for x in rows if len(x) == 2 and x[0] == "0" and x[1].isdigit()]  # exhausted ones
             wait = max(resets) - time.time() + 5 if resets else 60.0
         capped = min(max(wait, 0.0), cap)
         print(f"ticket_page: GitHub rate limit; waiting {capped:.0f} s (computed {wait:.0f} s, retry {k}/4)",
