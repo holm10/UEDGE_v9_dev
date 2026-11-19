@@ -69,7 +69,7 @@ rows = json.loads((d / "list.json").read_text()) if (d / "list.json").exists() e
 (d / "list.json").write_text(json.dumps(rows + [{"number": n, "body": body, "url": url}]))
 print(url)
 EOF
-export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH" TICKET_PAGE_MAX_WAIT=0
+export GH_LOG="$W/gh.log" GH_DIR="$W/gh" GH_TRACKER="$TR" PATH="$W/bin:$PATH" TICKET_PAGE_MAX_WAIT=0 JIRA_IMPORT_PACE=0
 
 # The tracker: a bare remote and a checkout with one epic directory. tracker.toml exists only in the main checkout.
 git init -q --bare -b main "$W/remote.git"; git clone -q "$W/remote.git" "$TR" 2>/dev/null
@@ -315,8 +315,12 @@ w1(){ now=$(date +%s); printf '%s %s\n%s %s\n' "$1" $((now + $2)) "$3" $((now + 
 w=$(w1 0 100 5000 500); [ "$w" -ge 104 ] && [ "$w" -le 105 ]; ok $? 0 "K6 graphql exhausted: its reset + 5 s ($w s)"
 w=$(w1 5000 500 0 100); [ "$w" -ge 104 ] && [ "$w" -le 105 ]; ok $? 0 "K6 only core exhausted: the core reset, not the later graphql one ($w s)"
 w=$(w1 0 100 0 200); [ "$w" -ge 204 ] && [ "$w" -le 205 ]; ok $? 0 "K6 both exhausted: the later reset ($w s)"
-w=$(w1 10 100 10 200); ok "$w" 60 "K6 neither exhausted: 60 s"
+w=$(w1 10 100 10 200); ok "$w" 120 "K6 neither exhausted (a burst limit rate_limit does not show): 120 s on retry 1"
+grep -o 'computed [0-9]* s, retry [0-9]/4' "$W/err" | tr '\n' ' ' | grep -q 'computed 120 s, retry 1/4 computed 240 s, retry 2/4 computed 360 s, retry 3/4 computed 480 s, retry 4/4'; ok $? 0 "K6 and 120 s more on each retry"
 rm -f "$GH_DIR/failall" "$GH_DIR/rl"
+# `gh project` reports a rate-limited owner lookup as "unknown owner type": waited out like a rate limit
+echo "unknown owner type" > "$GH_DIR/fail"; KS; e=$?
+ok "$e:$(grep -c 'project field-list' "$GH_LOG"):$(grep -c 'GitHub rate limit; waiting' "$W/err")" "0:2:1" "K10 'unknown owner type': waited and retried"
 # `gh issue create` is not idempotent: a rate limit there is never retried
 snap6(){ echo "{\"isLast\":true,\"issues\":[$(iss J-20 Epic "$(st 'To Do' new)" null 'Epic twenty.' '' 0 '')]}"; }
 snap6 > "$W/j/snap6.json"; echo "GraphQL: API rate limit already exceeded for user ID 1." > "$GH_DIR/failcreate"
@@ -348,6 +352,13 @@ cmp -s "$W/j/epic50.md" "$TR/docs/T50-existing/epic.md"; ok $? 0 "K9 epic.md unc
 grep -q '^| J-31 | T[0-9]* | Task | not stated | none |$' "$TR/docs/T50-existing/breakdown.md" \
   && grep -q 'earlier line' "$TR/docs/T50-existing/progress.md" && grep -q 'T50 (jira-import): imported 1 tickets from Jira J-30' "$TR/docs/T50-existing/progress.md"; ok $? 0 "K9 breakdown.md created with the mapping, progress.md appended to"
 if [ -f "$W/j/items.keep" ]; then cp "$W/j/items.keep" "$GH_DIR/items.json"; else rm -f "$GH_DIR/items.json"; fi
+
+# jira_import.py paces its creates (JIRA_IMPORT_PACE s between created issues; 0 elsewhere in this test)
+snap9(){ echo "{\"isLast\":true,\"issues\":[$(iss J-40 Epic "$(st 'To Do' new)" null 'Epic forty.' '' 0 ''),
+$(iss J-41 Task "$(st 'To Do' new)" '{"key":"J-40"}' 'One.' '' 0 ''), $(iss J-42 Task "$(st 'To Do' new)" '{"key":"J-40"}' 'Two.' '' 0 '')]}"; }
+snap9 > "$W/j/snap9.json"; t0=$(date +%s)
+JIRA_IMPORT_PACE=2 JX --epic J-40 --snapshot "$W/j/snap9.json" --out "$W/j/m9.json" >"$W/j/o16" 2>&1; e=$?; dt=$(( $(date +%s) - t0 ))
+[ "$e" = 0 ] && [ "$dt" -ge 4 ]; ok $? 0 "K11 JIRA_IMPORT_PACE=2 between 3 creates: at least 4 s ($dt s)"
 
 echo "== I. no hard-coded tracker"
 ! grep -n 'uedge-sandbox\|uedge-tracker\|holm10\|atlassian.net' "$H" "$J"; ok $? 0 "I1 the helpers name no owner, repo or Jira site"

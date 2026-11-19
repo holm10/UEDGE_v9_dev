@@ -124,7 +124,8 @@ def run(cmd, cwd=None, check=True):
     return r
 
 
-RATE = re.compile(r"rate limit", re.I)
+# `gh project` reports a rate-limited owner lookup as "unknown owner type" (seen on the T28 import, 2026-11-19).
+RATE = re.compile(r"rate limit|unknown owner type", re.I)
 
 
 RATE_JQ = r'.resources|[.graphql,.core]|map("\(.remaining) \(.reset)")|.[]'  # one "remaining reset" line each
@@ -132,7 +133,8 @@ RATE_JQ = r'.resources|[.graphql,.core]|map("\(.remaining) \(.reset)")|.[]'  # o
 
 def gh_run(args, check=True, retry=True):
     """Runs `gh`, waiting out a GitHub rate limit (tracker #28): a secondary limit 60 s per attempt, a primary one until
-    the reset of the exhausted resource (graphql or core; `gh api rate_limit` itself costs nothing). At most 4 retries;
+    the reset of the exhausted resource (graphql or core; `gh api rate_limit` itself costs nothing), or, with neither
+    at zero (a burst limit rate_limit does not show), 120 s per attempt. At most 4 retries;
     TICKET_PAGE_MAX_WAIT caps each wait (s) and the printed line shows the computed wait before the cap. retry=False
     (`gh issue create`, not idempotent: gh may have created the issue before it hit the limit) never retries: a rate
     limit is fatal there. Any other failure is returned (check=False) or fatal, as before."""
@@ -152,7 +154,8 @@ def gh_run(args, check=True, retry=True):
             q = run(["gh", "api", "rate_limit", "--jq", RATE_JQ], check=False)
             rows = [ln.split() for ln in q.stdout.split("\n")] if q.returncode == 0 else []
             resets = [float(x[1]) for x in rows if len(x) == 2 and x[0] == "0" and x[1].isdigit()]  # exhausted ones
-            wait = max(resets) - time.time() + 5 if resets else 60.0
+            # neither at zero: a burst limit that rate_limit does not show (T28: it lasted about 5-10 min)
+            wait = max(resets) - time.time() + 5 if resets else 120.0 * k
         capped = min(max(wait, 0.0), cap)
         print(f"ticket_page: GitHub rate limit; waiting {capped:.0f} s (computed {wait:.0f} s, retry {k}/4)",
               file=sys.stderr)

@@ -24,6 +24,7 @@ Exit codes: 0 ok; 1 refused (secret-like text; nothing written); 2 bad input, a 
 import argparse
 import fcntl
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -229,11 +230,14 @@ def main():
              f"--{flag.replace('_', '-')}", val)
 
     num, rows = {}, []
+    pace = float(os.environ.get("JIRA_IMPORT_PACE", "3"))  # s between created issues: GitHub's burst limit (T28)
     for i in [*head, *take]:
         k, title = i["key"], tp.one_line(tp.sanitize(i["fields"]["summary"], a.repo))
         if k in seen:
             n, url, created = seen[k]["number"], seen[k]["url"], False
         else:
+            if r.new and not r.dry:
+                time.sleep(pace)
             args = ["issue", "create", "-R", t.slug, "--type", TYPES.get(kind(i), "Task"), "--title", title,
                     "--body-file", str(out.parent / "bodies" / f"{k}.md"), "--label", "from-jira"]
             args += ["--label", "ai-layer"] if ai(i) else []

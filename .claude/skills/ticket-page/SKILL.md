@@ -73,9 +73,13 @@ One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pil
    [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Check the GraphQL budget first (`gh api rate_limit --jq
    .resources.graphql.remaining`; every session on the account shares it) and run no other `gh`-heavy session alongside.
    Every `gh` call of both scripts waits out a rate limit and retries (`ticket_page.gh_run`: until the reset of the
-   exhausted resource, graphql or core, or 60 s for a primary limit with neither at zero; 60 s times the attempt for a
+   exhausted resource, graphql or core; 120 s times the attempt when neither is at zero; 60 s times the attempt for a
    secondary limit; at most 4 retries; each wait is capped by `TICKET_PAGE_MAX_WAIT`, default 3700 s, and the printed
-   line shows the computed wait). A wait can exceed a 10-minute foreground shell call: run a real import in the
+   line shows the computed wait). GitHub also has a burst limit that `gh api rate_limit` does not show: its replies
+   read "API rate limit exceeded for user ID …" with points left, `gh project` reports it as "unknown owner type"
+   (also retried), and it lasted about 5-10 minutes in the T28 import. `jira_import.py` waits `JIRA_IMPORT_PACE` s
+   (default 3) between the issues it creates, and only one import or dry run runs at a time (two at once set it off
+   in T28). A wait can exceed a 10-minute foreground shell call: run a real import in the
    background (or set `TICKET_PAGE_MAX_WAIT`). `gh issue create` is never retried (it is not idempotent: gh may have
    created the issue before it hit the limit, and a retry would duplicate it): a rate limit there stops the run; wait
    for the reset, check that the last created issue has its parent epic, and re-run (re-runs are idempotent). Run `--dry-run` first: it reads only, prints each write and
