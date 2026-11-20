@@ -899,7 +899,7 @@ def summary_md(v):
     for family, its in by_family(v["items"]).items():  # what moved, for the reviewer (T18)
         lines += ["", "<details><summary>changed items of {}: {}</summary>".format(html.escape(family), len(its)),
                   "", "```"]
-        lines += its + ["```", "", "</details>"]
+        lines += ["- " + it for it in its] + ["```", "", "</details>"]  # "- ": no item closes the fence
     return "\n".join(clean(line) for line in lines) + "\n"
 
 

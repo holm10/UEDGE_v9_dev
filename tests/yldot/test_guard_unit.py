@@ -1187,7 +1187,7 @@ def test_printed_digest_lines_round_trip(repo):
     md = guard.summary_md(v).splitlines()
     block = md[md.index("- or, in place of a family's items, its digest line:") + 3:]
     assert repo.check("\n".join(block[:block.index("```")]))[0] == 0
-    assert "<details><summary>changed items of fam: 2</summary>" in md and "fam:bbb.sens" in md
+    assert "<details><summary>changed items of fam: 2</summary>" in md and "- fam:bbb.sens" in md
 
 
 def test_summary_lists_the_items_of_a_declared_family():
@@ -1195,9 +1195,11 @@ def test_summary_lists_the_items_of_a_declared_family():
                     "Default results: changed\n" + line("fam", FAM_ITEMS))
     md = guard.summary_md(v)
     assert v["missing_items"] == [] and "or, in place" not in md
-    assert "<details><summary>changed items of fam: 2</summary>\n\n```\nfam:bbb.inert\nfam:bbb.sens\n```" in md
+    assert "<details><summary>changed items of fam: 2</summary>\n\n```\n- fam:bbb.inert\n- fam:bbb.sens\n```" in md
     v = guard.judge([guard.Finding("default", "p", "w", "<b>:x")], [], "")
     assert "changed items of &lt;b&gt;: 1" in guard.summary_md(v)
+    v = guard.judge([guard.Finding("default", "p", "w", "```x:a")], [], "")  # review I1-m1: no line closes the fence
+    assert "\n- ```x:a\n```\n\n</details>" in guard.summary_md(v)
 
 
 def test_full_regeneration_fits_the_description_limit():
