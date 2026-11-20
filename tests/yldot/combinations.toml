@@ -26,8 +26,8 @@
 # selector equals the family's value is EXCLUDED there ("value equals d"), and so are the sets based on it.
 #
 # Lines below are bbb/pandf_boundary.m at a62f121; options and issues: .claude/context/boundary-conditions.md
-# (Confluence SD page 25067521). Selector values themselves are in overrides.toml (owner D2); the sets here add the
-# combinations and the branch parameters. Not here, with their disposition:
+# (archived Confluence page 25067521). Selector values themselves are in overrides.toml (owner D2); the sets here add
+# the combinations and the branch parameters. Not here, with their disposition:
 #   - the gas-temperature options (istgpfc, istgwc, istglb/istgrb, istgcore and lytg, cgengmw, recycwe, cfdiss,
 #     tgwall, tgcore, cfalbedo, cgengmpl): no small family evolves tg; a family with istgon = 1 is AIUE-293 (owner
 #     2026-11-12);

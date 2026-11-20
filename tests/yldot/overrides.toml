@@ -234,8 +234,9 @@ reason = "selects the potential wall BC: 0, 1, 3, 4 (bbb/bbb.v:451-460); owner 2
 # (owner rule 2026-10-20). The rest is EXCLUDED with what the code does with it: a value outside a list with no
 # else branch writes no equation for those guard rows, and the first Jacobian stops with "Jacobian row = 0 for eqn
 # iv = N" (probe probes/unwritten_bc.py on d_only, AIUE-257; AIUE-273). Options: .claude/context/boundary-conditions.md
-# (Confluence SD page 25067521). Lines are bbb/pandf_boundary.m at a62f121. The lists run in the five small families;
-# the owner families keep the d+-1 id (owner 2026-11-12: about 91 more ids each, imp7 ~840 s per evaluation on CI).
+# (archived Confluence page 25067521). Lines are bbb/pandf_boundary.m at a62f121. The lists run in the five small
+# families; the owner families keep the d+-1 id (owner 2026-11-12: about 91 more ids each, imp7 ~840 s per
+# evaluation on CI).
 
 ["bbb.istepfc"]
 values = [0, 1, 2, 3, 4]
