@@ -1405,3 +1405,146 @@ def test_manifest_set_entries():
     assert set_manifest_errors(dict(base, keys=["bbb.a"], base="set:y", applied={"bbb.a": enc},
                                     d={"bbb.a": enc})) == ""
     assert "need exactly the keys" in set_manifest_errors(dict(base, keys=["bbb.a"], base=None), vid="bbb.kye")
+
+
+# ---------------------------------------------------------------- one family on several threads (T19)
+
+
+def same_files(a, b, family="d_only"):
+    """Two child runs wrote the same files: every byte, the manifest's provenance date aside, and cost.json's
+    evaluation count (its times differ)."""
+    names = sorted(p.relative_to(a) for p in a.rglob("*") if p.is_file())
+    assert names == sorted(p.relative_to(b) for p in b.rglob("*") if p.is_file())
+    for n in names:
+        if n.name.endswith(".cost.json"):
+            assert json.loads((a / n).read_text())["evaluations"] == json.loads((b / n).read_text())["evaluations"]
+        elif n.name == family + ".json":
+            ja, jb = (mf.loads((d / n).read_text()) for d in (a, b))
+            for j in (ja, jb):
+                j["provenance"].pop("date")
+            assert ja == jb
+        else:
+            assert file_sha256(a / n) == file_sha256(b / n), n
+    return names
+
+
+def test_parallel_sweep_writes_the_serial_files(tmp_path, swept):
+    """Every class (SWEEP), the SENSITIVE second runs and the locality runs on 4 threads: the files of jobs = 1."""
+    d = tmp_path / "par"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), jobs=4)
+    names = same_files(swept[0] / "references", d / "references")
+    assert Path("samples/d_only.npz") in names and Path("d_only.locality.json") in names
+
+
+def test_parallel_set_sweep_writes_the_serial_files(tmp_path, set_sweep, monkeypatch):
+    """Sets and the sets based on them (evaluated in the main thread) on 4 threads: the files of jobs = 1."""
+    with_sets(monkeypatch, tmp_path)
+    d = tmp_path / "par"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=SET_IDS, jobs=4)
+    same_files(set_sweep / "references", d / "references")
+
+
+def test_parallel_only_keeps_every_other_entry(tmp_path, swept):
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    d = tmp_path / "only"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.cfvisx"],
+             suite=suite, jobs=4)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
+
+
+def test_parallel_second_run_that_differs_is_nondeterministic(tmp_path, monkeypatch):
+    """The second run is made in the same task as the first, so a flaky second run is still caught on 4 threads."""
+    from yldot.harness.process import Runner
+
+    real, seen = Runner.evaluate, []
+
+    def flaky(self, family, **kw):
+        r = real(self, family, **kw)
+        v = kw.get("variant")
+        if v is not None and kw.get("locality") is None:
+            seen.append(v.id)
+            if seen.count(v.id) == 2:
+                r.data["yldot"][7] += 1.0
+        return r
+
+    monkeypatch.setattr(Runner, "evaluate", flaky)
+    d = tmp_path / "flaky"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.cfvisx", "bbb.isbcwdt", "bbb.xlinc"],
+             jobs=4)
+    v = mf.loads((d / "references" / "d_only.json").read_text())["variables"]
+    assert {vid: (e["class"], e["reason"]) for vid, e in v.items() if e["class"] == "INVALID"} == {
+        vid: ("INVALID", "nondeterministic: 1 rows differ between two processes")
+        for vid in ("bbb.cfvisx", "bbb.isbcwdt")}
+    assert v["bbb.xlinc"]["class"] == "INERT"
+
+
+def test_main_passes_jobs_to_one_family_only(monkeypatch, tmp_path):
+    """_child --jobs N: one family gets N evaluations at once, several get N processes (parallel_children)."""
+    calls = []
+    monkeypatch.setattr(mr, "child", lambda families, *a, **kw: calls.append(("child", families, kw["jobs"])))
+    monkeypatch.setattr(mr, "parallel_children", lambda args: calls.append(("parallel", args.family, args.jobs)))
+    base = ["make_references.py", "_child", "--out", str(tmp_path), "--build", str(tmp_path / "b.json")]
+    for fams, jobs in ((["imp7"], "3"), (["d_only", "d_c"], "3"), (["d_only", "d_c"], "1"), (["imp7"], "1")):
+        assert mr.main(base[:2] + fams + base[2:] + ["--jobs", jobs]) == 0
+    assert calls == [("child", ["imp7"], 3), ("parallel", ["d_only", "d_c"], 3), ("child", ["d_only", "d_c"], 1),
+                     ("child", ["imp7"], 1)]
+
+
+@pytest.mark.parametrize("workers", [1, 3])
+def test_ahead_takes_in_order_and_bounds_the_window(workers):
+    import threading
+    import time
+
+    lock, state = threading.Lock(), {"running": 0, "most": 0, "started": []}
+
+    def fn(k):
+        with lock:
+            state["running"] += 1
+            state["most"] = max(state["most"], state["running"])
+            state["started"].append(k)
+        time.sleep(0.01 * (10 - k))  # later keys finish first
+        with lock:
+            state["running"] -= 1
+        if k == 4:
+            raise mr.FamilyError("family k4")
+        if k == 6:
+            raise RuntimeError("harness k6")
+        return 10 * k
+
+    a = mr.Ahead(fn, range(10), workers, ahead=4)
+    try:
+        assert state["started"] == [] or workers > 1  # workers 1: nothing runs before take
+        with pytest.raises(ValueError, match="out of order"):
+            a.take(1)
+        out = []
+        for k in range(6):
+            assert len(a.futures) <= 4
+            out.append(a.take(k))
+        assert out[:4] == [0, 10, 20, 30] and out[5] == 50
+        assert isinstance(out[4], mr.FamilyError) and str(out[4]) == "family k4"
+        with pytest.raises(RuntimeError, match="harness k6"):
+            a.take(6)
+        assert state["most"] <= workers
+        if workers == 1:
+            assert state["started"] == list(range(7))  # each call made by its take, in key order
+    finally:
+        a.close()
+
+
+def test_ahead_close_cancels_what_has_not_started():
+    import threading
+
+    gate, started = threading.Event(), []
+
+    def fn(k):
+        started.append(k)
+        gate.wait(10)
+        return k
+
+    a = mr.Ahead(fn, range(6), 2, ahead=6)
+    threading.Timer(0.2, gate.set).start()
+    a.close()  # waits for keys 0 and 1, which hold both threads; 2-5 never start
+    assert sorted(started) == [0, 1]
+    with pytest.raises(ValueError, match="duplicate"):
+        mr.Ahead(fn, [1, 1])
