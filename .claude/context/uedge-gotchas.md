@@ -47,6 +47,17 @@ AIUE-216).
   - Never infer a species slot's meaning from its position: read `ziin`, `znuclin`, `isupgon`, `istgon` from the run, and say which index convention (Fortran or Python) a label uses.
 - **A continuity fault shows in the up, te and ti rows of `yldot` too** (owner, 2026-10-23, AIUE-158). With the defaults `isflxvar = 0` and `isrscalf = 1` (`bbb/bbb.v:1298,1301`), `pandf` calls `rscalf` (`bbb/pandf.m:724`), which turns the conservative residuals d(nv)/dt and d(nT)/dt into dv/dt and dT/dt (`bbb/oderhs.m:537-692`): `yldot(up)` subtracts `up·nbvdot`, built from `yldot(ni)` and the neighbour's `resco` (`bbb/oderhs.m:612,633`), te subtracts `te·` the charge-weighted sum of the ion density derivatives, and ti `ti·` their sum over ions (the inertial atoms enter only through `cftiexclg` when `isupgon(1) = 1`, the gas through `cngtgx(1)` otherwise; `bbb/oderhs.m:642-656`). AIUE-89's continuity sign flip fired `ni[1]` 32, `up[1]` 28, `te[1]` 32 and `ti[1]` 32 rows on d_only. A per-block expectation (a mutation header, a coverage matrix, localization by block) includes the coupled blocks; "fires outside its block" is not by itself a defect.
 
+## Build
+
+- **A `--noclean` rebuild keeps objects compiled with the previous build's options** (owner, 2026-11-18, AIUE-9
+  close-out O17; T49). `--noclean` sets `NOCLEAN=TRUE` (`setup.py:747-760`), and `make clean` cleans only when
+  `NOCLEAN` is `FALSE` (`Makefile.Forthon:66`). A `.F` is regenerated only when its `.m` is newer, and make reuses the
+  old objects, so a `--noopt` (-O0) build after a `--noclean` -O3 build can stay -O3, and nothing reports it; the build
+  record `_build_info.json` holds the options asked for, not those the reused objects were compiled with. The
+  mechanism is presumed from AIUE-85's review (I1-m1), not re-probed. After any change of build options, rebuild
+  without `--noclean`, and read the real compile flags in the `pip install -v` log. The build-flags check does not
+  cover `--noclean` (`.claude/context/testing.md` → build flags, AIUE-125).
+
 ## Platform
 
 - **On Linux x86-64, a build that calls glibc's vector math library gives results that follow the CPU vendor**

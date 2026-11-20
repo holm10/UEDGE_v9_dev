@@ -13,8 +13,11 @@ works, open items, how to verify), the starting point for a fresh fixer or sessi
 
 Only if tracker keys `T<N>` (comma-separated) are passed, for each one:
 
-1. `gh issue view <N> -R <owner>/<repo> --comments`, with owner and repo from `.claude/tracker.toml` (the issue: title,
-   type, parent epic, and the comments that carry handovers and owner decisions).
+1. `gh issue view <N> -R <owner>/<repo> --json number,title,body,state,issueType,labels,comments`, with owner and
+   repo from `.claude/tracker.toml` (the issue: title, body, type, and the comments that carry handovers and owner
+   decisions). Without `--json`, `--comments` prints only the comments when stdout is not a terminal, and nothing for
+   an issue without comments (T35). The parent epic is the record's Epic row, or `gh api
+   repos/<owner>/<repo>/issues/<N>/parent`.
 2. In the tracker checkout (`<parent of the main checkout>/<repo>`; `ticket-page` → Configuration), read
    `docs/*/T<N>-*/record.md` and the `plan.md` (or `rca.md`) next to it. The record's `## Ticket` section is the scope
    as filed by `spec`; its log sections record the ticket's progress, validation, reviews and decisions so far
