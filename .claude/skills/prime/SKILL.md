@@ -39,7 +39,7 @@ hard rules, and gotchas — do not re-derive these from the code.
 Always load `.claude/context/uedge-gotchas.md` (UEDGE's by-design traps; short, and a missed trap costs more than
 reading it). From the on-demand table in `CLAUDE.md`, also load the `.claude/context/*.md` modules that match the task
 (always `architecture.md` if the task is broad or unclear). Then read the source files the task points to — for
-physics, the relevant `bbb/pandf_*.m` routine and its `.v` variables; for Python, the `src/uedge/` module.
+physics, the relevant `pandf` routine (`architecture.md` → `bbb/` layout) and its `.v` variables; for Python, the `src/uedge/` module.
 
 If the task is new physics, note that it must go through the `uedge-physics` → `uedge-reviewer` →
 `uedge-implementer` pipeline (`.claude/context/physics-workflow.md`), and check `docs/physics_specs/` for an
@@ -73,7 +73,7 @@ Keep it short and scannable:
 - **Task context** — goal, acceptance criteria, source (tracker issue / record / description), or "none given".
 - **Relevant area** — packages, files, routines, `.v` groups, with `file:line`.
 - **Rules that bite here** — the specific hard rules / gotchas / context-module points that apply
-  (e.g. threadprivate, refactor-vs-physics defaults, MPPL hazards), including each `uedge-gotchas.md` trap the task
+  (e.g. threadprivate, refactor-vs-physics defaults, source-form hazards), including each `uedge-gotchas.md` trap the task
   can hit.
 - **Branch state** — branch and its kind (protected / AI layer / ticket), ahead of `v9-develop` by N, uncommitted
   changes, worktrees, open specs and working documents, unpushed tracker commits, branch-policy violations. If the

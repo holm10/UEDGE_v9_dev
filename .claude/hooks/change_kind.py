@@ -20,7 +20,8 @@ The policy lives in `.claude/context/branching.md`. This file is the determinist
     never a change of the exit code): too many added files or lines outside product source and tests, an added file
     over the size cap, or data-like files. It also prints `HIGH-RISK: yes (<up to 5 paths>)` or `HIGH-RISK: no`
     (the diff touches the L-tier code of `process-tiers.md`) and `FORTRAN: yes (<up to 5 paths>)` or `FORTRAN: no`
-    (any other Fortran source, `.m`, `.F90` or hand-written `.f`: at least tier M, Opus implementation review); the exit code is unchanged. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
+    (any other Fortran source, in any of its forms, the FORTRAN pattern below: at least tier M, Opus implementation
+    review); the exit code is unchanged. Raw run data belongs in .claude/work/<KEY>/ or a scratch directory.
 
 Path classes
   working   .claude/work/** (the local working folder) and the legacy working-document paths .claude/plans/**,
@@ -86,7 +87,9 @@ BUDGET_HINT = ("not a failure: keep raw run data, logs, reports and generated fi
 # svr/svrut3.m (precond5, GMRES helpers), svr/svrut4.m (ilut, lusol0, sparse utilities); bbb/pandf_jacobian.m is in
 # the pandf tree. Owner, 2026-10-21 (AIUE-142 follow-up): also bbb/odesetup.m (Jacobian stencil maps allocjacstnl,
 # map_var_jac, jacstnlout), svr/nksol.m (Newton-Krylov solver, spigmr) and svr/svrut1.m (jmap).
-HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.m$|ppp/|bbb/oderhs\.m$|bbb/odesetup\.m$|svr/nksol\.m$|svr/svrut[134]\.m$|"
+# Each named file counts in its MPPL (.m) and its frozen free-form (.F90) form, so a freeze keeps the L tier (T78).
+HIGH_RISK = re.compile(r"^(bbb/pandf[^/]*\.(m|F90)$|ppp/|bbb/oderhs\.(m|F90)$|bbb/odesetup\.(m|F90)$|"
+                       r"svr/nksol\.(m|F90)$|svr/svrut[134]\.(m|F90)$|"
                        r".*\.v$|setup\.py$|pyproject\.toml$|Makefile\.Forthon$|"
                        r"[^/]+/Package[^/]*$)", re.IGNORECASE)
 # Any other Fortran source (process-tiers.md -> Tiers, M row): at least tier M, implementation review on Opus.

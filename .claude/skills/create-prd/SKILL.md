@@ -104,7 +104,7 @@ Create a well-structured PRD with the following sections. Adapt depth and detail
 
 **8. Code Basis**
 - Packages, files and routines affected (`bbb/pandf_*`, `.v` groups, `ppp/`, `svr/`, `src/uedge/`)
-- Build impact (new `.m` files, `Makefile.Forthon`/`Package` registration, Forthon/compiler requirements)
+- Build impact (new source files and their registration, `CLAUDE.md` → Gotchas; Forthon/compiler requirements)
 - Dependencies (Python packages, rate/data files) and platform constraints (macOS/Linux, OpenMP)
 
 **9. Physics & Numerics Impact**

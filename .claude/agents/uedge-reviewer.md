@@ -154,7 +154,7 @@ not.
 3. **Default safety** — The plan's verification really proves that default results are unchanged (or that only the
    documented cases move), in every build the change affects (serial and OpenMP).
 4. **Breakage** — Try to break the design: guard cells, multi-species indexing, topologies, serial vs OpenMP,
-   `+threadprivate` needs, MPPL conversion hazards, Forthon registration, macOS vs Linux, CI vs local.
+   `+threadprivate` needs, source-form hazards, Forthon registration, macOS vs Linux, CI vs local.
 5. **Scope** — Nothing the ticket needs is missing, and nothing outside the ticket is added. AI-layer facts the change
    makes untrue are listed. Process changes (skills, agents, hooks) on a ticket branch are a BLOCKER.
 

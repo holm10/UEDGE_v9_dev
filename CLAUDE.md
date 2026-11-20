@@ -51,7 +51,7 @@ There is no linter, formatter, or type checker, and CI runs none. Compiler warni
 | Module | Load when |
 |---|---|
 | `.claude/context/architecture.md` | You need the package map, the build pipeline, or the `pandf` call graph |
-| `.claude/context/mppl-fortran.md` | Editing any `.m` file (dialect and conversion pitfalls) |
+| `.claude/context/mppl-fortran.md` | Editing any `.m` file (dialect and conversion pitfalls) or a hand-written free-form `.F90`; the module skills point to for a source form's build errors and review checks |
 | `.claude/context/variables-forthon.md` | Adding or changing a variable, group, or Python-callable routine in a `.v` file |
 | `.claude/context/openmp-jacobian.md` | Touching `pandf*`, `ppp/`, Jacobian code, or anything that writes shared arrays during RHS evaluation |
 | `.claude/context/testing.md` | Running, writing, or reasoning about tests and CI |

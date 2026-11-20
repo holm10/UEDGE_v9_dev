@@ -164,6 +164,11 @@ echo x > "$R/tests/deterministic_omp/ci/jac_bound.py"; echo x > "$R/svr/daspk.m"
 git -C "$R" add -f tests/deterministic_omp/ci/jac_bound.py svr/daspk.m; git -C "$R" -c core.hooksPath=/dev/null commit -qm tool; ck --range v9-develop...HEAD
 grep -q '^HIGH-RISK: no$' "$W/out.txt"; ok $? 0 "G6 a test tool named jac_* and svr/daspk.m are not high-risk"
 grep -q '^FORTRAN: yes (svr/daspk.m)$' "$W/out.txt"; ok $? 0 "G6 svr/daspk.m is another Fortran source"
+git -C "$R" checkout -q -b feature/v9-T-9-frozen v9-develop; mkdir -p "$R/bbb" "$R/svr"
+for f in bbb/pandf_z.F90 bbb/oderhs.F90 svr/nksol.F90 bbb/griddubl.F90; do echo x > "$R/$f"; done
+git -C "$R" add -f bbb/pandf_z.F90 bbb/oderhs.F90 svr/nksol.F90 bbb/griddubl.F90; git -C "$R" -c core.hooksPath=/dev/null commit -qm frozen; ck --range v9-develop...HEAD
+grep -q '^HIGH-RISK: yes (bbb/oderhs.F90, bbb/pandf_z.F90, svr/nksol.F90)$' "$W/out.txt"; ok $? 0 "G7 a frozen (.F90) L-tier file stays high-risk (T78)"
+grep -q '^FORTRAN: yes (bbb/griddubl.F90)$' "$W/out.txt"; ok $? 0 "G7 another frozen file is FORTRAN, not high-risk"
 clean
 
 echo "== T. tracker ticket keys and repository scope (tracker #3)"

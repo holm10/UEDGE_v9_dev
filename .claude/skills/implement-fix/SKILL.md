@@ -32,8 +32,8 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), Bash(gh:*), Bash(pip:
 ## 1. Read and understand
 
 - Read the RCA in full: root cause, fix strategy, files, reproduction, validation.
-- Read `CLAUDE.md` and the `.claude/context/` modules for the files involved (`mppl-fortran.md` for `.m`,
-  `variables-forthon.md` for `.v`, `openmp-jacobian.md` for anything in the `pandf` tree or `ppp/`,
+- Read `CLAUDE.md` and the `.claude/context/` modules for the files involved (the one `CLAUDE.md` → On-demand
+  context names for each file's source form, `variables-forthon.md` for `.v`, `openmp-jacobian.md` for anything in the `pandf` tree or `ppp/`,
   `uedge-gotchas.md` when reproducing or checking the fix runs cases).
 - Decide whether the fix **changes default results**. A bug fix in physics/numerics often does: if so, the
   moved cases are expected but must be listed and explained (`CLAUDE.md` → Hard rules). A fix in a refactor
@@ -49,20 +49,20 @@ serial/parallel mismatch). Record the observed output — you will compare again
 Tier the fix (`.claude/context/process-tiers.md`). If it touches the `pandf` tree, `ppp/`, the Jacobian, a `.v` file
 or the build (L), run the **Adversarial review loop** in `.claude/skills/end-to-end-feature/SKILL.md` with `stage:
 plan` on the intended change (the RCA's fix section, or a short plan) **before writing code**. Any other fix skips it, until the diff says otherwise: the review gate re-tiers a fix whose diff prints
-`HIGH-RISK: yes` (`process-tiers.md` → Check the tier against the diff). A fix in any other Fortran source (`.m`, `.F90`, hand-written `.f`) needs no plan
+`HIGH-RISK: yes` (`process-tiers.md` → Check the tier against the diff). A fix in any other Fortran source (`change_kind.py`'s `FORTRAN` pattern) needs no plan
 review, but is at least M: its implementation review runs on Opus (`FORTRAN: yes`).
 
 ## 3. Implement
 
-- Edit the `.m`/`.v`/`.F90`/`.py` sources named in the RCA — never generated `.F` files.
-- Follow surrounding style (fixed-form MPPL, `#` comments, `xerrab`/`remark`, `ixm1`/`ixp1`, `Selec` ranges).
+- Edit the hand-written sources named in the RCA, never generated files (`CLAUDE.md` → Hard rules).
+- Follow surrounding style (the conventions of the module for the source's form, `xerrab`/`remark`, `ixm1`/`ixp1`, `Selec` ranges).
 - Keep the change minimal; note any related code that needs the same fix (other BC branches, the other
   X-point, other species loops) and fix it consistently.
 - Comment non-obvious fixes briefly (what was wrong, not the history).
 
 ## 4. Verify
 
-1. Rebuild: `pip install . -C "--build-option=--serial"`; fix errors at the `.m` source.
+1. Rebuild: `pip install . -C "--build-option=--serial"`; fix errors at the hand-written source (the form's module → Build errors).
 2. Re-run the reproduction — the failure must be gone.
 3. If the fix touches the `pandf` tree, threadprivate variables, or `ppp/`: run the AIUE-8 OpenMP test flow
    (`validate --omp`, step 4).

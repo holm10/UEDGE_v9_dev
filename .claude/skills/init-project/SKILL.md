@@ -43,7 +43,7 @@ pip install . -C "--build-option=--serial"          # serial, as CI tests
 pip install . -C "--build-option=--debug"           # bounds/FPE checks for debugging
 ```
 
-Build failures: read the first error in the verbose log; errors point at generated `.F` files — fix the `.m`.
+Build failures: read the first error in the verbose log; an error in a generated file is fixed in its hand-written source (the form's module → Build errors).
 
 ## 4. Smoke test
 
