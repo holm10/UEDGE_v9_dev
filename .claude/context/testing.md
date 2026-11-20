@@ -399,7 +399,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
 - **Reference guard** (PRD §7.6; AIUE-97) `tests/yldot/tools/check_reference_change.py`: `check --base --head` reads
   the head only as data (`git diff`/`git cat-file`, base side at the merge base, the PR description from `PR_BODY`
   without its comments and code fences) and prints which of `Default
-  results: changed` (with every changed `<family>:<id>` below it), `Test criteria: changed` and `Test criteria:
+  results: changed` (with every changed `<family>:<id>` below it, or a family's digest line in place of its items, see
+  below), `Test criteria: changed` and `Test criteria:
   loosened` (plus CODEOWNER approval) the change needs, by path class and by the manifest, `tolerances.toml`,
   `overrides.toml` and `family.toml` rules (owner, 2026-10-22, AIUE-97 archived ticket page; `[locality]`, AIUE-100: a new
   section is a change, `m_loc` monotone, `delta_loc` non-monotone, the record keys a change, and a changed or
@@ -421,6 +422,15 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   in-git size of `tests/yldot/` (cap 30 MB) and orphan releases. Exit 1 = a declaration missing or a check failed,
   2 = usage. `.github/workflows/reference-guard.yml` (AIUE-104) runs it on every pull request, job `reference guard`
   (CI facts below).
+  - **Digest lines** (owner, 2026-11-20, T18): below `Default results: changed`, one line `<family>: <count> items,
+    sha256 <hex>` declares all of a family's changed items, so a full regeneration fits GitHub's 65,536-character
+    description limit (AIUE-211's 1816 items in PR #75: 36,224 characters as a list, 930 for the whole description
+    with eight digest lines, replayed through the guard in T18). `<hex>` is the SHA-256 of the family's items as the
+    guard prints them, sorted, each followed by a newline: `grep '^<family>:' items.txt | LC_ALL=C sort | shasum -a 256`
+    (`digest`). The line counts where an item does (below the declaration, outside comments and fences) and covers
+    its family only when count and hash both match; a line that does not match covers nothing and is a note, so one
+    moved item more or less fails. Families may mix the two forms. On a missing item the guard prints both the items
+    and each family's digest line to paste; the job summary lists every family's items in a collapsed block.
 - **Tests** (the whole suite, `-m "not nightly"`: about 5,840 tests, none skipped once the data release stores the
   variant locality patterns (before it, `test_locality_variant` has no parameters), about 17 min, serial build, Darwin
   arm64, 2026-10-24 (AIUE-99; AIUE-101); `-m nightly`: the owner families' variant tests, about 2,880, about 37 min on
