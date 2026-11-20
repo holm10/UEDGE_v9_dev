@@ -21,8 +21,9 @@ Only if tracker keys `T<N>` (comma-separated) are passed, for each one:
    (`ticket-page` skill).
 
 Summarise the goal and acceptance criteria. If `gh` or the checkout is missing, say so and continue.
-Jira keys (`AIUE-<n>`) and Confluence page ids belong to the read-only archive: read them only if the Atlassian MCP
-happens to be connected, and say that they are the archive, not the ticket's record.
+Jira keys (`AIUE-<n>`) and Confluence page ids belong to the read-only archive in the tracker checkout:
+`docs/archive/jira/AIUE-<n>.md`, and `docs/archive/confluence/` (find the page id in its `index.md`). Read them only when
+the task cites them, and say that they are the archive, not the ticket's record.
 If the argument is a plain task description, use it as the task context instead.
 
 ## Step 1: Global rules

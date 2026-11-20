@@ -18,8 +18,10 @@ physics, and leaves feature branches depending on unmerged tooling. This module 
 
 Ticket and epic documentation lives in the private tracker repository, never in this repo. `.claude/tracker.toml` is
 the only place in this repo that names it (owner, repo, Project number); nothing else hard-codes them, and its local
-checkout sits next to `uedge-wt/` (AIUE-287, tracker epic #1). Jira and Confluence are the read-only archive of the work
-before the tracker: AIUE keys and page ids are cited as history, and nothing new is written there. (Before the
+checkout sits next to `uedge-wt/` (AIUE-287, tracker epic #1). The work before the tracker is archived read-only as
+Markdown in the tracker's `docs/archive/` (T164): `jira/AIUE-<n>.md` for every Jira issue, `confluence/<id>-<slug>.md`
+for every Confluence page (the folder's index lists the page ids). AIUE keys and page ids are cited as history; Jira and
+Confluence are no longer read or written, and the Atlassian MCP is gone. (Before the
 working-documents rule, plans, reviews and epic documents were committed on the ticket and planning branches; PR #2
 removed 1 282 of them, kept in the tag `archive/AIUE-8-docs`.)
 
@@ -82,14 +84,15 @@ removed 1 282 of them, kept in the tag `archive/AIUE-8-docs`.)
   1. copy the plan to `.claude/work/<KEY>/plan.md` and work on that copy (`ticket-page T<N> publish` publishes it);
   2. put each review round that is recorded only as a path into the record: one `ticket-page T<N> log Reviews` entry
      per round with its verdict, counts, one line per finding and the response (marked "backfilled from <path> at
-     <sha>"); for a legacy Jira ticket (In Progress at the switch), a `PIV record` comment written by hand;
+     <sha>") (legacy Jira tickets used `PIV record` comments; none is left, T164);
   3. tag the branch tip `archive/<KEY>-docs` and push the tag (`git tag archive/<KEY>-docs && git push origin
      archive/<KEY>-docs`), and cite the tag in the record (`log T<N> "Findings and decisions" "Agent: the committed
      working documents are archived in tag archive/<KEY>-docs"`), as was done for AIUE-8 (`archive/AIUE-8-docs`);
   4. `git rm` them in one commit ("Removes the <KEY> working documents from git"; deletions are allowed).
-- **Jira tickets at the switch.** Jira tickets already In Progress when the tracker started finish in Jira, with their
-  `PIV record` comments written by hand (owner, 2026-11-18). To Do Jira tickets are imported as tracker issues (label
-  `from-jira`, the old key in the Project's `Jira key` field; tracker #6) and worked as `T<N>` tickets.
+- **Jira tickets at the switch.** Jira tickets already In Progress when the tracker started finished in Jira, with their
+  `PIV record` comments written by hand (owner, 2026-11-18); none was left at the archive export (T164). To Do Jira
+  tickets are imported as tracker issues (label `from-jira`, the old key in the Project's `Jira key` field; tracker #6)
+  and worked as `T<N>` tickets.
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
@@ -162,9 +165,8 @@ path is relative to the current directory, and from inside a ticket worktree `..
   For a tracker ticket, after the PR merges: `ticket-page T<N> status Committed <merge sha>` (Project Status Done,
   issue closed), then remove the worktree. The owner's merge is the confirmation, so a ticket's Done needs no extra
   question, unlike `close-epic`'s for an epic, which never closes the children itself (AIUE-201; `plan-feature`
-  Phase 6 moves it to In Progress). A Jira ticket that finishes in Jira (In Progress at the switch) still gets its
-  `PIV record` comment by hand and its transition to Done (through the Atlassian MCP's transition tools) after its
-  PR merges: the only Jira writes left.
+  Phase 6 moves it to In Progress). Jira takes no writes: no Jira ticket was In Progress at the archive export (0 of
+  317, 2026-11-20, T164).
 
 ## Improving the AI layer while doing ticket work
 

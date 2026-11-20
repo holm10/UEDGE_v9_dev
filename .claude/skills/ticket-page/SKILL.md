@@ -52,11 +52,15 @@ uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N>
 - `--no-tracker`: do nothing; say "ticket record skipped (--no-tracker)". Callers pass it on, also to sub-agents.
 
 **Keys.** Only tracker keys `T<N>` (the issue number). The Jira/Confluence route is retired (owner, 2026-11-18,
-tracker #2): an In Progress Jira ticket finishes in Jira and its `PIV record` comments are written by hand; a To Do
-Jira ticket is imported (below) and then worked as its own `T<N>`, found by the Project's `Jira key` field or the
-first line of its issue body. The helper refuses any other key (exit 2).
+tracker #2). The Jira tickets left at the switch are done or imported (T164: 0 In Progress; every To Do ticket but
+AIUE-223, replaced by T1, has a `T<N>`, found by the Project's `Jira key` field or the first line of its issue body;
+Jira itself is archived in the tracker's `docs/archive/jira/`). The helper refuses any other key (exit 2); its error
+text still names the retired routes until T165.
 
 ## Importing from Jira (`jira_import.py`)
+
+**Retired (T164, 2026-11-20).** The Atlassian MCP is removed and Jira is archived in the tracker's `docs/archive/jira/`;
+nothing below can run any more. This section and `jira_import.py` are deleted in T165.
 
 One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pilot AIUE-299 first, the rest after it).
 `--epic none` imports the To Do issues with no epic instead, and an epic with no To Do children is imported alone
