@@ -27,8 +27,10 @@ uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N>
 
 - `create T<N>`: the record from the issue: the Ticket section is the issue body (H1/H2 outside code fences demoted; title and body masked), the header has
   the issue type, the Project's Tier and status `Planned`. Placed under the issue's parent epic (`docs/T<E>-<slug>/`),
-  or `docs/no-epic/`. An existing record is left as it is. `spec` calls it when it files a ticket; any skill that finds
-  no record calls it first.
+  or `docs/no-epic/`. When the epic's `breakdown.md` has a `## Rules every ticket of T<E> carries` section and the
+  issue body does not contain that heading's text anywhere, the Ticket section gets it after the body, under a line saying it was
+  added on that date and is not part of the issue as filed (T50). An existing record is left as it is. `spec` calls
+  it when it files a ticket; any skill that finds no record calls it first.
 - `publish T<N> [--plan <file> | --rca <file>]`: copy the working copy (default `.claude/work/T<N>/plan.md`) to
   `plan.md` (or `rca.md`) next to the record, local paths masked; the header cites the publish date and the sha256 of the published file, a
   Progress entry and a one-line issue comment say so. Run it when the plan is written and each time it is revised.

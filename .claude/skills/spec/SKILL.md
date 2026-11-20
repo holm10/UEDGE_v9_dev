@@ -35,7 +35,11 @@ if these checks find a file another call is writing, wait a few seconds and chec
 the field and option ids of Status (To Do) and Tier (S, M, L) (`gh project field-list <P> --owner <o> --format
 json`). An issue goes on the Project with `gh project item-add <P> --owner <o> --url <issue URL> --format json --jq
 .id` (the item id; adding an issue already there returns its item), and a field is set with `gh project item-edit --id
-<item id> --project-id <project id> --field-id <field id> --single-select-option-id <option id>`.
+<item id> --project-id <project id> --field-id <field id> --single-select-option-id <option id>`. Right after `gh issue
+create --parent`, the Project's auto-add of the sub-issue can race the item-add, which then fails with `Content already
+exists in this project`: the issue is on the Project, so read `gh project item-list` again, up to 5 times 2 s apart (it
+lags), and use that item's id (T30; T6's import hit it twice, its `item_for()` in `git show
+4abf92e2:.claude/skills/ticket-page/jira_import.py`).
 
 ## Input
 
@@ -128,6 +132,10 @@ the issues.
 ## Epic summary
 <goal in 2-3 lines>
 
+## Rules every ticket of T<E> carries
+<the PRD's rules every ticket must carry (e.g. an owner rule such as AIUE-9's decision 23), verbatim, each with its
+PRD source; omit the section when the PRD sets none (T50)>
+
 ## TICKET-1: <title>                         (heading becomes `## T<N>: <title>` after Step 6)
 - **Issue:** #<N> (after Step 6) · **Type:** Feature | Task | Bug · **Tier:** S | M | L (why, in a few words)
 - **Branch:** `feature/v9-T<N>-<slug>` (`bugfix/v9-T<N>-<slug>` for a bug; AI-layer: `feature/v9-ai-<slug>`, label
@@ -193,7 +201,9 @@ real:
    known). Per ticket, a body file `<scratch>/T<E>-ticket-<i>.md` in the tracker's Ticket form shape: `## Scope`
    (the scope, the files likely touched, and `Source: breakdown of T<E> (docs/T<E>-<slug>/breakdown.md)`), `##
    Acceptance criteria`, and the lines `Tier: <S|M|L> (<why>)`, `Branch: <branch> (base <base>)` and `Depends on:
-   #<M>, … | none` (`plan-feature` reads Tier and Branch there first). Then
+   #<M>, … | none` (`plan-feature` reads Tier and Branch there first). When the breakdown has a `## Rules every
+   ticket of T<E> carries` section, the body ends with it, verbatim (a ticket filed later copies it the same way,
+   `.claude/context/branching.md` → Filing a ticket under an epic). Then
 
    ```bash
    gh issue create -R <o>/<r> --type <Feature|Task|Bug> --title "<title>" --body-file <scratch>/T<E>-ticket-<i>.md \

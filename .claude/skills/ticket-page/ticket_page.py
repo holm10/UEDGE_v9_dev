@@ -190,6 +190,22 @@ def demote(md):
     return "\n".join(out + ([fence] if fence else []))
 
 
+def epic_rules(epic_dir, e):
+    """The epic's `## Rules every ticket of T<E> carries` section in its breakdown.md (T50): (heading text, body), or
+    None when there is no breakdown, no such section (outside fences) or an empty one."""
+    path = epic_dir / "breakdown.md"
+    if not path.is_file():
+        return None
+    head, lines = f"Rules every ticket of T{e} carries", path.read_text().split("\n")
+    inside = fenced(lines)[0]
+    heads = [i for i, (ln, f) in enumerate(zip(lines, inside)) if not f and ln.startswith("## ")]
+    start = next((i for i in heads if lines[i].strip() == f"## {head}"), None)
+    if start is None:
+        return None
+    body = "\n".join(lines[start + 1:next((i for i in heads if i > start), len(lines))]).strip()
+    return (head, body) if body else None
+
+
 def entry(today, caller, text):
     """`- <date> (<caller>): <first line>`; further lines go into an indented code fence (never a heading)."""
     first, *rest = text.strip("\n").split("\n")
@@ -339,9 +355,14 @@ def cmd_create(a, t, n):
     kind = (issue["issueType"] or {}).get("name", "")
     rows = [("Issue", f"#{n}"), ("Epic", epic_cell), ("Type / tier", f"{kind} / {tier}"), ("Branch", ""), ("PR", ""),
             ("Status", "Planned"), ("Plan", "not written yet"), ("Last update", t.today)]
+    body = demote(clean(issue["body"] or "", a)).strip()
+    rules = epic_rules(epic, issue["parent"]["number"]) if issue["parent"] else None
+    if rules and rules[0] not in (issue["body"] or ""):  # a ticket filed outside `spec` without the epic's rules
+        body += (f"\n\n### {rules[0]}\n\n_Added from the epic's breakdown.md on {t.today}; not part of the issue as "
+                 f"filed._\n\n{demote(clean(rules[1], a)).strip()}")
     text = (f"# T{n}: {title}\n\n| | |\n|---|---|\n" + "".join(f"| {k} | {v} |\n" for k, v in rows)
             + "\n_Records are written by agents through the owner's account; attribution follows the README._\n\n"
-            + f"## Ticket\n\n{demote(clean(issue['body'] or '', a)).strip()}\n\nSource: issue #{n} as filed "
+            + f"## Ticket\n\n{body}\n\nSource: issue #{n} as filed "
             + f"({t.today}).\n\n" + "".join(f"## {s}\n\n" for s in SECTIONS))
     rec.parent.mkdir(parents=True, exist_ok=True)
     write_record(t, rec, add_entry(text, "Progress", entry(t.today, a.caller, "record created.")), f"T{n} create")

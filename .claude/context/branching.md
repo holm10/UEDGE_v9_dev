@@ -93,6 +93,12 @@ removed 1 282 of them, kept in the tag `archive/AIUE-8-docs`.)
   `PIV record` comments written by hand (owner, 2026-11-18); none was left at the archive export (T164). To Do Jira
   tickets are imported as tracker issues (label `from-jira`, the old key in the Project's `Jira key` field; tracker #6)
   and worked as `T<N>` tickets.
+- **Filing a ticket under an epic** outside `spec` (a follow-up, a bug found in execute or validate, an RCA's ticket,
+  an owner request): read the epic's `breakdown.md` in the tracker for a `## Rules every ticket of T<E> carries`
+  section, copy it verbatim to the end of the issue body, and say so in one line of the report. Without that section
+  there is nothing to copy (the AI-layer parent has none). `ticket-page create` adds a missing block to the record
+  of an issue whose parent is that epic (T50; AIUE-9's close-out found 13 of 30 later tickets without the epic's
+  owner rule).
 
 **The code-facts exception.** The AI layer *describes* the code (`CLAUDE.md` naming and gotchas,
 `.claude/context/*.md`). When a ticket changes a fact it describes (AIUE-5 retiring MPPL makes
