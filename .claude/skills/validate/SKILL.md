@@ -97,13 +97,24 @@ the reference data first and nothing skips (`.claude/context/testing.md` → the
 - Never pass `--yldot-no-fetch`, and never edit a tolerance, override, manifest or `family.toml` to get green. A test,
   variant or block that behaves irregularly goes to the epic owner (AIUE-9 decision 23).
 
-When the branch changes anything under `tests/yldot/`, also run the reference guard. Write the PR description to a
-file and run it from a script file (the permission check refuses a `VAR=… cmd` prefix, `CLAUDE.md` → Gotchas):
+When the branch changes anything under `tests/yldot/`, also run the reference guard, as CI does: `v9-develop`'s copy
+of the guard and of `tests/yldot/harness/manifest.py` judges the PR (`testing.md` → The reference guard in CI).
+Write the PR description to a file and run the steps from a script file with absolute paths (the permission check
+refuses a `VAR=… cmd` prefix, `CLAUDE.md` → Gotchas):
 
 ```bash
+cd <ticket worktree> || exit 1
+git fetch origin v9-develop
+git worktree add --detach <scratchpad>/guard-base origin/v9-develop
+cd <scratchpad>/guard-base || exit 1
 PR_BODY="$(cat <pr description file>)" python tests/yldot/tools/check_reference_change.py check \
-    --base origin/v9-develop --head HEAD --no-download
+    --base origin/v9-develop --head <ticket HEAD sha> --repo <ticket worktree> --no-download
+cd <ticket worktree> && git worktree remove --force <scratchpad>/guard-base
 ```
+
+Running the branch's own copy (`--head HEAD` from the ticket worktree) is a preview only. When the PR changes
+`tests/yldot/harness/manifest.py`, `tests/yldot/harness/store.py` or the guard, run both copies and report both
+`required:` lines: the branch's copy can pass where the required check fails (AIUE-257, T48).
 
 Report its `required:` line. Exit 1 means the description lacks a declaration it names (`CLAUDE.md` → Hard rules).
 

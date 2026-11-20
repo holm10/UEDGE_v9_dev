@@ -101,7 +101,13 @@ T<N> …` from the worktree) is one commit in the tracker checkout, outside the 
   the ticket's issue comments since the plan's publish date and the owner-decision records of the sibling tickets the
   plan names (their records' Findings and decisions, the memory index). A handover into this ticket (work another
   ticket moved here) amends the plan first (`ticket-page T<N> publish`), or goes to the owner if its precondition is not
-  met (AIUE-240: AIUE-226's dispatch missed AIUE-224's handed-over `bbb.isphioffxy` update).
+  met (AIUE-240: AIUE-226's dispatch missed AIUE-224's handed-over `bbb.isphioffxy` update). Record the re-read in the
+  Progress entry that logs the step: each sibling record's last commit and date (in the tracker checkout, `git log -1
+  --format='%h %cs' -- 'docs/*/T<N>-*/record.md'`; a worktree-isolated session runs it as `cd <tracker checkout> &&
+  git log …` in a command of its own, as `prime` Step 3 does) and the date of its latest Findings and decisions
+  entry, or "none". A shared step without that line is not done (AIUE-253 repeated AIUE-240's miss; T41).
+- After a publishing `regenerate-references.yml` dispatch from a PR branch, push nothing to the branch until its
+  `publish` job is done (`testing.md` → `regenerate-references.yml`; T46).
 
 ### 3. Implement Testing Strategy
 
