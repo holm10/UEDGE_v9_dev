@@ -197,7 +197,9 @@ Don't apply any of these actions yourself. Each one is a **process change** and 
    - Add it to the Project with Tier S: `gh project item-add <project> --owner <owner> --url <issue URL> --format json
      --jq .id` gives the item id; then `gh project item-edit --id <item id> --project-id <project node id> --field-id
      <Tier field id> --single-select-option-id <S option id>`, with the ids from `gh project view <project> --owner
-     <owner> --format json --jq .id` and `gh project field-list <project> --owner <owner> --format json`.
+     <owner> --format json --jq .id` and `gh project field-list <project> --owner <owner> --format json`. If the
+     item-add fails with `Content already exists in this project`, the Project's auto-add of the new sub-issue came
+     first: read `gh project item-list` again for its item id (`spec` → Project fields; T30).
 2. Without `gh` (or if a call fails), append the actions to `.claude/work/<KEY>/ai-layer-backlog.md` (local, never
    committed) with date, feature, target file and proposed change, and put them in the ticket's record (the Findings
    and decisions entry below), which keeps them; file them as issues at the next session that has `gh`. Without a

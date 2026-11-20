@@ -75,6 +75,26 @@ rm -rf "$TR/docs/T5-x"
 T create T3 >/dev/null && T log T3 Reviews "rv-3" >/dev/null; ok $? 0 "A5 an issue body quoting record headings in fences (one unclosed)"
 R3=$(ls "$TR"/docs/T1-epic-one/T3-*/record.md); last(){ grep -n "^## $1\$" "$R3" | tail -1 | cut -d: -f1; }
 [ "$(grep -n 'record created' "$R3" | cut -d: -f1)" -gt "$(last Progress)" ] && [ "$(grep -n 'rv-3' "$R3" | cut -d: -f1)" -gt "$(last Reviews)" ]; ok $? 0 "A5 entries land in the record's own sections, not in the quoted ones"
+# T50: the epic's rules block. Epic T4's breakdown has one; T11's body lacks it, T12's carries it. Epic T6's breakdown
+# has the heading only inside a code fence (T13).
+mkdir -p "$TR/docs/T4-epic-four" "$TR/docs/T6-epic-six"
+printf '# T4: breakdown\n\n## Epic summary\n\nx\n\n## Rules every ticket of T4 carries\n\n- Rule one: ask the owner.\n- Rule two: no tolerance edits.\n\n## T11: first\n\n- Issue: #11\n' > "$TR/docs/T4-epic-four/breakdown.md"
+printf '# T6: breakdown\n\n```md\n## Rules every ticket of T6 carries\n\n- fenced, not a rule\n```\n\n## T13: x\n' > "$TR/docs/T6-epic-six/breakdown.md"
+g -C "$TR" add -A; g -C "$TR" commit -qm rules; git -C "$TR" push -q 2>/dev/null
+for i in 11 12 13; do case $i in
+  11) p='{"number":4,"title":"Epic four"}'; b='## Scope\n\nA follow-up.\n' ;;
+  12) p='{"number":4,"title":"Epic four"}'; b='## Scope\n\nFiled by spec.\n\n## Rules every ticket of T4 carries\n\n- Rule one: ask the owner.\n- Rule two: no tolerance edits.\n' ;;
+  13) p='{"number":6,"title":"Epic six"}'; b='## Scope\n\nC.\n' ;; esac
+  printf '{"data":{"repository":{"issue":{"title":"Rules %s","body":"%s","issueType":{"name":"Task"},"parent":%s,"projectItems":{"nodes":[]}}}}}\n' "$i" "$b" "$p" > "$W/gh/issue-$i.json"
+done
+T create T11 >/dev/null; R11=$(ls "$TR"/docs/T4-epic-four/T11-*/record.md)
+[ "$(grep -c '^### Rules every ticket of T4 carries$' "$R11")" = 1 ] && grep -q "^_Added from the epic's breakdown.md on 2026-01-02; not part of the issue as filed._\$" "$R11" && grep -q '^- Rule two: no tolerance edits.$' "$R11"; ok $? 0 "A6 a body without the epic's rules gets them, marked as added"
+[ "$(grep -n 'Rule two' "$R11" | cut -d: -f1)" -lt "$(grep -n '^Source: issue #11' "$R11" | cut -d: -f1)" ]; ok $? 0 "A6 inside the Ticket section, before its Source line"
+T create T12 >/dev/null; R12=$(ls "$TR"/docs/T4-epic-four/T12-*/record.md)
+[ "$(grep -c 'Rules every ticket of T4 carries' "$R12")" = 1 ] && ! grep -q '^_Added from' "$R12"; ok $? 0 "A7 a body that carries the rules: not added twice"
+! grep -q '^_Added from' "$REC"; ok $? 0 "A8 an epic without a breakdown: nothing added"
+T create T13 >/dev/null; R13=$(ls "$TR"/docs/T6-epic-six/T13-*/record.md)
+! grep -q '^_Added from' "$R13" && ! grep -q 'fenced, not a rule' "$R13"; ok $? 0 "A9 a rules heading inside a code fence is not a section"
 
 echo "== B. publish"
 printf '# Plan\n\nRun in /Users/someone/work/repo.\n' > "$W/wt/.claude/work/T2/plan.md"
