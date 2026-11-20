@@ -18,6 +18,9 @@
 #           Linux build called libmvec (AIUE-101, AIUE-210). Since AIUE-211 the build keeps those math calls scalar,
 #           every Intel and AMD runner gives bit-identical references, and generate.sh refuses a build that calls
 #           libmvec, so any CPU is a reference CPU (owner, 2026-10-27). The first step still logs the CPU model.
+#           A single family is evaluated by as many children at once as the runner has CPUs (make_references.py
+#           _child --jobs, T19), with the files of a serial run, so an imp7 sweep fits on any runner; several
+#           families run one process each.
 # publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
 #           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
 #           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
@@ -135,6 +138,8 @@ jobs:
         run: |
           model=$(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')
           echo "cpu: $model" | tee -a "$GITHUB_STEP_SUMMARY"
+          # the CPU count is _child's default --jobs, the children evaluated at once for a single family (T19)
+          echo "cpus: $(nproc), memory: $(free -g | awk '/^Mem:/ {print $2}') GB" | tee -a "$GITHUB_STEP_SUMMARY"
           if [ -n "$CPU" ] && ! grep -qiE -- "$CPU" <<< "$model"; then
             echo "refused: the CPU '$model' does not match '$CPU'; dispatch again for another runner"; exit 1
           fi
