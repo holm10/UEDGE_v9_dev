@@ -16,9 +16,10 @@ declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ti
 
     Default results: changed     a manifest change that is not an addition, a prune of an entry not SENSITIVE in any
                                  family, a rename with identical data or a diagnostics-only change; followed, anywhere
-                                 below, by every changed item as <family>:<id> (the guard prints the list). A
-                                 variant's locality pattern goes with its prune or rename (identical slice) and needs
-                                 no declaration of its own (owner, 2026-10-28, AIUE-95)
+                                 below, by every changed item as <family>:<id>, or by a family's digest line in place
+                                 of its items (the guard prints both). A variant's locality pattern goes with its
+                                 prune or rename (identical slice) and needs no declaration of its own (owner,
+                                 2026-10-28, AIUE-95)
     Test criteria: changed       any change to the guarded set (tests/yldot/** and the four workflows) other than
                                  manifests and new files under mutations/; with a justification
     Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma or stored sketch thresholds,
@@ -35,12 +36,23 @@ pytest does not load (not *.py, conftest.py, *.ini, *.cfg, *.toml) is not guarde
 
 A line matches with leading list markers, '>' and surrounding ** or backticks ignored; the keywords are exact.
 
+A digest line (owner, 2026-11-20, T18) declares all of one family's changed items at once, so that a full
+regeneration fits GitHub's 65,536-character description limit:
+
+    <family>: <count> items, sha256 <hex>
+
+<hex> is the SHA-256 of the family's items as the guard prints them (<family>:<id>), sorted, each followed by a
+newline, in UTF-8: grep '^<family>:' items.txt | LC_ALL=C sort | shasum -a 256. A digest line counts where an item
+does (below the Default results line, outside comments and fences) and covers its family only when both the count
+and the hash match; a line that does not match covers nothing and is reported as a note, so a moved item it leaves
+out (or one too many) still fails. Families may be declared in either form in one description.
+
 Values compare by their canonical JSON text (same(): -0.0 != 0.0, 1 != 1.0, NaN == NaN, as manifest.runs) in the
 variant fields, the rename check and overrides.toml; tolerances.toml and family.toml compare with == (owner,
 2026-11-10, AIUE-199).
 
 A base manifest that is invalid is treated as absent: the PR that changes it needs Default results: changed with the
-item <family>:* (the head manifest must be valid); an invalid manifest the PR does not touch is not charged to it. An external file over 200 MB is refused before the download.
+item <family>:* (named, or in its family's digest line; the head manifest must be valid); an invalid manifest the PR does not touch is not charged to it. An external file over 200 MB is refused before the download.
 
 For every external file a head manifest names anew or differently (or under a new release) check downloads the
 release asset with gh into a temporary directory and refuses a size or SHA-256 that differs from the manifest; for
@@ -58,6 +70,8 @@ PR_BODY unset, gh failed in history).
 import argparse
 import configparser
 import fnmatch
+import hashlib
+import html
 import json
 import math
 import os
@@ -738,6 +752,45 @@ def named(text, item):
     return re.search(r"(?<![\w./:=-])" + re.escape(item) + r"(?![\w/:=-]|\.\w)", text) is not None
 
 
+# a family's digest line (owner, 2026-11-20, T18): "<family>: <count> items, sha256 <hex>"
+DIGEST_RE = re.compile(r"^(?P<family>[^\s:`*]+):\s+(?P<count>\d+)\s+items?,?\s+sha256[:\s]\s*(?P<hex>[0-9A-Fa-f]{64})"
+                       r"[\s`*.]*$")
+
+
+def family_of(item):
+    return item.split(":", 1)[0]
+
+
+def by_family(items):
+    """{family: its items, sorted}."""
+    out = {}
+    for it in sorted(items):
+        out.setdefault(family_of(it), []).append(it)
+    return out
+
+
+def digest(items):
+    """(count, SHA-256 hex) of items as the guard prints them (control characters escaped), sorted, each followed by a
+    newline, in UTF-8; the same as `LC_ALL=C sort | shasum -a 256` of the printed list."""
+    text = "".join(line + "\n" for line in sorted(clean(it) for it in items))
+    return len(items), hashlib.sha256(text.encode("utf-8", "backslashreplace")).hexdigest()
+
+
+def digest_line(family, items):
+    n, h = digest(items)
+    return "{}: {} {}, sha256 {}".format(family, n, "item" if n == 1 else "items", h)
+
+
+def parse_digests(text):
+    """{family: [(count, lower-case hex), ...]} of the digest lines in text."""
+    out = {}
+    for line in text.splitlines():
+        hit = DIGEST_RE.match(PREFIX.sub("", line, count=1).lstrip("*`"))
+        if hit:
+            out.setdefault(hit["family"], []).append((int(hit["count"]), hit["hex"].lower()))
+    return out
+
+
 def strip_noise(body):
     """The description without what a reader does not see as text: HTML comments (an unclosed one runs to the end) and
     fenced code blocks (``` or ~~~; an unclosed one runs to the end)."""
@@ -757,12 +810,15 @@ def strip_noise(body):
 
 
 def judge(found, errors, body):
-    """The verdict: a dict with required, present, missing, items, missing_items, notes, codeowner_approval, errors."""
+    """The verdict: a dict with required, present, missing, items, digests, missing_items, notes, codeowner_approval,
+    errors. A family's items are declared when each is named below the Default results line, or when a digest line
+    there matches their count and SHA-256 (T18)."""
     body = strip_noise(body)
     required = {f.req for f in found if f.req}
     if LOOSENED in required:
         required.add(CHANGED)
     items = sorted({f.item for f in found if f.req == DEFAULT and f.item})
+    digests = {family: digest(its) for family, its in by_family(items).items()}
     decl = parse_declarations(body)
     missing, notes, missing_items = [], [], []
     for req in (DEFAULT, CHANGED, LOOSENED):
@@ -774,12 +830,21 @@ def judge(found, errors, body):
             missing.append(KEYWORDS[req])
         elif req == DEFAULT:
             rest = "\n".join(body.splitlines()[decl[req]["line"]:])
-            missing_items = [it for it in items if not named(rest, it)]
+            declared = parse_digests(rest)
+            covered = {family for family, want in digests.items() if want in declared.get(family, [])}
+            for family, lines in sorted(declared.items()):
+                if family not in digests:
+                    notes.append("a digest line names {}, which has no changed item".format(family))
+                elif family not in covered:
+                    notes += ["the digest line of {} does not match: declared {} items, sha256 {}; computed {}, "
+                              "sha256 {}".format(family, n, h, *digests[family]) for n, h in lines]
+            missing_items = [it for it in items if family_of(it) not in covered and not named(rest, it)]
         elif not decl[req]["justification"]:
             missing.append(KEYWORDS[req] + " (with a justification)")
     return {"required": [KEYWORDS[r] for r in (DEFAULT, CHANGED, LOOSENED) if r in required],
             "present": [KEYWORDS[r] for r in (DEFAULT, CHANGED, LOOSENED) if r in decl],
-            "missing": missing, "items": items, "missing_items": missing_items, "notes": notes,
+            "missing": missing, "items": items, "digests": {f: list(d) for f, d in digests.items()},
+            "missing_items": missing_items, "notes": notes,
             "codeowner_approval": LOOSENED in required, "errors": errors,
             "findings": [f.as_dict() for f in found]}
 
@@ -803,10 +868,20 @@ def report(v, found, out):
         out(KEYWORDS[DEFAULT])
         for it in v["missing_items"]:
             out("- " + it)
+        out("or, in place of a family's items, its digest line:")
+        out(KEYWORDS[DEFAULT])
+        out_digest_lines(v, out)
     if v["codeowner_approval"]:
         out(CODEOWNER)
     for e in v["errors"]:
         out("error: " + e)
+
+
+def out_digest_lines(v, out):
+    """The digest line of each family with a missing item, over all its items."""
+    families = by_family(v["items"])
+    for family in sorted({family_of(it) for it in v["missing_items"]}):
+        out("- " + digest_line(family, families[family]))
 
 
 def summary_md(v):
@@ -815,9 +890,16 @@ def summary_md(v):
     if v["missing_items"]:
         lines += ["- missing items below `{}`:".format(KEYWORDS[DEFAULT]), "", "```", KEYWORDS[DEFAULT]]
         lines += ["- " + it for it in v["missing_items"]] + ["```"]
+        lines += ["", "- or, in place of a family's items, its digest line:", "", "```", KEYWORDS[DEFAULT]]
+        out_digest_lines(v, lines.append)
+        lines.append("```")
     if v["codeowner_approval"]:
         lines.append("- **" + CODEOWNER + "**")
     lines += ["- error: {}".format(e) for e in v["errors"]]
+    for family, its in by_family(v["items"]).items():  # what moved, for the reviewer (T18)
+        lines += ["", "<details><summary>changed items of {}: {}</summary>".format(html.escape(family), len(its)),
+                  "", "```"]
+        lines += ["- " + it for it in its] + ["```", "", "</details>"]  # "- ": no item closes the fence
     return "\n".join(clean(line) for line in lines) + "\n"
 
 
