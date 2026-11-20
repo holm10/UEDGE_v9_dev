@@ -66,6 +66,9 @@ For EACH task in "Step by Step Tasks":
 - After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix the `.m`
   source for any error reported in the generated `.F`
 - Run the task's VALIDATE command before moving on
+- Before reporting a background job finished, read its exit status and the last lines of its log; never infer it
+  from elapsed time or expected output. A plan's "no concurrent use" rule (a shared API budget, build or machine)
+  counts the session's own background jobs, dry runs included (T162)
 
 #### d. Ticket record (tracker tickets `T<N>`; `--no-tracker` skips it, `--tracker-dry-run` only shows it)
 Each call (`ticket-page T<N> …`, i.e. `uv run .claude/skills/ticket-page/ticket_page.py --caller execute <command>
@@ -91,6 +94,9 @@ T<N> …` from the worktree) is one commit in the tracker checkout, outside the 
   wrong, the whole class counted (every entry the same cause can reach), and where to fix it (this ticket, a new
   ticket). Never offer it as an optional follow-up (AIUE-241: imp7's stored `bbb.newapi` INVALID reason named a
   non-fatal remark; now AIUE-239).
+- Before a write to a shared system that derives fields from source data (a tier, an owner flag, a type), list the
+  derived values next to the source text they came from (the dry run's output) and check them (T31: a Tier read as M
+  from "Tier M or L" reached the tracker).
 - Before an irreversible or shared step (a `regenerate-references.yml` dispatch, a publish, opening the PR), re-read
   the ticket's issue comments since the plan's publish date and the owner-decision records of the sibling tickets the
   plan names (their records' Findings and decisions, the memory index). A handover into this ticket (work another
@@ -107,6 +113,9 @@ After completing implementation tasks:
   (families and variants; a new `+input` switch gets its variant as
   `.claude/context/physics-workflow.md` → A new switch in the yldot suite says). Do not invent a new test location,
   and never edit a tolerance, override or manifest to make a test pass (AIUE-9 decision 23)
+- Tooling: before the review gate, break each rule the tool applies to data once (a one-line mutation), confirm a
+  test fails, and restore it; list the mutations in the handoff note (T32: 3 of 9 one-rule mutations survived T6's
+  first selftest)
 
 ### 3b. Update the AI-layer facts
 

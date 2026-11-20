@@ -64,6 +64,8 @@ tokens. So:
 
 - **Parallel only when it shortens the critical path.** At most about 3 background agents at once; `session_guard.py`
   warns at a launch when 3 were already launched in the last 45 minutes. Serialise tickets that share files, builds or the machine's cores.
+- **Background jobs** are finished when their exit status and log say so, never by elapsed time; the session's own
+  background jobs, dry runs included, count against a plan's "no concurrent use" rule (T162, `execute` §2c).
 - **A fresh coordinating session per wave or epic phase.** Hand over through the epic's `Progress: <EPIC>` page and
   each ticket's `handoff.md`; don't carry a session past a few compactions (the hook warns above ~15 MB or after 2
   compactions).

@@ -66,8 +66,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 
 - Core problem, who benefits (users running cases, developers, CI), complexity (Low/Medium/High). For a tracker
   ticket, the scope and acceptance criteria as filed are in the `## Ticket` section of its `record.md` and in the
-  issue (`gh issue view <N> -R <owner>/<repo> --comments`, owner and repo from `.claude/tracker.toml`); `prime` reads
-  both.
+  issue (`gh issue view <N> -R <owner>/<repo> --json number,title,body,state,issueType,labels,comments`, owner and
+  repo from `.claude/tracker.toml`; never `--comments` alone, `prime` Step 0, T35); `prime` reads both.
 - Affected packages and equations (`isnion`, `isupon`, `isteon`, `istion`, `isngon`, `istgon`, `isphion`).
 - Whether default results are expected to change, and if so which cases.
 
@@ -99,7 +99,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    agrees (AIUE-161 planned v8 while AIUE-174 held v7 with no manifests yet). Planning reads the in-flight tickets'
    records for both (`testing.md` → Tools, `release_data.py`; AIUE-207). Read the sibling tickets' Findings and
    decisions and the issue comments for work handed over to this ticket: a handover is planned, or asked about
-   (AIUE-240).
+   (AIUE-240). List each handed-over item on its own line, with its `file:line`, as a task or as a Notes line saying
+   why it is not done; never summarise a handover list (T33).
 7. **Probe runtime claims.** Check every claim the plan makes about run-time behaviour (Forthon, UEDGE, the compiler,
    the build) with a short probe before writing it down: in the worktree's venv if it has one, else in a base venv
    (name its commit). Examples: what reading an unallocated array does, whether `allocate()` keeps values, which
@@ -135,6 +136,11 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    probed with the fault applied, against the references the suite really uses (another platform's, if they are),
    even when a build takes minutes (AIUE-89: `rscalf` couples a continuity fault into the up/te/ti rows, and the
    localizer fired on macOS-vs-Linux round-off).
+   A VALIDATE line that expects a value a test prints only when it fails (a localization hint, a warning, a report
+   line) names how that value is observed on a passing run: a script through the same code path, or a forced
+   failure. Naming the test is not enough (AIUE-176, T37: `test_default` shows the hint only on failure).
+   A probe that classifies real text with a pattern (a regex, a keyword) prints each match with its surrounding text,
+   not only counts or captures, so an ambiguous match is seen at planning (T31: `Tier S|M|L` read "Tier M or L" as M).
    When the change touches code that a repo tool or test drives through stubs, read how it calls that code and run a
    prototype of the change through it before writing the per-task VALIDATE lines (AIUE-181: `build_flags.py` runs
    `uedgeBuild.run` with a fake `self` and a fake `FCompiler`, so task 1's check could only pass after task 2). A task
@@ -206,6 +212,14 @@ literature belongs in the physics spec, not here.
 - **CI gating.** A change that un-gates or re-gates CI jobs (removes a job they `needs`, changes an `if:`) checks
   their run history (`gh run list --workflow <file>`) and states their expected first run; jobs that have never run
   get an owner decision (AIUE-103, AIUE-203).
+- **Bulk writes to a third-party service.** When a run writes many objects through an API whose limits or error text
+  are *assumed* (GitHub, a tracker), plan the stop partway as the main path: the resume command, idempotence shown by
+  a re-run that creates nothing, no blind retry of a non-idempotent create, one job at a time with pacing between
+  creates, and the check that finds a half-finished object. Don't size windows from documented limits alone (T163:
+  T28's burst limit was invisible to `gh api rate_limit`).
+- **Retiring a tool, service or route** (an MCP, an importer, a legacy workflow): grep the AI layer for what it did
+  (its write paths, the states and routes it served, the words for them), not only for its name. Every hit is a task
+  line or an explicit "stays" in Notes (T166: T164's name grep missed three passages that described its routes).
 - **Samples and populations.** When an acceptance criterion confirms a property on a sample (the criterion's ≥ N
   cases) and checking the whole population would take under about 10 minutes, or under about twice the sample's run,
   the plan checks the population too; otherwise it records that estimate in one line. A sample
@@ -266,6 +280,8 @@ Execute top to bottom; each task is atomic.
 - The regression suite is the yldot suite (`validate` step 3); a new `+input` switch also gets its variant (`physics-workflow.md`).
 - OpenMP check (the AIUE-8 test flow, `validate` step 4) if the `pandf` tree or threadprivate vars change.
 - Edge cases: <topologies, species counts, switches>.
+- Tooling: each rule the tool applies to data (a match, a selection, a precedence, a skip-if-exists) gets a positive
+  and a negative case (T32).
 - The scope `validate` requires for the plan's tier (L: the yldot nightly tier too; the full suite took 4 h 21 min on
   a serial macOS build in AIUE-224), with a wall-time estimate, not a narrower set (AIUE-235).
 

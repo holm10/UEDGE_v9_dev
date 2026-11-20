@@ -10,13 +10,16 @@ argument-hint: [ticket-key or feature-description] [--no-tracker] [--tracker-dry
 
 This skill chains the core PIV-loop skills for autonomous feature development, with an independent adversarial
 review (`uedge-reviewer`) that a ticket must pass before it counts as done. Never run it on
-`v9-develop`/`v9-main`, and never on an AI-layer branch (`feature/v9-ai-*`, `v9-agentic`). It runs on the
-ticket's own branch and worktree, which `plan-feature` creates in its Phase 0b (`.claude/context/branching.md`).
+`v9-develop`/`v9-main` or on the legacy shared AI-layer branch `v9-agentic`. It runs on the ticket's own branch and
+worktree, which `plan-feature` creates in its Phase 0b (`.claude/context/branching.md`): `feature/v9-T<N>-<slug>` for
+product work, or `feature/v9-ai-<slug>` for a ticket labelled `ai-layer` (T29). `change_kind.py` keeps product files
+off an AI-layer branch.
 After Step 1, `cd` into that worktree and stay there for every later step.
 
 **Ticket input.** For a tracker key `T<N>`, take the scope and acceptance criteria from the `## Ticket` section of
 its `record.md` in the tracker (the ticket as filed by `spec`) and from the issue (`gh issue view <N> -R
-<owner>/<repo> --comments`, owner and repo from `.claude/tracker.toml`). The acceptance criteria are what the reviewer
+<owner>/<repo> --json number,title,body,state,issueType,labels,comments`, owner and repo from `.claude/tracker.toml`;
+never `--comments` alone, `prime` Step 0, T35). The acceptance criteria are what the reviewer
 checks against, so quote them verbatim.
 
 **Working documents.** The plan, the probe scripts it cites (`probes/`), the review reports and responses,

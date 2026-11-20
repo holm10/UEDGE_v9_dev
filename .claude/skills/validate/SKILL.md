@@ -17,6 +17,13 @@ This is the **full gate**: run it once a change is complete, not after every edi
 (one case, two thread counts, the one affected suite) and leave heavy matrices to CI (`.claude/context/testing.md` →
 Fast iteration).
 
+**Scope of a process-only diff** (T167). When every file line of `change_kind.py --range origin/v9-develop...HEAD`
+(step 0) is `process` and none is a script (`*.py`, `*.sh`), a hook, a test or a workflow, i.e. Markdown and config
+only, steps 1-3 report `n/a (process-only diff)` and steps 4-5 are skipped as usual: no build or yldot run can see the
+change. Step 0 still runs. A diff that changes a hook or helper script runs that script's tests instead of steps 1-3
+(`.claude/hooks/README.md` names each hook's test; the `ticket-page` skill has `selftest.sh`), and a workflow change is
+judged by its CI run on the PR.
+
 ## 0. Branch hygiene
 
 Immediately before the full run, `git fetch origin v9-develop`. If it moved past the branch's merge base (`git
@@ -151,6 +158,9 @@ UEDGE validation — <branch> @ <short sha>
   Branch / AI-layer facts ✅/⚠️/❌  <policy violations; drift check result; docs re-read>
 Overall: ✅ READY / ❌ NOT READY
 ```
+
+For a process-only diff (Scope, above) the Build, Smoke and yldot lines read `n/a (process-only diff)`, and a changed
+hook or helper adds a line with its tests' result.
 
 Quote failing output verbatim. Never loosen tolerances or skip a suite to get green.
 
