@@ -30,7 +30,7 @@ If the type is unclear, ask the user before continuing.
 
 **Tier** (`.claude/context/process-tiers.md`): take it from the ticket's breakdown entry (`Tier:`), else assign it now
 from what the change touches (L: the `pandf` tree, Jacobian/preconditioner, `ppp/`, `.v`, the build, physics; at
-least M: any other Fortran source (`.m`, `.F90`, hand-written `.f`), whose implementation review runs on Opus; S: investigation, characterisation,
+least M: any other Fortran source (`change_kind.py`'s `FORTRAN` pattern), whose implementation review runs on Opus; S: investigation, characterisation,
 doc/tooling, small fixes elsewhere; M: the rest). Check the files the plan modifies against `HIGH_RISK` (L) and
 `FORTRAN` (at least M) in `.claude/hooks/change_kind.py`, so the review gate doesn't re-tier the ticket after the
 code is written. The tier sets the plan's budget:
@@ -73,16 +73,16 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
 
 ## Phase 2: Codebase intelligence
 
-1. Read `CLAUDE.md` and the matching `.claude/context/` modules (`architecture.md` always;
-   `mppl-fortran.md`, `variables-forthon.md`, `openmp-jacobian.md`, `python-layer.md`, `testing.md`,
-   `uedge-gotchas.md` as relevant).
-2. Locate the code: the `pandf` call chain (`bbb/pandf.m:513`), the equation file
-   (`bbb/pandf_<plasma|gas>_<eq>.m`), boundary code (`bbb/pandf_boundary.m`), setup/allocation (`bbb/odesetup.m`),
+1. Read `CLAUDE.md` and the matching `.claude/context/` modules (`architecture.md` always, and the
+   modules `CLAUDE.md` → On-demand context names for the files and the task, e.g. `testing.md`,
+   `uedge-gotchas.md`).
+2. Locate the code: the `pandf` call chain, the equation file, boundary code and setup/allocation
+   (`architecture.md` → `bbb/` layout and RHS evaluation order),
    and the `.v` groups involved (`Use(Group)` sites).
 3. Find the closest existing pattern to mirror (a similar term, switch, or BC) and record it with `file:line`.
 4. Check RHS/Jacobian implications: loop ranges (`initialize_ranges`), stencil width, `+threadprivate` needs,
    X-point/cut handling (`ixm1/ixp1`), OMP chunk padding.
-5. Check build implications: new `.m` files (both `Makefile.Forthon` lists + `Package`), new `.v` routines,
+5. Check build implications: new source files and their registration (`CLAUDE.md` → Gotchas), new `.v` routines,
    `.h` parameter mirrors, save/restore lists (`src/uedge/hdf5.py`).
 6. Recent history in the area: `git log --oneline -15 -- <paths>`.
    Then the parallel work on the same files: the open PRs (`gh pr list --repo holm10/UEDGE_v9_dev --state open
@@ -112,8 +112,8 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    `.claude/work/<KEY>/probes/` (gitignored, kept with the worktree), not only in the session scratchpad, which does
    not outlive the session (AIUE-238). When the conclusion depends on what an input value means (a solver option
    set to 0, a flag that selects a path), cite the source line that defines that meaning next to the output: an
-   output code alone (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx=0` means 200
-   iterations, `svr/nksol.m:973`). A claim not probed, including behaviour that only the ticket's own change creates,
+   output code alone (`iterm`, a return flag) doesn't show which path ran (AIUE-134: `itermx = 0` means 200
+   iterations in `nksol`). A claim not probed, including behaviour that only the ticket's own change creates,
    is marked *assumed*, and the task that relies on it checks it first. An *assumed* claim that scopes a follow-up or
    a Note, and that a probe in an existing venv can settle in minutes, is probed at planning instead (AIUE-233). For
    a build change, plan a link check on every platform the change claims (the link line, plus `nm -u` or an import),
@@ -270,7 +270,7 @@ Validate the patterns and file references below before implementing.
 <What is wrong or missing; how this change addresses it.>
 
 ## Context references — read before implementing
-- `bbb/<file>.m:<lines>` — why
+- `<pkg>/<file>:<lines>` — why
 - `bbb/bbb.v:<lines>` (group `<Group>`) — why
 - `.claude/context/<module>.md` — which section applies
 
@@ -284,7 +284,7 @@ Execute top to bottom; each task is atomic.
 ### {CREATE|UPDATE|ADD|REMOVE|REFACTOR|MIRROR} <file>
 - **IMPLEMENT**: <specific change>
 - **PATTERN**: <file:line>
-- **GOTCHA**: <threadprivate / ranges / MPPL hazard / units in J / registration>
+- **GOTCHA**: <threadprivate / ranges / source-form hazard / units in J / registration>
 - **VALIDATE**: `<command>` (e.g. build, a python one-liner checking a new variable)
 
 ## Testing strategy

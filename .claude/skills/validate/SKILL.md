@@ -62,8 +62,8 @@ the install mode of the base venv it is compared with: same Python, same
 Forthon/numpy/setuptools, `--no-build-isolation`, same `CC` (`.claude/context/testing.md` → "Compared builds use one
 install mode"). A venv with none of them installed yet: `pip install "forthon>=0.10.7" numpy setuptools h5py` first.
 
-- ❌ on any compile error. Report the first error with its `.F` line **mapped back to the `.m` source** (the `.F`
-  is generated; fix the `.m`).
+- ❌ on any compile error. Report the first error **mapped back to its hand-written source** (the form's module →
+  Build errors and review checks; never fix a generated file).
 - List any **new** `-Wconversion` / implicit-typing warnings in files you touched.
 
 ## 2. Smoke test
@@ -118,7 +118,7 @@ Running the branch's own copy (`--head HEAD` from the ticket worktree) is a prev
 
 Report its `required:` line. Exit 1 means the description lacks a declaration it names (`CLAUDE.md` → Hard rules).
 
-## 4. OpenMP check (when `bbb/pandf*`, `bbb/convert.m`, `ppp/`, or any `+threadprivate` var changed, or `--omp`)
+## 4. OpenMP check (when the `pandf` tree or what it calls to unpack `yl` (`architecture.md` → RHS evaluation order), `ppp/`, or any `+threadprivate` var changed, or `--omp`)
 
 The AIUE-8 test flow (`tests/deterministic_omp/README.md` → Test flow). It needs a default (OpenMP) build of this
 worktree, in a venv of its own beside the serial one (one venv per build kind), and on macOS also the base OpenMP
@@ -146,7 +146,7 @@ has one case, the AIUE-8 single-null deck, so for X-point or boundary code also 
 diagnostics of `.claude/context/openmp-jacobian.md` → "Verifying a change touches this correctly" (a diagnostic,
 not the gate).
 
-## 5. Serial old-vs-new bitwise check (when any Fortran — `*.m`, `*.F90`, hand-written `*.f` — a `.v` file or `ppp/` changed)
+## 5. Serial old-vs-new bitwise check (when `change_kind.py --range` lists a Fortran source on its `HIGH-RISK` or `FORTRAN` line, or a `.v` file or `ppp/` changed; a build file alone on the `HIGH-RISK` line does not count)
 
 Run `tests/deterministic_omp/harness/serial_check.py` against base venvs of the branch point, as in
 `.claude/context/testing.md` → "Serial old-vs-new bitwise check" (four venvs from clean committed trees). ✅ on

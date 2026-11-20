@@ -25,7 +25,7 @@ description: Creates a git commit for the current work with an explicit file lis
    The PreToolUse hook runs the same check on `git commit` and blocks violations, so fix them here instead of
    working around the block. **Never** add the trailer to get a process change through.
 3. **Stage explicitly** by path: only files that belong to this change. Never `git add -A` / `git add .`.
-   Do not stage `logs/`, build output, generated `.F` files, scratch scripts, large data files unless asked, or
+   Do not stage `logs/`, build output, generated sources, scratch scripts, large data files unless asked, or
    working documents (`.claude/work/` and the old working paths are gitignored; never `git add -f` them).
    New `.f`/`.c` sources need `git add -f` (gitignored patterns).
 4. Write the message in the repo's style:

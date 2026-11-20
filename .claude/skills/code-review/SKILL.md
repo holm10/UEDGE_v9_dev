@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Performs a technical code review of changed UEDGE files (MPPL Fortran, .v variable files, OpenMP/Jacobian code, Python layer, build files) for real bugs and rule violations, then writes a report. Use before committing, and in CI on pull requests.
+description: Performs a technical code review of changed UEDGE files (Fortran sources, .v variable files, OpenMP/Jacobian code, Python layer, build files) for real bugs and rule violations, then writes a report. Use before committing, and in CI on pull requests.
 ---
 
 # Code Review
@@ -11,7 +11,8 @@ Review recently changed files for **real bugs and rule violations**, not style p
 
 - `CLAUDE.md` (naming, core patterns, hard rules, gotchas).
 - The `.claude/context/` modules that match what changed:
-  `.m` → `mppl-fortran.md`; `.v` → `variables-forthon.md`; `bbb/pandf*`, `convert.m`, `ppp/` →
+  the module `CLAUDE.md` → On-demand context names for each changed file's source form; `.v` →
+  `variables-forthon.md`; the `pandf` tree (`architecture.md` → RHS evaluation order) and `ppp/` →
   `openmp-jacobian.md`; `src/uedge/` → `python-layer.md`; physics → `physics-workflow.md`; code that runs cases or
   reads states (`tests/`, `src/uedge/`, tools) → `uedge-gotchas.md`; `tests/` → `testing.md`.
 
@@ -28,7 +29,7 @@ git ls-files --others --exclude-standard
 
 On a PR, diff against the base branch instead (`git diff origin/<base>...HEAD`). List the yldot suite's changed
 files on their own (`git diff --name-only origin/<base>...HEAD -- tests/yldot/`): the defaults rule (5) needs them.
-Read every changed `.m`/`.F90`/`.py` file **in full** around the changed routines, not just the hunks.
+Read every changed source file **in full** around the changed routines, not just the hunks.
 Classify the change as **refactor** or **physics** (from the PR description, plan, or spec) — it decides how
 the defaults rule applies.
 
@@ -50,10 +51,9 @@ the defaults rule applies.
 - Non-smooth functions of solution variables (`if` on `te`, `max/min`, `abs`) flagged — they hurt Newton
   convergence.
 
-### 3. MPPL conversion hazards (`setup.py` `M2F` rules)
-- `#` inside strings/formats (becomes `!`); identifiers containing `float`, `break`, `while (`.
-- New `.m` file registered in **both** lists of `Makefile.Forthon` and the package `Package` file.
-- New `.f`/`.c` files force-added (gitignored patterns). No edits to generated `.F` files.
+### 3. Source-form hazards
+- The "Build errors and review checks" of the module `CLAUDE.md` → On-demand context names for each changed file's form
+  (conversion hazards, registration of a new source file, force-added files, no edits to generated files).
 
 ### 4. Variables and interfaces (`.v`)
 - Units `[...]`, default `/.../`, `#` description on every new variable; `+input` on user switches.
@@ -104,7 +104,7 @@ gitignored and never committed. Fixes it leads to are recorded where the work is
 Stats: files modified/added/deleted, +lines/-lines; change type: refactor | physics
 
 severity: critical|high|medium|low
-file: bbb/pandf_plasma_energy.m
+file: <path>
 line: 412
 issue: <one line>
 detail: <why it is wrong, concrete failure scenario>

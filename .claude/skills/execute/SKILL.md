@@ -55,7 +55,7 @@ For EACH task in "Step by Step Tasks":
 #### b. Implement the task
 - Follow the detailed specifications exactly
 - Maintain consistency with existing code patterns
-- Edit `.m`/`.v`/`.F90`/`.py` sources only — never the generated `.F` files
+- Edit hand-written sources only, never generated files (`CLAUDE.md` → Hard rules)
 - New variables: units, default and `#` description in the `.v` file; `+threadprivate` if written inside `pandf`
 - Physics plans implement the approved spec exactly; do not alter equations or coefficients
 - If the work shows that a skill, agent or hook should change, **don't** change it here. Note it for the execution
@@ -63,8 +63,8 @@ For EACH task in "Step by Step Tasks":
   facts that this change makes untrue is allowed, in its own commit with the trailer `AI-layer: code-facts`
 
 #### c. Verify as you go
-- After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix the `.m`
-  source for any error reported in the generated `.F`
+- After each Fortran/`.v` change, rebuild (`pip install . -C "--build-option=--serial"`) and fix any error at
+  its hand-written source (the form's module → Build errors and review checks)
 - Run the task's VALIDATE command before moving on
 - Before reporting a background job finished, read its exit status and the last lines of its log; never infer it
   from elapsed time or expected output. A plan's "no concurrent use" rule (a shared API budget, build or machine)

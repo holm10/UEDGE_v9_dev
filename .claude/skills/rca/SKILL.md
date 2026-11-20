@@ -47,9 +47,9 @@ This fetches:
 - Look for patterns or recent changes
 
 Use grep/search to find:
-- Error messages from the issue (`xerrab`/`remark` strings in `*.m`)
+- Error messages from the issue (`xerrab`/`remark` strings in the Fortran sources)
 - Variables and switches named in the issue (declared in `*/*.v`, used via `Use(Group)`)
-- The routine in the `pandf` call chain (`bbb/pandf.m`) or setup (`bbb/odesetup.m`) where the quantity is computed
+- The routine in the `pandf` call chain or setup (`architecture.md` → RHS evaluation order, `bbb/` layout) where the quantity is computed
 
 ### 3. Review Recent History
 
@@ -101,7 +101,7 @@ added `ismolcrm` with `/0/`; 174ce09 set `/1./`).
   with the AIUE-8 test flow, `validate` step 4, which localises a mismatch to equation and cell; `ppp.CheckPandf1` /
   `ppp.CheckJac` only as diagnostics on the failing deck, `openmp-jacobian.md`)
 - Units (temperatures in J), species/indexing (`ifld`, `igsp`, `nisp` vs `nusp`)
-- MPPL conversion artefacts (`#`/`float`/`break` substitutions in `setup.py`)
+- Conversion artefacts of the file's source form (its module's hazards, `CLAUDE.md` → On-demand context)
 - Uninitialised or not-reallocated arrays after grid/species changes (`gchange`)
 - Save/restore format issues in `src/uedge/hdf5.py`
 

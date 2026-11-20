@@ -48,6 +48,19 @@ c     Full-line comment: 'c' in column 1
 | `call allot("x", n)` | `allocate(x(n))` | Legacy — prefer `gchange` |
 | `(Size4)` | `(kind=4)::` | |
 
+## Build errors and review checks
+
+The skills point here for anything that depends on the MPPL source form (T78), so a change of form updates this
+module, not them.
+
+- **A build error** is reported at a line of the generated `.F`: find the routine in its `.m` and fix it there,
+  never in the `.F`, which every build overwrites (`CLAUDE.md` → Hard rules). The free-form sources (below) compile
+  as written, so their errors point at the source itself.
+- **Review checks for a changed `.m`:** `#` inside a string or format, and identifiers containing `float`, `break` or
+  `while (` (Substitution hazards, above); a new `.m` registered in both lists of `Makefile.Forthon` and in the
+  package's `Package` (`CLAUDE.md` → Gotchas); a new `.f` or `.c` file force-added (gitignored patterns); no edits
+  to generated `.F` files.
+
 ## Errors and output
 
 - Fatal: `call xerrab('Error in subroutine <name>: <text>')` (`Error in function <name>:` in a function), which
