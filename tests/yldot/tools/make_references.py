@@ -712,6 +712,8 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
         timeout = TIMEOUT_FACTOR * float(load_evaluation(fdir)["timeout_s"])
         walls = []
         data = {}
+        # the Ahead tasks below read this family's names (name, loc, timeout, data, tol, aud) when they run: safe, since
+        # every key submitted for a family is taken before the next family rebinds them
 
         def default_run(config):
             delta = loc["delta_loc"] if loc is not None and config == "steady" else None

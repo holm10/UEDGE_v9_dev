@@ -1491,6 +1491,18 @@ def test_main_passes_jobs_to_one_family_only(monkeypatch, tmp_path):
                      ("child", ["imp7"], 1)]
 
 
+@pytest.mark.parametrize("cls, finding, audit_failed, want", [
+    ("SENSITIVE", None, None, True),
+    ("SENSITIVE", "owner: something", None, False),  # a finding: the loop stops before the second run
+    ("SENSITIVE", None, {"runtime": True, "status": "error", "reason": "bounds-check: x"}, False),  # INVALID
+    ("SENSITIVE", None, {"runtime": False, "status": "crash", "reason": "x"}, False),  # a finding
+    ("MARGINAL", None, None, False), ("INERT", None, None, False), ("INVALID", None, None, False),
+    ("EXCLUDED", None, None, False)])
+def test_again_needed_is_the_loops_second_run_rule(cls, finding, audit_failed, want):
+    """The task makes the second run exactly when the sweep loop reaches its SENSITIVE branch (families_run)."""
+    assert mr.again_needed(cls, finding, audit_failed) is want
+
+
 @pytest.mark.parametrize("workers", [1, 3])
 def test_ahead_takes_in_order_and_bounds_the_window(workers):
     import threading
