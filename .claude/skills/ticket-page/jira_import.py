@@ -15,11 +15,16 @@ blocked by" links between imported tickets become relations. Then one tracker co
 (create, status Backfilled, owner and `PIV record` comments logged). The body's first line names the Jira key, so a
 re-run creates nothing that exists. The tracker is named only in `.claude/tracker.toml`.
 
+`--epic none` (tracker #28) imports the snapshot's To Do issues that have no parent and are not epics: no `--parent`,
+records under `docs/no-epic/`, and the mapping in `docs/no-epic/breakdown.md` only. An epic with no To Do children is
+imported as the epic alone. Every `gh` call waits out a GitHub rate limit (`ticket_page.gh_run`).
+
 Exit codes: 0 ok; 1 refused (secret-like text; nothing written); 2 bad input, a failed `gh` call or record call.
 """
 import argparse
 import fcntl
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -54,8 +59,8 @@ def load(paths):
             f = i["fields"]
             if i["key"] in issues:
                 die(f"{i['key']} is in two snapshots")
-            if "comment" not in f or "description" not in f:
-                die(f"{i['key']}: the snapshot lacks the comment or description field; fetch them")
+            if "comment" not in f:  # the MCP leaves out an empty description, never a requested comment field
+                die(f"{i['key']}: the snapshot lacks the comment field; fetch it with the description")
             c = f["comment"] or {}
             if c.get("total", 0) != len(c.get("comments", [])):
                 die(f"{i['key']}: {len(c.get('comments', []))} of {c.get('total')} comments in the snapshot; "
@@ -117,11 +122,11 @@ class Run:
         self.a, self.t, self.dry, self.failed = a, t, a.dry_run, False
         self.new = 0
 
-    def gh(self, *args, read=False):
+    def gh(self, *args, read=False, retry=True):
         if self.dry and not read:
             print("would run: gh " + " ".join(args))
             return ""
-        return tp.gh(*args)
+        return tp.gh(*args, retry=retry)
 
     def helper(self, *args):
         cmd = [sys.executable, str(HELPER), "--repo", self.a.repo, "--date", self.t.today, "--caller", "jira-import"]
@@ -138,7 +143,7 @@ class Run:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--snapshot", action="append", required=True, help="a saved MCP search result (repeatable)")
-    ap.add_argument("--epic", required=True, help="the Jira epic key, e.g. AIUE-299")
+    ap.add_argument("--epic", required=True, help="the Jira epic key, e.g. AIUE-299; 'none': the issues with no epic")
     ap.add_argument("--first", help="the ticket to import first after the epic")
     ap.add_argument("--out", required=True, help="the mapping JSON to write; bodies go to <its dir>/bodies/")
     ap.add_argument("--dry-run", action="store_true", help="read only; print each write")
@@ -148,15 +153,21 @@ def main():
     a = ap.parse_args()
     a.date = a.date or date.today().isoformat()
     issues = load(a.snapshot)
-    epic = issues.get(a.epic) or die(f"the epic {a.epic} is not in the snapshot")
-    kids = [i for i in issues.values() if (i["fields"].get("parent") or {}).get("key") == a.epic]
+    if a.epic == "none":
+        epic = None
+        kids = [i for i in issues.values() if not i["fields"].get("parent") and kind(i) != "Epic"]
+    else:
+        epic = issues.get(a.epic) or die(f"the epic {a.epic} is not in the snapshot")
+        kids = [i for i in issues.values() if (i["fields"].get("parent") or {}).get("key") == a.epic]
     take = [i for i in kids if i["fields"]["status"]["statusCategory"]["key"] == "new"]
     others = [i for i in kids if i not in take]
     if a.first and a.first not in [i["key"] for i in take]:
-        die(f"--first {a.first} is not a To Do child of {a.epic} in the snapshot")
+        die(f"--first {a.first} is not a To Do " + ("issue without an epic" if epic is None else f"child of {a.epic}")
+            + " in the snapshot")
     take.sort(key=lambda i: (i["key"] != a.first, int(i["key"].rsplit("-", 1)[1])))
+    head = [epic] if epic else []
     bodies = {}
-    for i in [epic, *take]:  # every text is checked before anything is written
+    for i in [*head, *take]:  # every text is checked before anything is written
         text = body(i, a.date) + i["fields"]["summary"]
         tp.refuse_secrets(text, f"Jira {i['key']}")
         bodies[i["key"]] = tp.sanitize(body(i, a.date), a.repo)
@@ -196,8 +207,8 @@ def main():
         if r.dry:
             r.gh("project", "item-add", str(t.project), "--owner", t.owner, "--url", url)
             return {"id": f"ITEM-{n}"}
-        res = tp.run(["gh", "project", "item-add", str(t.project), "--owner", t.owner, "--url", url, "--format",
-                      "json", "--jq", ".id"], check=False)
+        res = tp.gh_run(["project", "item-add", str(t.project), "--owner", t.owner, "--url", url, "--format", "json",
+                         "--jq", ".id"], check=False)
         if res.returncode == 0:
             return {"id": res.stdout.strip()}
         if "already exists" not in res.stderr:
@@ -219,17 +230,20 @@ def main():
              f"--{flag.replace('_', '-')}", val)
 
     num, rows = {}, []
-    for i in [epic, *take]:
+    pace = float(os.environ.get("JIRA_IMPORT_PACE", "3"))  # s between created issues: GitHub's burst limit (T28)
+    for i in [*head, *take]:
         k, title = i["key"], tp.one_line(tp.sanitize(i["fields"]["summary"], a.repo))
         if k in seen:
             n, url, created = seen[k]["number"], seen[k]["url"], False
         else:
+            if r.new and not r.dry:
+                time.sleep(pace)
             args = ["issue", "create", "-R", t.slug, "--type", TYPES.get(kind(i), "Task"), "--title", title,
                     "--body-file", str(out.parent / "bodies" / f"{k}.md"), "--label", "from-jira"]
             args += ["--label", "ai-layer"] if ai(i) else []
-            args += ["--parent", str(num[a.epic])] if i is not epic else []
+            args += ["--parent", str(num[a.epic])] if epic and i is not epic else []
             r.new += 1
-            url = r.gh(*args).strip().split("\n")[-1] or f"#new-{r.new}"
+            url = r.gh(*args, retry=False).strip().split("\n")[-1] or f"#new-{r.new}"
             n, created = (int(url.rstrip("/").rsplit("/", 1)[1]) if not r.dry else f"new-{r.new}"), True
         num[k] = n
         item = item_for(n, url)
@@ -241,7 +255,8 @@ def main():
             edit(item["id"], "Jira key", text=k)
         rows.append({"jira": k, "number": n, "url": url, "created": created, "title": title, "issue": i})
 
-    for row in rows[1:]:  # "is blocked by" between imported tickets
+    tickets = rows[len(head):]
+    for row in tickets:  # "is blocked by" between imported tickets
         want = [str(num[k]) for w, k, _ in links(row["issue"]) if w == "is blocked by" and k in num]
         have = [] if r.dry or not want else json.loads(r.gh(
             "api", f"repos/{t.slug}/issues/{row['number']}/dependencies/blocked_by", "--jq", "[.[].number]",
@@ -250,13 +265,18 @@ def main():
         if missing:
             r.gh("issue", "edit", str(row["number"]), "-R", t.slug, "--add-blocked-by", ",".join(missing))
 
-    # The epic's documents: one commit (written under --out's directory instead with --dry-run).
-    E = num[a.epic]
+    # The epic's documents: one commit (written under --out's directory instead with --dry-run). No epic: only
+    # docs/no-epic/breakdown.md.
+    E = num[a.epic] if epic else None
     fcntl.flock(t.lock, fcntl.LOCK_EX)
     if not r.dry:
         t.pull()
-    found = next(iter(sorted(t.dir.glob(f"docs/T{E}-*/"))), None)
-    edir = found or t.dir / "docs" / f"T{E}-{tp.slug(rows[0]['title'])}"
+    if epic:
+        found = next(iter(sorted(t.dir.glob(f"docs/T{E}-*/"))), None)
+        edir = found or t.dir / "docs" / f"T{E}-{tp.slug(rows[0]['title'])}"
+    else:
+        edir = t.dir / "docs" / "no-epic"
+        found = edir if edir.is_dir() else None
     if r.dry:  # the preview starts from the existing documents, so it shows only what would change
         edir = out.parent / "epic"
         edir.mkdir(parents=True, exist_ok=True)
@@ -265,13 +285,14 @@ def main():
             if found and (found / nm).exists():
                 shutil.copy(found / nm, edir / nm)
     edir.mkdir(parents=True, exist_ok=True)
-    changed = epic_docs(a, edir, E, rows, others)
+    changed = epic_docs(a, edir, E, rows[0] if epic else None, tickets, others)
     if changed and not r.dry:
-        t.commit(changed, f"T{E} jira-import: epic documents from {a.epic}")
+        t.commit(changed, f"T{E} jira-import: epic documents from {a.epic}" if epic
+                 else "no-epic jira-import: breakdown of the Jira issues with no epic")
     else:
         fcntl.flock(t.lock, fcntl.LOCK_UN)
 
-    for row in rows[1:]:  # each ticket's record, through ticket_page.py
+    for row in tickets:  # each ticket's record, through ticket_page.py
         i, n = row["issue"], row["number"]
         rec = t.record(n)  # a record that exists is completed, not skipped: each missing call is made again
         text = rec.read_text() if rec else ""
@@ -305,19 +326,20 @@ def main():
     sys.exit(2 if r.failed else 0)
 
 
-def epic_docs(a, edir, E, rows, others):
+def epic_docs(a, edir, E, epic, tickets, others):
     """Writes the epic's epic.md, breakdown.md and progress.md where missing or incomplete; returns the paths it
-    changed."""
-    epic, tickets, changed = rows[0], rows[1:], []
-    f = epic["issue"]["fields"]
+    changed. With no epic (`--epic none`), only breakdown.md, under docs/no-epic/."""
+    changed = []
+    f = epic["issue"]["fields"] if epic else {}
     em = edir / "epic.md"
-    if not em.exists():
+    if epic and not em.exists():
         owner = [f"- {c['created'][:10]} Owner: {first_line(c['body'])} (Jira {a.epic} comment {c['id']})"
                  for c in comments(epic["issue"]) if OWNER.match(c["body"])]
         done = [f"{i['key']} ({i['fields']['status']['name']})" for i in others]
         em.write_text(
             f"# T{E}: {epic['title']}\n\n| | |\n|---|---|\n| Issue | #{E} (type Epic) |\n| Status | Draft (imported from Jira; no success criteria yet) |\n"
-            f"| Breakdown | `breakdown.md` |\n| Progress | `progress.md` |\n| Last update | {a.date} |\n\n"
+            "| Breakdown | " + ("`breakdown.md`" if tickets else "none (no To Do children in Jira)") + " |\n"
+            f"| Progress | `progress.md` |\n| Last update | {a.date} |\n\n"
             f"## Goal\n\nImported from Jira {a.epic} on {a.date}; its description follows verbatim (Scope).\n\n"
             f"## Scope\n\n{tp.demote(tp.sanitize((f.get('description') or 'none').strip(), a.repo))}\n\n"
             "## Success criteria\n\nNot stated in Jira; to be set by the owner or `create-prd T" + str(E) + "`.\n\n"
@@ -328,12 +350,15 @@ def epic_docs(a, edir, E, rows, others):
             "`jira_import.py` (tracker #6).\n\n## Reviews\n")
         changed.append(em)
     bd = edir / "breakdown.md"
+    table = "| Jira key | Ticket | Type | Tier | Blocked by |\n|---|---|---|---|---|\n"
     text = bd.read_text() if bd.exists() else (
         f"# T{E}: {epic['title']}, ticket breakdown\n\nThe source is Jira {a.epic} (imported {a.date}; each ticket's "
         "scope is the Ticket section of its record). Each ticket is a sub-issue of #" + str(E) + ". Dependencies are "
-        "also set as \"blocked by\" relations on the issues.\n\n| Jira key | Ticket | Type | Tier | Blocked by |\n"
-        "|---|---|---|---|---|\n")
-    num = {row["jira"]: row["number"] for row in rows}
+        "also set as \"blocked by\" relations on the issues.\n\n" + table if epic else
+        "# Imported from Jira with no epic\n\nThe Jira issues that had no parent epic (imported by `jira_import.py "
+        "--epic none`; each ticket's scope is the Ticket section of its record, here in `docs/no-epic/`). "
+        "Dependencies are also set as \"blocked by\" relations on the issues.\n\n" + table)
+    num = {row["jira"]: row["number"] for row in ([epic] if epic else []) + tickets}
     add_rows, add_entries = [], []
     for row in tickets:
         n, i = row["number"], row["issue"]
@@ -353,7 +378,7 @@ def epic_docs(a, edir, E, rows, others):
         bd.write_text("\n".join(lines) + "\n\n" + "\n".join(add_entries))
         changed.append(bd)
     pg = edir / "progress.md"
-    if add_rows or not pg.exists():
+    if epic and (add_rows or not pg.exists()):
         old = pg.read_text().rstrip("\n") + "\n" if pg.exists() else (
             f"# T{E}: {epic['title']}, progress\n\nDated, append-only lines, one per milestone of any ticket in the "
             "epic. Owner decisions are attributed as `Owner:` with their source.\n\n")
