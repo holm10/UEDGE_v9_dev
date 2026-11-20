@@ -180,6 +180,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   imp7). The two range mutations
   (AIUE-100) are `initialize_ranges`' `i5` bound (`bbb/pandf.m:73`) and the point-wise `vsoree` copy
   (`bbb/pandf_plasma_energy.m:646`, a weak `te` self-coupling; owner, D1, after the `j5p` site proved window padding).
+  Drafting a mutation, list for each family in `Families` at least one interior cell (not a guard cell that another
+  boundary writes) where the mutated expression changes value, under the defaults or, for a `Variant` mutation, the
+  variant's stored `applied` values; do it before the run, so a header mismatch is not first seen as a miss
+  (AIUE-257: `pfwall_te_scalar_dispatch` put option 0 only on the plate guard corners of the 10-cell grids and
+  missed in d_only; T47).
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `check
   --fixed-point-only`, an `issfon = 0` finite check of yldot and the round trip only, which `test_states.py` runs (T12);
   `make`, which re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
@@ -521,6 +526,9 @@ Builds and test matrices were the longest waits of epic AIUE-8 (one ticket 5.7 h
   their commit, `uedge-wt/venvs/base-{serial,omp}-<sha>`, so a stale one is visible; build a new pair when
   `v9-develop` moves past it. Base worktrees `uedge-wt/base-<sha>` and their venvs are shared across sessions:
   closing a ticket never removes them; they go once `v9-develop` has moved on and no worktree is based on them.
+  Install the test packages when a base venv is built (`pip install pytest pytest-xdist pytest-timeout h5py numpy
+  setuptools`, the `test` extra without reinstalling UEDGE, as `init-project` does), so `-n auto` probes and
+  `validate` run in it; installing test-only packages later is not a reinstall (AIUE-288, T43).
   Before building a base, look for its `BUILD.txt` and for a build still running in it (`ps`), so two sessions
   never build the same base at once (AIUE-161 and AIUE-181 built `base-1c3010e` together, and AIUE-161's close-out
   removed it while AIUE-181's `BUILD.txt` still named it).
@@ -594,7 +602,10 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   required-check context: rename it only together with the ruleset). GitHub takes a `pull_request_target` workflow
   and its checkout from the default branch (since 2025-12-08, GitHub changelog 2025-11-07), so `v9-develop`'s copy of
   the guard judges every PR, a stacked one too, and a PR that changes the guard or this workflow is judged by the
-  old copy (its own change first runs on the next PR). It fetches `refs/pull/<n>/head` as data (never checked out),
+  old copy (its own change first runs on the next PR). The base's `tests/yldot/harness/manifest.py` validates the
+  manifests too, so a PR whose manifests use a schema it adds fails the required check: the schema or guard change
+  goes in a prerequisite PR, merged first (AIUE-257: PR #105's 471 combination-set entries failed, split into #107;
+  T48). It fetches `refs/pull/<n>/head` as data (never checked out),
   passes the description as `PR_BODY` and `GH_TOKEN` through `env:` only, caps files at 200 MiB (`ulimit -f`), and
   runs `check --base <base sha> --head <head sha>`; its check run lands on the PR head commit. `[skip ci]` does not
   skip it (it skips `push`/`pull_request` only). `.github/CODEOWNERS` names the owner for `tests/yldot/`,
@@ -652,8 +663,12 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   step logs the runner's CPU model and stops unless it matches; imp7's full sweep, a single process, takes about
   3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
   350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
-  AIUE-211; an `--only` dispatch is not cheap either: it re-runs each owner family's default and its stored variant
-  locality patterns (only `--prune` and `--rename` copy them, `tests/yldot/tools/make_references.py:607`), so run
+  AIUE-211. The re-dispatch is a loop, not a watch: dispatch and take the run id from the URL `gh workflow run`
+  prints; every 30 s read `gh run view <id> --json jobs` for the `generate` job's step `Check the runner's CPU`; on
+  `failure` wait 60 s and dispatch again (AIUE-239 needed 4; cap it at about 6); stop at the first `success`, or at
+  once if `gate` fails. `gh run view --log` has no CPU line until the job ends (T39). An `--only` dispatch is not
+  cheap either: it re-runs each owner family's default and its stored variant locality patterns (only `--prune` and
+  `--rename` copy them, `tests/yldot/tools/make_references.py:607`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone when another owner
   family shares the job, AIUE-242), three
@@ -673,6 +688,14 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   AIUE-98's A4 the second dispatch generated first and got v11, the first was renumbered to v12), runs `release_data.py --generated --renumber --publish` and uploads the renumbered
   manifests as the artifact `yldot-manifests-<tag>`, which the developer commits as a data-only commit (owner D2: the
   workflow never pushes; a `GITHUB_TOKEN` push runs no CI). The only `contents: write` in `.github/workflows/`.
+  While a publishing run's `publish` waits for the owner, run the ticket's data checks on its `yldot-generated`
+  artifact: copy `tests/yldot/references/*.manifest.json` to a scratch directory and lay the artifact's manifests over
+  them (it holds only the families the run regenerated, `.github/workflows/regenerate-references.yml:209-222`), then
+  check that set, so the owner approves knowing the result; a wrong release is immutable and uses its N (AIUE-239,
+  T38). Push nothing to a PR branch between a publishing dispatch and the end of its `publish` job: `--gate` publishes
+  only a commit in `v9-develop` or the current head of an open PR, so a new push refuses the dispatched commit
+  (`tests/yldot/tools/release_data.py:168`), and a refused publish needs a new dispatch from the new head (AIUE-257:
+  run 43377154953's publish was refused; the re-dispatch 43451194928 and a second approval added about 1.5 h; T46).
 - `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
   The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
   its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out

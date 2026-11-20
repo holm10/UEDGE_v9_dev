@@ -97,7 +97,10 @@ Each ticket gets its own branch and worktree (`.claude/context/branching.md`). D
    the second dispatch got v11), and it records the N it got in its record. A hand publish with
    `release_data.py` (no `--renumber`) still reserves N = highest + 1 as a Findings and decisions entry once the owner
    agrees (AIUE-161 planned v8 while AIUE-174 held v7 with no manifests yet). Planning reads the in-flight tickets'
-   records for both (`testing.md` → Tools, `release_data.py`; AIUE-207). Read the sibling tickets' Findings and
+   records for both (`testing.md` → Tools, `release_data.py`; AIUE-207). When another in-flight ticket regenerates
+   the same family, which ticket owns the release (one joint run or two, and the order) is an owner question at
+   planning, asked after reading the sibling's record; the answer goes in Notes and in both records' Findings and
+   decisions. Never defer it to PR time (AIUE-253, AIUE-254; T42). Read the sibling tickets' Findings and
    decisions and the issue comments for work handed over to this ticket: a handover is planned, or asked about
    (AIUE-240). List each handed-over item on its own line, with its `file:line`, as a task or as a Notes line saying
    why it is not done; never summarise a handover list (T33).
@@ -198,6 +201,16 @@ literature belongs in the physics spec, not here.
   manifests, and the releases they were regenerated from): an `--only` release copies every other entry, and its
   `reason` text, from the installed release, so the manifest's provenance commit is where only the regenerated
   entries were computed (AIUE-98, AIUE-206).
+  A task that publishes data checks it on the generated artifact before the publish approval, not only after the
+  release (`testing.md` → `regenerate-references.yml`; T38). A plan that regenerates a family whose default moves
+  names the guard declarations its new manifest will need: on a sketch store every recomputed
+  `<config>/sketch_threshold` is `Test criteria: loosened` (CODEOWNER), and a moved `sketch_weight` puts every variant
+  with a stored sketch in the `Default results: changed` list, whether or not its yldot changes (`testing.md` →
+  Reference guard). It also lists the generator and classification changes since that family's last release (`git
+  log` of its manifest) and treats reclassified variants as expected-possible owner questions (AIUE-254:
+  `bbb.istipfc` became INVALID in dnull_imp2's first `--checkbounds` sweep; T44). A change to the manifest schema,
+  `manifest.validate` or the guard that ships with manifests using it is split into a prerequisite PR, merged first
+  and named in the plan, since CI judges with the base's copy (`testing.md` → The reference guard in CI; T48).
 - **Outcomes cited from another run.** When a gate's expected result comes from another ticket's run (a matrix, a
   measurement, a report), copy that run's entries into the plan, not its summary line, so execute can tell a known
   entry from a new one (AIUE-188).
