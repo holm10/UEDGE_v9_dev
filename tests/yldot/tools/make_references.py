@@ -95,9 +95,12 @@ the new release. Every evaluation runs
 in a fresh child process (harness/process.py). Writing the same results twice gives the same bytes
 (track_times=False, variants in plan order). Two Linux runs from one commit gave the same SHA-256s on one host
 (Docker Desktop, x86 emulation on Apple silicon, AIUE-88), and so did two native amd64 runs (AIUE-98). Native and
-emulated runs of one commit and image differ in three variant vectors (d_only:bbb.ineudif, d_c:bbb.ineudif,
-d_c:bbb.rtg2ti; cause not probed), so release-grade references come from .github/workflows/regenerate-references.yml
-on native amd64 only (owner, 2026-10-25, AIUE-98); a local --platform linux run is a preview of them.
+emulated runs of one commit and image once differed in three variant vectors (d_only:bbb.ineudif, d_c:bbb.ineudif,
+d_c:bbb.rtg2ti). The cause was glibc's vector math library: libmvec's log kernel uses rcpps, whose bits differ
+between Intel and AMD (AIUE-210). Since AIUE-211 the Linux build keeps those calls scalar, and AMD EPYC 7763, 9V45
+and 9V74, Intel Xeon 8370C and 6973P-C, and x86 emulation give bit-identical sweeps. Release-grade references still
+come only from .github/workflows/regenerate-references.yml on native amd64 (owner, 2026-10-25, AIUE-98); a local
+--platform linux run is a preview of them.
 
 Exit codes: 0 done; 1 refused; 2 usage, a failed build or a failed evaluation; 3 findings for the epic owner.
 """

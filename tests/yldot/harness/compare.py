@@ -559,7 +559,7 @@ class Comparison:
     n_fail: int
     fail_mask: np.ndarray
     per_block: dict  # {(equation, species): failing count}
-    worst: list  # dicts: row, label, ref, new, diff, tol, ratio; worst first
+    worst: list  # dicts: row, label, ref, new, diff, tol, ratio, rel (diff / |ref|, None at ref = 0); worst first
     imap: IndexMap
 
     def report(self, diag_ref=None, diag_new=None, rtol_diag=0.0, scaled=False):
@@ -568,10 +568,11 @@ class Comparison:
         lines = ["FAIL: {} of {} entries out of tolerance".format(self.n_fail, self.imap.neq),
                  "failing per equation: " + ", ".join("{}[{}] {}".format(e, s, n)
                                                       for (e, s), n in self.per_block.items() if n)]
-        lines.append("worst entries (|new - ref| / tol):")
+        lines.append("worst entries (ratio = |new - ref| / tol; rel = (new - ref) / |ref|, n/a at ref = 0):")
         for w in self.worst:
-            lines.append("  {:40s} ref {: .6e} new {: .6e} diff {: .3e} tol {:.3e} ratio {:.3g}".format(
-                w["label"], w["ref"], w["new"], w["diff"], w["tol"], w["ratio"]))
+            rel = "n/a" if w["rel"] is None else "{: .3e}".format(w["rel"])
+            lines.append("  {:40s} ref {: .6e} new {: .6e} diff {: .3e} tol {:.3e} ratio {:.3g} rel {}".format(
+                w["label"], w["ref"], w["new"], w["diff"], w["tol"], w["ratio"], rel))
         if diag_ref is not None and diag_new is not None:
             d = first_difference(diag_ref, diag_new, rtol_diag, scaled)
             lines.append("first differing intermediate: {}".format(d if d is not None else "none"))
@@ -599,6 +600,7 @@ def compare(new, ref, tol, imap, worst=10):
     rows = np.flatnonzero(fail)
     rows = rows[np.argsort(-ratio[rows], kind="stable")][:worst]
     entries = [{"row": int(i) + 1, "label": imap.label(i), "ref": float(ref[i]), "new": float(new[i]),
-                "diff": float(diff[i]), "tol": float(tol[i]), "ratio": float(ratio[i])} for i in rows]
+                "diff": float(diff[i]), "tol": float(tol[i]), "ratio": float(ratio[i]),
+                "rel": float(diff[i]) / abs(float(ref[i])) if ref[i] != 0 else None} for i in rows]
     per_block = {key: int(fail[r].sum()) for key, r in imap.blocks().items()}
     return Comparison(not fail.any(), int(fail.sum()), fail, per_block, entries, imap)

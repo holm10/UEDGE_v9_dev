@@ -89,8 +89,9 @@ def owner_family(family, suite=SUITE):
 SET_PREFIX = "set:"  # a combination set's id (harness/variants.py load_sets, AIUE-257)
 ENCODED = {"dtype", "shape", "data"}
 RUNS = {"dtype", "shape", "runs"}
-MAX_RUN_VALUES = 10 ** 7  # an expanded runs form, at most (largest real value 25,344 at AIUE-190): the guard reads PR
-                          # manifests, and a few bytes of runs must not expand to gigabytes
+MAX_RUN_VALUES = 10 ** 7  # all runs forms of one manifest (one loads call) expanded, at most (largest real manifest
+                          # 1,198,106, imp7, at T26): the guard reads PR manifests, and a few bytes of runs must not
+                          # expand to gigabytes, in one value or in many
 
 
 def runs(data):
@@ -131,7 +132,7 @@ def dumps(m):
     return _text(m, 0) + "\n"
 
 
-def _expand(o, where, errors):
+def _expand(o, where, errors, seen):
     if isinstance(o, dict):
         if set(o) == RUNS:
             r, shape = o["runs"], o["shape"]
@@ -143,25 +144,28 @@ def _expand(o, where, errors):
                 errors.append("{}: shape must be a list of ints >= 0".format(where))
                 return o
             total = sum(n for _, n in r)
-            if total > MAX_RUN_VALUES:
-                errors.append("{}: runs hold {} values, more than {}".format(where, total, MAX_RUN_VALUES))
+            if seen[0] + total > MAX_RUN_VALUES:  # counted over the whole manifest (T26 m5)
+                errors.append("{}: runs bring the manifest to {} values, more than {}".format(
+                    where, seen[0] + total, MAX_RUN_VALUES))
                 return o
             if total != math.prod(shape):
                 errors.append("{}: runs hold {} values, shape {} needs {}".format(where, total, shape,
                                                                                     math.prod(shape)))
                 return o
+            seen[0] += total
             return {"dtype": o["dtype"], "shape": shape, "data": [x for x, n in r for _ in range(n)]}
-        return {k: _expand(v, "{}.{}".format(where, k), errors) for k, v in o.items()}
+        return {k: _expand(v, "{}.{}".format(where, k), errors, seen) for k, v in o.items()}
     if isinstance(o, list):
-        return [_expand(v, "{}[{}]".format(where, i), errors) for i, v in enumerate(o)]
+        return [_expand(v, "{}[{}]".format(where, i), errors, seen) for i, v in enumerate(o)]
     return o
 
 
 def loads(text):
     """The manifest m of its text (dumps): json.loads with every runs form expanded to its data list. Raises
-    ManifestError on a malformed runs form; does not validate (load does)."""
+    ManifestError on a malformed runs form, or when the runs forms together expand to more than MAX_RUN_VALUES
+    values; does not validate (load does)."""
     errors = []
-    m = _expand(json.loads(text), "manifest", errors)
+    m = _expand(json.loads(text), "manifest", errors, [0])
     if errors:
         raise ManifestError("; ".join(errors))
     return m

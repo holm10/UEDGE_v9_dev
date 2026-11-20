@@ -68,7 +68,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   iysptrx2 per mesh half; guard also at the cut, ix = ixrb(1)+1 and ixlb(2); regions pf_upper, pf_lower,
   sol_between and four legs; owner, 2026-10-21, AIUE-91). The species in a label is Fortran's 1-based `ifld`/`igsp`.
   Then the PRD §7.4 per-entry tolerance (σ = 0 floors,
-  `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order. A
+  `ToleranceEscalation`), the full-vector comparator and the first differing diagnostic in `pandf` order. Each
+  failing-row line of its report names the label, ref, new, diff, tol, ratio = |diff|/tol and rel = diff/|ref|
+  (`rel n/a` at ref = 0; PRD F11, owner, 2026-11-20, T26 D1; `test_compare_unit.py`). A
   `Store.check` report finds that diagnostic array-scaled: max|a-b| over the array's max |value| above
   `DIAG_SCALED_RTOL = 1e-8`. The entry-relative measure always fires on round-off between macOS runs and the
   Linux-built references; the scaled one stays below 3.5e-10 unmutated (owner, 2026-10-22, AIUE-89). Only residual
@@ -121,7 +123,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   2026-10-21); `dumps` writes it indented and sorted, each encoded value's `data` list on one line (owner,
   2026-10-22, AIUE-94), as `runs` (`[[value, count], ...]`) when they are fewer, and `loads` expands them, so read
   manifest text with `load`/`loads`, never `json.loads` (owner, 2026-10-25, AIUE-190: `tests/yldot` 29.19 → 14.56 MB
-  in git). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
+  in git); `loads` refuses runs that expand to more than `MAX_RUN_VALUES` (10^7) values per manifest, all its runs
+  forms together (T26; the largest real manifest, imp7, holds 1,198,106). `open_store` checks the file SHA-256, the dataset set, the blocks and that the manifest's
   `guarded`, `unguarded` and variant SHA-256s and its variant set follow from the datasets; every read recomputes
   the dataset's SHA-256 (`StoreIntegrityError`). A family with `[locality]` also stores
   `/steady/locality/{delta, column, row, mismatch, dfull}` (the entries with score > 1), guarded as `locality/steady`
@@ -246,7 +249,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1333`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1336`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -326,7 +329,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   expression also selects every `test_locality_variant`, AIUE-101), the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
   with `[locality]` (owner, 2026-10-23, AIUE-92), over the family's column set; every family has one since AIUE-101,
   and both range mutations list the owner families; writes the coverage matrix `matrix.json`/`matrix.md` (a working
-  document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only);
+  document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only and
+  prints G3 and G4 as `SKIP`, exit 0 when no gate fails; owner, 2026-11-20, T26 D2; `test_mutations_unit.py`);
   `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation; a range mutation about
   30 min, its locality runs on the owner families' column sets, macOS arm64, 2026-10-26, AIUE-101).
   `sketch_sensitivity.py` (PRD §7.11 d, AIUE-92): `run <family>... --from-collection DIR | --from-store` per
@@ -668,7 +672,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   `failure` wait 60 s and dispatch again (AIUE-239 needed 4; cap it at about 6); stop at the first `success`, or at
   once if `gate` fails. `gh run view --log` has no CPU line until the job ends (T39). An `--only` dispatch is not
   cheap either: it re-runs each owner family's default and its stored variant locality patterns (only `--prune` and
-  `--rename` copy them, `tests/yldot/tools/make_references.py:607`), so run
+  `--rename` copy them, `tests/yldot/tools/make_references.py:610`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone when another owner
   family shares the job, AIUE-242), three
