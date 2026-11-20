@@ -239,6 +239,7 @@ def failing(m):
 
 def test_gates_pass():
     assert failing(matrix(GOOD)) == []
+    assert all(ok is True for _, ok, _ in rm.gates(matrix(GOOD)))  # a full run evaluates every gate (T26)
     assert rm.exit_code(matrix(GOOD)) == 0
 
 

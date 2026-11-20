@@ -436,6 +436,7 @@ def test_bare_xerrab_detects(tmp_path):
         "      if (s .eq. '#') call xerrab('')\n"
         "      if (s .eq. 'it''s ! here') call xerrab(\"\")\n")
     (tmp_path / "g.F90").write_text(
-        "  if (s == '!') call xerrab(\"\")\n")
+        "  if (s == '!') call xerrab(\"\")\n"
+        "  if (s == \"!\") call xerrab('')\n")
     assert bare_xerrab_sites(["a.m", "b.F90", "c.m", "d.m", "e.F90", "f.m", "g.F90"], tmp_path) == [
-        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1", "d.m:1", "e.F90:1", "f.m:1", "f.m:2", "g.F90:1"]
+        "a.m:2", "a.m:6", "b.F90:4", "b.F90:6", "c.m:1", "d.m:1", "e.F90:1", "f.m:1", "f.m:2", "g.F90:1", "g.F90:2"]
