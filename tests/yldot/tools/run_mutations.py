@@ -61,9 +61,10 @@ line for Blocks and Cells), a blank line, then the single-line `git diff` (git a
     Description   free text
 Species are Fortran's 1-based ifld/igsp.
 
-Exit codes: 0 the gates pass (run, gates) or the set is valid (list); 1 refused (an invalid set, a tree that differs
-from SHA, absent references); 2 usage, a failed build or a harness error; 3 the epic owner (a mutation missed, firing
-unexpectedly, crashing, or flagged: decision 23).
+Exit codes: 0 no gate fails (run, gates; a gate that a run of named mutations does not evaluate is SKIP, not a
+failure) or the set is valid (list); 1 refused (an invalid set, a tree that differs from SHA, absent references); 2
+usage, a failed build or a harness error; 3 the epic owner (a mutation missed, firing unexpectedly, crashing, or
+flagged: decision 23).
 """
 import argparse
 import hashlib
@@ -522,12 +523,17 @@ def verdict(m, family, result, junit=None, junit_loc=None):
     return {"verdict": "unexpected" if probs else "expected", "problems": probs, "flags": flags}
 
 
+def new_matrix(sha, stores, names):
+    """The empty coverage matrix of a run at sha; partial (G3 and G4 not evaluated) only when names were given."""
+    return {"commit": sha, "families": stores, "mutations": {}, "partial": bool(names)}
+
+
 def gates(matrix):
     """[(gate, ok, detail)] of PRD 7.11 (c) over the matrix: G1 every non-pending mutation expected on a family;
     G2 nothing missed, unexpected, crashed or flagged, and no non-pending mutation left unrun; G3 every equation with
     a block in some referenced family caught by a mutation of that equation (its Equation key), in a primary block
-    of it; G4 every referenced family catches a mutation. G3 and G4 judge the whole set: a run of named mutations
-    (matrix["partial"]) reports them as not evaluated."""
+    of it; G4 every referenced family catches a mutation. ok is True or False; G3 and G4 judge the whole set, so on
+    a run of named mutations (matrix["partial"]) their ok is None, not evaluated (gate_lines: SKIP; T26)."""
     muts = matrix["mutations"]
     live = {n: m for n, m in muts.items() if m["header"]["pending"] is None}
     g1 = sorted(n for n, m in live.items() if not any(r["verdict"] == "expected" for r in m["results"].values()))
@@ -552,16 +558,18 @@ def gates(matrix):
     return [("G1 every mutation caught in its expected check and block on a family", not g1,
              "not caught: {}".format(g1) if g1 else "{} mutations".format(len(live))),
             ("G2 no miss, unexpected firing, crash or flag", not g2, "; ".join(g2) if g2 else "none"),
-            ("G3 every equation caught in its own block", partial or not g3,
+            ("G3 every equation caught in its own block", None if partial else not g3,
              "not evaluated (a run of named mutations)" if partial else
              "uncaught: {}".format(g3) if g3 else ", ".join(equations)),
-            ("G4 every family catches a mutation", partial or not g4,
+            ("G4 every family catches a mutation", None if partial else not g4,
              "not evaluated (a run of named mutations)" if partial else
              "catch nothing: {}".format(g4) if g4 else ", ".join(sorted(matrix["families"])))]
 
 
 def gate_lines(results):
-    return ["{} {}: {}".format("PASS" if ok else "FAIL", name, detail) for name, ok, detail in results]
+    """PASS, FAIL or SKIP (ok None: not evaluated) per gate."""
+    return ["{} {}: {}".format("SKIP" if ok is None else "PASS" if ok else "FAIL", name, detail)
+            for name, ok, detail in results]
 
 
 SHORT = {"expected": "caught", "quiet": "quiet", "missed": "MISSED", "unexpected": "UNEXPECTED", "crash": "CRASH",
@@ -603,7 +611,8 @@ def markdown(matrix):
 
 
 def exit_code(matrix):
-    if all(ok for _, ok, _ in gates(matrix)):
+    """0 when no gate fails (a skipped gate, ok None, is not a failure: owner, 2026-11-20, T26 D2), else 3."""
+    if all(ok is not False for _, ok, _ in gates(matrix)):
         return 0
     print(OWNER, file=sys.stderr)
     return 3
@@ -970,7 +979,7 @@ def run(args, run=mr.run, stream=mr.stream):
         raise Stop(1, "--out {} is not empty".format(out))
     out.mkdir(parents=True, exist_ok=True)
     scratch = Scratch(sha, out, root, run, stream)
-    matrix = {"commit": sha, "families": stores, "mutations": {}, "partial": bool(args.mutation)}
+    matrix = new_matrix(sha, stores, args.mutation)
     try:
         scratch.setup()
         matrix["baseline_so"] = scratch.build(out / "baseline" / "build.log")

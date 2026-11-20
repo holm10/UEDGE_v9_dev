@@ -1022,6 +1022,21 @@ def test_manifest_refuses_bad_runs(tmp_path, runs, shape, message):
         mf.loads(json.dumps(raw))
 
 
+def test_manifest_runs_cap_per_loads(tmp_path, monkeypatch):
+    """T26 m5: MAX_RUN_VALUES caps all runs forms of one manifest together, per loads call: two values each under
+    the cap but together over it are refused, and the count starts again at every call."""
+    m = build(tmp_path, "full")
+    m["variables"]["bbb.cfvisx"]["applied"] = {"dtype": "float64", "shape": [3], "data": [2.0, 2.0, 2.0]}
+    m["variables"]["bbb.cfvisx"]["d"] = {"dtype": "float64", "shape": [3], "data": [1.0, 1.0, 1.0]}
+    text = mf.dumps(m)
+    assert text.count('"runs"') == 2
+    monkeypatch.setattr(mf, "MAX_RUN_VALUES", 5)
+    with pytest.raises(mf.ManifestError, match="runs bring the manifest to 6 values, more than 5"):
+        mf.loads(text)
+    monkeypatch.setattr(mf, "MAX_RUN_VALUES", 6)
+    assert mf.loads(text) == m and mf.loads(text) == m
+
+
 def test_validate_refuses_an_unexpanded_runs_form(tmp_path):
     m = build(tmp_path, "full")
     m["variables"]["bbb.cfvisx"]["applied"] = {"dtype": "float64", "shape": [2], "runs": [[2.0, 2]]}

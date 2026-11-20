@@ -441,6 +441,25 @@ def test_worst_ordering_and_counts(imap, case):
     assert sum(c.per_block.values()) == 4
 
 
+def test_report_relative_difference(imap):
+    """T26 m3 (PRD F11): each failing-row line also prints rel = (new - ref) / |ref|, and 'rel n/a' at ref = 0
+    (owner, 2026-11-20, D1)."""
+    ref = np.ones(imap.neq)
+    ref[[4, 9]] = [-8.0, 0.0]
+    tol = np.full(imap.neq, 1e-3)
+    new = ref.copy()
+    new[[4, 9]] = [-12.0, 2.0]
+    c = compare(new, ref, tol, imap)
+    assert [(w["row"], w["rel"]) for w in c.worst] == [(5, -0.5), (10, None)]
+    lines = c.report().splitlines()
+    assert lines[2] == "worst entries (ratio = |new - ref| / tol; rel = (new - ref) / |ref|, n/a at ref = 0):"
+    assert lines[3:5] == [
+        "  {:40s} ref -8.000000e+00 new -1.200000e+01 diff -4.000e+00 tol 1.000e-03 ratio 4e+03 rel -5.000e-01".format(
+            imap.label(4)),
+        "  {:40s} ref  0.000000e+00 new  2.000000e+00 diff  2.000e+00 tol 1.000e-03 ratio 2e+03 rel n/a".format(
+            imap.label(9))]
+
+
 @pytest.mark.parametrize("bad", ["shape", "tol zero", "tol nan", "ref nan"])
 def test_compare_input_errors(imap, case, bad):
     ref, tol = case

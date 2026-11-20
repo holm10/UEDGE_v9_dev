@@ -234,7 +234,7 @@ GOOD = {"a": ("te", None, {"d_only": "expected", "d_mols": "expected"}),
 
 
 def failing(m):
-    return [name.split()[0] for name, ok, _ in rm.gates(m) if not ok]
+    return [name.split()[0] for name, ok, _ in rm.gates(m) if ok is False]
 
 
 def test_gates_pass():
@@ -271,6 +271,23 @@ def test_partial_run_skips_g3_g4():
     m["partial"] = True
     assert failing(m) == []
     assert all("not evaluated" in d for name, _, d in rm.gates(m) if name.startswith(("G3", "G4")))
+    # T26 m4: a gate that was not evaluated is SKIP (ok None), never PASS; the run still exits 0 (owner D2)
+    assert [(name.split()[0], ok) for name, ok, _ in rm.gates(m)] == [("G1", True), ("G2", True), ("G3", None),
+                                                                      ("G4", None)]
+    assert [line.split(":")[0].split()[:2] for line in rm.gate_lines(rm.gates(m))] == [
+        ["PASS", "G1"], ["PASS", "G2"], ["SKIP", "G3"], ["SKIP", "G4"]]
+    assert rm.exit_code(m) == 0
+    m["mutations"]["a"]["results"]["d_only"]["verdict"] = "missed"  # a failed gate still fails a partial run
+    assert failing(m) == ["G1", "G2"] and rm.exit_code(m) == 3
+
+
+def test_new_matrix_partial_only_with_names():
+    """T26 m4: run() marks a run partial (G3, G4 not evaluated) only when mutations were named."""
+    assert rm.new_matrix("s", {}, [])["partial"] is False
+    assert rm.new_matrix("s", {}, None)["partial"] is False
+    assert rm.new_matrix("s", {}, ["a"])["partial"] is True
+    assert rm.new_matrix("s", {"d_only": {}}, ["a"]) == {"commit": "s", "families": {"d_only": {}}, "mutations": {},
+                                                         "partial": True}
 
 
 JUNIT = """<testsuites><testsuite>
