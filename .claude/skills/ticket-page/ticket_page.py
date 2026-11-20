@@ -14,7 +14,6 @@ The tracker is named only in `.claude/tracker.toml`.
   status   T<N> <Status> [note]          header status, Project Status, issue closed on Committed
   progress T<N> <text>                   one line in the epic's progress.md
   sanitize [--max-chars N]               stdin -> stdout: local paths masked, secret-like strings refused
-  flush, queue, state                    no-ops (nothing is queued), kept for callers until tracker #4
 Global options (before the command): --caller <skill> (shown in the entry), --repo, --tracker-dir, --date.
 
 Exit codes: 0 ok (a failed fetch or push is reported; the commit stays and the next call pushes it); 1 refused
@@ -131,21 +130,16 @@ RATE = re.compile(r"rate limit|unknown owner type", re.I)
 RATE_JQ = r'.resources|[.graphql,.core]|map("\(.remaining) \(.reset)")|.[]'  # one "remaining reset" line each
 
 
-def gh_run(args, check=True, retry=True):
+def gh_run(args, check=True):
     """Runs `gh`, waiting out a GitHub rate limit (tracker #28): a secondary limit 60 s per attempt, a primary one until
     the reset of the exhausted resource (graphql or core; `gh api rate_limit` itself costs nothing), or, with neither
     at zero (a burst limit rate_limit does not show), 120 s per attempt. At most 4 retries;
-    TICKET_PAGE_MAX_WAIT caps each wait (s) and the printed line shows the computed wait before the cap. retry=False
-    (`gh issue create`, not idempotent: gh may have created the issue before it hit the limit) never retries: a rate
-    limit is fatal there. Any other failure is returned (check=False) or fatal, as before."""
+    TICKET_PAGE_MAX_WAIT caps each wait (s) and the printed line shows the computed wait before the cap. Any other
+    failure is returned (check=False) or fatal, as before."""
     cap = float(os.environ.get("TICKET_PAGE_MAX_WAIT", "3700"))
     for k in range(1, 6):
         r = run(["gh", *args], check=False)
         limited = r.returncode != 0 and RATE.search(r.stderr)
-        if limited and not retry:
-            die(f"gh {' '.join(args[:2])} hit a GitHub rate limit and is not retried (it may have created the issue "
-                "before the limit): wait for the reset and re-run (re-runs are idempotent), and check that the last "
-                f"created issue has its parent epic: {r.stderr.strip()}")
         if not limited or k == 5:
             break
         if "secondary" in r.stderr.lower():
@@ -165,8 +159,8 @@ def gh_run(args, check=True, retry=True):
     return r
 
 
-def gh(*args, retry=True):
-    return gh_run(list(args), retry=retry).stdout
+def gh(*args):
+    return gh_run(list(args)).stdout
 
 
 def slug(title):
@@ -288,9 +282,8 @@ class Tracker:
 def key_number(key):
     m = re.fullmatch(r"T(\d+)", key)
     if not m:
-        die(f"'{key}' is not a tracker key (T<N>). Jira tickets: the record route is retired (tracker #2); an In "
-            "Progress Jira ticket is recorded by hand as `PIV record` comments; a To Do one is imported by "
-            "jira_import.py and has its own T<N> (its `Jira key` Project field)")
+        die(f"'{key}' is not a tracker key (T<N>). Jira keys are archived: an imported ticket has its own T<N> (the "
+            "Project's `Jira key` field), and Jira itself is in the tracker's docs/archive/jira/")
     return int(m.group(1))
 
 
@@ -415,8 +408,6 @@ def cmd_progress(a, t, n):
 
 def main():
     argv = sys.argv[1:]
-    if argv and argv[0] in ("flush", "queue", "state"):
-        return  # nothing is queued: every call is already a commit (owner, 2026-11-18, tracker #2)
     if argv and (argv[0] in RETIRED or (argv[0] == "progress" and "--new" in argv)):
         die(f"'{' '.join(argv[:2])}' was retired with the Confluence route (tracker #2): see ticket-page SKILL.md")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

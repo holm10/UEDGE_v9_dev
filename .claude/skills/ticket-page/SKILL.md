@@ -45,74 +45,17 @@ uv run .claude/skills/ticket-page/ticket_page.py --caller <skill> <command> T<N>
   backfilled ticket hasn't started, an escalated one is still open.) The note is one line in the header.
 - `sanitize [--repo <worktree>] [--max-chars <n>]`: stdin → stdout with local paths masked; secret-like strings, or
   more than `n` characters, are refused (exit 1). `rca` uses it for an RCA posted on a GitHub issue.
-- **Kept as no-ops (no skill calls them since tracker #4 and #9):** `flush`, `queue …` (`--list` prints nothing) and `state …`
-  are no-ops, since nothing is queued. `find`, `ticket`, `render`, `verify` and `extract-plan` were retired with the
-  Confluence route and exit 2.
+- **Retired:** `find`, `ticket`, `render`, `verify` and `extract-plan` (with the Confluence route, tracker #2) and the
+  no-ops `flush`, `queue` and `state` (T165) exit 2.
 - `--dry-run` (callers pass it as `--tracker-dry-run`): print the helper command(s) the call would run; run nothing.
 - `--no-tracker`: do nothing; say "ticket record skipped (--no-tracker)". Callers pass it on, also to sub-agents.
 
 **Keys.** Only tracker keys `T<N>` (the issue number). The Jira/Confluence route is retired (owner, 2026-11-18,
 tracker #2). The Jira tickets left at the switch are done or imported (T164: 0 In Progress; every To Do ticket but
 AIUE-223, replaced by T1, has a `T<N>`, found by the Project's `Jira key` field or the first line of its issue body;
-Jira itself is archived in the tracker's `docs/archive/jira/`). The helper refuses any other key (exit 2); its error
-text still names the retired routes until T165.
-
-## Importing from Jira (`jira_import.py`)
-
-**Retired (T164, 2026-11-20).** The Atlassian MCP is removed and Jira is archived in the tracker's `docs/archive/jira/`;
-nothing below can run any more. This section and `jira_import.py` are deleted in T165.
-
-One Jira epic and its To Do children per run (tracker #6; owner, 2026-11-18: pilot AIUE-299 first, the rest after it).
-`--epic none` imports the To Do issues with no epic instead, and an epic with no To Do children is imported alone
-(tracker #28).
-
-1. **Snapshot** (the agent, through the Atlassian MCP; no script calls Jira): `searchJiraIssuesUsingJql` with `jql =
-   parent = <EPIC> OR key = <EPIC>` (for `--epic none`: `project = AIUE AND parent is EMPTY AND issuetype != Epic AND
-   statusCategory = "To Do"`), fields `summary, description, comment, status, issuetype, parent, labels,
-   issuelinks, created`, `responseContentFormat: markdown`, `maxResults: 100`. A result over the token cap is saved to a
-   file whole; that file, or the JSON written out, is the snapshot. Keep it in `../uedge-wt/data/<KEY>/`. The MCP
-   leaves out an empty description (probed on AIUE-6, tracker #28); the script reads it as empty, and refuses only a
-   missing `comment` field.
-2. **Import**, from the worktree: `uv run .claude/skills/ticket-page/jira_import.py --snapshot <file> --epic <EPIC>
-   [--first <KEY>] --out <dir>/mapping.json [--dry-run]`. Check the GraphQL budget first (`gh api rate_limit --jq
-   .resources.graphql.remaining`; every session on the account shares it) and run no other `gh`-heavy session alongside.
-   Every `gh` call of both scripts waits out a rate limit and retries (`ticket_page.gh_run`: until the reset of the
-   exhausted resource, graphql or core; 120 s times the attempt when neither is at zero; 60 s times the attempt for a
-   secondary limit; at most 4 retries; each wait is capped by `TICKET_PAGE_MAX_WAIT`, default 3700 s, and the printed
-   line shows the computed wait). GitHub also has a burst limit that `gh api rate_limit` does not show: its replies
-   read "API rate limit exceeded for user ID …" with points left, `gh project` reports it as "unknown owner type"
-   (also retried, so a mistyped owner in `tracker.toml` fails only after about 20 minutes of waits), and it lasted about 5-10 minutes in the T28 import. `jira_import.py` waits `JIRA_IMPORT_PACE` s
-   (default 3) between the issues it creates, and only one import or dry run runs at a time (two at once set it off
-   in T28). A wait can exceed a 10-minute foreground shell call: run a real import in the
-   background (or set `TICKET_PAGE_MAX_WAIT`). `gh issue create` is never retried (it is not idempotent: gh may have
-   created the issue before it hit the limit, and a retry would duplicate it): a rate limit there stops the run; wait
-   for the reset, check that the last created issue has its parent epic, and re-run (re-runs are idempotent). Run `--dry-run` first: it reads only, prints each write and
-   renders the bodies (`<dir>/bodies/`) and the epic documents (`<dir>/epic/`, started from the epic's existing ones, so
-   only the changes show). It skips tickets whose record is complete. Like every ticket-page call it clones the tracker
-   if its checkout is missing.
-   - The epic becomes an Epic issue and each To Do child a sub-issue, with the label `from-jira` (`ai-layer` when Jira
-     has it). Each is on the Project with Status To Do, the `Jira key` field and the Tier its Jira text states (the last
-     `Tier S|M|L` with no other letter after it: "Tier M or L" and "Tier S/M" state none; otherwise empty, and
-     `plan-feature` assigns it). "is blocked by" links between imported tickets
-     become relations; other links are listed in the body.
-   - The body is the Jira description and comments verbatim, after the line `_Imported from Jira <KEY> …_`, which makes
-     a re-run skip what exists (or, if that line was edited, the Project item's `Jira key`).
-   - One commit writes the epic's `epic.md` (the Jira description, owner comments under Decisions, the children not
-     imported), `breakdown.md` (the Jira key → `T<N>` table and an entry per ticket) and `progress.md`. An epic with no
-     To Do children gets no `breakdown.md` (its `epic.md` says so). With `--epic none` the issues get no parent, their
-     records go to `docs/no-epic/`, and the commit writes only `docs/no-epic/breakdown.md`.
-   - A tracker epic that already exists for a Jira epic (T10 for AIUE-222) is reused once its Project item's `Jira key`
-     is set to the Jira epic: its `epic.md` is kept, `breakdown.md` and `progress.md` are added to.
-   - Each ticket's record comes from `create`, then `status Backfilled` (the Ticket section is the import, not as
-     filed). A re-run completes a record that lacks the Backfilled entry or a comment's entry (matched by `comment <id>`).
-     A comment opening with `Owner,` / `Owner:` / `Owner (` / `Owner decision(s)` (not "Owner's ...") becomes a Findings and decisions entry; one opening with `PIV record`
-     becomes a Progress entry.
-   - The script refuses (exit 2) a snapshot whose comments are incomplete, and refuses (exit 1) secret-like text, both
-     before anything is written.
-3. **Jira pointer** (the agent, MCP `addOrEditJiraIssueComment`, `addCommentToJiraIssue` in older MCP versions, one per
-   `mapping.json` entry): "Moved to the tracker
-   (<date>): this ticket continues as T<N> (tracker issue #<N>). Jira is now its read-only archive." The Jira status is
-   left as it is (owner, 2026-11-18).
+Jira itself is archived in the tracker's `docs/archive/jira/`). The helper refuses any other key (exit 2). The import
+that gave the To Do tickets their `T<N>` (`jira_import.py`) is retired (T165): how it ran is in the records of T6 and
+T28, and the script is in git history (`git show 4abf92e2:.claude/skills/ticket-page/jira_import.py`).
 
 ## When to write (milestones)
 
@@ -154,6 +97,12 @@ changes nothing on GitHub.
 - **Dirty checkout or another branch** (a hand edit not committed, a feature branch left checked out): nothing is
   written, exit 2, and the message names the files or the branch. Commit, discard or switch back, then call again.
 - **Refused text** (exit 1): rewrite it without the secret-like string; the error names only its kind.
+- **GitHub rate limit:** every `gh` call waits it out and retries (`gh_run`, tracker #28): a primary limit until the
+  reset of the exhausted resource (graphql or core); 120 s times the attempt when neither is at zero (a burst limit
+  that `gh api rate_limit` does not show; `gh project` reports it as "unknown owner type", so a mistyped owner in
+  `tracker.toml` fails only after about 20 minutes of waits); a secondary limit 60 s times the attempt. At most 4
+  retries; `TICKET_PAGE_MAX_WAIT` (default 3700 s) caps each wait, and the printed line shows the computed wait.
+  Every session on the account shares the budget (`gh api rate_limit --jq .resources.graphql.remaining`).
 - Header edits (Branch, PR) the helper doesn't set are made by hand in the tracker checkout and committed the same
   way, with a Progress entry saying so.
 
