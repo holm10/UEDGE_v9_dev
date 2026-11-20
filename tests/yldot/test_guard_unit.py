@@ -1067,6 +1067,158 @@ def test_items_named_before_the_declaration_do_not_count(repo):
     assert code == 1 and v["missing_items"] == ["fam:bbb.sens"]
 
 
+# digest lines: a family's count and SHA-256 in place of its items (owner, 2026-11-20, T18)
+
+FAM_MOVED = dict(BASE_VARIABLES["fam"], **{"bbb.sens": ("SENSITIVE", 9), "bbb.inert": ("SENSITIVE", 5)})
+FAM_ITEMS = ["fam:bbb.inert", "fam:bbb.sens"]
+
+
+def sha(items):
+    """The digest computed here, independently of the guard: sorted, newline-terminated, UTF-8."""
+    return hashlib.sha256("".join(it + "\n" for it in sorted(items)).encode()).hexdigest()
+
+
+def line(family, items, n=None):
+    return "- {}: {} items, sha256 {}".format(family, len(items) if n is None else n, sha(items))
+
+
+def test_digest_line_covers_a_family(repo):
+    repo.put_ref("fam", FAM_MOVED)
+    code, v, _ = repo.check("Default results: changed: a regeneration\n" + line("fam", FAM_ITEMS))
+    assert code == 0 and v["items"] == FAM_ITEMS and v["missing_items"] == [] and v["notes"] == []
+    assert v["digests"] == {"fam": [2, sha(FAM_ITEMS)]}
+
+
+@pytest.mark.parametrize("items, n", [
+    (FAM_ITEMS[:1], 1),  # one moved item left out
+    (FAM_ITEMS + ["fam:bbb.both"], 3),  # one item too many
+    (FAM_ITEMS, 3),  # the right hash, a wrong count
+    (["fam:bbb.inert", "fam:bbb.sens."], 2),  # an item spelled otherwise
+])
+def test_digest_of_another_list_covers_nothing(repo, items, n):
+    repo.put_ref("fam", FAM_MOVED)
+    code, v, _ = repo.check("Default results: changed\n" + line("fam", items, n))
+    assert code == 1 and v["missing_items"] == FAM_ITEMS
+    assert v["notes"] == ["the digest line of fam does not match: declared {} items, sha256 {}; computed 2, sha256 "
+                          "{}".format(n, sha(items), sha(FAM_ITEMS))]
+
+
+def test_a_mismatched_digest_line_leaves_named_items_declared(repo):
+    repo.put_ref("fam", FAM_MOVED)
+    code, v, _ = repo.check("Default results: changed\n" + line("fam", FAM_ITEMS[:1]) + "\n" + "\n".join(FAM_ITEMS))
+    assert code == 0 and v["missing_items"] == [] and len(v["notes"]) == 1
+
+
+H = "0123456789abcdef" * 4
+
+
+@pytest.mark.parametrize("text, want", [
+    ("fam: 2 items, sha256 " + H, {"fam": [(2, H)]}),
+    ("- fam: 1 item, sha256 " + H, {"fam": [(1, H)]}),
+    ("* `fam: 2 items, sha256 " + H + "`", {"fam": [(2, H)]}),
+    ("1. **fam: 2 items, sha256 " + H + "**", {"fam": [(2, H)]}),
+    ("> - fam: 2 items sha256:" + H.upper() + ".", {"fam": [(2, H)]}),
+    ("fam: 2 items, sha256 " + H + "\nfam: 3 items, sha256 " + H, {"fam": [(2, H), (3, H)]}),
+    ("fam 2 items, sha256 " + H, {}),  # no colon after the family
+    ("fam: 2 items, sha256 " + H[:-1], {}),  # 63 hex digits
+    ("fam: 2 items, sha256 " + H + "0", {}),  # 65
+    ("fam:bbb.sens: 2 items, sha256 " + H, {}),  # an item, not a family
+    ("the fam: 2 items, sha256 " + H, {}),  # text before the family
+    ("fam: two items, sha256 " + H, {}),
+    ("fam: 2 items, md5 " + H, {}),
+])
+def test_digest_line_forms(text, want):
+    assert guard.parse_digests(text) == want
+
+
+def test_digest_is_the_shell_recipe():
+    """grep '^fam:' list | LC_ALL=C sort | shasum -a 256, as the docstring says; byte order, not case-folded."""
+    items = ["fam:b", "fam:B", "fam:a_x", "fam:a.x", "fam:*"]
+    assert guard.digest(items) == (5, sha(items))
+    text = "".join(it + "\n" for it in items)
+    out = subprocess.run(["sort"], input=text, capture_output=True, text=True, env={"LC_ALL": "C"}, check=True).stdout
+    assert hashlib.sha256(out.encode()).hexdigest() == sha(items)
+
+
+@pytest.mark.parametrize("body", [
+    line("fam", FAM_ITEMS) + "\nDefault results: changed\n",  # above the declaration
+    "Default results: changed\n<!--\n" + line("fam", FAM_ITEMS) + "\n-->\n",
+    "Default results: changed\n```\n" + line("fam", FAM_ITEMS) + "\n```\n",
+    "Default results: changed\n~~~\n" + line("fam", FAM_ITEMS) + "\n"])
+def test_digest_above_the_declaration_or_hidden_does_not_count(repo, body):
+    repo.put_ref("fam", FAM_MOVED)
+    code, v, _ = repo.check(body)
+    assert code == 1 and v["missing_items"] == FAM_ITEMS
+
+
+def test_families_mix_items_and_digest_lines(repo):
+    repo.put_ref("fam", FAM_MOVED)
+    repo.put_ref("oth", dict(BASE_VARIABLES["oth"], **{"bbb.inert": ("SENSITIVE", 7)}))
+    code, v, _ = repo.check("Default results: changed\n" + line("fam", FAM_ITEMS) + "\n- oth:bbb.inert\n")
+    assert code == 0 and v["items"] == FAM_ITEMS + ["oth:bbb.inert"] and v["missing_items"] == []
+    code, v, _ = repo.check("Default results: changed\n" + line("fam", FAM_ITEMS) + "\n")
+    assert code == 1 and v["missing_items"] == ["oth:bbb.inert"]
+
+
+def test_digest_line_of_an_unchanged_family_is_a_note(repo):
+    repo.put_ref("fam", FAM_MOVED)
+    code, v, _ = repo.check("Default results: changed\n" + line("fam", FAM_ITEMS) + "\n" + line("oth", ["oth:x"]))
+    assert code == 0 and v["notes"] == ["a digest line names oth, which has no changed item"]
+
+
+def test_removed_manifest_is_covered_by_its_digest_line(repo):
+    repo.write(G + "references/oth.manifest.json", None)
+    body = "Test criteria: changed: c\nTest criteria: loosened: l\nDefault results: changed\n"
+    assert repo.check(body)[0] == 1
+    code, v, _ = repo.check(body + line("oth", ["oth:*"]))
+    assert code == 0 and v["missing_items"] == []
+
+
+def test_printed_digest_lines_round_trip(repo):
+    """The block the guard prints (log and job summary) passes when pasted below the declaration."""
+    repo.put_ref("fam", FAM_MOVED)
+    repo.put_ref("oth", dict(BASE_VARIABLES["oth"], **{"bbb.inert": ("SENSITIVE", 7)}))
+    code, v, _ = repo.check("Default results: changed\n")
+    assert code == 1
+    printed = repo.lines[repo.lines.index("or, in place of a family's items, its digest line:") + 1:]
+    oth = line("oth", ["oth:bbb.inert"]).replace("1 items", "1 item")
+    assert printed == ["Default results: changed", line("fam", FAM_ITEMS), oth]
+    assert repo.check("\n".join(printed))[0] == 0
+    md = guard.summary_md(v).splitlines()
+    block = md[md.index("- or, in place of a family's items, its digest line:") + 3:]
+    assert repo.check("\n".join(block[:block.index("```")]))[0] == 0
+    assert "<details><summary>changed items of fam: 2</summary>" in md and "fam:bbb.sens" in md
+
+
+def test_summary_lists_the_items_of_a_declared_family():
+    v = guard.judge([guard.Finding("default", "p", "w", it) for it in FAM_ITEMS], [],
+                    "Default results: changed\n" + line("fam", FAM_ITEMS))
+    md = guard.summary_md(v)
+    assert v["missing_items"] == [] and "or, in place" not in md
+    assert "<details><summary>changed items of fam: 2</summary>\n\n```\nfam:bbb.inert\nfam:bbb.sens\n```" in md
+    v = guard.judge([guard.Finding("default", "p", "w", "<b>:x")], [], "")
+    assert "changed items of &lt;b&gt;: 1" in guard.summary_md(v)
+
+
+def test_full_regeneration_fits_the_description_limit():
+    """Acceptance (T18): eight families of 1,000 moved items each, beyond AIUE-211's 1816, declared within GitHub's
+    65,536 characters; one more moved item fails its family."""
+    families = ["d_c", "d_mols", "d_only", "dnull_imp2", "imp7", "large_dd2c", "ortho", "slab_phi"]
+    items = {f: ["{}:bbb.variant_{:04d}".format(f, i) for i in range(1000)] for f in families}
+    found = [guard.Finding("default", "p", "w", it) for its in items.values() for it in its]
+    found.append(guard.Finding("loosened", "tests/yldot/harness/state.py", "test code"))  # as PR #75's workflow edit
+    head ="Test criteria: changed: c\nTest criteria: loosened: l\nDefault results: changed: regeneration\n"
+    listed = head + "\n".join("- " + it for its in items.values() for it in its)
+    assert len(listed) > 65536
+    assert guard.judge(found, [], listed)["missing_items"] == []
+    body = head + "\n".join(line(f, its) for f, its in items.items())
+    assert len(body) < 2000
+    v = guard.judge(found, [], body)
+    assert v["missing_items"] == [] and v["missing"] == [] and v["notes"] == []
+    v = guard.judge(found + [guard.Finding("default", "p", "w", "imp7:bbb.extra")], [], body)
+    assert v["missing_items"] == sorted(items["imp7"] + ["imp7:bbb.extra"])
+
+
 def test_edited_description_rejudges_the_same_diff(repo, monkeypatch, capsys):
     """pull_request_target 'edited': the diff is unchanged, only PR_BODY differs."""
     repo.write(G + "tools/fetch_data.py", "x = 2\n")
