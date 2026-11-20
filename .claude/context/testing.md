@@ -225,7 +225,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   near-margin counts go to `<family>.locality.json`; AIUE-101); `--locality-only` copies every entry of the
   installed reference and computes only the locality data, every guarded SHA-256 kept (exit 3 otherwise; a macOS
   build cannot reproduce Linux defaults, so preview it in the Linux image); `_child --jobs N` runs one process per
-  family, largest first (default the CPU count); `--platform
+  family, largest first (default the CPU count), and with one family N of its evaluations at once on threads of
+  one process, taken back and written in plan order (`Ahead`; a SENSITIVE variant's two runs in one task, from the
+  one forkserver), so the files are byte for byte those of `--jobs 1` (T19; `test_parallel_*` in
+  `test_make_references_unit.py`); `--platform
   linux` (default) in the pinned image through `linux/generate.sh`, the only release-grade path, run by
   `regenerate-references.yml` on native amd64 (owner, 2026-10-25, AIUE-98; locally a preview), `--platform host` a
   temporary worktree and venv, built with `PWD` set to it (for commits before AIUE-163), a preview with `release:
@@ -249,7 +252,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1336`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1448`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -674,18 +677,19 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   AIUE-95; sweep, only and rename run the audit, so `generate.sh` builds twice), `only`, `rename` (OLD=NEW pairs),
   `publish`, `expect_ref`,
   `note`, `cpu`: a case-insensitive `grep -E` pattern, default empty, any CPU (`intel` before AIUE-211); `generate`'s first
-  step logs the runner's CPU model and stops unless it matches; imp7's full sweep, a single process, takes about
-  3.3-4 h on an AMD 9V45 or Intel 6973P-C runner and an estimated 6-7 h on a 7763, 9V74 or 8370C, past the job's
-  350-minute limit, so it is dispatched alone with `cpu: "9V45|6973P"` and dispatched again after a refusal,
-  AIUE-211. The re-dispatch is a loop, not a watch: dispatch and take the run id from the URL `gh workflow run`
-  prints; every 30 s read `gh run view <id> --json jobs` for the `generate` job's step `Check the runner's CPU`; on
-  `failure` wait 60 s and dispatch again (AIUE-239 needed 4; cap it at about 6); stop at the first `success`, or at
-  once if `gate` fails. `gh run view --log` has no CPU line until the job ends (T39). An `--only` dispatch is not
-  cheap either: it re-runs each owner family's default and its stored variant locality patterns (only `--prune` and
-  `--rename` copy them, `tests/yldot/tools/make_references.py:610`), so run
+  step logs the runner's CPU model and stops unless it matches. No family needs the filter since T19: a dispatch of
+  one family evaluates it `--jobs` children at a time (`_child`'s default, the runner's CPU count), which brings
+  imp7's full sweep within the job's 350-minute limit on any runner. Before T19 that sweep was one process: 3.3-4 h
+  on an AMD 9V45 or Intel 6973P-C (11697 s of child wall on a 9V45, run 40617746891) and an estimated 6-7 h on a
+  7763, 9V74 or 8370C, so it needed `cpu: "9V45|6973P"` and a manual re-dispatch after each refusal (AIUE-211,
+  AIUE-239). The filter stays a test device, e.g. to force a slow runner. `gh run view --log` has no CPU line until
+  the job ends (T39). Several families in one dispatch still run one process each, N families at a time, so an
+  owner family that shares a job runs its evaluations one after another. An `--only` dispatch re-runs each owner
+  family's default and its stored variant locality patterns (only `--prune` and `--rename` copy them,
+  `tests/yldot/tools/make_references.py:686`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
-  and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone when another owner
-  family shares the job, AIUE-242), three
+  and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone, where its
+  locality runs also go `--jobs` at a time (AIUE-242, T19), three
   jobs on `ubuntu-24.04`. `gate` refuses a publish unless the dispatched commit is the head of an open PR into
   `v9-develop` or in it, tip or earlier (`release_data.py --gate`; PRD §7.3's "v9-develop itself" read as its
   history), and `from_commit` is empty or that commit. A dispatch runs the dispatched branch's own copy of the
@@ -704,7 +708,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   workflow never pushes; a `GITHUB_TOKEN` push runs no CI). The only `contents: write` in `.github/workflows/`.
   While a publishing run's `publish` waits for the owner, run the ticket's data checks on its `yldot-generated`
   artifact: copy `tests/yldot/references/*.manifest.json` to a scratch directory and lay the artifact's manifests over
-  them (it holds only the families the run regenerated, `.github/workflows/regenerate-references.yml:209-222`), then
+  them (it holds only the families the run regenerated, `.github/workflows/regenerate-references.yml:214-227`), then
   check that set, so the owner approves knowing the result; a wrong release is immutable and uses its N (AIUE-239,
   T38). Push nothing to a PR branch between a publishing dispatch and the end of its `publish` job: `--gate` publishes
   only a commit in `v9-develop` or the current head of an open PR, so a new push refuses the dispatched commit
