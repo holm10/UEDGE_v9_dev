@@ -129,8 +129,11 @@ reads were faithful; say so there too.
    so every gating criterion Met or Superseded); `Close-out draft - epic not complete (<n> open items)` (n ≥ 1, owner
    answers missing); `Closed by the owner on <date> - <a> accepted-open, <d> deferred ...` (the owner's answer is
    recorded for every open item, every unmet gating criterion included, each close anyway or defer, a + d equals the
-   number of open items, and the owner said yes to Done). A draft with 0 open items, or "Closed" over an unmet
-   criterion without the owner's answer, or any other combination, is a BLOCKER.
+   number of open items, and the owner said yes to Done); `Answered - Done pending the owner (<a> accepted-open, <d>
+   deferred to <#N…>)` (the owner answered every open item, every unmet gating criterion included, each close anyway
+   or defer, a + d equals the number of open items, no item kept open, and the owner has not yet said yes to Done:
+   only "Closed by the owner" has that) (T51). A draft with 0 open items, or "Closed" over an unmet criterion without
+   the owner's answer, or any other combination of the five, is a BLOCKER.
 8. **Dry-run appendix** (dry runs only). The tracker path, create-or-replace, the comment action, and the epic's
    Project item id and Done option id match the snapshot.
 
