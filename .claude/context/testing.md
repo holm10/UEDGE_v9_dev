@@ -252,7 +252,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1448`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1450`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -677,14 +677,18 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   AIUE-95; sweep, only and rename run the audit, so `generate.sh` builds twice), `only`, `rename` (OLD=NEW pairs),
   `publish`, `expect_ref`,
   `note`, `cpu`: a case-insensitive `grep -E` pattern, default empty, any CPU (`intel` before AIUE-211); `generate`'s first
-  step logs the runner's CPU model and stops unless it matches. No family needs the filter since T19: a dispatch of
-  one family evaluates it `--jobs` children at a time (`_child`'s default, the runner's CPU count), which brings
-  imp7's full sweep within the job's 350-minute limit on any runner. Before T19 that sweep was one process: 3.3-4 h
-  on an AMD 9V45 or Intel 6973P-C (11697 s of child wall on a 9V45, run 40617746891) and an estimated 6-7 h on a
-  7763, 9V74 or 8370C, so it needed `cpu: "9V45|6973P"` and a manual re-dispatch after each refusal (AIUE-211,
-  AIUE-239). The filter stays a test device, e.g. to force a slow runner. `gh run view --log` has no CPU line until
+  step logs the runner's CPU model and stops unless it matches. **Dispatch imp7 alone** for a sweep; it then needs no
+  CPU filter (T19): a dispatch of one family evaluates it `--jobs` children at a time (`_child`'s default, the
+  runner's CPU count). imp7's full sweep at f50cc892 on 4-CPU, 15-GB runners took 134 min of `Generate` step (audit
+  included) on an AMD 9V74 (24811 s in children, run 44805212424) and 116 min on an Intel 6975P-C (21075 s, run
+  44804949896), of the job's 350; a 7763 or 8370C is not measured for the full sweep (a 7763 ran imp7's defaults only,
+  run 44801810554). Before T19 that sweep was one process: 3.3-4 h on an AMD 9V45 or Intel 6973P-C (11697 s of child
+  wall on a 9V45, run 40617746891) and an estimated 6-7 h on a 7763, 9V74 or 8370C, so it needed `cpu: "9V45|6973P"`
+  and a manual re-dispatch after each refusal (AIUE-211, AIUE-239). The filter stays a test device, e.g. to force a
+  slow runner. `gh run view --log` has no CPU line until
   the job ends (T39). Several families in one dispatch still run one process each, N families at a time, so an
-  owner family that shares a job runs its evaluations one after another. An `--only` dispatch re-runs each owner
+  owner family that shares a job runs its evaluations one after another, at the pre-T19 cost. An `--only` dispatch
+  re-runs each owner
   family's default and its stored variant locality patterns (only `--prune` and `--rename` copy them,
   `tests/yldot/tools/make_references.py:686`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
