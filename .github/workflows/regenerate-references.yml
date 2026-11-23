@@ -19,8 +19,8 @@
 #           every Intel and AMD runner gives bit-identical references, and generate.sh refuses a build that calls
 #           libmvec, so any CPU is a reference CPU (owner, 2026-10-27). The first step still logs the CPU model.
 #           A single family is evaluated by as many children at once as the runner has CPUs (make_references.py
-#           _child --jobs, T19), with the files of a serial run, so an imp7 sweep fits on any runner; several
-#           families run one process each.
+#           _child --jobs, T19), with the files of a serial run. Dispatch imp7 alone: its sweep took 116 and 134 min
+#           on 4 CPUs (runs 44804949896, 44805212424). Several families run one process each.
 # publish   in the yldot-data environment (the epic owner approves each run) and the one concurrency group
 #           yldot-data-release: release_data.py --generated --renumber --publish takes N = the highest existing + 1,
 #           creates the tag atomically, moves to N + 1 on a collision, and publishes every asset in one call. GitHub
