@@ -59,7 +59,10 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
                 error on a variant whose application changes nothing, and a default that fails in the audit build
                 are findings (exit 3). --no-audit skips it, in
                 previews only (refused with --release); --defaults-only, --locality-only and --prune never audit.
-          --jobs N: the child evaluates N families at once, one process each, largest first (default: its CPU count).
+          --jobs N: the child evaluates N families at once, one process each, largest first (default: its CPU count);
+                with one family, N of its evaluations at once, on threads of one process, written in plan order, so
+                the files are byte for byte those of --jobs 1 (T19: imp7 alone fits the job's time limit on any
+                runner).
 _child    runs inside the built environment and writes, from the build record FILE (JSON: commit, compiler,
           runner_image), DIR/<family>.h5, DIR/<family>.json (the manifest without release and external),
           <family>.findings.json, .summary, .cost.json and samples/<family>.npz (the tolerance-inheritance sample of
@@ -71,7 +74,7 @@ Classification (PRD section 7.2; M_CLS = 100, tol_i the default's per-entry tole
 configuration, for yldot and yldot_J alike): SENSITIVE if some entry differs by more than M_cls*tol_i, then
 evaluated a second time in another process, and stored only if both runs agree bit for bit (else INVALID
 "nondeterministic", a finding: file a bugfix ticket). Both runs are children of the one forkserver that preloaded
-uedge (harness/process.py), with the same heap and address layout, so the second run shows run-to-run nondeterminism
+uedge (harness/process.py), one right after the other in one task whatever --jobs (T19), with the same heap and address layout, so the second run shows run-to-run nondeterminism
 only: a result that depends on the build or on the memory layout (an uninitialised read; a bbb.ziin hydrogenic slot
 set to 1 with isupgon(1) = 1, AIUE-179, is a suspect) is stable here and is found by replaying every stored variant
 on other builds (tools/variant_tolerances.py replay) and by AIUE-95's audit. INERT if bitwise equal; MARGINAL if
@@ -105,6 +108,7 @@ come only from .github/workflows/regenerate-references.yml on native amd64 (owne
 Exit codes: 0 done; 1 refused; 2 usage, a failed build or a failed evaluation; 3 findings for the epic owner.
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -115,6 +119,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tests/, for the yldot package
@@ -124,7 +129,7 @@ import numpy as np  # noqa: E402
 
 from yldot.harness import manifest as mf  # noqa: E402
 from yldot.harness.compare import listed  # noqa: E402
-from yldot.harness.process import family_dir  # noqa: E402
+from yldot.harness.process import FamilyError, family_dir  # noqa: E402
 from yldot.harness.store import SEED, dataset_sha256, differs, file_sha256, jflag_sparse  # noqa: E402
 
 SUITE = Path(__file__).resolve().parents[1]
@@ -552,8 +557,63 @@ def load_audit(audit, name):
     return json.loads(p.read_text())
 
 
+class Ahead:
+    """fn(key) for each of keys, taken back in that order (T19). With workers > 1 the calls run on that many
+    threads, at most `ahead` keys (default 4 * workers) submitted and not yet taken; with workers <= 1 take() calls
+    fn(key) itself, so the calls run one after another in key order, as a plain loop would. take(key) returns fn's
+    value, or the FamilyError fn raised (a value, so the caller handles it where its loop catches one); any other
+    exception is raised from take(). Keys are unique and taken in order (ValueError otherwise). close() cancels the
+    keys not started and waits for the running calls (an evaluation ends at its timeout at the latest)."""
+
+    def __init__(self, fn, keys, workers=1, ahead=None):
+        self.fn, self.keys, self.next = fn, list(keys), 0
+        if len(set(self.keys)) != len(self.keys):
+            raise ValueError("Ahead: duplicate keys")
+        self.pool = ThreadPoolExecutor(workers, thread_name_prefix="yldot-ahead") if workers > 1 else None
+        self.ahead = ahead or 4 * max(1, workers)
+        self.futures = {}  # submitted, not taken, in key order
+        self.fill()
+
+    def call(self, key):
+        try:
+            return self.fn(key)
+        except FamilyError as e:
+            return e
+
+    def fill(self):
+        while self.pool is not None and self.next < len(self.keys) and len(self.futures) < self.ahead:
+            key = self.keys[self.next]
+            self.next += 1
+            self.futures[key] = self.pool.submit(self.call, key)
+
+    def take(self, key):
+        if self.pool is None:
+            if self.next >= len(self.keys) or self.keys[self.next] != key:
+                raise ValueError("Ahead: {!r} taken out of order".format(key))
+            self.next += 1
+            return self.call(key)
+        if not self.futures or next(iter(self.futures)) != key:
+            raise ValueError("Ahead: {!r} taken out of order".format(key))
+        future = self.futures.pop(key)
+        try:
+            return future.result()
+        finally:
+            self.fill()
+
+    def close(self):
+        if self.pool is not None:
+            self.pool.shutdown(wait=True, cancel_futures=True)
+            self.futures.clear()
+
+
+def again_needed(cls, finding, audit_failed):
+    """Whether the sweep evaluates a variant a second time (the nondeterminism check, module docstring): SENSITIVE,
+    no finding and no failed audit run (a failed audit makes it INVALID or a finding first)."""
+    return cls == "SENSITIVE" and finding is None and audit_failed is None
+
+
 def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None, locality_only=False,
-          prune=False, rename=None, audit=None):
+          prune=False, rename=None, audit=None, jobs=1):
     """Evaluate and write each family's reference file and manifest fields into out.
 
     repo: the source tree of the built commit, whose */*.v files are the variant inventory (variants.plan; the
@@ -589,7 +649,23 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
     variant this run evaluates. A variant whose audit run ended in a Fortran runtime error is INVALID with that reason
     (owner, 2026-10-28, AIUE-95 D2), its apply record from this run, nothing stored; on a variant whose application
     changes nothing (EXCLUDED) it is a finding. An audit run that failed otherwise is a finding unless this build
-    classifies the variant INVALID too (which keeps its reason). The audit's own findings are this run's."""
+    classifies the variant INVALID too (which keeps its reason). The audit's own findings are this run's.
+
+    jobs (T19): the evaluations of a family run on that many threads of the one Runner (each evaluation its own child
+    process, Ahead) in three stages: the two defaults; each variant's run, with its second run when it is SENSITIVE
+    (again_needed) in the same task, so both still come from the one forkserver one after the other; the variants'
+    locality runs. A set based on another (AIUE-257) and the based set's base run again stay in this thread. Every
+    result is taken back in plan order and classified and written here, so the files are those of jobs = 1, byte for
+    byte, and cost.json counts the same evaluations. On an exception the queued evaluations are cancelled and the
+    running ones finish first."""
+    with contextlib.ExitStack() as stack:
+        families_run(families, out, build, sweep, only, full, suite, repo, locality_only, prune, rename, audit, jobs,
+                     stack)
+
+
+def families_run(families, out, build, sweep, only, full, suite, repo, locality_only, prune, rename, audit, jobs,
+                 stack):
+    """child()'s body; stack closes every Ahead it opens (jobs > 1: its threads), on an exception too."""
     import statistics
 
     from check_reference_change import rename_differences
@@ -609,9 +685,10 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         only = list(pairs.values())
     copying = bool(prune or pairs)  # the kept entries' locality patterns are copied, not re-run (AIUE-95)
     rec = json.loads(Path(build).read_text())
+    # absolute: while a worker thread starts a child, the process's cwd is the isolation directory (process.py)
+    suite, out = Path(suite).resolve(), Path(out).resolve()
     with open(suite / "tolerances.toml", "rb") as f:
         rtol = tomllib.load(f)["rtol"]
-    out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     runner = Runner()
     all_plan = variants.plan() if repo is None else variants.plan(repo=Path(repo))
@@ -635,10 +712,19 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
         timeout = TIMEOUT_FACTOR * float(load_evaluation(fdir)["timeout_s"])
         walls = []
         data = {}
-        for config in mf.CONFIG_NAMES:
+        # the Ahead tasks below read this family's names (name, loc, timeout, data, tol, aud) when they run: safe, since
+        # every key submitted for a family is taken before the next family rebinds them
+
+        def default_run(config):
             delta = loc["delta_loc"] if loc is not None and config == "steady" else None
-            r = runner.evaluate(name, config=config, diagnostics=True, timeout=timeout, locality=delta,
-                                columns=locality_columns(loc) if delta is not None else None)
+            return runner.evaluate(name, config=config, diagnostics=True, timeout=timeout, locality=delta,
+                                   columns=locality_columns(loc) if delta is not None else None)
+
+        defaults = stack.enter_context(contextlib.closing(Ahead(default_run, mf.CONFIG_NAMES, jobs)))
+        for config in mf.CONFIG_NAMES:
+            r = defaults.take(config)
+            if isinstance(r, FamilyError):
+                raise r
             if not r.ok:
                 raise Stop(2, "{} {}: {} {}\n{}".format(name, config, r.status, r.message, r.log_tail))
             walls.append(r.wall_s)
@@ -728,6 +814,25 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     set_data[b.id] = rb.data
                 return set_data[b.id], None
 
+            def first_and_again(v, base):
+                """(the variant's run, its classify() against base, and, when the loop below will need it
+                (again_needed), its second run or that run's FamilyError, else None); a FamilyError of the first run
+                is raised."""
+                r = runner.evaluate(name, variant=v, timeout=timeout)
+                classified = classify(r, base, tol[v.config])
+                if not again_needed(classified[0], classified[2],
+                                    aud["failed"].get(v.id) if aud is not None else None):
+                    return r, classified, None
+                try:
+                    return r, classified, runner.evaluate(name, variant=v, timeout=timeout)
+                except FamilyError as e:
+                    return r, classified, e
+
+            # every variant the loop evaluates whatever came before it: not copied, not EXCLUDED, not based on a set
+            unconditional = [v.id for v in plan if (selected is None or v.id in selected) and not v.excluded
+                             and not v.base]
+            runs = stack.enter_context(contextlib.closing(Ahead(
+                lambda vid: first_and_again(by_id[vid], data[by_id[vid].config]), unconditional, jobs)))
             for v in plan:
                 if selected is not None and v.id not in selected:
                     e = previous.manifest["variables"].get(v.id)
@@ -751,15 +856,20 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                     if why:
                         variables[v.id] = entry(v, "EXCLUDED", why)
                         continue
-                try:
-                    r = runner.evaluate(name, variant=v, timeout=timeout)
-                except FamilyError as e:
-                    findings.append({"id": v.id, "finding": "owner: {}".format(last_line(e))})
+                if v.base:  # its base is classified only now: evaluated here, not ahead
+                    try:
+                        got = first_and_again(v, base)
+                    except FamilyError as e:
+                        got = e
+                else:
+                    got = runs.take(v.id)
+                if isinstance(got, FamilyError):
+                    findings.append({"id": v.id, "finding": "owner: {}".format(last_line(got))})
                     continue
+                r, (cls, reason, finding), again = got  # classify(r, base, tol[v.config]), in the task
                 walls.append(r.wall_s)
                 if v.rule == "set" and r.ok:
                     set_data[v.id] = r.data
-                cls, reason, finding = classify(r, base, tol[v.config])
                 if v.base and cls in ("SENSITIVE", "MARGINAL"):
                     reason = "{} against base set {}".format(reason, v.base)
                 if finding is not None:
@@ -779,10 +889,12 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
                                      "{}".format(a["status"], a["reason"], cls)})
                     continue
                 if cls == "SENSITIVE":
-                    try:  # forked from the same forkserver: run-to-run nondeterminism only (module docstring)
-                        again = runner.evaluate(name, variant=v, timeout=timeout)
-                    except FamilyError as e:
-                        findings.append({"id": v.id, "finding": "owner: {}".format(last_line(e))})
+                    # the second run, made by first_and_again right after the first: forked from the same
+                    # forkserver, so run-to-run nondeterminism only (module docstring)
+                    if again is None:
+                        raise RuntimeError("{} {}: SENSITIVE without its second run (again_needed)".format(name, v.id))
+                    if isinstance(again, FamilyError):
+                        findings.append({"id": v.id, "finding": "owner: {}".format(last_line(again))})
                         continue
                     walls.append(again.wall_s)
                     rows = same_run(r, again)
@@ -811,15 +923,17 @@ def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE,
             if loc["columns"] != "all":
                 special = locality.special_columns(dict(data["steady"], neq=imap.neq))
             base_p = locality.variant_base(default_p, special)
-            for vid in locality.variant_scope(loc, variables):
-                if copying and vid not in selected:
-                    continue  # copied with its entry (AIUE-95)
+            # copied with its entry, not run again (AIUE-95): a --prune or --rename run's kept entries
+            scope = [vid for vid in locality.variant_scope(loc, variables) if not (copying and vid not in selected)]
+            loc_runs = stack.enter_context(contextlib.closing(Ahead(
+                lambda vid: runner.evaluate(name, variant=by_id[vid], replay=variables[vid]["applied"],
+                                            timeout=timeout, locality=loc["delta_loc"],
+                                            columns=locality_columns(loc, variant=True)), scope, jobs)))
+            for vid in scope:
                 e = variables[vid]
-                try:
-                    r = runner.evaluate(name, variant=by_id[vid], replay=e["applied"], timeout=timeout,
-                                        locality=loc["delta_loc"], columns=locality_columns(loc, variant=True))
-                except FamilyError as ex:
-                    findings.append({"id": vid, "finding": "owner: locality: {}".format(last_line(ex))})
+                r = loc_runs.take(vid)
+                if isinstance(r, FamilyError):
+                    findings.append({"id": vid, "finding": "owner: locality: {}".format(last_line(r))})
                     continue
                 walls.append(r.wall_s)
                 if not r.ok:
@@ -1342,7 +1456,8 @@ def main(argv):
     p.add_argument("--rename", nargs="+", metavar="OLD=NEW",
                    help="re-key manifest entries; NEW is evaluated again and must reproduce OLD (AIUE-95)")
     p.add_argument("--no-audit", action="store_true", help="previews only: skip the --checkbounds audit (AIUE-95)")
-    p.add_argument("--jobs", type=int, help="families evaluated in parallel by the child (default: the CPU count)")
+    p.add_argument("--jobs", type=int, help="passed to _child: families evaluated at once, one process each, or with "
+                                            "one family its evaluations at once (default: the CPU count)")
     p = sub.add_parser("_child", help="inside the built environment: evaluate and write")
     p.add_argument("family", nargs="+")
     p.add_argument("--out", required=True)
@@ -1359,7 +1474,8 @@ def main(argv):
     p.add_argument("--shard", help="with --audit-only: I/N, this process's shard (default: --jobs shards)")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
                    help="families (with --audit-only: shards per family) in parallel, one process each, largest "
-                        "first (default: the CPU count)")
+                        "first; with one family (not --audit-only), its evaluations at once, on threads of one "
+                        "process (T19; default: the CPU count)")
     args = parser.parse_args(argv[1:])
     try:
         if args.cmd == "_child" and args.audit_only:
@@ -1371,7 +1487,7 @@ def main(argv):
         elif args.cmd == "_child":
             child(args.family, args.out, args.build, sweep=args.sweep, only=args.only, full=args.full,
                   repo=args.repo, locality_only=args.locality_only, prune=args.prune, rename=args.rename,
-                  audit=args.audit)
+                  audit=args.audit, jobs=args.jobs)  # one family here unless jobs is 1: its evaluations at once
         else:
             generate(args)
     except (Stop, mf.ManifestError) as e:

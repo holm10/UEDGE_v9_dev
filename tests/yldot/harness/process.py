@@ -23,6 +23,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from dataclasses import dataclass
@@ -50,6 +51,9 @@ START_ENV = {"UEDGE_BANNER": "0", "OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS"
 EXIT_GRACE_S = 30.0
 
 _isolation_dir = None
+# serialises the start of a child: isolated() switches the whole process's cwd, HOME, environment and sys.path, so
+# two threads must not start children at once (T19: make_references.py evaluates one family on several threads)
+_START = threading.Lock()
 
 
 class HarnessError(Exception):
@@ -142,7 +146,9 @@ def log_tail(path, n=state.LOG_TAIL):
 
 class Runner:
     """Starts one isolated child per evaluation. mode: 'forkserver' or 'spawn'; None takes YLDOT_START_METHOD,
-    else forkserver where the platform has it, else spawn."""
+    else forkserver where the platform has it, else spawn. evaluate may be called from several threads at once: only
+    the start of a child is serialised (_START), since it switches the process's cwd, HOME and environment, so a
+    thread that uses a relative path while another starts a child may resolve it in the isolation directory."""
 
     def __init__(self, mode=None):
         if mode is None:
@@ -203,7 +209,7 @@ class Runner:
             recv, send = self.ctx.Pipe(duplex=False)
             proc = self.ctx.Process(target=state.run, args=(send, job), name="yldot-{}-{}".format(fdir.name, config))
             t0 = time.monotonic()
-            with isolated():
+            with _START, isolated():
                 proc.start()
             send.close()
             status, msg = None, None
