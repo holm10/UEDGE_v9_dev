@@ -80,6 +80,16 @@ perturbed cell.
    should only remove misses. **Not investigated**; possibly an edge cell recomputed with stale neighbour data.
    `yinc = 3`: no change.
 
+8. **Drift heating of the neutrals on `isnonog = 1` (bug T191).** The `tg[1]` rows, and with molecules also `ti[1]`,
+   respond to a column two cells to the left (dix +2, one cell beyond `xrinc`). Where: the cell speeds
+   `bbb/pandf_plasma_energy.m:714-715` (`vycc`, `v2cc`, in `seik` and `seak`, `bbb/pandf_plasma_energy.m:749`) and
+   `bbb/pandf_gas_energy.m:418-428` (`uuxgcc`, `vygcc`) average the faces ix and ix − 1, whose 4-point stencil reaches
+   one cell more (read from the code; the switch responses below are measured). Active with `cfnidhgy`, `cfnidhg2`
+   (and, with molecules, `cfnidhdis`, `cfnidhmol`) nonzero, all 0 by default. Default patterns: d_mols_tg 12 entries,
+   largest score 2.63 (4 with `cfnidhdis = 0` or `cfnidhmol = 0`, 8 with `cfnidhgy = cfnidhg2 = 0`, 8 with
+   `cfneutsor_ei = 0`); d_only_tg 4, largest 3.89 (none with `cfnidhgy = cfnidhg2 = 0`). All in the band (tracker T22
+   probe, d124e4f4, macOS). Owner, 2026-11-24: a bug, not by design.
+
 **Not a stencil issue, but it blocks the check:** `isupgon(1)` 1 → 0 after the restore makes `pandf` not repeatable
 (the `up[2]` residual grows on every call), so no locality comparison is possible; left out of the 8x4 families'
 locality scope (owner, 2026-10-25). Bug AIUE-208 (Jira archive).

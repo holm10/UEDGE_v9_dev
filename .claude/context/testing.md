@@ -26,7 +26,13 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   cannot run twice in one process) and a `[history]` table; an unmeasured one keeps the 2/2 placeholders.
   Both states are round-trip fixed points: re-saved after one `exmain`, so a further `exmain` changes no saved entry
   (AIUE-140: `convert` and `convsr_vo1` do not round-trip exactly, and `gridseq` re-saves the result).
-  The five small families keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
+  The Tg families (T22; owner, 2026-11-24) evolve a gas temperature, which no other small family does: `d_mols_tg`
+  (atoms and molecules, `istgon(1:2) = 1`, neq 600) and `d_only_tg` (atoms, neq 480, for the `ishymol = 0` drift
+  heating). Each takes its parent family's grid and `reference_state.h5` as they are, with no relaxation, and appends
+  the owner's settings (cftiexclg 0, the atoms' Tg boundary options 2/4/4/4/4, the drift heating on) to its deck. The
+  base state of `d_mols_tg` misses the ratio rule in its two Tg blocks, accepted by the owner
+  (`accepted_ratio` in `family.toml`).
+  The seven small families (`d_mols_tg` and `d_only_tg` added by T22) keep all their files in git; the three owner families (`large_dd2c`, `dnull_imp2`,
   `imp7`, AIUE-91) keep only `input.py` and `family.toml` there: their grid, `inputs.h5`, states and `sigma.h5` are
   release assets of the release their manifest names (`yldot-data-v13` since AIUE-101; owner, 2026-10-22, D6),
   gitignored, with their SHA-256s only in `references/<f>.manifest.json` (owner, 2026-10-21); a manifest naming
@@ -122,8 +128,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   classified against the base set's result instead of the default (`make_references`: evaluated after its base; a base
   that is not SENSITIVE, INERT or MARGINAL makes it EXCLUDED, "base set X is C"). A set's manifest entry carries
   `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 113
-  sets, 50 of them based (89-104 per small family; six in large_dd2c for the `isnewpot = 1` potential branches,
-  nightly; `load_sets`, 2026-11-13).
+  of AIUE-257's sets, 50 of them based (89-104 per small family; six in large_dd2c for the `isnewpot = 1` potential
+  branches, nightly; `load_sets`, 2026-11-13), plus 54 gas-temperature sets that run in `d_mols_tg` and `d_only_tg` only (T22:
+  the Tg selectors 0-6, `lytg`, `cgengmw`, `cfdiss`, `recyce`, `recycwe`, `cfalbedo`, the per-cell Tg arrays, the drift
+  heating). The Tg value lists in `overrides.toml` also run in these two, elementwise; `bbb.istglb=4` leaves the
+  molecule rows unwritten there (yldot 0; AIUE-273).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
@@ -203,7 +212,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   missed in d_only; T47).
 - **Tools** `tests/yldot/tools/`: `make_base_state.py` (`check`, which also reports `fixed_point`; `check
   --fixed-point-only`, an `issfon = 0` finite check of yldot and the round trip only, which `test_states.py` runs (T12);
-  `make`, which re-saves both states after one `exmain` and refuses one that is not a fixed point); `intake_check.py` (per-row
+  `make`, which re-saves both states after one `exmain`, refuses one that is not a fixed point, and takes
+  `--accept-ratio BLOCK` for a block the owner lets miss the ratio rule, refused when the block is unknown or meets the
+  rule (T22)); `intake_check.py` (per-row
   scaled residuals at `reference_state.h5`, tables for the owner, no automatic flag); `measure_history.py` (`run`:
   W and P from exmain/pandf repeats in fresh processes, the -1 → +1 → -1 flag sequence, steady +1 vs -1 with the
   `ishosor = 0` counterfactual, a reuse sequence in one process, child costs and the sweep estimate, as a TOML
@@ -265,7 +276,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1450`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1451`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -360,12 +371,14 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   and the findings; `families/<f>/sigma.h5` (`/<config>/sigma`, `/<config>/source` = the serial pair that set σ_i, -1
   where σ_i = 0). The Linux side is `tests/yldot/linux/` (Ubuntu 24.04 amd64 by digest, exact apt and pip pins;
   `collect.sh` builds a `git archive` of one commit; `generate.sh`, run from the mounted `tests/`, does the same for
-  `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
-  families: `tg` gets its first `rtol` (from large_dd2c) and `up` 1.589e-8 (dnull_imp2's atoms on its wall ring);
-  imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`. They are
+  `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covered all eight
+  families, and since T22 ten (the Tg families' own collections added to AIUE-92's, so the eight keep their sigma):
+  `tg` 9.273e-9 (d_only_tg; 2.544e-10 from large_dd2c until T22, owner-accepted rise) and `up` 1.589e-8 (dnull_imp2's
+  atoms on its wall ring);
+  imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`. AIUE-92's are
   runs with the real rate tables; T169 kept the file and every `sigma.h5` for the synthetic ones (owner, D2): with
-  them every spread of mac-serial, mac-noopt and linux-serial is at most 0.0114 of its tolerance, all eight families
-  (`../uedge-wt/data/T169/roundoff-final`).
+  them every spread of mac-serial, mac-noopt and linux-serial is at most 0.0114 of its tolerance, in the eight families
+  of that time (`../uedge-wt/data/T169/roundoff-final`; measured before T22's `tg` rise).
 - **Coverage** (PRD §7.10, AIUE-107) `tests/yldot/tools/coverage.sh` and `coverage_compare.py`: line and branch
   coverage of `bbb/pandf*.F` under the yldot suite. Needs a coverage build of the checkout (`pip install . -C
   "--build-option=--coverage"`, AIUE-105: serial, `-O0 --coverage`; it refuses any other build by its record) and
@@ -383,7 +396,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   default, and the non-`+input` `ifixsrc`) are AIUE-245. The full run takes about 2.3 h at 10 workers on an M4 Pro.
   With AIUE-257's sets (`yldot-data-v22`/`v23`, run at b86d14b8 plus a top-up of large_dd2c's six sets, counts summed)
   the generated pandf_boundary.F takes 1537/2305 lines and 1227/1854 branches (from 1365 and 1110); the untaken rest
-  is family-level code (AIUE-171/172/173), gas temperature (AIUE-293), known issues (AIUE-259), error stops and the
+  is family-level code (AIUE-171/172/173), the gas temperature until T22's families, known issues (AIUE-259), error stops and the
   gaps of AIUE-301. `coverage.sh report --base` refuses a base built before a change to the generated pandf.F's
   instrumented lines (exit 2), so compare such runs per file.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
@@ -716,7 +729,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   owner family that shares a job runs its evaluations one after another, at the pre-T19 cost. An `--only` dispatch
   re-runs each owner
   family's default and its stored variant locality patterns (only `--prune` and `--rename` copy them,
-  `tests/yldot/tools/make_references.py:686`), so run
+  `tests/yldot/tools/make_references.py:687`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone, where its
   locality runs also go `--jobs` at a time (AIUE-242, T19), three
