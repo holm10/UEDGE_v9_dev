@@ -19,7 +19,7 @@ up = 1.5891380782367185e-08
 te = 2.541960335884719e-08
 ti = 2.506520111776073e-08
 ng = 3.4958021597728424e-08
-tg = 2.5437547948528416e-10
+tg = 9.272833304504316e-09
 phi = 1.1514061956547166e-08
 
 [rtol_source]
@@ -28,7 +28,7 @@ up = "dnull_imp2 steady mac_vs_linux"
 te = "d_only steady mac_vs_linux"
 ti = "d_mols steady mac_vs_linux"
 ng = "d_mols steady mac_vs_linux"
-tg = "large_dd2c steady o0_vs_o3"
+tg = "d_only_tg steady mac_vs_linux"
 phi = "d_only steady mac_vs_linux"
 
 [builds.linux-serial]
@@ -379,6 +379,96 @@ ti = { max_abs = 0.0, max_ref = 3950949.6579003315, s = 0.0, max_rel = 0.0 }
 ng = { max_abs = 0.0, max_ref = 37721871.114855506, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 33871918164.18458, s = 0.0, max_rel = 0.0 }
 
+[raw.d_mols_tg.steady.mac_vs_linux]
+ni = { max_abs = 0.0004924696404486895, max_ref = 3892035.5753140883, s = 1.2653266675470894e-10, max_rel = 6.0764511841698575e-09 }
+up = { max_abs = 0.003748960793018341, max_ref = 24484320.219125025, s = 1.53116801261649e-10, max_rel = 4.524227778977127e-09 }
+te = { max_abs = 0.0008092224597930908, max_ref = 37504638.62851537, s = 2.157659663937746e-11, max_rel = 2.475282768048209e-09 }
+ti = { max_abs = 0.00011666241334751248, max_ref = 2967718.4852749533, s = 3.9310471638856924e-11, max_rel = 3.938660078056311e-09 }
+ng = { max_abs = 0.00193681288510561, max_ref = 26587496.222572315, s = 7.284675732125877e-11, max_rel = 5.997775853516297e-10 }
+tg = { max_abs = 0.0038473382592201233, max_ref = 45949354.41096145, s = 8.372997419746819e-11, max_rel = 1.0105179720597502e-09 }
+phi = { max_abs = 0.25902044773101807, max_ref = 18126038798.73572, s = 1.4289964321883971e-11, max_rel = 4.667350558334551e-10 }
+
+[raw.d_mols_tg.steady.o0_vs_o3]
+ni = { max_abs = 0.0004924696404486895, max_ref = 3892035.5753140883, s = 1.2653266675470894e-10, max_rel = 6.0764511841698575e-09 }
+up = { max_abs = 0.003748960793018341, max_ref = 24484320.219125025, s = 1.53116801261649e-10, max_rel = 4.524227778977127e-09 }
+te = { max_abs = 0.0008092224597930908, max_ref = 37504638.62851537, s = 2.157659663937746e-11, max_rel = 2.475282768048209e-09 }
+ti = { max_abs = 0.00011666241334751248, max_ref = 2967718.4852749533, s = 3.9310471638856924e-11, max_rel = 3.938660078056311e-09 }
+ng = { max_abs = 0.00193681288510561, max_ref = 26587496.222572315, s = 7.284675732125877e-11, max_rel = 5.997775853516297e-10 }
+tg = { max_abs = 0.0038473382592201233, max_ref = 45949354.41096145, s = 8.372997419746819e-11, max_rel = 1.0105179720597502e-09 }
+phi = { max_abs = 0.25902044773101807, max_ref = 18126038798.73572, s = 1.4289964321883971e-11, max_rel = 4.667350558334551e-10 }
+
+[raw.d_mols_tg.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 3892035.575314088, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62873113, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749542, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.223220076, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 45949354.40711411, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.850018, s = 0.0, max_rel = 0.0 }
+
+[raw.d_mols_tg.steady."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 3892035.575314088, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62873113, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749542, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.223220076, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 45949354.40711411, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.850018, s = 0.0, max_rel = 0.0 }
+
+[raw.d_mols_tg.steady."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 3892035.5753140883, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62851537, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749533, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.222572315, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 45949354.41096145, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.73572, s = 0.0, max_rel = 0.0 }
+
+[raw.d_mols_tg.timestep.mac_vs_linux]
+ni = { max_abs = 0.0004924696404486895, max_ref = 3892035.5753140883, s = 1.2653266675470894e-10, max_rel = 1.430619040424367e-09 }
+up = { max_abs = 0.003748960793018341, max_ref = 24484320.219125025, s = 1.53116801261649e-10, max_rel = 6.271227790598423e-10 }
+te = { max_abs = 0.0008092224597930908, max_ref = 37504638.62851537, s = 2.157659663937746e-11, max_rel = 1.767190888880783e-09 }
+ti = { max_abs = 0.00011666241334751248, max_ref = 2967718.4852749533, s = 3.9310471638856924e-11, max_rel = 2.554281541663139e-10 }
+ng = { max_abs = 0.00193681288510561, max_ref = 26587496.222572315, s = 7.284675732125877e-11, max_rel = 4.864510229145387e-10 }
+tg = { max_abs = 0.0038473382592201233, max_ref = 46121122.70296234, s = 8.34181397534152e-11, max_rel = 9.796957681071293e-10 }
+phi = { max_abs = 0.25902044773101807, max_ref = 18126038798.73572, s = 1.4289964321883971e-11, max_rel = 4.667350558334551e-10 }
+
+[raw.d_mols_tg.timestep.o0_vs_o3]
+ni = { max_abs = 0.0004924696404486895, max_ref = 3892035.5753140883, s = 1.2653266675470894e-10, max_rel = 1.430619040424367e-09 }
+up = { max_abs = 0.003748960793018341, max_ref = 24484320.219125025, s = 1.53116801261649e-10, max_rel = 6.271227790598423e-10 }
+te = { max_abs = 0.0008092224597930908, max_ref = 37504638.62851537, s = 2.157659663937746e-11, max_rel = 1.767190888880783e-09 }
+ti = { max_abs = 0.00011666241334751248, max_ref = 2967718.4852749533, s = 3.9310471638856924e-11, max_rel = 2.554281541663139e-10 }
+ng = { max_abs = 0.00193681288510561, max_ref = 26587496.222572315, s = 7.284675732125877e-11, max_rel = 4.864510229145387e-10 }
+tg = { max_abs = 0.0038473382592201233, max_ref = 46121122.70296234, s = 8.34181397534152e-11, max_rel = 9.796957681071293e-10 }
+phi = { max_abs = 0.25902044773101807, max_ref = 18126038798.73572, s = 1.4289964321883971e-11, max_rel = 4.667350558334551e-10 }
+
+[raw.d_mols_tg.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 3892035.575314088, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62873113, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749542, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.223220076, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 46121122.699115, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.850018, s = 0.0, max_rel = 0.0 }
+
+[raw.d_mols_tg.timestep."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 3892035.575314088, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62873113, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749542, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.223220076, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 46121122.699115, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.850018, s = 0.0, max_rel = 0.0 }
+
+[raw.d_mols_tg.timestep."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 3892035.5753140883, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 24484320.219125025, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 37504638.62851537, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 2967718.4852749533, s = 0.0, max_rel = 0.0 }
+ng = { max_abs = 0.0, max_ref = 26587496.222572315, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 46121122.70296234, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 18126038798.73572, s = 0.0, max_rel = 0.0 }
+
 [raw.d_only.steady.debug_vs_o3]
 ni = { max_abs = 3.324530553072691e-05, max_ref = 8002805.12541008, s = 4.154206557544203e-12, max_rel = 2.261491323187585e-08 }
 up = { max_abs = 0.001078905537724495, max_ref = 11300530.773528805, s = 9.547388165623181e-11, max_rel = 1.6428153746860855e-08 }
@@ -489,6 +579,86 @@ ni = { max_abs = 0.0, max_ref = 8002805.12541008, s = 0.0, max_rel = 0.0 }
 up = { max_abs = 0.0, max_ref = 11311328.119472824, s = 0.0, max_rel = 0.0 }
 te = { max_abs = 0.0, max_ref = 879042.4491966148, s = 0.0, max_rel = 0.0 }
 ti = { max_abs = 0.0, max_ref = 1017146.8249599969, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.28583843, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.steady.mac_vs_linux]
+ni = { max_abs = 0.0003194974269717932, max_ref = 4250061.968599896, s = 7.517476905802521e-11, max_rel = 2.261491323187585e-08 }
+up = { max_abs = 0.001106569543480873, max_ref = 11635052.076237189, s = 9.510653981006857e-11, max_rel = 1.6428153746860855e-08 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 9.068189683603123e-07, max_ref = 1017146.8249599969, s = 8.915320247850908e-13, max_rel = 1.2292809307313318e-09 }
+tg = { max_abs = 0.0009880634024739265, max_ref = 10655463.869861338, s = 9.272833304504315e-11, max_rel = 2.419023876951683e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.142334900702622e-10 }
+
+[raw.d_only_tg.steady.o0_vs_o3]
+ni = { max_abs = 0.0003194974269717932, max_ref = 4250061.968599896, s = 7.517476905802521e-11, max_rel = 2.261491323187585e-08 }
+up = { max_abs = 0.001106569543480873, max_ref = 11635052.076237189, s = 9.510653981006857e-11, max_rel = 1.6428153746860855e-08 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 9.068189683603123e-07, max_ref = 1017146.8249599969, s = 8.915320247850908e-13, max_rel = 1.229281765782087e-09 }
+tg = { max_abs = 0.0009880634024739265, max_ref = 10655463.869861338, s = 9.272833304504315e-11, max_rel = 2.419023876951683e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.1423407891312297e-10 }
+
+[raw.d_only_tg.steady."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11635052.07513062, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10655463.870498834, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.steady."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11635052.07513062, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10655463.870498834, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.steady."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11635052.076237189, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966148, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599969, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10655463.869861338, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.28583843, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.timestep.mac_vs_linux]
+ni = { max_abs = 0.0003194974269717932, max_ref = 4250061.968599896, s = 7.517476905802521e-11, max_rel = 2.8931787567732147e-09 }
+up = { max_abs = 0.001106569543480873, max_ref = 11645849.422181208, s = 9.501836262567941e-11, max_rel = 2.4897667464520925e-09 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 9.068189683603123e-07, max_ref = 1017146.8249599969, s = 8.915320247850908e-13, max_rel = 2.9699569979793423e-10 }
+tg = { max_abs = 0.0009880634024739265, max_ref = 10660881.007146874, s = 9.268121478999208e-11, max_rel = 2.419023876951683e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.142334900702622e-10 }
+
+[raw.d_only_tg.timestep.o0_vs_o3]
+ni = { max_abs = 0.0003194974269717932, max_ref = 4250061.968599896, s = 7.517476905802521e-11, max_rel = 2.8931787567732147e-09 }
+up = { max_abs = 0.001106569543480873, max_ref = 11645849.422181208, s = 9.501836262567941e-11, max_rel = 2.4897667464520925e-09 }
+te = { max_abs = 0.00022344910394167528, max_ref = 879042.4491966148, s = 2.541960335884719e-10, max_rel = 1.7995797659492202e-08 }
+ti = { max_abs = 9.068189683603123e-07, max_ref = 1017146.8249599969, s = 8.915320247850908e-13, max_rel = 2.9699569979793423e-10 }
+tg = { max_abs = 0.0009880634024739265, max_ref = 10660881.007146874, s = 9.268121478999208e-11, max_rel = 2.419023876951683e-10 }
+phi = { max_abs = 0.015917494893074036, max_ref = 138243957.28583843, s = 1.1514061956547166e-10, max_rel = 3.1423407891312297e-10 }
+
+[raw.d_only_tg.timestep."same_build:linux-serial"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11645849.421074638, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10660881.00778437, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.timestep."same_build:mac-noopt"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11645849.421074638, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966135, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599958, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10660881.00778437, s = 0.0, max_rel = 0.0 }
+phi = { max_abs = 0.0, max_ref = 138243957.27832398, s = 0.0, max_rel = 0.0 }
+
+[raw.d_only_tg.timestep."same_build:mac-serial"]
+ni = { max_abs = 0.0, max_ref = 4250061.968599896, s = 0.0, max_rel = 0.0 }
+up = { max_abs = 0.0, max_ref = 11645849.422181208, s = 0.0, max_rel = 0.0 }
+te = { max_abs = 0.0, max_ref = 879042.4491966148, s = 0.0, max_rel = 0.0 }
+ti = { max_abs = 0.0, max_ref = 1017146.8249599969, s = 0.0, max_rel = 0.0 }
+tg = { max_abs = 0.0, max_ref = 10660881.007146874, s = 0.0, max_rel = 0.0 }
 phi = { max_abs = 0.0, max_ref = 138243957.28583843, s = 0.0, max_rel = 0.0 }
 
 [raw.dnull_imp2.steady.debug_vs_o3]
@@ -1111,11 +1281,23 @@ sha256 = "3d4b48f99ba912870a1fcbd8abe2e0d7f2eec625c2f70bf72633290b7c6508a8"
 steady = { entries = 480, zero = 142, max = 0.21358108520507812 }
 timestep = { entries = 480, zero = 142, max = 0.21358108520507812 }
 
+[sigma.d_mols_tg]
+file = "families/d_mols_tg/sigma.h5"
+sha256 = "316ba452bf840f4fb7ae454b556306cd172beff8b52e1e6552a193825fc3819d"
+steady = { entries = 600, zero = 180, max = 0.25902044773101807 }
+timestep = { entries = 600, zero = 180, max = 0.25902044773101807 }
+
 [sigma.d_only]
 file = "families/d_only/sigma.h5"
 sha256 = "1fb10b58bab4848ec4c2fa9d06061629b9f705970b5be359d2f3938e2a0f316c"
 steady = { entries = 420, zero = 133, max = 0.015917494893074036 }
 timestep = { entries = 420, zero = 133, max = 0.015917494893074036 }
+
+[sigma.d_only_tg]
+file = "families/d_only_tg/sigma.h5"
+sha256 = "265a306c23912321f15967884f8a5a5aa0376041d78e30b53fdfc4cd8fc206a4"
+steady = { entries = 480, zero = 150, max = 0.015917494893074036 }
+timestep = { entries = 480, zero = 150, max = 0.015917494893074036 }
 
 [sigma.dnull_imp2]
 file = "families/dnull_imp2/sigma.h5"
@@ -1182,18 +1364,19 @@ timestep = { entries = 4522, zero = 1668, max = 0.000652313232421875 }
 "slab_phi.timestep.n4" = { status = "ok", nthreads = 4, parallel_pandf1 = 1, vs_serial_build = { rows = 0, max_abs = 0.0, max_rel = 0.0 }, vs_pandf = { rows = 0, max_abs = 0.0, max_rel = 0.0 } }
 
 [floor]  # PRD 7.4 floor report: (equation, species, region) groups with sigma = 0 in more than floor_limit of their entries
-over_limit = { d_c = { steady = 17, timestep = 17 }, d_mols = { steady = 11, timestep = 11 }, d_only = { steady = 8, timestep = 8 }, dnull_imp2 = { steady = 13, timestep = 13 }, imp7 = { steady = 17, timestep = 17 }, large_dd2c = { steady = 23, timestep = 23 }, ortho = { steady = 23, timestep = 23 }, slab_phi = { steady = 33, timestep = 33 } }
+over_limit = { d_c = { steady = 17, timestep = 17 }, d_mols = { steady = 11, timestep = 11 }, d_mols_tg = { steady = 12, timestep = 12 }, d_only = { steady = 8, timestep = 8 }, d_only_tg = { steady = 9, timestep = 9 }, dnull_imp2 = { steady = 13, timestep = 13 }, imp7 = { steady = 17, timestep = 17 }, large_dd2c = { steady = 23, timestep = 23 }, ortho = { steady = 23, timestep = 23 }, slab_phi = { steady = 33, timestep = 33 } }
 
 [owner]  # items_raised must equal items_answered: new owner items need new answers
-items_raised = 290
-items_answered = 290
+items_raised = 332
+items_answered = 332
 answers = [
   "2026-10-22, AIUE-87: every floor group over 10 % (sigma = 0 in rows bitwise identical across the serial builds) is accepted with the PRD 7.4 floor unchanged; d_mols phi[1] guard ix=7 iy=0 (ref -37.6) gets k*sigma_min,r = 1.5e-3*|ref| from the ix=9 guard cells, and keeps the floor: AIUE-150 (no code change) found two base-state noise draws that nearly match in a dphi/dy = 0 boundary row", 
   "2026-10-22, AIUE-87: the --debug bounds-check stop at bbb/pandf_plasma_energy.m:603 (ng(ix,iy,2) with ngsp = 1) is bug AIUE-145", 
   "2026-10-22, AIUE-87: the OpenMP crashes with OMPParallelJac/OMPParallelPandf1 = 1 are bug AIUE-146; the measured OpenMP rows stay report only", 
   "2026-10-22, AIUE-92: the owner families' floor groups over 10 % (53 per configuration; the same groups after AIUE-170, 2026-10-23) are accepted with the PRD 7.4 floor unchanged; the quiet-cell mutation stays at slab_phi (18,1)", 
   "2026-10-23, AIUE-92: imp7's spread at its inner-target corner (1,42) and guard (0,42), which would have raised ni, up, ti and phi (AIUE-164), is removed by com.redopltvtag = 1 in imp7's deck (AIUE-170); imp7 sets no rtol", 
-  "2026-10-23, AIUE-92: up rises from 1.505e-8 to 1.589e-8, set by dnull_imp2 up[2] on its wall ring iy = ny (-O3 arm64 against -O0 and Linux, 2.3e-8 of the entry): accepted"
+  "2026-10-23, AIUE-92: up rises from 1.505e-8 to 1.589e-8, set by dnull_imp2 up[2] on its wall ring iy = ny (-O3 arm64 against -O0 and Linux, 2.3e-8 of the entry): accepted", 
+  "2026-11-24, T22: d_mols_tg and d_only_tg (the gas-temperature families) are added from their own collections (mac-serial and mac-noopt at d124e4f4, linux-serial at 25a44a0e, whose compiled Fortran equals d124e4f4) to the AIUE-92 collections, so the other families' sigma is unchanged; their 42 new floor groups over 10 % are accepted with the PRD 7.4 floor unchanged; tg rises from 2.544e-10 to 9.273e-9, set by d_only_tg, and the others stay: accepted"
 ]
 
 [findings]

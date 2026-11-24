@@ -140,6 +140,7 @@ AUDIT_FLAGS = ("--serial", "--checkbounds")  # the audit build: -fbounds-check -
 TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slower (measure_roundoff.py)
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
 CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 3, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
+           "d_mols_tg": 3, "d_only_tg": 2,  # 2.33 and 1.28 MB at T22's prototype sweep (tracker T22)
            "large_dd2c": 13, "dnull_imp2": 13, "imp7": 13}  # owner, 2026-10-24 (AIUE-99; 9 MB in AIUE-92 B4)
 # d_mols 2 -> 3: owner, 2026-11-12 (AIUE-257 Task 3: ~1.9 KB per added SENSITIVE entry put it under a 10 % margin)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)

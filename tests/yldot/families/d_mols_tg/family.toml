@@ -97,8 +97,8 @@ columns = "all"  # every column (AIUE-101 Q1: the small families)
 variants = "all"  # every SENSITIVE, INERT and MARGINAL variant stores a pattern (AIUE-101 Q3, owner 2026-10-25)
 calibration = "inherited from d_mols (D3), not recalibrated: delta_loc and m_loc are one value for all small families. Default pattern of the probe at d124e4f4 (tol = rtol*|yldot|): 12 entries above 1, largest 2.63, all in the band, the asserted pattern P empty."
 
-[locality.causes]  # the causes of the default pattern, measured by switching one input at a time (tracker T22)
-drift_heating = "drift heating (cfnidhgy = cfnidhg2 = cfnidhdis = cfnidhmol = 1): the cell speeds vycc, v2cc (bbb/pandf_plasma_energy.m:714-715), uuxgcc, vygcc (bbb/pandf_gas_energy.m:418-428); the faces ix and ix-1 are averaged, and face ix-1 itself takes the isnonog = 1 4-point stencil, so the tg[1] and ti rows at ix+2 respond to the column at ix, one cell beyond xrinc = 1. cfnidhdis = 0 or cfnidhmol = 0 leaves 4 of 12 entries; cfnidhgy = cfnidhg2 = 0 leaves 8 (the molecule-driven tg[1] ones); cfneutsor_ei = 0 leaves 8."
+[locality.causes]  # the causes of the default pattern, measured by switching one input at a time (tracker T22; bug T191)
+drift_heating = "drift heating (cfnidhgy = cfnidhg2 = cfnidhdis = cfnidhmol = 1): the cell speeds vycc, v2cc (bbb/pandf_plasma_energy.m:714-715), uuxgcc, vygcc (bbb/pandf_gas_energy.m:418-428); the faces ix and ix-1 are averaged, and face ix-1 itself takes the isnonog = 1 4-point stencil, so the tg[1] and ti rows at ix+2 respond to the column at ix, one cell beyond xrinc = 1. cfnidhdis = 0 or cfnidhmol = 0 leaves 4 of 12 entries; cfnidhgy = cfnidhg2 = 0 leaves 8 (the molecule-driven tg[1] ones); cfneutsor_ei = 0 leaves 8. Not by design: bug T191 (owner, 2026-11-24)."
 band_only = "all in the band at delta_loc = 1e-6 (largest 2.63 of m_loc = 100), so the asserted pattern P is empty"
 
 [locality.excluded]  # owner decisions (decision 23): variants left out of the locality scope, with the cause
