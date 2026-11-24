@@ -385,7 +385,7 @@ def noclean_expected(platform):
         "Fortran compiler version": [normal(), forced("fcompiler_version")],
         "C compiler version": [normal(), forced("ccompiler_version")],
         "CC": [normal(), forced("CC", "ccompiler", "ccompiler_version"), reused(), forced("ccompiler_version")],
-        "C compiler with arguments": [normal(), forced("CC", "ccompiler")],
+        "C compiler with arguments": [normal(), forced("CC", "ccompiler"), reused(), forced("ccompiler_version")],
         "Forthon's flags": [normal(), forced("forthon_fopt")],
         "Fortran compiler": [normal(), forced("fcompiler")],
         # The objects a failed or interrupted make leaves are its stamp's
@@ -402,6 +402,8 @@ def noclean_expected(platform):
         # A forced clean that does not clean stops the build and leaves no stamp
         "clean leaves build/": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
         "clean leaves a .F file": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
+        "clean leaves another package's .F file": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
+        "clean leaves a file deep in build/": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
         "clean fails": [normal(), forced("fargs", cleaned=False, **STOPPED), forced(NO_RECORD)],
         "clean removes all and fails": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
         "clean interrupted": [normal(), forced("fargs", cleaned=False, **{**STOPPED, "exit": "interrupted"}),
@@ -412,7 +414,11 @@ def noclean_expected(platform):
         "normal build, clean leaves a .F file": [normal(), normal(stamp=False), forced(NO_RECORD)],
         "normal build, clean leaves the stamp": [normal(), normal(), forced("bbb/x.F")],
         "normal build, clean leaves an empty build/": [normal(), normal(), reused()],
-        "normal build, clean fails": [normal(), normal(cleaned=False, **STOPPED)],
+        "normal build, clean leaves a file deep in build/": [normal(), normal(stamp=False), forced(NO_RECORD)],
+        # A normal build removes the stamp before its clean too
+        "normal build, clean fails": [normal(), normal(cleaned=False, **STOPPED), forced(NO_RECORD)],
+        "normal build, clean interrupted": [normal(), normal(cleaned=False, **{**STOPPED, "exit": "interrupted"}),
+                                            forced(NO_RECORD)],
         "--noopt": [normal(), forced("fargs")],
         "--checkbounds": [normal(), forced("fargs")],
         "--debug": [normal(), forced("fargs")],
@@ -425,7 +431,7 @@ def noclean_expected(platform):
         "before: an object of the stamp's time": [normal(), reused(), reused()],
         "before: another file": [normal(), reused(), reused()],
         "before: a .F90 file": [normal(), reused(), reused()],
-        # The .v and .h files count by content: make recompiles no Fortran for them
+        # The .v and .h files count by content (an edit here keeps the size): make recompiles no Fortran for them
         "before: a .v file edited": [normal(), forced("bbb/x.v"), reused()],
         "before: a .v file added": [normal(), forced("bbb/new.v"), reused()],
         "before: a .v file removed": [normal(), forced("bbb/x.v"), reused()],
@@ -433,6 +439,25 @@ def noclean_expected(platform):
         "before: a top-level .h file edited": [normal(), forced("x.h"), reused()],
         "before: a .v file touched": [normal(), reused(), reused()],
         "before: another source edited": [normal(), reused(), reused()],
+        "before: another package's .v file edited": [normal(), forced("com/x.v"), reused()],
+        "before: another package's .h file edited": [normal(), forced("com/x.h"), reused()],
+        "before: another package's .F file": [normal(), forced("com/x.F"), reused()],
+        "before: a .h file added": [normal(), forced("com/new.h"), reused()],
+        # ... and so do the .inc files
+        "before: an .inc file edited": [normal(), forced("ncl/pamx_mi.inc"), reused()],
+        "before: another package's .inc file edited": [normal(), forced("bbb/x.inc"), reused()],
+        "before: an .inc file added": [normal(), forced("ncl/new.inc"), reused()],
+        "before: an .inc file removed": [normal(), forced("ncl/pamx_mi.inc"), reused()],
+        "before: an .inc file touched": [normal(), reused(), reused()],
+        # One that cannot be opened counts as absent and stops no build
+        "before: a dangling .h link": [normal(), reused(), reused()],
+        "before: a .v directory": [normal(), reused(), reused()],
+        "before: a looping .inc link": [normal(), reused(), reused()],
+        "before: a .h file made a dangling link": [normal(), forced("bbb/x.h"), reused()],
+        "normal build, a dangling .h link": [normal(), reused()],
+        "normal build, a .v directory": [normal(), reused()],
+        "normal build, a looping .inc link": [normal(), reused()],
+        "a dangling .h link gets its target": [normal(), forced("com/new.h"), reused()],
     }
     for name in VARIABLES:
         expected["variable " + name] = [normal(), forced(name)]
@@ -472,14 +497,15 @@ def noclean_differences(table):
 
 def test_noclean_scenarios(tmp_path):
     """A --noclean build cleans, naming why, if the tree's objects are not this build's: built with other options,
-    compilers or environment, from other .v or .h files, by an older setup.py, by make alone or by an interrupted build,
-    or of unknown origin. Otherwise it keeps them. A normal build cleans as it always has (T27)."""
+    compilers or environment, from other .v, .h or .inc files, by an older setup.py, by make alone or by an interrupted
+    build, or of unknown origin. Otherwise it keeps them. A normal build cleans as it always has (T27)."""
     found = noclean_differences(noclean_table(SETUP, tmp_path))
     assert not found, "\n".join("{} {}: {}".format(*f) for f in found)
 
 
 TOUCH = "        finally:\n            if stamped:\n                os.utime(STAMP)"
 STOP = "if status != 0 or (left and changes):"
+UNREADABLE = "except OSError:  # a dangling link, a directory, unreadable"
 BUILD_RUN = "            build.run(self)\n        finally:\n"
 # (text in setup.py, occurring exactly once; what replaces it; a scenario it must change, and on linux only for "linux")
 STAMP_EDITS = {
@@ -521,7 +547,32 @@ STAMP_EDITS = {
                                    "stamp['ccompiler_version'] = None", "C compiler version"),
     ".v files dropped": (" + glob(os.path.join('*', '*.v')):", ":", "before: a .v file edited"),
     "package headers dropped": (" + glob(os.path.join('*', '*.h'))", "", "before: a .h file edited"),
-    "top-level headers dropped": ("in glob('*.h') + ", "in ", "before: a top-level .h file edited"),
+    "top-level headers dropped": ("= glob('*.h') + ", "= ", "before: a top-level .h file edited"),
+    ".inc files dropped": (" + glob(os.path.join('*', '*.inc'))", "", "before: an .inc file edited"),
+    ".inc files of bbb/ only": ("os.path.join('*', '*.inc')", "os.path.join('bbb', '*.inc')",
+                                "before: an .inc file edited"),
+    ".inc files of ncl/ only": ("os.path.join('*', '*.inc')", "os.path.join('ncl', '*.inc')",
+                                "before: another package's .inc file edited"),
+    ".v files of bbb/ only": ("os.path.join('*', '*.v')", "os.path.join('bbb', '*.v')",
+                              "before: another package's .v file edited"),
+    "headers of bbb/ only": ("os.path.join('*', '*.h')", "os.path.join('bbb', '*.h')",
+                             "before: another package's .h file edited"),
+    ".F files of bbb/ only": ("os.path.join('*', '*.m')", "os.path.join('bbb', '*.m')",
+                              "before: another package's .F file"),
+    "size instead of hash": ("sha256(source.read()).hexdigest()", "len(source.read())", "before: a .v file edited"),
+    "dangling link stops the build": (UNREADABLE, UNREADABLE.replace("OSError", "IsADirectoryError"),
+                                      "normal build, a dangling .h link"),
+    "directory stops the build": (UNREADABLE, UNREADABLE.replace("OSError", "FileNotFoundError"),
+                                  "normal build, a .v directory"),
+    "other unreadable file stops the build": (
+        UNREADABLE, UNREADABLE.replace("OSError", "(FileNotFoundError, IsADirectoryError)"),
+        "normal build, a looping .inc link"),
+    "unreadable file cleans at every build": ("stamp['files'][f] = None", "stamp['files'][f] = os.urandom(8).hex()",
+                                              "normal build, a dangling .h link"),
+    "CC not split": ("split(stamp['ccompiler']) + ", "[stamp['ccompiler']] + ", "C compiler with arguments"),
+    "stamp removed only before a forced clean": (
+        "                remove(STAMP)\n", "                if changes:\n                    remove(STAMP)\n",
+        "normal build, clean interrupted"),
     "files not compared": ("**s['files'], ", "", "before: a .v file edited"),
     "stamp without env accepted": ("isinstance(old.get(k), dict) for k in",
                                    "isinstance(old.setdefault(k, {}), dict) for k in", "before: stamp without env"),
@@ -533,6 +584,10 @@ STAMP_EDITS = {
     "stamp over leftovers": ("stamped = not left", "stamped = True", "normal build, clean leaves build/"),
     "files left in build/ accepted": ("for d, _, names in os.walk('build') for f in names]",
                                       "for d, _, names in [] for f in names]", "clean leaves build/"),
+    "files left deep in build/ accepted": ("in os.walk('build') for", "in list(os.walk('build'))[:1] for",
+                                           "clean leaves a file deep in build/"),
+    ".F files left outside bbb/ accepted": ("if f.endswith('.F')])", "if f == 'bbb/x.F'])",
+                                            "clean leaves another package's .F file"),
     ".F files left accepted": ("sorted(files + [f for f in build_outputs() if f.endswith('.F')])", "sorted(files)",
                                "clean leaves a .F file"),
 }

@@ -768,12 +768,16 @@ def build_stamp(makeenv):
     version = _probe(split(stamp['ccompiler']) + ['--version'])
     stamp['ccompiler_version'] = version.splitlines()[0] if version else None
     stamp['env'] = {k: (os.environ if makeenv is None else makeenv).get(k) for k in STAMP_ENV}
-    # make sees no header, and Forthon's rules recompile no Fortran when a .v file changes: the new C wrapper then runs
-    # on the old objects
+    # make sees no header (.h, and the .inc files ncl/nclass_mod.f includes), and Forthon's rules recompile no Fortran
+    # when a .v file changes: the new C wrapper then runs on the old objects
     stamp['files'] = {}
-    for f in glob('*.h') + glob(os.path.join('*', '*.h')) + glob(os.path.join('*', '*.v')):
-        with open(f, 'rb') as source:
-            stamp['files'][f] = sha256(source.read()).hexdigest()
+    headers = glob('*.h') + glob(os.path.join('*', '*.h')) + glob(os.path.join('*', '*.inc'))
+    for f in headers + glob(os.path.join('*', '*.v')):
+        try:
+            with open(f, 'rb') as source:
+                stamp['files'][f] = sha256(source.read()).hexdigest()
+        except OSError:  # a dangling link, a directory, unreadable: for the build to refuse if it needs it
+            stamp['files'][f] = None
     return stamp
 
 

@@ -11,7 +11,7 @@ setup.py must follow the working directory, not $PWD).
 
 --noclean instead runs sequences of builds (scenarios()) in scratch trees, each build one uedgeBuild.run with stubbed
 make, conversion and build.run, and prints what each did, as JSON (T27: a --noclean build must clean if the tree's
-objects were built with other flags, compilers or environment, from other .v or .h files, or by other means than
+objects were built with other flags, compilers or environment, from other .v, .h or .inc files, or by other means than
 setup.py). The stubbed make clean
 removes files only if it sees NOCLEAN=FALSE, as Makefile.Forthon's does, and the stubbed steps write an object, a .F
 file and an extension, each later than the rest of the tree whatever the clock's resolution. Every scenario runs on
@@ -149,6 +149,8 @@ def fake_check_output(libgcov, finclude, versions=None):
             if finclude is None:  # --finclude-fails: a compiler that is not GCC's driver
                 raise subprocess.CalledProcessError(1, command)
             return finclude + "\n"
+        if command[-1] == "--version" and " " in command[0]:  # a command with arguments passed as one word
+            raise FileNotFoundError(command[0])
         if command[-1] == "--version" and " ".join(command[:-1]) in versions:
             return versions[" ".join(command[:-1])]
         if command[0] == "git" and tuple(command[1:]) in GIT:
@@ -314,10 +316,20 @@ def edit_stamp(text):
     FAKE_STAMP.write_text(text)
 
 
-def edit_file(name, text="edited"):
-    """Write name with a time older than everything else: an edit counts by content."""
-    Path(name).write_text(text)
+# What each scratch tree holds: the sources a stamp hashes or (.m) converts, in several packages
+SOURCES = ("x.h", "bbb/x.m", "bbb/x.v", "bbb/x.h", "bbb/x.inc", "com/x.m", "com/x.v", "com/x.h", "ncl/pamx_mi.inc")
+SOURCE_TEXT, EDITED_TEXT = "source", "edited"  # of one size: an edit counts by content
+
+
+def edit_file(name):
+    """Write name with the size of the scratch tree's sources and a time older than everything else."""
+    Path(name).write_text(EDITED_TEXT)
     os.utime(name, (1, 1))
+
+
+def replace_by_link(name, target):
+    Path(name).unlink(missing_ok=True)
+    Path(name).symlink_to(target)
 
 
 BEFORE = {"an object": lambda: write_later("build/temp/bbb/oderhs.o"),
@@ -333,7 +345,21 @@ BEFORE = {"an object": lambda: write_later("build/temp/bbb/oderhs.o"),
           "a .v file edited": lambda: edit_file("bbb/x.v"), "a .v file added": lambda: edit_file("bbb/new.v"),
           "a .v file removed": lambda: Path("bbb/x.v").unlink(), "a .h file edited": lambda: edit_file("bbb/x.h"),
           "a top-level .h file edited": lambda: edit_file("x.h"), "a .v file touched": lambda: Path("bbb/x.v").touch(),
-          "another source edited": lambda: edit_file("bbb/x.m")}
+          "another source edited": lambda: edit_file("bbb/x.m"),
+          "another package's .v file edited": lambda: edit_file("com/x.v"),
+          "another package's .h file edited": lambda: edit_file("com/x.h"),
+          "another package's .F file": lambda: write_later("com/x.F"),
+          "an .inc file edited": lambda: edit_file("ncl/pamx_mi.inc"),
+          "another package's .inc file edited": lambda: edit_file("bbb/x.inc"),
+          "an .inc file added": lambda: edit_file("ncl/new.inc"),
+          "an .inc file removed": lambda: Path("ncl/pamx_mi.inc").unlink(),
+          "an .inc file touched": lambda: Path("ncl/pamx_mi.inc").touch(),
+          "a .h file added": lambda: edit_file("com/new.h"),
+          # Hashed files that cannot be opened: no such file, a directory, and another OSError
+          "a dangling .h link": lambda: replace_by_link("com/new.h", "nowhere"),
+          "a .v directory": lambda: Path("bbb/new.v").mkdir(),
+          "a looping .inc link": lambda: replace_by_link("ncl/new.inc", "new.inc"),
+          "a .h file made a dangling link": lambda: replace_by_link("bbb/x.h", "nowhere")}
 
 
 def scenarios():
@@ -352,8 +378,9 @@ def scenarios():
            "CC": [default, step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.0\n"}),
                   step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.0\n"}),
                   step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.1\n"})],
-           "C compiler with arguments": [default, step(env={"CC": "fake-cc -pthread"},
-                                                    versions={"fake-cc -pthread": FAKE_CC_VERSION})],
+           "C compiler with arguments": [default] + [
+               step(env={"CC": "fake-cc -pthread"}, versions={"fake-cc -pthread": v})
+               for v in (FAKE_CC_VERSION, FAKE_CC_VERSION, "fake-cc 1.1\n")],
            "Forthon's flags": [default, step(fc={"fopt": "-other-fopt"})],
            "Fortran compiler": [default, step(fc={"fcompexec": "other-gfortran"})],
            "other options fail, then the first": [default, step(("noopt",), make="fails"), step()],
@@ -366,6 +393,8 @@ def scenarios():
            "converted, then again": [default, step(convert="one file"), step()],
            "clean leaves build/": [default, step(("noopt",), clean="leaves build"), step()],
            "clean leaves a .F file": [default, step(("noopt",), clean="leaves .F"), step()],
+           "clean leaves another package's .F file": [default, step(("noopt",), clean="leaves com/x.F"), step()],
+           "clean leaves a file deep in build/": [default, step(("noopt",), clean="leaves a deep file"), step()],
            "clean fails": [default, step(("noopt",), clean="fails"), step()],
            "clean removes all and fails": [default, step(("noopt",), clean="fails after removing"), step()],
            "clean interrupted": [default, step(("noopt",), clean="interrupted"), step()],
@@ -376,7 +405,14 @@ def scenarios():
                default, step(("noopt",), noclean=False, clean="leaves the stamp"), step()],
            "normal build, clean leaves an empty build/": [
                default, step(noclean=False, clean="leaves an empty build"), step()],
-           "normal build, clean fails": [default, step(noclean=False, clean="fails")]}
+           "normal build, clean leaves a file deep in build/": [
+               default, step(noclean=False, clean="leaves a deep file"), step()],
+           "normal build, clean fails": [default, step(noclean=False, clean="fails"), step()],
+           "normal build, clean interrupted": [default, step(noclean=False, clean="interrupted"), step()],
+           "a dangling .h link gets its target": [
+               step(noclean=False, before="a dangling .h link"), step(before="a .h file added"), step()]}
+    for before in ("a dangling .h link", "a .v directory", "a looping .inc link"):
+        out["normal build, " + before] = [step(noclean=False, before=before), step()]
     for option in ("noopt", "serial", "checkbounds", "debug", "coverage"):
         out["--" + option] = [default, step((option,))]
     for name in STAMP_VARS:
@@ -418,12 +454,16 @@ def run_step(setup_path, s, platform, libgcov, finclude):
                     Path("build").mkdir()
                 if s["clean"] == "leaves build":
                     Path("build", "left").touch()
+                if s["clean"] == "leaves a deep file":
+                    Path("build", "temp", "bbb").mkdir(parents=True)
+                    Path("build", "temp", "bbb", "left").touch()
                 if s["clean"] == "leaves the stamp" and old_stamp:  # one that could not be deleted
                     Path("build").mkdir()
                     FAKE_STAMP.write_bytes(old_stamp[0])
                     os.utime(FAKE_STAMP, ns=(old_stamp[1], old_stamp[1]))
-                if s["clean"] != "leaves .F":
-                    Path("bbb/x.F").unlink(missing_ok=True)
+                for f in Path().glob("*/*.F"):
+                    if (s["clean"], f.as_posix()) not in (("leaves .F", "bbb/x.F"), ("leaves com/x.F", "com/x.F")):
+                        f.unlink()
             return 2 if s["clean"] == "fails after removing" else 0
         write_later("build/temp/bbb/x.o")
         if s["make"] == "edits a .v file":
@@ -436,8 +476,9 @@ def run_step(setup_path, s, platform, libgcov, finclude):
         if s["convert"] == "interrupted":
             write_later("bbb/x.F")
             raise KeyboardInterrupt()
-        if s["convert"] == "one file" or not Path("bbb/x.F").exists():
-            write_later("bbb/x.F")
+        for f in ("com/x.F", "bbb/x.F"):
+            if (s["convert"] == "one file" and f == "bbb/x.F") or not Path(f).exists():
+                write_later(f)
 
     def fake_build_run(command):
         built.append(command)
@@ -466,6 +507,8 @@ def run_step(setup_path, s, platform, libgcov, finclude):
                     exit_message = str(e)
                 except KeyboardInterrupt:
                     exit_message = "interrupted"
+                except OSError as e:  # setup.py stops with a traceback
+                    exit_message = type(e).__name__
     finally:
         for name, value in saved_fc.items():
             setattr(FakeFCompiler, name, value)
@@ -491,9 +534,9 @@ def noclean_check(setup_path=SETUP):
                 result[platform] = {}
                 for i, (name, steps) in enumerate(scenarios().items()):
                     tree = Path(tmp, platform + str(i))
-                    (tree / "bbb").mkdir(parents=True)
-                    for source in ("bbb/x.m", "bbb/x.v", "bbb/x.h", "x.h"):
-                        (tree / source).touch()
+                    for source in SOURCES:
+                        (tree / source).parent.mkdir(parents=True, exist_ok=True)
+                        (tree / source).write_text(SOURCE_TEXT)
                     os.chdir(tree)
                     result[platform][name] = [run_step(setup_path, s, platform, libgcov, finclude) for s in steps]
         finally:
