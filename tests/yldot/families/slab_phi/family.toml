@@ -34,7 +34,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 81005
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 9.660  # with the synthetic rate files (T169); below the rule's 10 (ni[1]): accepted, states kept (owner, 2026-11-23, T169 D1); 8.726e+11 with the real tables
+min_block_ratio = 9.660  # with the synthetic rate files (T169); below the rule's 10 (Fortran ifld: ni[1]): accepted, states kept (owner, 2026-11-23, T169 D1); 8.726e+11 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }

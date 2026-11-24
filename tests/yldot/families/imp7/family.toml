@@ -22,7 +22,7 @@ grid = "gridue.hdf5"
 grid_sha256 = "a4b38ab63e8ff5a951920a44b47f36a310ae04cc581eebfc8e96cc081122ab2f"
 state = "b0p1.hdf5"
 state_sha256 = "e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5"
-mist = "mist.dat"
+mist = "mist.dat"  # the owner's original, not in the repository (T169)
 mist_sha256 = "3547f7d703dd90111094eda0cd9567146198de7d22e5b0a41b08bd4649f6b7cb"
 input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.synthetic (T169; the case's mist.dat before), com.mcfilename = C_rates.synthetic (T169; was C_rates.adas), ehr2.dat synthetic (T169); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5; com.redopltvtag = 1 added (AIUE-164, AIUE-170, owner 2026-10-23)"
 
@@ -31,8 +31,8 @@ file = "reference_state.h5"
 origin = "owner case state (b0p1.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140); evaluated with com.redopltvtag = 1 (AIUE-170): the saved data are unchanged (data sha256 identical to the states made without it), not re-converged (owner, 2026-10-23)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
-fmax = 1.3684e+00  # with the synthetic rate files (T169); 1.5375e-02 with the real tables
-fnrm_l2 = 3.1701e+01
+fmax = 1.3292e+00  # with the synthetic rate files (T169); 1.5375e-02 with the real tables
+fnrm_l2 = 3.2913e+01
 converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
 build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"
@@ -42,7 +42,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 91003
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 1.053  # with the synthetic rate files (T169); below the rule's 10 (ni[5], ni[6], ni[7]): accepted, states kept (owner, 2026-11-23, T169 D1); 37.75 with the real tables
+min_block_ratio = 1.054  # with the synthetic rate files (T169); below the rule's 10 (Fortran ifld: ni[5], ni[6], ni[7]): accepted, states kept (owner, 2026-11-23, T169 D1); 37.75 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }

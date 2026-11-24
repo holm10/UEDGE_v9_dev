@@ -22,7 +22,7 @@ grid = "gridue.hdf5"
 grid_sha256 = "42bdea5489f03eff1038524f63f64a2288a19e1614ec54dad21edc23a26b58c1"
 state = "fwdB.hdf5"
 state_sha256 = "5da9ff9e37e49e6ec540ad859f2ac6eb58568308f1454dcf28da2cfca188c189"
-mist = "mist.dat"
+mist = "mist.dat"  # the owner's original, not in the repository (T169)
 mist_sha256 = "82a797555f0470483122d4c9a053bd250cbbb588f1958843a493c969a159a7db"
 not_used = ["input.yaml (UETOOLS form of input.py)", "z6.txt (identical to mist.dat)"]
 input_changes = "normal form: bbb.restart=1 (8) and the state restore (275-282) removed; aph.aphdir, api.apidir set to ../../data; com.coronalimpfname = ../../data/mist_c.synthetic (T169; the case's mist.dat before), ehr2.dat synthetic (T169); bbb.afracs=0.02 moved after allocate (owner, 2026-10-19: 0.02 on every cell, the case as run; set before it, 3860 of 3864 cells stayed 0); the first exmain (286-290) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's fwdB.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5"
@@ -33,7 +33,7 @@ origin = "owner case state (fwdB.hdf5), used as supplied, no reconvergence (owne
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
 fmax = 1.4542e+00  # with the synthetic rate files (T169); 1.9036e-09 with the real tables
-fnrm_l2 = 2.0186e+01
+fnrm_l2 = 2.0634e+01
 converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
 build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"

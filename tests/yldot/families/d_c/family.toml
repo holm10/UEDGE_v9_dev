@@ -24,7 +24,7 @@ origin = "pytests template state, no reconvergence (owner, 2026-10-19); re-saved
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
 fmax = 1.1350e+00  # with the synthetic rate files (T169); 3.9466e-05 with the real tables
-fnrm_l2 = 8.5619e+00
+fnrm_l2 = 8.6485e+00
 converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
 build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"
@@ -34,7 +34,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 81003
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 13.92  # with the synthetic rate files (T169); 1.671e+06 with the real tables
+min_block_ratio = 14.07  # with the synthetic rate files (T169); 1.671e+06 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }

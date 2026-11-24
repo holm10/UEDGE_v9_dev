@@ -6493,4 +6493,4 @@
   2.99824E-07  3.01526E-07  3.03638E-07  3.06249E-07  3.09464E-07  3.13403E-07
   3.18204E-07  3.24018E-07  3.31007E-07  3.39343E-07  3.49202E-07  3.60757E-07
 
-SYNTHETIC TEST FILE - NOT ACTUAL DATA. Invented values from closed formulas, for UEDGE software tests only; no measured, calculated or published rate was used. Do not use for physics.
+SYNTHETIC TEST FILE - NOT ACTUAL DATA. Invented values from closed formulas, for UEDGE software tests only; no measured, calculated or published rate is in it. Do not use for physics.

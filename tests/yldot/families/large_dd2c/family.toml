@@ -30,7 +30,7 @@ origin = "owner case state (Dcrm.hdf5), used as supplied, no reconvergence (owne
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
 fmax = 1.9361e+00  # with the synthetic rate files (T169); 1.9361e+00 with the real tables
-fnrm_l2 = 2.6892e+01
+fnrm_l2 = 2.6947e+01
 converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
 build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"
@@ -40,7 +40,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.03
 seed = 91001
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 1.534  # with the synthetic rate files (T169); below the rule's 10 (ni[6], ni[7], ni[8]): accepted, states kept (owner, 2026-11-23, T169 D1); 11.72 with the real tables
+min_block_ratio = 1.541  # with the synthetic rate files (T169); below the rule's 10 (Fortran ifld: ni[6], ni[7], ni[8]): accepted, states kept (owner, 2026-11-23, T169 D1); 11.72 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }

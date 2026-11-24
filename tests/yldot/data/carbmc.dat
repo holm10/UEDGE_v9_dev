@@ -402,4 +402,4 @@
   1.1650E+04  6.5054E-15  1.3011E-14  1.9516E-14  2.6022E-14  3.2527E-14  3.9032E-14
   1.2909E+04  6.6403E-15  1.3281E-14  1.9921E-14  2.6561E-14  3.3201E-14  3.9842E-14
   1.4304E+04  6.7779E-15  1.3556E-14  2.0334E-14  2.7112E-14  3.3890E-14  4.0667E-14
-SYNTHETIC TEST FILE - NOT ACTUAL DATA. Invented values from closed formulas, for UEDGE software tests only; no measured, calculated or published rate was used. Do not use for physics.
+SYNTHETIC TEST FILE - NOT ACTUAL DATA. Invented values from closed formulas, for UEDGE software tests only; no measured, calculated or published rate is in it. Do not use for physics.

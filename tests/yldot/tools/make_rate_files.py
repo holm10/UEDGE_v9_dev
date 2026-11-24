@@ -6,9 +6,11 @@ Usage:
                                              (exit 1 names each missing, extra or different file)
 
 NONE OF THESE FILES HOLDS ACTUAL DATA. Every number comes from the closed formulas below, invented for software tests:
-positive, smooth, different from table to table, and NOT physical. No measured, calculated or published table is read,
-fitted or scaled (owner, 2026-11-23, T169: real rate tables are not publicly shareable). Never replace a file here by a
-real table, and never tune a formula to one. A case run with these files need not converge.
+positive, smooth, different from table to table, and NOT physical. This program reads no table, and no value was taken
+from, fitted to or scaled to a measured, calculated or published one (owner, 2026-11-23, T169: real rate tables are not
+publicly shareable). The Te-ne grids of the aphread files and the 101 temperatures of carbmc.dat are fixed by the
+Fortran; the other grids are arbitrary. Never replace a file here by a real table, and never tune a formula or a grid
+to one. A case run with these files need not converge.
 
 Every file says so on its first or second line and on its last line. A format without a header record (nwfits, eh.dat,
 carbmc.dat) carries the notice on line 1, after the columns that are read.
@@ -37,7 +39,7 @@ README = "README.md"
 SIG = 9
 NOTICE = "*** SYNTHETIC TEST FILE - NOT ACTUAL DATA - DO NOT USE FOR PHYSICS ***"
 LAST = ("SYNTHETIC TEST FILE - NOT ACTUAL DATA. Invented values from closed formulas, for UEDGE software tests only; "
-        "no measured, calculated or published rate was used. Do not use for physics.")
+        "no measured, calculated or published rate is in it. Do not use for physics.")
 
 
 # ---------------------------------------------------------------- formatting
@@ -178,7 +180,7 @@ def atmc():
 class Braams:
     """A table in B. Braams' layout: species zn+1 charge states 0..zn, nt+1 temperatures, nn+1 densities."""
 
-    def __init__(self, zn, tmin=0.2, tmax=2e4, nt=40, nn=16, nmin=1e16, nmax=1e22):
+    def __init__(self, zn, tmin=0.17, tmax=1.3e4, nt=31, nn=11, nmin=3e15, nmax=2e22):
         self.zn, self.nt, self.nn, self.ns = zn, nt, nn, zn + 1
         self.lt = [num(math.log(tmin) + i * math.log(tmax / tmin) / nt) for i in range(nt + 1)]
         self.ln = [num(math.log(nmin) + j * math.log(nmax / nmin) / nn) for j in range(nn + 1)]
@@ -231,14 +233,14 @@ BRAAMS = {"rates.adpak": (Braams(1), False), "rates.strahl": (Braams(1, tmin=0.3
 
 class Mist:
     """atn, atw: atomic number and weight. Values over (n*tau, ng/ne, Te), Te fastest, as readpost1 loops."""
-    nt, nr, nn = 12, 6, 6
+    nt, nr, nn = 13, 5, 7
 
     def __init__(self, atn, atw):
         self.atn, self.atw = atn, atw
 
     def row(self, jt, jr, jn):
         """Te [eV], ng/ne, n*tau [s/cm^3], emissivity [W cm^3], <Z>, <Z^2>."""
-        t, ratio, ntau = 10 ** (4.0 * jt / (self.nt - 1)), 10 ** (-7 + 1.2 * jr), 10 ** (8 + 1.0 * jn)
+        t, ratio, ntau = 10 ** (0.15 + 3.7 * jt / (self.nt - 1)), 10 ** (-6.3 + 1.15 * jr), 10 ** (7.4 + 1.1 * jn)
         z = self.atn * t / (t + 20.0 * self.atn)
         emissivity = (1e-25 * self.atn * math.exp(-((math.log10(t) - 1.2) / 0.9) ** 2) * (1 + 50 * ratio)
                       * (1 + 0.1 * (self.nn - jn)))

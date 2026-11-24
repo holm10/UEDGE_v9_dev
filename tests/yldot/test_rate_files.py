@@ -1,18 +1,22 @@
 """The synthetic rate files of tests/yldot/data (tools/make_rate_files.py; tracker T169).
 
 They are exactly what the generator writes; each says, on its first or second line and on its last, that it is not
-actual data; no real rate table is tracked anywhere in the repository, tar and zip archives included (the known ones,
-by SHA-256); and UEDGE's own readers return the generator's values for every table of every file. Each check is shown
-failing on a planted defect.
+actual data; no real rate table is tracked anywhere in the repository, compressed files and archives included (the
+known ones, by SHA-256); and UEDGE's own readers return the generator's values for every table of every file. Each
+check is shown failing on a planted defect.
 """
+import bz2
+import gzip
 import hashlib
 import io
 import json
+import lzma
 import os
 import subprocess
 import sys
 import tarfile
 import zipfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -82,8 +86,13 @@ def test_readme_says_so():
 
 
 def members(name, data):
-    """(name, bytes) of a file and, for a tar or zip archive, of its members."""
+    """(name, bytes) of a file and of what it holds, if it is gzip, bzip2 or xz data or a tar or zip archive."""
     yield name, data
+    for unpack in (gzip.decompress, bz2.decompress, lzma.decompress):
+        try:
+            yield name + ":", unpack(data)
+        except (OSError, EOFError, zlib.error, lzma.LZMAError, ValueError):
+            continue
     try:
         if zipfile.is_zipfile(io.BytesIO(data)):
             z = zipfile.ZipFile(io.BytesIO(data))
@@ -130,8 +139,12 @@ def test_real_tables_are_found(tmp_path, monkeypatch):
     with zipfile.ZipFile(tmp_path / "z.zip", "w") as z:
         z.write(tmp_path / "x.dat", "x.dat")
     (tmp_path / "broken.gz").write_bytes(b"not an archive")
-    paths = ["x.dat", "y.dat", "z.tar.gz", "z.zip", "broken.gz", "gone.dat"]
-    assert real_tables(paths, tmp_path) == ["x.dat is planted", "z.tar.gz:d/x.dat is planted", "z.zip:x.dat is planted"]
+    for suffix, pack in (("gz", gzip.compress), ("bz2", bz2.compress), ("xz", lzma.compress)):
+        (tmp_path / ("w." + suffix)).write_bytes(pack(table))
+    paths = ["x.dat", "y.dat", "z.tar.gz", "z.zip", "w.gz", "w.bz2", "w.xz", "broken.gz", "gone.dat"]
+    assert real_tables(paths, tmp_path) == [
+        "x.dat is planted", "z.tar.gz:d/x.dat is planted", "z.zip:x.dat is planted", "w.gz: is planted",
+        "w.bz2: is planted", "w.xz: is planted"]
 
 
 # ---------------------------------------------------------------- read back through UEDGE
@@ -159,11 +172,12 @@ elif job["mist"]:
     pkg = api
 elif name == "carbmc.dat":  # inelinput is not callable from Python: ueinit calls it for ismctab = 1
     import os
+    inelmc = os.path.join(os.getcwd(), name)
     os.chdir(job["family"])
     exec(compile(open("input.py").read(), "input.py", "exec"))
     bbb.ismctab = 1
     com.nz = job["nz"]
-    api.inelmc[0] = "../../data/" + name
+    api.inelmc[0] = inelmc
     bbb.allocate()
     from uedge.hdf5 import hdf5_restore
     hdf5_restore("reference_state.h5")
@@ -262,6 +276,19 @@ def differences(want, got, rtol=RTOL):
 def test_read_back(name, tmp_path):
     want, got = read_back(name, DATA, tmp_path)
     assert differences(want, got, RTOL_INEL if name == "carbmc.dat" else RTOL) == {}
+
+
+def test_read_back_reads_the_given_carbmc(tmp_path):
+    """carbmc.dat goes through d_c's deck; a changed copy must still be the file that is read."""
+    d = tmp_path / "data"
+    rf.write(d)
+    lines = (d / "carbmc.dat").read_text().splitlines()
+    i = len(lines) - 2  # the last record of the last table (rrcx), before the closing notice
+    assert lines[i].count("E") == rf.INEL.nz + 1
+    lines[i] = lines[i][:-12] + "%12.4E" % (2 * float(lines[i][-12:]))
+    (d / "carbmc.dat").write_text("\n".join(lines) + "\n")
+    want, got = read_back("carbmc.dat", d, tmp_path)
+    assert set(differences(want, got, RTOL_INEL)) == {"rrcx"}
 
 
 def test_read_back_finds_a_wrong_value(tmp_path):

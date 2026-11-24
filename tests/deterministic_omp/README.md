@@ -343,9 +343,9 @@ The owner's original check, from inside a copy of `case/` (with the environment 
 
 | Configuration | neq | printed iteration-0 `fnrm` | `get_fnrm()` after `exmain` |
 |---|---|---|---|
-| Full problem, `ftol=1e20` | 44352 | `33.58851931783453` | `0x1.0cb5499db94efp+5` |
-| Te box, `ftol=1e20` | 25 | `5.014971167959329` | `0x1.40f549a1312aep+2` |
-| Full problem, `itermx=3` | 44352 | 33.58851931783453, 33.58835757188695, 33.58827956567894, 33.58824110816919 | `0x1.0cb4b7c10dfefp+5` |
+| Full problem, `ftol=1e20` | 44352 | `32.91786622674181` | `0x1.0757ca3f8fac0p+5` |
+| Te box, `ftol=1e20` | 25 | `4.462290349050821` | `0x1.1d962a429b803p+2` |
+| Full problem, `itermx=3` | 44352 | 32.91786622674181, 32.91772507995744, 32.91763669553815, 32.91757613157029 | `0x1.07573227a57a1p+5` |
 
 These values are for orientation. Bitwise comparisons are always made against a reference run of the same build on
 the same machine, never against this table.
