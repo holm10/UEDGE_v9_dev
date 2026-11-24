@@ -3,7 +3,7 @@
 Each run gets its own directory holding a copy of tests/deterministic_omp/case, an empty
 HOME (so no ~/.uedgerc.py), pinned OpenMP settings, and `python -I` (no PYTHON* variables,
 script folder not on sys.path). The rate files come from UEDGE_OMP_RATES_DIR, defaulting
-to the copy tracked in builder/test/Forthon_cases/Forthon_case5.
+to the synthetic files (not actual data) in tests/yldot/data.
 """
 import json
 import os
@@ -18,8 +18,8 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 CASE_DIR = os.path.normpath(os.path.join(HERE, "..", "case"))
 REPO_DIR = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
-DEFAULT_RATES = os.path.join(REPO_DIR, "builder", "test", "Forthon_cases", "Forthon_case5")
-CASE_FILES = ["input_mod4.py", "b0p1.hdf5", "gridue.hdf5", "save_input_mod4.h5", "mist.dat"]
+DEFAULT_RATES = os.path.join(REPO_DIR, "tests", "yldot", "data")
+CASE_FILES = ["input_mod4.py", "b0p1.hdf5", "gridue.hdf5", "save_input_mod4.h5"]
 
 # nksol prints "iter=" or, whenever ParallelPandf1>0, "OMP iter=" (bbb/pandf.m PandfRHS_interface). The tag
 # does not prove the parallel RHS ran: OMPPandf1Rhs falls back to the serial pandf while ijactot==0.

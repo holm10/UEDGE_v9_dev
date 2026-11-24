@@ -2,13 +2,13 @@
 # round-trip re-save: AIUE-140; [regions]: owner, 2026-10-21); W, P, child reuse, [history]: AIUE-92.
 # Release assets (gridue.hdf5, inputs.h5, both states) are not in git: their SHA-256s are in
 # references/imp7.manifest.json only (owner, 2026-10-21); tools/fetch_data.py fetches them.
-# isimpon=7: fixed-fraction neon (mist_ne.dat, afracs=1.5e-2) with force-balance carbon, upper single null 70x42 (owner, 2026-10-19)
+# isimpon=7: fixed-fraction neon (mist_ne.synthetic, afracs=1.5e-2) with force-balance carbon, upper single null 70x42 (owner, 2026-10-19)
 
 [family]
 name = "imp7"
 grid = "gridue.hdf5"
 store = "sketch"  # owner, 2026-10-19
-rate_files = ["ehr2.dat", "C_rates.adas", "mist_ne.dat"]  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir / com.coronalimpfname;
+rate_files = ["ehr2.dat", "C_rates.synthetic", "mist_ne.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir / com.coronalimpfname;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 44352
 
@@ -24,17 +24,17 @@ state = "b0p1.hdf5"
 state_sha256 = "e0e4d590e415c3b6b4fbc73a8601fcc432bbed1f4c5e56786fb2806b7d9abaf5"
 mist = "mist.dat"
 mist_sha256 = "3547f7d703dd90111094eda0cd9567146198de7d22e5b0a41b08bd4649f6b7cb"
-input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.dat (the case's mist.dat); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5; com.redopltvtag = 1 added (AIUE-164, AIUE-170, owner 2026-10-23)"
+input_changes = "normal form: aph.aphdir, api.apidir set to ../../data (were commented out); bbb.restart=1 (8), the state restore (276-284) and the closing hdf5_restore (338) removed; bbb.isimpon=7 from the start (the owner's input set 6 and switched after its first exmain); com.coronalimpfname = ../../data/mist_ne.synthetic (T169; the case's mist.dat before), com.mcfilename = C_rates.synthetic (T169; was C_rates.adas), ehr2.dat synthetic (T169); the first exmain (288-292) replaced by albedo_by_user=1, alblb/albrb filled from albedolb/albedorb and albedoi/albedoo read from inputs.h5 (the owner's b0p1.hdf5 setup/detected), then the owner's overrides; diffusivities read from inputs.h5; com.redopltvtag = 1 added (AIUE-164, AIUE-170, owner 2026-10-23)"
 
 [reference_state]
 file = "reference_state.h5"
 origin = "owner case state (b0p1.hdf5), used as supplied, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140); evaluated with com.redopltvtag = 1 (AIUE-170): the saved data are unchanged (data sha256 identical to the states made without it), not re-converged (owner, 2026-10-23)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
-fmax = 1.5375e-02  # with com.redopltvtag = 1 (AIUE-170); 1.5370e-10 before
-fnrm_l2 = 5.8358e-02
-converged = false  # information only, gates nothing
-build_commit = "c6de66bee6860c007a1e9e8d275b89b04857a0ae"  # the build measured (AIUE-170's base); the deck already had AIUE-170's redopltvtag line
+fmax = 1.3684e+00  # with the synthetic rate files (T169); 1.5375e-02 with the real tables
+fnrm_l2 = 3.1701e+01
+converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
+build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"
 uedge_ver = "8.1.2-beta.0"
 
@@ -42,7 +42,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 91003
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 37.75  # with com.redopltvtag = 1 (AIUE-170); 1.249e10 before
+min_block_ratio = 1.053  # with the synthetic rate files (T169); below the rule's 10 (ni[5], ni[6], ni[7]): accepted, states kept (owner, 2026-11-23, T169 D1); 37.75 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }
@@ -103,7 +103,7 @@ columns = "special"  # the special cells (AIUE-101 Q1) and the seeded interior s
 sample = 300
 seed = 20261025
 variants = "meth"  # the bbb.meth* variants, on the special cells (AIUE-101 Q2)
-calibration = "D3 over 1e-6, 1e-5, 1e-4, 1e-3 on the special cells' columns plus 300 seeded interior ones (serial -O3 macOS build of f6122cb): both range mutations score far above 10*M_loc outside the default pattern at every delta, but no delta leaves the stored pattern clear of 3x of M_loc (the entries within it grow with delta), so D3 qualifies none; the owner chose 1e-6, the smallest, and accepted the near-margin entries (2026-10-25, AIUE-101 Q5). 9036 columns. At 1e-6: 332 stored entries, 41 above M_loc (largest 2.42e+03), 44 within 3x of M_loc, all the nonog signature; range_loop_bound 1.76e+07, range_window_coupling 1.93e+04 outside the pattern. 1e-5: 116 within 3x; 1e-4: 283; 1e-3: 208. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the native sweep of 333af1e (run 40273278698), default 44: methg=33, methi=55 43; methe=22, methe=44, methe=55, methg=22, methg=44, methg=55, methg=77, methi=22, methi=44, methn=22, methp=22, methp=44, methp=55, methu=22, methu=33, methu=44, methu=55 42."
+calibration = "D3 over 1e-6, 1e-5, 1e-4, 1e-3 on the special cells' columns plus 300 seeded interior ones (serial -O3 macOS build of f6122cb): both range mutations score far above 10*M_loc outside the default pattern at every delta, but no delta leaves the stored pattern clear of 3x of M_loc (the entries within it grow with delta), so D3 qualifies none; the owner chose 1e-6, the smallest, and accepted the near-margin entries (2026-10-25, AIUE-101 Q5). 9036 columns. At 1e-6: 332 stored entries, 41 above M_loc (largest 2.42e+03), 44 within 3x of M_loc, all the nonog signature; range_loop_bound 1.76e+07, range_window_coupling 1.93e+04 outside the pattern. 1e-5: 116 within 3x; 1e-4: 283; 1e-3: 208. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the native sweep of 333af1e (run 40273278698), default 44: methg=33, methi=55 43; methe=22, methe=44, methe=55, methg=22, methg=44, methg=55, methg=77, methi=22, methi=44, methn=22, methp=22, methp=44, methp=55, methu=22, methu=33, methu=44, methu=55 42. With the synthetic rate files (T169, macOS preview): 327 stored default entries (332 before), no new kind, the same causes; the figures above are from the real tables."
 near_margin = "the default entries within 3x of M_loc are the by-design nonog signature (causes); owner, 2026-10-25 (AIUE-101 Q5)"
 
 [locality.causes]  # the by-design causes of the default pattern

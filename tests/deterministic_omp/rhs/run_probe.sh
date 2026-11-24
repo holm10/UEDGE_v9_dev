@@ -10,11 +10,11 @@ PY=$1; SCRIPT=$2; RUNDIR=$3; T=$4; SPEC=$5
 HERE=$(cd "$(dirname "$0")" && pwd)
 HARNESS=${HARNESS:-/Users/holma/Documents/uedge/src/uedge-wt/AIUE-57/tests/deterministic_omp}
 CASE=${CASE:-$HERE/../case}
-RATES=${RATES:-$HERE/../../../builder/test/Forthon_cases/Forthon_case5}
+RATES=${RATES:-$HERE/../../yldot/data}
 RATES=$(cd "$RATES" && pwd)
 mkdir "$RUNDIR"
 mkdir "$RUNDIR/home"
-for f in input_mod4.py b0p1.hdf5 gridue.hdf5 save_input_mod4.h5 mist.dat; do cp "$CASE/$f" "$RUNDIR/"; done
+for f in input_mod4.py b0p1.hdf5 gridue.hdf5 save_input_mod4.h5; do cp "$CASE/$f" "$RUNDIR/"; done
 echo "$SPEC" | "$PY" -I -c "import json,sys; s=json.load(sys.stdin); s['harness']='$HARNESS'; s['threads']=$T; json.dump(s, open('$RUNDIR/spec.json','w'))"
 cd "$RUNDIR"
 start=$(date +%s)

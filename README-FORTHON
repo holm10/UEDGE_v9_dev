@@ -85,32 +85,10 @@ worked on and should be fixed soon (it does not occur on Macs).
 9. When done, make a soft link of uedgeC.so from the top uedge
 directory to the pyscripts subdirectory.
 
-10. You should now be ready to run a couple of test cases.
-
-   Go to uedge/test/Forthon_case1, startup a python session (just type
-python) and read in the input file as follows:
-
->>> execfile("rd_forthon_case1.py")
-
-after 30-60 seconds, you should have a set a numbers printed to the screen
-that are the plasma variables; compare to the file output_case1.  You can
-see the options used from the input file, rdforthon_case1.py.  This case
-is a simple slab geometry and uses vodpk, a Newton-Krylov time integration 
-to steady state. Note that installation of PACT and PyPDB should not be
-required to run this test case.
-
-   Next, you can go to uedge/test/Forthon_case2, which uses a real tokamak
-magnetic equilibrium (contained in aeqdsk and geqdsk) and a direct Newton-
-Krylov iteration to steady state.  This test case requires that PACT and 
-PyPDB be installed for the version of Python being used. Again, start a 
-python session, and then type
-
->>> execfile("rd_forthon_case2.py")
-
-Here you will see an output line from each linear iteration, with the L2-norm
-residual of the right-hand side decreasing to convergence of the system,
-followed by some of the plasma variables at the outer midplane (This is a 
-very easy case.) Compare with the output in the file output_forthon_case2.rtf.
+10. You should now be ready to run a test case. The two cases described here
+in earlier versions (Forthon_case1 and Forthon_case2) are removed. See
+pyexamples for input files, and tests/yldot for the test suite, whose rate
+files are synthetic and not actual data.
 
 
 

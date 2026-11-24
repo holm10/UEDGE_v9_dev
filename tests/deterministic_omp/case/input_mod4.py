@@ -4,24 +4,28 @@ from uedge.hdf5 import hdf5_restore
 import os
 
 casename = "tune"
-# Rate files (ehr2.dat, C_rates.adas) come from the repository copy in
-# builder/test/Forthon_cases/Forthon_case5, unless UEDGE_OMP_RATES_DIR points
-# to another directory holding both files. mist.dat and the HDF5 files are read
-# from the working directory (run the deck from the directory that holds them).
+# Rate files (_rate_files below) come from tests/yldot/data, unless UEDGE_OMP_RATES_DIR
+# points to another directory holding them. They are synthetic, NOT ACTUAL DATA (T169).
+# The HDF5 files are read from the working directory (run the deck from the directory
+# that holds them).
 _case_dir = os.path.dirname(os.path.abspath(__file__))
 _rates_dir = os.environ.get("UEDGE_OMP_RATES_DIR") or os.path.normpath(
-    os.path.join(_case_dir, "..", "..", "..", "builder", "test", "Forthon_cases", "Forthon_case5"))
-for _rate_file in ("ehr2.dat", "C_rates.adas"):
+    os.path.join(_case_dir, "..", "..", "yldot", "data"))
+_rate_files = ("ehr2.dat", "C_rates.synthetic", "mist_ne.synthetic")
+for _rate_file in _rate_files:
     if not os.path.exists(os.path.join(_rates_dir, _rate_file)):
         raise Exception("Rate file {} not found in {}".format(_rate_file, _rates_dir))
-if len(_rates_dir) > 120:
-    # aphdir/apidir are character*120: in a deep checkout fall back to the relative path
+_mist = os.path.join(_rates_dir, "mist_ne.synthetic")
+if len(_mist) > 120:
+    # aphdir, apidir and coronalimpfname are character*120: in a deep checkout fall back to the relative path
     _rel = os.path.relpath(_rates_dir)
-    if len(_rel) > 120:
+    _mist = os.path.join(_rel, "mist_ne.synthetic")
+    if len(_mist) > 120:
         raise Exception("Rate directory path longer than 120 characters: {}".format(_rates_dir))
     _rates_dir = _rel
 aph.aphdir = _rates_dir
 api.apidir = _rates_dir
+com.coronalimpfname = _mist  # isimpon=7's fixed-fraction table (Post93 layout)
 bbb.restart=1
 
 # ==== SPECIES ====
@@ -123,7 +127,7 @@ bbb.eion=5
 bbb.ediss=10
 
 # ==== CARBON ====
-com.mcfilename[0]="C_rates.adas"
+com.mcfilename[0]="C_rates.synthetic"
 com.iscxfit=2
 bbb.ziin[2:8]=[1, 2, 3, 4, 5, 6]
 bbb.minu[2:8]=[12, 12, 12, 12, 12, 12]
