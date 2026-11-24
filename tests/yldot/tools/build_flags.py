@@ -318,7 +318,8 @@ def edit_stamp(text):
 
 # What each scratch tree holds: the sources a stamp hashes or (.m) converts, in several packages
 SOURCES = ("x.h", "bbb/x.m", "bbb/x.v", "bbb/x.h", "bbb/x.inc", "com/x.m", "com/x.v", "com/x.h", "ncl/pamx_mi.inc")
-SOURCE_TEXT, EDITED_TEXT = "source", "edited"  # of one size: an edit counts by content
+# Of one size and with one first line: an edit counts by content, wherever it is in the file
+SOURCE_TEXT, EDITED_TEXT = "line\nsource", "line\nedited"
 
 
 def edit_file(name):

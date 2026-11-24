@@ -449,7 +449,7 @@ def noclean_expected(platform):
         "before: an .inc file added": [normal(), forced("ncl/new.inc"), reused()],
         "before: an .inc file removed": [normal(), forced("ncl/pamx_mi.inc"), reused()],
         "before: an .inc file touched": [normal(), reused(), reused()],
-        # One that cannot be opened counts as absent and stops no build
+        # One that cannot be opened counts as absent, and the hashing does not stop the build
         "before: a dangling .h link": [normal(), reused(), reused()],
         "before: a .v directory": [normal(), reused(), reused()],
         "before: a looping .inc link": [normal(), reused(), reused()],
@@ -559,6 +559,7 @@ STAMP_EDITS = {
                              "before: another package's .h file edited"),
     ".F files of bbb/ only": ("os.path.join('*', '*.m')", "os.path.join('bbb', '*.m')",
                               "before: another package's .F file"),
+    "first line hashed only": ("sha256(source.read())", "sha256(source.readline())", "before: a .v file edited"),
     "size instead of hash": ("sha256(source.read()).hexdigest()", "len(source.read())", "before: a .v file edited"),
     "dangling link stops the build": (UNREADABLE, UNREADABLE.replace("OSError", "IsADirectoryError"),
                                       "normal build, a dangling .h link"),
