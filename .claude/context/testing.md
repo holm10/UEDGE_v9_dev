@@ -399,7 +399,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `test_finclude_refusal` gives setup.py a relative, missing, spaced and failing `finclude` and requires every
   Linux build to stop with AIUE-211's message and every macOS one to be unchanged; an unedited copy
   must show no difference and `--no-git` must null only the git fields. `test_noclean_scenarios` holds the expected
-  step of every `--noclean` sequence, and `test_detects_stamp_changes` requires each of 51 wrong versions of `setup.py`
+  step of every `--noclean` sequence, and `test_detects_stamp_changes` requires each of 52 wrong versions of `setup.py`
   (`STAMP_EDITS`) to change the sequence it should. `test_installed_record` checks the record of
   the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
   on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
