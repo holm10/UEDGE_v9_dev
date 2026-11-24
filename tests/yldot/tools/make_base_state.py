@@ -2,7 +2,7 @@
 
 Usage (from anywhere; paths in --state/--source are absolute or relative to the family directory):
     python make_base_state.py check <family> [--state FILE] [--fixed-point-only]
-    python make_base_state.py make <family> --source FILE --seed N [--sigmas 0.02,0.03,0.05]
+    python make_base_state.py make <family> --source FILE --seed N [--sigmas 0.02,0.03,0.05] [--accept-ratio BLOCK ...]
 
 check  evaluates the family at a state (default reference_state.h5) with issfon=1 and prints nksol's
        convergence norm max|sfscal*yldot| next to the case's ftol and the L2 fnrm, and whether the state is
@@ -15,7 +15,11 @@ make   restores --source and writes it, re-saved after one exmain, as reference_
        on phis) and writes that, re-saved the same way, as base_state.h5. It takes the smallest sigma at
        which every (equation, species) block of the raw yldot has an RMS at least 10x the reference
        state's, with the floor guards passing. The blocks come only from UEDGE's idx* arrays. Prints a
-       TOML fragment for family.toml.
+       TOML fragment for family.toml. --accept-ratio BLOCK (repeatable; a label as printed, e.g. idxtg[0], its
+       species index 0-based) lets that one block miss the 10x rule: the owner's recorded exception, for a family
+       whose reference state is far from balance in it (owner, 2026-11-24, tracker T22). It accepts only named
+       blocks; a name that is no block, or a block that meets the rule at the sigma taken, is refused (exit 2), so
+       an acceptance cannot outlive its need. The fragment then also prints accepted_ratio.
 
 Round-trip fixed points (owner, 2026-10-21, AIUE-140): exmain builds the solver unknowns yl from the saved
 state (convert, bbb/convert.m), pandf converts them back (convsr_vo1), and after a converged call gridseq
@@ -246,6 +250,26 @@ def floors(ref):
     return out
 
 
+def check_accepted(labels, accepted):
+    """Stop(2) if an accepted block is not one of the family's blocks."""
+    unknown = [a for a in accepted if a not in labels]
+    if unknown:
+        raise Stop(2, "--accept-ratio {}: no such block; the blocks are {}".format(", ".join(unknown),
+                                                                                   ", ".join(labels)))
+
+
+def judge(ratios, accepted):
+    """Whether a sigma is taken: every block (label, ..., ratio) meets RATIO_MIN or is an accepted one. Stop(2) when
+    it is taken and an accepted block meets the rule anyway: the acceptance is not needed and must not stay."""
+    if not all(t[4] >= RATIO_MIN or t[0] in accepted for t in ratios):
+        return False
+    needless = [t[0] for t in ratios if t[0] in accepted and t[4] >= RATIO_MIN]
+    if needless:
+        raise Stop(2, "--accept-ratio {}: meets the rule (>= {:g}) at this sigma; drop it".format(", ".join(needless),
+                                                                                             RATIO_MIN))
+    return True
+
+
 def perturb(ref, sigma, seed):
     rng = np.random.default_rng(seed)
     new = {v: ref[v].copy() for v in saved_vars(ref)}
@@ -406,6 +430,8 @@ def make_states(args, log, family_dir, source, reference, base, raw):
 
     ref_eval = run_child(family_dir, {"mode": "eval", "state": str(reference), "issfon": 0}, log)
     found = blocks(ref_eval)
+    accepted = list(dict.fromkeys(args.accept_ratio))
+    check_accepted([label for label, _ in found], accepted)
     sigmas = [float(s) for s in args.sigmas.split(",")]
     chosen = None
     for sigma in sigmas:
@@ -438,7 +464,7 @@ def make_states(args, log, family_dir, source, reference, base, raw):
             ratios.append((label, rows.size, r_ref, r_base, ratio))
         worst = min(ratios, key=lambda t: t[4])
         print("sigma={}: min block ratio {:.3g} ({})".format(sigma, worst[4], worst[0]))
-        if all(t[4] >= RATIO_MIN for t in ratios):
+        if judge(ratios, accepted):
             chosen = ("ok", sigma, ratios, guard_summary, base_eval)
             break
     if chosen is None or chosen[0] != "ok":
@@ -449,8 +475,9 @@ def make_states(args, log, family_dir, source, reference, base, raw):
             base.unlink()
         if chosen is not None:
             raise chosen[2]
-        raise Stop(5, "{}: no sigma in {} gives every block ratio >= {}: ask the owner".format(
-            args.family, sigmas, RATIO_MIN))
+        raise Stop(5, "{}: no sigma in {} gives every block{} ratio >= {}: ask the owner".format(
+            args.family, sigmas, " (but the accepted {})".format(", ".join(accepted)) if accepted else "",
+            RATIO_MIN))
 
     _, sigma, ratios, guard_summary, base_eval = chosen
     for label, n, r_ref, r_base, ratio in ratios:
@@ -462,7 +489,11 @@ def make_states(args, log, family_dir, source, reference, base, raw):
     print("seed = {}".format(args.seed))
     print('rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= {:g}"'.format(
         RATIO_MIN))
-    print("min_block_ratio = {:.4g}".format(min(t[4] for t in ratios)))
+    print("min_block_ratio = {:.4g}{}".format(min(t[4] for t in ratios if t[0] not in accepted),
+                                               "  # over the blocks not accepted" if accepted else ""))
+    if accepted:
+        print("accepted_ratio = {{ {} }}  # the owner's exceptions to the rule (--accept-ratio)".format(
+            ", ".join('"{}" = {:.4g}'.format(t[0], t[4]) for t in ratios if t[0] in accepted)))
     print('floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= {0:g}*ngbackg(igsp); impurity ni >= {0:g}*nzbackg(ifld)"'
           .format(BACKG_FRACTION))
     print("near_floor_factor = {}".format(NEAR_FLOOR))
@@ -502,6 +533,8 @@ def main(argv):
     p.add_argument("--source", required=True)
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--sigmas", default="0.02,0.03,0.05")
+    p.add_argument("--accept-ratio", action="append", default=[], metavar="BLOCK",
+                   help="accept that this block misses the ratio rule (the owner's decision; repeatable)")
     p.add_argument("--log", help="child output log (default: discarded)")
     p_check = sub.choices["check"]
     p_check.add_argument("--log", help="child output log (default: discarded)")
