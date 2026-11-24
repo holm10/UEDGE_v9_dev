@@ -83,13 +83,13 @@ For most OSX builds, the llvm clang installation is recommended.
 There are a number of build options available for building the code:
 
   serial - builds the code without OMP parallel capabilities
-  noclean - does not clean the build directory between builds
+  noclean - does not clean the build directory between builds, unless it was built with other options, compilers
+            or flags, from other .v, .h or .inc files, or by other means (pip install -v shows why it cleans)
   checkbounds - turns on boundary checks for non-debug builds 
   debug - turns on compiler debugging flags
   noopt - compiles the Fortran at -O0 without FPE traps (round-off studies; not with debug)
-  coverage - serial -O0 build with gcov instrumentation (--coverage) for coverage reports; not with debug or noclean
-             (noclean keeps uninstrumented objects from an earlier build); on Linux the extensions must link with
-             the gcc that matches gfortran (do not set CC to clang)
+  coverage - serial -O0 build with gcov instrumentation (--coverage) for coverage reports; not with debug; on
+             Linux the extensions must link with the gcc that matches gfortran (do not set CC to clang)
 
 The options are passed to the build using the following syntax
 

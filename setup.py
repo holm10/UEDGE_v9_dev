@@ -742,6 +742,78 @@ def build_info(makeenv):
     return info
 
 
+# What the objects and generated .F files in the tree were built with, kept in build/ (make clean deletes it): make sees
+# only file times. A --noclean build whose inputs differ from it, or that finds none, cleans first (tracker T27). Its
+# own file time is the end of the last build: an object or .F file newer than that is another build's (an older
+# setup.py, make by hand) or an interrupted one's, and cleans as well
+STAMP = os.path.join('build', '.uedge_build_stamp.json')
+# Environment variables that setuptools, the compilers, make (FCOMP, READLINE) or the MPPL conversion (the last four)
+# read. LDFLAGS is compared as make gets it
+STAMP_ENV = ('CC', 'CPP', 'CFLAGS', 'CPPFLAGS', 'LDFLAGS', 'LDSHARED', 'AR', 'ARFLAGS', 'RANLIB', 'ARCHFLAGS',
+             'MACHTYPE', 'MACOSX_DEPLOYMENT_TARGET', 'SDKROOT', 'DEVELOPER_DIR', 'CPATH', 'C_INCLUDE_PATH',
+             'LIBRARY_PATH', 'GCC_EXEC_PREFIX', 'COMPILER_PATH', 'FCOMP', 'READLINE',
+             'OMP', 'PACT_DIR', 'PETSC_DIR', 'PARALLEL')
+
+
+def build_stamp(makeenv):
+    """The inputs that decide the object code, as the stamp holds them (makeenv: None if make inherits ours)."""
+    from glob import glob
+    from hashlib import sha256
+    from shlex import split
+    from sysconfig import get_config_var
+    info = build_info(makeenv)
+    stamp = {k: info[k] for k in ('fargs', 'cargs', 'ompflags', 'forthon_fopt', 'fcompiler', 'fcompiler_version')}
+    # The compiler setuptools uses for the wrappers and uedgeC
+    stamp['ccompiler'] = os.environ.get('CC') or get_config_var('CC') or ''
+    version = _probe(split(stamp['ccompiler']) + ['--version'])
+    stamp['ccompiler_version'] = version.splitlines()[0] if version else None
+    stamp['env'] = {k: (os.environ if makeenv is None else makeenv).get(k) for k in STAMP_ENV}
+    # make sees no header (.h, and the .inc files ncl/nclass_mod.f includes), and Forthon's rules recompile no Fortran
+    # when a .v file changes: the new C wrapper then runs on the old objects
+    stamp['files'] = {}
+    headers = glob('*.h') + glob(os.path.join('*', '*.h')) + glob(os.path.join('*', '*.inc'))
+    for f in headers + glob(os.path.join('*', '*.v')):
+        try:
+            with open(f, 'rb') as source:
+                stamp['files'][f] = sha256(source.read()).hexdigest()
+        except OSError:  # a dangling link, a directory, unreadable: for the build to refuse if it needs it
+            stamp['files'][f] = None
+    return stamp
+
+
+def build_outputs():
+    """The objects and extensions under build/ and the .F files converted from the packages' .m files."""
+    from glob import glob
+    objects = [f for s in ('*.o', '*.so') for f in glob(os.path.join('build', '**', s), recursive=True)]
+    converted = [m[:-1] + 'F' for m in glob(os.path.join('*', '*.m'))]
+    return sorted(objects + [f for f in converted if os.path.exists(f)])
+
+
+def clean_leftovers():
+    """What make clean should have removed: the files under build/ and the converted .F files."""
+    files = [os.path.join(d, f) for d, _, names in os.walk('build') for f in names]
+    return sorted(files + [f for f in build_outputs() if f.endswith('.F')])
+
+
+def stamp_changes(stamp):
+    """Why the build tree does not match stamp, one line each; empty if it does."""
+    try:
+        with open(STAMP) as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = None
+    if not isinstance(old, dict) or not all(isinstance(old.get(k), dict) for k in ('env', 'files')):
+        return ['no usable record of the previous build ({})'.format(STAMP)]
+    old, new = [{**s, **s['env'], **s['files'], 'env': None, 'files': None} for s in (old, stamp)]
+    changes = ['{}: {!r} -> {!r}'.format(k, old.get(k), new.get(k))
+               for k in sorted(set(old) | set(new)) if old.get(k) != new.get(k)]
+    end = os.stat(STAMP).st_mtime_ns
+    later = [f for f in build_outputs() if os.lstat(f).st_mtime_ns > end]
+    if later:
+        changes.append('{}: newer than the end of the previous build (the first of {})'.format(later[0], len(later)))
+    return changes
+
+
 class uedgeWheel(bdist_wheel):
     from os import environ
     if arglist['noclean']:
@@ -825,18 +897,6 @@ class uedgeBuild(build):
                 raise SystemExit("{} gives no usable intrinsic module directory (-print-file-name=finclude: '{}'), "
                                  "needed with -nostdinc (AIUE-211)".format(fcompiler.fcompexec, finclude))
             FLAGS['FARGS'] = FLAGS['FARGS'] + ['-nostdinc', '-fintrinsic-modules-path ' + finclude]
-        # Clean build directory unless flagged not to
-        if arglist['noclean'] is False:
-            print("Cleaning UEDGE build directory")
-            status = call(['make', '-f', 'Makefile.Forthon', 'clean'])
-            if status != 0: 
-                raise SystemExit("Pre-UEDGE build clean failure")
-            print("Build directory cleaned")
-
-        print("Converting MPPL files to Fortran in build")
-        mppl2f90()
-        print("MPPL files converted to Fortran")
-
         # Compile arguments into compiler flags    
         OMPFLAGS='OMPFLAGS = {}'.format(' '.join(FLAGS['OMPargs']))
         COMPILEFLAGS ='DEBUG = -v --fargs "{}"'.format(' '.join(FLAGS['FARGS']))
@@ -873,10 +933,49 @@ class uedgeBuild(build):
                 makeenv = dict(os.environ)
             makeenv['LDFLAGS'] = (makeenv.get('LDFLAGS', '') + ' ' + gcovlink).strip()
             print("Coverage build: linking the Forthon extensions with LDFLAGS='{}'".format(makeenv['LDFLAGS']))
+        # Clean build directory unless flagged not to and the tree holds this build's objects (tracker T27)
+        stamp = build_stamp(makeenv)
+        changes = stamp_changes(stamp) if arglist['noclean'] else []
+        if changes:
+            print("--noclean: cleaning anyway, the build tree does not match this build:")
+            for line in changes:
+                print("  " + line)
+        stamped = True
+        if changes or arglist['noclean'] is False:
+            print("Cleaning UEDGE build directory")
+            # A clean that stops half-way must not leave a record that a later build trusts
+            try:
+                remove(STAMP)
+            except OSError:
+                pass
+            # With --noclean our own NOCLEAN is TRUE, and make clean would remove nothing
+            status = call(['make', '-f', 'Makefile.Forthon', 'clean'], env={**os.environ, 'NOCLEAN': 'FALSE'})
+            # make's status is 0 even if find's rm fails
+            left = clean_leftovers()
+            if left:
+                print("make clean left {} (the first of {})".format(left[0], len(left)))
+            if status != 0 or (left and changes):
+                raise SystemExit("Pre-UEDGE build clean failure")
+            stamped = not left  # a normal build goes on as it always has, but no later --noclean build may trust it
+            print("Build directory cleaned")
+        # Before the conversion, so that the .F file an interrupted one leaves unfinished is newer
+        if stamped:
+            os.makedirs(os.path.dirname(STAMP), exist_ok=True)
+            with open(STAMP, 'w') as f:
+                json.dump(stamp, f, indent=1, sort_keys=True)
+
+        print("Converting MPPL files to Fortran in build")
+        mppl2f90()
+        print("MPPL files converted to Fortran")
+
         # Call compiler
-        if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
-            raise SystemExit("UEDGE build failure")
-        build.run(self)
+        try:
+            if call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon'], env=makeenv) != 0:
+                raise SystemExit("UEDGE build failure")
+            build.run(self)
+        finally:
+            if stamped:
+                os.utime(STAMP)  # also after a compile error: the objects it left are this stamp's
         # Record how this build was compiled, for the installed package (AIUE-181; read by _provenance.py and AIUE-96)
         infopath = os.path.join(self.build_lib, 'uedge', '_build_info.json')
         with open(infopath, 'w') as f:

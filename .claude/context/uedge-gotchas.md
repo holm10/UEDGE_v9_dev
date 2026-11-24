@@ -49,20 +49,32 @@ AIUE-216).
 
 ## Build
 
-- **A `--noclean` rebuild keeps objects compiled with the previous build's options** (owner, 2026-11-18, AIUE-9
-  close-out O17; T49). `--noclean` sets `NOCLEAN=TRUE` (`setup.py:747-760`), and `make clean` cleans only when
-  `NOCLEAN` is `FALSE` (`Makefile.Forthon:66`). A `.F` is regenerated only when its `.m` is newer, and make reuses the
-  old objects, so a `--noopt` (-O0) build after a `--noclean` -O3 build can stay -O3, and nothing reports it; the build
-  record `_build_info.json` holds the options asked for, not those the reused objects were compiled with. The
-  mechanism is presumed from AIUE-85's review (I1-m1), not re-probed. After any change of build options, rebuild
-  without `--noclean`, and read the real compile flags in the `pip install -v` log. The build-flags check does not
-  cover `--noclean` (`.claude/context/testing.md` → build flags, AIUE-125).
+- **What a `--noclean` rebuild does not see** (owner, 2026-11-18, AIUE-9 close-out O17; T49; fixed by T27). make compares
+  file times only, so before T27 a `--noclean` build with other options compiled nothing, installed the old objects and
+  recorded the new flags in `_build_info.json` (probed on macOS and Linux: 0 compile lines, 93 of 93 `.o` unchanged,
+  record `-O0`). A `.v` edit was worse: Forthon regenerated its C wrapper but no Fortran was compiled, at the next build
+  either (probed: a variable added to `com/com.v`, then a segfault on `com.iprint`, macOS; 0 compile lines on Linux too;
+  by reading, Forthon's make rule for `<pkg>_p.F90` has no recipe). make does not know the `.h` files, nor the
+  `ncl/pamx_*.inc` that `ncl/nclass_mod.f` includes, at all (probed).
+  For such a commit, make a clean build after a change of options, `.v`, `.h` or `.inc`.
+  Since T27 a `--noclean` build prints why and cleans when the stamp of the last build (`setup.py:749`;
+  `architecture.md` → Build pipeline: flags, compilers, environment, the hashes of the `.v`, `.h` and `.inc` files) is
+  missing or differs, or an object, extension or converted `.F` is newer than the end of that build (an older `setup.py`, make
+  by hand, a killed build, an interrupted conversion). A compile error or Ctrl-C in make under the same options keeps
+  the objects. pip shows the note only with `-v`. A clean that must happen and leaves files in `build/` stops the build;
+  a build without `--noclean` goes on as it always has, but then leaves no stamp, so the next `--noclean` build cleans.
+  By design still **not seen**: another Python of the same ABI tag (presumed; another tag fails at import, probed),
+  other numpy or Forthon
+  versions, an edited `Makefile.Forthon` or conversion rule in `setup.py`, a file from another build that keeps an old
+  time (`cp -p`, `rsync -t`), a source (`.m`, `.F90`, `.f`) restored with an old time (a `cp -p` backup moved back;
+  `.v`, `.h` and `.inc` are hashed, so such a restore is seen) and two builds in one tree at once: make a clean build
+  after these.
 
 ## Platform
 
 - **On Linux x86-64, a build that calls glibc's vector math library gives results that follow the CPU vendor**
   (owner, 2026-10-26, AIUE-210; fixed by AIUE-211). Since AIUE-211 the
-  Linux build adds `-nostdinc -fintrinsic-modules-path <finclude>` (`setup.py:815-827`), so gfortran no longer
+  Linux build adds `-nostdinc -fintrinsic-modules-path <finclude>` (`setup.py:887-899`), so gfortran no longer
   pre-includes glibc's `math-vector-fortran.h` and the math calls stay scalar (libm): Intel and AMD runners and
   Rosetta give bit-identical yldot references (`yldot-data-v14`, `v15`). `test_installed_no_vector_math` and
   `tests/yldot/linux/generate.sh` refuse a build with `_ZGV` symbols. The trap remains for a build without those

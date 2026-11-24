@@ -3,10 +3,19 @@
 Usage (from anywhere):
     python -I build_flags.py [--setup PATH] [--json] [--no-git]
     python -I build_flags.py [--setup PATH] --conversion
+    python -I build_flags.py [--setup PATH] --noclean
 
 --conversion instead runs setup.py's MPPL conversion (mppl2f90, not stubbed) on two scratch trees with the working
 directory and $PWD differing and prints where it converted and where it left the process, as JSON (AIUE-163:
 setup.py must follow the working directory, not $PWD).
+
+--noclean instead runs sequences of builds (scenarios()) in scratch trees, each build one uedgeBuild.run with stubbed
+make, conversion and build.run, and prints what each did, as JSON (T27: a --noclean build must clean if the tree's
+objects were built with other flags, compilers or environment, from other .v, .h or .inc files, or by other means than
+setup.py). The stubbed make clean
+removes files only if it sees NOCLEAN=FALSE, as Makefile.Forthon's does, and the stubbed steps write an object, a .F
+file and an extension, each later than the rest of the tree whatever the clock's resolution. Every scenario runs on
+both platforms.
 
 PRD section 8: the opt-in, results-neutral build options (--noopt, AIUE-85; --coverage, AIUE-105) may not change
 the default flags. This tool runs setup.py (default: the one in this checkout) once per case in CASES, with the
@@ -14,9 +23,11 @@ build's side effects stubbed: Forthon's FCompiler is a fixed fake (the real Fort
 parses sys.argv), setuptools.setup only records its arguments, os.system (the readline probe) returns 1, and in
 uedgeBuild.run the make calls, mppl2f90, check_output and build.run are replaced. check_output answers only the
 commands setup.py is known to run (the macOS libgcov lookup, the Linux finclude lookup (AIUE-211; --finclude ANSWER
-or --finclude-fails give setup.py a bad answer), the compiler's --version, the git probes of the build record;
+or --finclude-fails give setup.py a bad answer), the compilers' --version, the git probes of the build record;
 anything else raises), and SRCDIR, where setup.py runs them, is a scratch directory with an empty .git file
-(--no-git: without it), so a record does not depend on where the evaluated setup.py lies.
+(--no-git: without it), so a record does not depend on where the evaluated setup.py lies. It is the working directory
+too, since setup.py keeps its record of the build in build/ there (T27): the caller's build/ is neither read nor
+written. The caller's CC is unset, and sysconfig's is a fixed fake.
 sys.argv has the shape pip gives setup.py for -C "--build-option=--<opt>": [setup.py, bdist_wheel, --dist-dir,
 <dir>, --<opt>...]. platform, read by uedgeBuild.run at call time, is set per case, so both the Linux and the macOS
 branches are evaluated on any host.
@@ -24,18 +35,17 @@ branches are evaluated on any host.
 Each case records what reaches the build: the --fargs and --cargs strings and OMPFLAGS passed to make, the LDFLAGS
 of make's environment (None: make inherits the caller's environment), the OMP environment variable, every other
 variable of make's environment that differs from the caller's (PATH excepted: setup.py appends the host's
-user-site bin directory), the uedgeC link and compile arguments (the compiler's own shown as <fcompiler>) and
-macros, the number of make calls (clean, then the build), and the build record uedgeBuild.run writes into
-<build_lib>/uedge/_build_info.json (AIUE-181; build_lib is a scratch directory): the parsed JSON, its machine shown as
-<machine> and the libgcov path in its ldflags as <libgcov.a>; the finclude directory is shown as <finclude> in
-both fargs; None if no record was written, "<unreadable: ...>" if
+user-site bin directory), the NOCLEAN that make clean sees (clean_noclean), the uedgeC link and compile arguments (the
+compiler's own shown as <fcompiler>) and macros, the number of make calls (clean, then the build), and the build
+record uedgeBuild.run writes into <build_lib>/uedge/_build_info.json (AIUE-181; build_lib is a scratch directory): the
+parsed JSON, its machine shown as <machine> and the libgcov path in its ldflags as <libgcov.a>; the finclude directory
+is shown as <finclude> in both fargs; None if no record was written, "<unreadable: ...>" if
 it does not parse. A refused combination records the SystemExit message instead. The comparison with the flags on
 v9-develop lives in tests/yldot/test_build_flags.py.
 
 Not covered: what setup.py passes to Forthon's real FCompiler (machine, debug, fcompname, omp) and the flags that
 compiler adds, which depend on the host's compiler: the record's forthon_fopt is the fake's fixed value, so the real
-one is checked only on real builds; the -g, -t and -F short options; --noclean (the tool expects
-make clean, so it raises), --parallel and PETSc.
+one is checked only on real builds; the -g, -t and -F short options; --parallel and PETSc.
 
 Run it in its own interpreter: every case swaps sys.argv, os.environ, setuptools.setup, os.system and
 sys.modules['Forthon*'] and restores them afterwards, but setup.py is executed in this process. It needs
@@ -49,8 +59,10 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import types
 from pathlib import Path
@@ -63,9 +75,9 @@ except ImportError:
 
 SETUP = Path(__file__).resolve().parents[3] / "setup.py"
 PLATFORMS = ["linux", "darwin"]
-OPTION_SETS = [(), ("serial",), ("debug",), ("checkbounds",), ("noopt",), ("coverage",), ("serial", "debug"),
-               ("serial", "checkbounds"), ("serial", "noopt"), ("noopt", "checkbounds"), ("noopt", "debug"),
-               ("coverage", "debug")]
+OPTION_SETS = [(), ("noclean",), ("serial",), ("debug",), ("checkbounds",), ("noopt",), ("coverage",),
+               ("serial", "debug"), ("serial", "checkbounds"), ("serial", "noopt"), ("noopt", "checkbounds"),
+               ("noopt", "debug"), ("coverage", "debug")]
 PRESET = "-L/preset"
 # (platform, options, LDFLAGS in the caller's environment; None: unset)
 CASES = ([(p, o, None) for p in PLATFORMS for o in OPTION_SETS]
@@ -75,6 +87,8 @@ FINCLUDE = "<finclude>"  # stands for the intrinsic module directory check_outpu
 FCOMPILER = "<fcompiler>"  # stands for an argument of the compiler's own (FakeFCompiler's) in the uedgeC lists
 MACHINE = "<machine>"  # stands for the host's os.uname().machine in the build record
 FAKE_VERSION = "fake-gfortran 1.0\nCopyright\n"  # what the fake compiler's --version prints
+FAKE_CC = "fake-cc"  # what sysconfig gives as CC; the caller's own CC is unset
+FAKE_CC_VERSION = "fake-cc 1.0\nCopyright\n"
 # The git probes of the build record and their fixed answers
 GIT = {("rev-parse", "HEAD"): "0" * 40, ("rev-parse", "--abbrev-ref", "HEAD"): "fake-branch",
        ("show", "-s", "--format=%cI", "HEAD"): "2026-01-01T00:00:00+00:00",
@@ -104,7 +118,7 @@ def stubs():
     """Forthon (a fake FCompiler), setuptools.setup (records its arguments in the dict yielded) and os.system
     (returns 1) replaced while setup.py is executed; restored afterwards."""
     saved_modules = {k: sys.modules.get(k) for k in ("Forthon", "Forthon.compilers")}
-    saved_setup, saved_system = setuptools.setup, os.system
+    saved_setup, saved_system, saved_var = setuptools.setup, os.system, sysconfig.get_config_var
     captured = {}
     try:
         fake = types.ModuleType("Forthon.compilers")
@@ -113,9 +127,10 @@ def stubs():
         sys.modules["Forthon.compilers"] = fake
         setuptools.setup = lambda **kw: captured.update(kw)
         os.system = lambda command: 1
+        sysconfig.get_config_var = lambda name: FAKE_CC if name == 'CC' else saved_var(name)
         yield captured
     finally:
-        setuptools.setup, os.system = saved_setup, saved_system
+        setuptools.setup, os.system, sysconfig.get_config_var = saved_setup, saved_system, saved_var
         for k, v in saved_modules.items():
             if v is None:
                 sys.modules.pop(k, None)
@@ -123,8 +138,10 @@ def stubs():
                 sys.modules[k] = v
 
 
-def fake_check_output(libgcov, finclude):
+def fake_check_output(libgcov, finclude, versions=None):
     """subprocess.check_output for setup.py: the answers to the commands it is known to run, else RuntimeError."""
+    versions = {FakeFCompiler.fcompexec: FAKE_VERSION, FAKE_CC: FAKE_CC_VERSION, **(versions or {})}
+
     def check_output(command, **kw):
         if command == [FakeFCompiler.fcompexec, "-print-file-name=libgcov.a"]:
             return libgcov + "\n"
@@ -132,8 +149,10 @@ def fake_check_output(libgcov, finclude):
             if finclude is None:  # --finclude-fails: a compiler that is not GCC's driver
                 raise subprocess.CalledProcessError(1, command)
             return finclude + "\n"
-        if command == [FakeFCompiler.fcompexec, "--version"]:
-            return FAKE_VERSION
+        if command[-1] == "--version" and " " in command[0]:  # a command with arguments passed as one word
+            raise FileNotFoundError(command[0])
+        if command[-1] == "--version" and " ".join(command[:-1]) in versions:
+            return versions[" ".join(command[:-1])]
         if command[0] == "git" and tuple(command[1:]) in GIT:
             return GIT[tuple(command[1:])] + "\n"
         raise RuntimeError("build_flags.py has no answer for {}: add it deliberately".format(command))
@@ -160,16 +179,18 @@ def read_record(path, libgcov, finclude):
 
 def evaluate(setup_path, options, platform, ldflags, libgcov, finclude, git=True):
     """Run setup_path for one case and return its record (see the module docstring)."""
-    saved_argv, saved_env = list(sys.argv), dict(os.environ)
+    saved_argv, saved_env, saved_cwd = list(sys.argv), dict(os.environ), os.getcwd()
     calls = []
     try:
         with stubs() as captured, tempfile.TemporaryDirectory() as tmp:
             srcdir, build_lib = Path(tmp, "src"), Path(tmp, "build_lib")
             srcdir.mkdir()
+            os.chdir(srcdir)  # setup.py keeps its stamp in build/ of the working directory (T27)
             if git:
                 (srcdir / ".git").touch()
             (build_lib / "uedge").mkdir(parents=True)
             os.environ.pop("LDFLAGS", None)
+            os.environ.pop("CC", None)
             if ldflags is not None:
                 os.environ["LDFLAGS"] = ldflags
             os.environ.pop("OMP", None)
@@ -180,7 +201,7 @@ def evaluate(setup_path, options, platform, ldflags, libgcov, finclude, git=True
                 seen = dict(os.environ if env is None else env)
                 other = {k: seen.get(k) for k in set(seen) | set(caller_env)
                          if seen.get(k) != caller_env.get(k) and k not in ("PATH", "LDFLAGS", "OMP")}
-                calls.append((command, None if env is None else env.get("LDFLAGS"), other))
+                calls.append((command, None if env is None else env.get("LDFLAGS"), other, seen.get("NOCLEAN")))
                 return 0
 
             ns = {"__name__": "__main__", "__file__": str(setup_path)}
@@ -195,14 +216,16 @@ def evaluate(setup_path, options, platform, ldflags, libgcov, finclude, git=True
                     return {"exit": str(e)}
             omp_env = os.environ.get("OMP")
             build_info = read_record(build_lib / "uedge" / "_build_info.json", libgcov, finclude)
+            os.chdir(saved_cwd)  # before the scratch tree is deleted
     finally:
+        os.chdir(saved_cwd)
         sys.argv = saved_argv
         os.environ.clear()
         os.environ.update(saved_env)
 
     if len(calls) != 2 or calls[0][0] != ["make", "-f", "Makefile.Forthon", "clean"]:
         raise RuntimeError("expected make clean, then the build; got {}".format(calls))
-    command, make_ldflags, make_env = calls[-1]
+    command, make_ldflags, make_env, _ = calls[-1]
     if command[0] != "make" or command[-2:] != ["-f", "Makefile.Forthon"] or len(command) != 5:
         raise RuntimeError("unexpected build call {}".format(command))
     compileflags, ompflags = command[1], command[2]
@@ -219,7 +242,7 @@ def evaluate(setup_path, options, platform, ldflags, libgcov, finclude, git=True
             "uedgec_link": [FCOMPILER if a in fake_args else a for a in uedgec.extra_link_args],
             "uedgec_compile": [FCOMPILER if a in fake_args else a for a in uedgec.extra_compile_args],
             "uedgec_macros": [list(m) for m in uedgec.define_macros], "make_calls": len(calls),
-            "build_info": build_info}
+            "clean_noclean": calls[0][3], "build_info": build_info}
 
 
 MPPL_SOURCE = "      subroutine x\n      real y\n      y = float(1)\n      end\n"
@@ -257,6 +280,271 @@ def conversion_check(setup_path=SETUP):
                 "converted_in": sorted(n for n, tree in trees.items() if (tree / "bbb" / "x.F").is_file())}
 
 
+# --noclean (T27): the variables setup.py's stamp must see; OMP is left out, uedgeBuild.run sets it from --serial
+STAMP_VARS = ("CC CPP CFLAGS CPPFLAGS LDFLAGS LDSHARED AR ARFLAGS RANLIB ARCHFLAGS MACHTYPE MACOSX_DEPLOYMENT_TARGET "
+              "SDKROOT DEVELOPER_DIR CPATH C_INCLUDE_PATH LIBRARY_PATH GCC_EXEC_PREFIX COMPILER_PATH FCOMP READLINE "
+              "PACT_DIR PETSC_DIR PARALLEL").split()
+FAKE_STAMP = Path("build", ".uedge_build_stamp.json")
+
+
+def step(options=(), noclean=True, env=None, versions=None, fc=None, before=None, clean="ok", convert="ok", make="ok",
+         build_run="ok"):
+    """One build of a --noclean scenario. fc: attributes of FakeFCompiler that differ; before: what happened in the tree
+    since the previous step (a name in BEFORE); clean, convert, make, build_run: how the stubbed call goes."""
+    return {"options": (("noclean",) if noclean else ()) + tuple(options), "env": env or {}, "versions": versions,
+            "fc": fc or {}, "before": before, "clean": clean, "convert": convert, "make": make, "build_run": build_run}
+
+
+def write_later(path):
+    """Write path 10 s after everything else in the tree, whatever the clock's resolution: the rest is made older."""
+    for old in Path().rglob("*"):
+        if old.is_file():
+            t = old.stat().st_mtime_ns - 10 * 10 ** 9
+            os.utime(old, ns=(t, t))
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text("x")
+
+
+def write_at_stamp_time(path):
+    Path(path).write_text("x")
+    if FAKE_STAMP.exists():  # not with a setup.py that keeps no stamp
+        t = FAKE_STAMP.stat().st_mtime_ns
+        os.utime(path, ns=(t, t))
+
+
+def edit_stamp(text):
+    FAKE_STAMP.write_text(text)
+
+
+# What each scratch tree holds: the sources a stamp hashes or (.m) converts, in several packages
+SOURCES = ("x.h", "bbb/x.m", "bbb/x.v", "bbb/x.h", "bbb/x.inc", "com/x.m", "com/x.v", "com/x.h", "ncl/pamx_mi.inc")
+# Of one size and with one first line: an edit counts by content, wherever it is in the file
+SOURCE_TEXT, EDITED_TEXT = "line\nsource", "line\nedited"
+
+
+def edit_file(name):
+    """Write name with the size of the scratch tree's sources and a time older than everything else."""
+    Path(name).write_text(EDITED_TEXT)
+    os.utime(name, (1, 1))
+
+
+def replace_by_link(name, target):
+    Path(name).unlink(missing_ok=True)
+    Path(name).symlink_to(target)
+
+
+BEFORE = {"an object": lambda: write_later("build/temp/bbb/oderhs.o"),
+          "an extension": lambda: write_later("build/lib/uedge/bbbpy.so"),
+          "a .F file": lambda: write_later("bbb/x.F"),
+          "an object of the stamp's time": lambda: write_at_stamp_time("build/temp/bbb/x.o"),
+          "another file": lambda: write_later("build/lib/uedge/note.txt"),
+          "a .F90 file": lambda: write_later("bbb/y.F90"),
+          "stamp deleted": lambda: FAKE_STAMP.unlink(missing_ok=True),
+          "stamp empty": lambda: edit_stamp(""), "stamp not JSON": lambda: edit_stamp("{"),
+          "stamp a list": lambda: edit_stamp("[]"), "stamp without env": lambda: edit_stamp('{"files": {}}'),
+          "stamp without files": lambda: edit_stamp('{"env": {}}'),
+          "a .v file edited": lambda: edit_file("bbb/x.v"), "a .v file added": lambda: edit_file("bbb/new.v"),
+          "a .v file removed": lambda: Path("bbb/x.v").unlink(), "a .h file edited": lambda: edit_file("bbb/x.h"),
+          "a top-level .h file edited": lambda: edit_file("x.h"), "a .v file touched": lambda: Path("bbb/x.v").touch(),
+          "another source edited": lambda: edit_file("bbb/x.m"),
+          "another package's .v file edited": lambda: edit_file("com/x.v"),
+          "another package's .h file edited": lambda: edit_file("com/x.h"),
+          "another package's .F file": lambda: write_later("com/x.F"),
+          "an .inc file edited": lambda: edit_file("ncl/pamx_mi.inc"),
+          "another package's .inc file edited": lambda: edit_file("bbb/x.inc"),
+          "an .inc file added": lambda: edit_file("ncl/new.inc"),
+          "an .inc file removed": lambda: Path("ncl/pamx_mi.inc").unlink(),
+          "an .inc file touched": lambda: Path("ncl/pamx_mi.inc").touch(),
+          "a .h file added": lambda: edit_file("com/new.h"),
+          # Hashed files that cannot be opened: no such file, a directory, and another OSError
+          "a dangling .h link": lambda: replace_by_link("com/new.h", "nowhere"),
+          "a .v directory": lambda: Path("bbb/new.v").mkdir(),
+          "a looping .inc link": lambda: replace_by_link("ncl/new.inc", "new.inc"),
+          "a .h file made a dangling link": lambda: replace_by_link("bbb/x.h", "nowhere")}
+
+
+def scenarios():
+    """The --noclean scenarios: name -> steps run one after the other in one scratch tree. Each rule has a case that
+    cleans and one that does not."""
+    default = step(noclean=False)
+    out = {"fresh tree": [step(), step()],
+           "normal build first": [default, step()],
+           "normal build with other options": [default, step(("noopt",), noclean=False)],
+           "variable outside the list": [default, step(env={"UEDGE_OTHER": "/zz"})],
+           "OMP alone": [default, step(env={"OMP": "/zz"})],
+           "serial to OpenMP": [step(("serial",), noclean=False), step(), step(("serial",))],
+           "LDFLAGS=-fopenmp": [default, step(env={"LDFLAGS": "-fopenmp"})],
+           "Fortran compiler version": [default, step(versions={FakeFCompiler.fcompexec: "fake-gfortran 2.0\n"})],
+           "C compiler version": [default, step(versions={FAKE_CC: "fake-cc 2.0\n"})],
+           "CC": [default, step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.0\n"}),
+                  step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.0\n"}),
+                  step(env={"CC": "other-cc"}, versions={"other-cc": "other-cc 1.1\n"})],
+           "C compiler with arguments": [default] + [
+               step(env={"CC": "fake-cc -pthread"}, versions={"fake-cc -pthread": v})
+               for v in (FAKE_CC_VERSION, FAKE_CC_VERSION, "fake-cc 1.1\n")],
+           "Forthon's flags": [default, step(fc={"fopt": "-other-fopt"})],
+           "Fortran compiler": [default, step(fc={"fcompexec": "other-gfortran"})],
+           "other options fail, then the first": [default, step(("noopt",), make="fails"), step()],
+           "other options fail, then again": [default, step(("noopt",), make="fails"), step(("noopt",))],
+           "same options fail, then again": [default, step(make="fails"), step()],
+           "make interrupted, then again": [default, step(make="interrupted"), step()],
+           "a .v file edited while make runs": [default, step(make="edits a .v file"), step(), step()],
+           "build.run fails, then again": [default, step(build_run="fails"), step()],
+           "conversion interrupted, then again": [default, step(convert="interrupted"), step()],
+           "converted, then again": [default, step(convert="one file"), step()],
+           "clean leaves build/": [default, step(("noopt",), clean="leaves build"), step()],
+           "clean leaves a .F file": [default, step(("noopt",), clean="leaves .F"), step()],
+           "clean leaves another package's .F file": [default, step(("noopt",), clean="leaves com/x.F"), step()],
+           "clean leaves a file deep in build/": [default, step(("noopt",), clean="leaves a deep file"), step()],
+           "clean fails": [default, step(("noopt",), clean="fails"), step()],
+           "clean removes all and fails": [default, step(("noopt",), clean="fails after removing"), step()],
+           "clean interrupted": [default, step(("noopt",), clean="interrupted"), step()],
+           "clean leaves an empty build/": [default, step(("noopt",), clean="leaves an empty build"), step(("noopt",))],
+           "normal build, clean leaves build/": [default, step(noclean=False, clean="leaves build"), step()],
+           "normal build, clean leaves a .F file": [default, step(noclean=False, clean="leaves .F"), step()],
+           "normal build, clean leaves the stamp": [
+               default, step(("noopt",), noclean=False, clean="leaves the stamp"), step()],
+           "normal build, clean leaves an empty build/": [
+               default, step(noclean=False, clean="leaves an empty build"), step()],
+           "normal build, clean leaves a file deep in build/": [
+               default, step(noclean=False, clean="leaves a deep file"), step()],
+           "normal build, clean fails": [default, step(noclean=False, clean="fails"), step()],
+           "normal build, clean interrupted": [default, step(noclean=False, clean="interrupted"), step()],
+           "a dangling .h link gets its target": [
+               step(noclean=False, before="a dangling .h link"), step(before="a .h file added"), step()]}
+    for before in ("a dangling .h link", "a .v directory", "a looping .inc link"):
+        out["normal build, " + before] = [step(noclean=False, before=before), step()]
+    for option in ("noopt", "serial", "checkbounds", "debug", "coverage"):
+        out["--" + option] = [default, step((option,))]
+    for name in STAMP_VARS:
+        if name != "CC":
+            out["variable " + name] = [default, step(env={name: "/zz"})]
+    for before in BEFORE:
+        out["before: " + before] = [default, step(before=before), step()]
+    return out
+
+
+def run_step(setup_path, s, platform, libgcov, finclude):
+    """One step in the current directory: {"cleaned", "notes" (the part of each note line before ": "), "noclean" (the
+    NOCLEAN of each make call), "stamp" (it was there when make ran), "built" (build.run ran), "header" (the note's
+    first line was printed), "exit"}."""
+    saved_argv, saved_env = list(sys.argv), dict(os.environ)
+    saved_fc = {name: getattr(FakeFCompiler, name) for name in s["fc"]}
+    calls, built, out, exit_message = [], [], io.StringIO(), None
+    if s["before"]:
+        BEFORE[s["before"]]()
+    Path("build").mkdir(exist_ok=True)
+    planted = Path("build", "planted")
+    planted.touch()
+    old_stamp = (FAKE_STAMP.read_bytes(), FAKE_STAMP.stat().st_mtime_ns) if FAKE_STAMP.exists() else None
+
+    def fake_call(command, env=None):
+        seen = os.environ if env is None else env
+        target = "clean" if command[-1] == "clean" else "make"
+        calls.append((target, seen.get("NOCLEAN"), FAKE_STAMP.exists()))
+        if target == "clean":
+            if s["clean"] == "fails":
+                return 2
+            if s["clean"] == "interrupted":
+                Path("bbb/x.F").unlink(missing_ok=True)
+                raise KeyboardInterrupt()
+            if seen.get("NOCLEAN") == "FALSE":  # as Makefile.Forthon's clean; its status is 0 whatever rm did
+                planted.unlink()
+                shutil.rmtree("build")
+                if s["clean"] in ("leaves build", "leaves an empty build"):
+                    Path("build").mkdir()
+                if s["clean"] == "leaves build":
+                    Path("build", "left").touch()
+                if s["clean"] == "leaves a deep file":
+                    Path("build", "temp", "bbb").mkdir(parents=True)
+                    Path("build", "temp", "bbb", "left").touch()
+                if s["clean"] == "leaves the stamp" and old_stamp:  # one that could not be deleted
+                    Path("build").mkdir()
+                    FAKE_STAMP.write_bytes(old_stamp[0])
+                    os.utime(FAKE_STAMP, ns=(old_stamp[1], old_stamp[1]))
+                for f in Path().glob("*/*.F"):
+                    if (s["clean"], f.as_posix()) not in (("leaves .F", "bbb/x.F"), ("leaves com/x.F", "com/x.F")):
+                        f.unlink()
+            return 2 if s["clean"] == "fails after removing" else 0
+        write_later("build/temp/bbb/x.o")
+        if s["make"] == "edits a .v file":
+            edit_file("bbb/x.v")
+        if s["make"] == "interrupted":
+            raise KeyboardInterrupt()
+        return 2 if s["make"] == "fails" else 0
+
+    def fake_convert(*a, **k):
+        if s["convert"] == "interrupted":
+            write_later("bbb/x.F")
+            raise KeyboardInterrupt()
+        for f in ("com/x.F", "bbb/x.F"):
+            if (s["convert"] == "one file" and f == "bbb/x.F") or not Path(f).exists():
+                write_later(f)
+
+    def fake_build_run(command):
+        built.append(command)
+        write_later("build/lib/uedge/bbbpy.so")
+        if s["build_run"] == "fails":
+            raise SystemExit("build.run failure")
+
+    try:
+        for name, value in s["fc"].items():
+            setattr(FakeFCompiler, name, value)
+        with stubs() as captured, tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "build_lib", "uedge").mkdir(parents=True)
+            for name in (*STAMP_VARS, "OMP"):
+                os.environ.pop(name, None)
+            os.environ.update(s["env"])
+            sys.argv = [str(setup_path), "bdist_wheel", "--dist-dir", "dist"] + ["--" + o for o in s["options"]]
+            ns = {"__name__": "__main__", "__file__": str(setup_path)}
+            with contextlib.redirect_stdout(out):
+                try:
+                    exec(compile(Path(setup_path).read_text(), str(setup_path), "exec"), ns)
+                    ns.update(platform=platform, call=fake_call, mppl2f90=fake_convert,
+                              check_output=fake_check_output(libgcov, finclude, s["versions"]), SRCDIR=tmp,
+                              build=types.SimpleNamespace(run=fake_build_run))
+                    captured["cmdclass"]["build"].run(types.SimpleNamespace(build_lib=os.path.join(tmp, "build_lib")))
+                except SystemExit as e:
+                    exit_message = str(e)
+                except KeyboardInterrupt:
+                    exit_message = "interrupted"
+                except OSError as e:  # setup.py stops with a traceback
+                    exit_message = type(e).__name__
+    finally:
+        for name, value in saved_fc.items():
+            setattr(FakeFCompiler, name, value)
+        sys.argv = saved_argv
+        os.environ.clear()
+        os.environ.update(saved_env)
+    lines = out.getvalue().splitlines()
+    notes = [line.split(": ")[0].strip() for line in lines if line.startswith("  ")]
+    return {"cleaned": not planted.exists(), "notes": notes, "noclean": {t: n for t, n, _ in calls},
+            "stamp": next((there for t, _, there in calls if t == "make"), None), "built": bool(built),
+            "header": any(line.startswith("--noclean: cleaning anyway") for line in lines), "exit": exit_message}
+
+
+def noclean_check(setup_path=SETUP):
+    """Every scenario on both platforms: {platform: {name: [step record]}}."""
+    result, saved_cwd = {}, os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        libgcov, finclude = os.path.join(tmp, "libgcov.a"), os.path.join(tmp, "finclude")
+        Path(libgcov).touch()
+        Path(finclude).mkdir()  # one for all steps: its path is in fargs
+        try:
+            for platform in PLATFORMS:
+                result[platform] = {}
+                for i, (name, steps) in enumerate(scenarios().items()):
+                    tree = Path(tmp, platform + str(i))
+                    for source in SOURCES:
+                        (tree / source).parent.mkdir(parents=True, exist_ok=True)
+                        (tree / source).write_text(SOURCE_TEXT)
+                    os.chdir(tree)
+                    result[platform][name] = [run_step(setup_path, s, platform, libgcov, finclude) for s in steps]
+        finally:
+            os.chdir(saved_cwd)
+    return result
+
+
 def table(setup_path=SETUP, git=True, finclude=""):
     """Every case of CASES, by name (git=False: the source tree has no .git). finclude: the answer to
     -print-file-name=finclude, "" for a scratch directory (the real case), None for a failing lookup."""
@@ -275,6 +563,7 @@ def main(argv):
     parser.add_argument("--json", action="store_true", help="print one JSON object instead of a table")
     parser.add_argument("--conversion", action="store_true",
                         help="check where the MPPL conversion runs when cwd and $PWD differ (JSON)")
+    parser.add_argument("--noclean", action="store_true", help="run the --noclean scenarios (JSON, T27)")
     parser.add_argument("--no-git", action="store_true", help="evaluate as for a source tree without .git")
     parser.add_argument("--finclude", default="", help="the compiler's answer to -print-file-name=finclude "
                         "(default: a scratch directory; a test of setup.py's refusal, AIUE-211)")
@@ -284,6 +573,9 @@ def main(argv):
         parser.error("no such file: {}".format(args.setup))
     if args.conversion:
         print(json.dumps(conversion_check(args.setup.resolve())))
+        return 0
+    if args.noclean:
+        print(json.dumps(noclean_check(args.setup.resolve())))
         return 0
     result = table(args.setup.resolve(), git=not args.no_git, finclude=None if args.finclude_fails else args.finclude)
     if args.json:
