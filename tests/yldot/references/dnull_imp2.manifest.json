@@ -1589,14 +1589,6 @@
     "/steady/variants/bbb.isimpon=6/yldot/l2": "2bdc1b64e340d82c0a0f89746ea6a249871d5d1e07ac498a82ccb91f83fa82b1",
     "/steady/variants/bbb.isimpon=6/yldot/maxabs": "ba0b937edd28bfc4a2215df6568b38d9072fc80cc3d499d69a2df63c0892c838",
     "/steady/variants/bbb.isimpon=6/yldot/proj": "23824750c0b625a9c48c0e0b4253fc6463975f73d8ec8f92b272cda582378b29",
-    "/steady/variants/bbb.isimpon=7/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
-    "/steady/variants/bbb.isimpon=7/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
-    "/steady/variants/bbb.isimpon=7/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
-    "/steady/variants/bbb.isimpon=7/jflag/proj": "be2c2f7302304c20a5aaac81e8e368d77b161a77e95fd1f5924c86ba6baaffa5",
-    "/steady/variants/bbb.isimpon=7/yldot/argmax": "4a7388bebc364a920d08aa005bf8595a37f345c595fadfafc11778ae9423aaa4",
-    "/steady/variants/bbb.isimpon=7/yldot/l2": "2bdc1b64e340d82c0a0f89746ea6a249871d5d1e07ac498a82ccb91f83fa82b1",
-    "/steady/variants/bbb.isimpon=7/yldot/maxabs": "ba0b937edd28bfc4a2215df6568b38d9072fc80cc3d499d69a2df63c0892c838",
-    "/steady/variants/bbb.isimpon=7/yldot/proj": "23824750c0b625a9c48c0e0b4253fc6463975f73d8ec8f92b272cda582378b29",
     "/steady/variants/bbb.iskaplex/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
     "/steady/variants/bbb.iskaplex/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
     "/steady/variants/bbb.iskaplex/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
@@ -2789,8 +2781,8 @@
       "sha256": "0720df9ab2fb36c56cb9a553647921efc4052eb4317181e7a014645ebfdfebd5"
     },
     "references/dnull_imp2.h5": {
-      "bytes": 8533580,
-      "sha256": "4dd57ca7d4ea0b3d85f1f71d65637b3ae7fc32136c334e72dbb4d15f887f901d"
+      "bytes": 8519856,
+      "sha256": "05a7b28a605497b744b9841dd20d79bb09dd840068bd1a2f391184c7255c8001"
     }
   },
   "family": "dnull_imp2",
@@ -2923,15 +2915,15 @@
     }
   },
   "provenance": {
-    "commit": "979fe041d85c10a2652d7cde57f55ec82fe2cde7",
+    "commit": "8ed5871412055647adbdcb74d6c664b6a0c42ae1",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-12T21:01:32+00:00",
+    "date": "2026-11-24T08:53:41+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v21",
+  "release": "yldot-data-v24",
   "schema": 1,
   "sketch": {
     "k": 8,
@@ -17375,42 +17367,15 @@
       "sha256": "baff417bfd609e118de29cc75e45d06959a968153837340cf664ea98c317cf51"
     },
     "bbb.isimpon=7": {
-      "applied": {
-        "data": [7],
-        "dtype": "int64",
-        "shape": []
-      },
-      "block_l2": {
-        "te[1] core": 3961106.7641649824,
-        "te[1] lower_inner_leg": 17319.17167187261,
-        "te[1] lower_outer_leg": 55395.958724190634,
-        "te[1] pf_lower": 9223.43505855868,
-        "te[1] pf_upper": 43724.65238080253,
-        "te[1] sol": 15479.678280397522,
-        "te[1] sol_between": 562813.7494572386,
-        "te[1] upper_inner_leg": 1223.9306251508092,
-        "te[1] upper_outer_leg": 66638.69387668585,
-        "up[1] core": 372.9354576132747,
-        "up[1] lower_inner_leg": 0.9723463086910923,
-        "up[1] lower_outer_leg": 0.972754509091287,
-        "up[1] pf_lower": 0.4159642216589635,
-        "up[1] pf_upper": 10.342854007299895,
-        "up[1] sol": 234.74986719340887,
-        "up[1] sol_between": 229.51898749781444,
-        "up[1] upper_inner_leg": 0.2743125066338799,
-        "up[1] upper_outer_leg": 1.4369041981751909
-      },
-      "class": "SENSITIVE",
+      "applied": null,
+      "block_l2": {},
+      "class": "INVALID",
       "config": "steady",
-      "d": {
-        "data": [2],
-        "dtype": "int64",
-        "shape": []
-      },
+      "d": null,
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 6.63e+09",
-      "sha256": "0319066905f88bc9bf9959345c8fcd13c805d31edaaf6063d1ae9e403729bbed"
+      "reason": "error: RuntimeError: Error in subroutine ueinit: isimpon=7 needs impurity species, but nzspt=0: use isimpon=2 for fixed-fraction impurities alone, or set ngsp and nzsp and call allocate",
+      "sha256": null
     },
     "bbb.isimpon=other": {
       "applied": null,
