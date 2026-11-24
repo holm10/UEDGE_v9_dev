@@ -31,6 +31,7 @@ uedge_ver = "8.1.2-beta.0"
 
 [perturbation]
 sigma = 0.02
+# seed and sigma: chosen among several tried pairs as the one that raises no shared rtol but tg (tracker T22)
 seed = 81001
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
 min_block_ratio = 14.02
@@ -97,7 +98,7 @@ variants = "all"  # every SENSITIVE, INERT and MARGINAL variant stores a pattern
 calibration = "inherited from d_only (D3), not recalibrated: delta_loc and m_loc are one value for all small families. Default pattern of the probe at d124e4f4 (tol = rtol*|yldot|): 4 entries above 1, largest 3.89, all in the band, the asserted pattern P empty."
 
 [locality.causes]  # the causes of the default pattern, measured by switching one input at a time (tracker T22; bug T191)
-drift_heating = "drift heating (cfnidhgy = cfnidhg2 = 1): the cell speeds vycc and v2cc of the atoms (bbb/pandf_plasma_energy.m:714-715, in seak, bbb/pandf_plasma_energy.m:749, which enters the tg[1] rows); the faces ix and ix-1 are averaged, and face ix-1 itself takes the isnonog = 1 4-point stencil, so the tg[1] and ti rows at ix+2 respond to the column at ix, one cell beyond xrinc = 1. cfnidhgy = cfnidhg2 = 0 leaves no entry, cfnidhdis = 0 and cfneutsor_ei = 0 leave all 4. Not by design: bug T191 (owner, 2026-11-24)."
+drift_heating = "drift heating (cfnidhgy = cfnidhg2 = 1): the cell speeds vycc and v2cc of the atoms (bbb/pandf_plasma_energy.m:714-715, in seak, bbb/pandf_plasma_energy.m:749, which enters the tg[1] rows); the faces ix and ix-1 are averaged, and face ix-1 itself takes the isnonog = 1 4-point stencil, so the tg[1] rows at ix+2 respond to the column at ix, one cell beyond xrinc = 1. cfnidhgy = cfnidhg2 = 0 leaves no entry, cfnidhdis = 0 and cfneutsor_ei = 0 leave all 4. Not by design: bug T191 (owner, 2026-11-24)."
 band_only = "all in the band at delta_loc = 1e-6 (largest 3.89 of m_loc = 100), so the asserted pattern P is empty"
 
 [locality.excluded]  # owner decisions (decision 23): variants left out of the locality scope, with the cause

@@ -15,8 +15,8 @@ make   restores --source and writes it, re-saved after one exmain, as reference_
        on phis) and writes that, re-saved the same way, as base_state.h5. It takes the smallest sigma at
        which every (equation, species) block of the raw yldot has an RMS at least 10x the reference
        state's, with the floor guards passing. The blocks come only from UEDGE's idx* arrays. Prints a
-       TOML fragment for family.toml. --accept-ratio BLOCK (repeatable; a label as printed, e.g. idxtg[0], its
-       species index 0-based) lets that one block miss the 10x rule: the owner's recorded exception, for a family
+       TOML fragment for family.toml. --accept-ratio BLOCK (repeatable; a label as printed, e.g. idxtg[0], whose
+       species index is 0-based: idxtg[0] is tg[1] of the reports, Fortran's first gas) lets that one block miss the 10x rule: the owner's recorded exception, for a family
        whose reference state is far from balance in it (owner, 2026-11-24, tracker T22). It accepts only named
        blocks; a name that is no block, or a block that meets the rule at the sigma taken, is refused (exit 2), so
        an acceptance cannot outlive its need. The fragment then also prints accepted_ratio.
@@ -489,8 +489,9 @@ def make_states(args, log, family_dir, source, reference, base, raw):
     print("seed = {}".format(args.seed))
     print('rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= {:g}"'.format(
         RATIO_MIN))
-    print("min_block_ratio = {:.4g}{}".format(min(t[4] for t in ratios if t[0] not in accepted),
-                                               "  # over the blocks not accepted" if accepted else ""))
+    kept = [t[4] for t in ratios if t[0] not in accepted]
+    print("min_block_ratio = {}{}".format("{:.4g}".format(min(kept)) if kept else "nan",
+                                          "  # over the blocks not accepted" if accepted else ""))
     if accepted:
         print("accepted_ratio = {{ {} }}  # the owner's exceptions to the rule (--accept-ratio)".format(
             ", ".join('"{}" = {:.4g}'.format(t[0], t[4]) for t in ratios if t[0] in accepted)))
@@ -534,7 +535,8 @@ def main(argv):
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--sigmas", default="0.02,0.03,0.05")
     p.add_argument("--accept-ratio", action="append", default=[], metavar="BLOCK",
-                   help="accept that this block misses the ratio rule (the owner's decision; repeatable)")
+                   help="accept that this block misses the ratio rule (the owner's decision; repeatable); a label as "
+                        "printed, species 0-based, e.g. idxtg[0] for tg[1]")
     p.add_argument("--log", help="child output log (default: discarded)")
     p_check = sub.choices["check"]
     p_check.add_argument("--log", help="child output log (default: discarded)")

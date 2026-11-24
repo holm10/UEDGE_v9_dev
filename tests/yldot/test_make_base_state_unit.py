@@ -137,6 +137,34 @@ def test_make_refuses_a_needless_acceptance(monkeypatch, tmp_path):
     assert e.value.code == 2
 
 
+def test_make_prints_nan_when_every_block_is_accepted(monkeypatch, tmp_path, capsys):
+    assert Fake(monkeypatch, tmp_path, {0.02: (1.0, 1.0)}).make("0.02", ["idxn[0]", "idxtg[0]"]) == 0
+    assert "min_block_ratio = nan  # over the blocks not accepted" in capsys.readouterr().out
+
+
+def test_a_repeated_name_counts_once(monkeypatch, tmp_path, capsys):
+    assert Fake(monkeypatch, tmp_path, MISS).make("0.02", ["idxtg[0]", "idxtg[0]"]) == 0
+    assert capsys.readouterr().out.count('"idxtg[0]" =') == 1
+
+
+def test_cmd_make_leaves_no_base_state_on_a_refusal(monkeypatch, tmp_path):
+    """The needless-acceptance Stop is raised after base_state.h5 is written: cmd_make removes it (and the raw one)."""
+    fam = tmp_path / "fam"
+    fam.mkdir()
+    monkeypatch.setattr(mb, "FAMILIES", tmp_path)
+    base, raw = fam / "base_state.h5", fam / "base_state.raw.h5"
+
+    def make_states(args, log, family_dir, source, reference, b, r):
+        b.write_text("x")
+        r.write_text("x")
+        raise mb.Stop(2, "needless")
+
+    monkeypatch.setattr(mb, "make_states", make_states)
+    with pytest.raises(mb.Stop) as e:
+        mb.cmd_make(SimpleNamespace(family="fam", source="s.h5"), None)
+    assert e.value.code == 2 and not base.exists() and not raw.exists()
+
+
 def test_make_keeps_the_rule_for_the_others(monkeypatch, tmp_path):
     with pytest.raises(mb.Stop) as e:
         Fake(monkeypatch, tmp_path, {0.02: (9.0, 1.0)}).make("0.02", ["idxtg[0]"])
