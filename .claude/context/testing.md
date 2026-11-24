@@ -621,7 +621,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   `CLAUDE.md`, `.mcp.json`, `.claude/**`, `.githooks/**`, `.github/workflows/claude-*.yml`), and `nightly-tests.yml`
   has them on `pull_request` together with `docs/**`, `doc/**` and `**/*.md` (AIUE-104); keep the four lists in
   step. One product file in the change runs everything; tag pushes, the nightly schedule and dispatches are
-  unaffected. Such a PR still gets `claude-context-drift.yml`, `claude-review.yml` and the reference guard. A required
+  unaffected. Such a PR still gets `claude-context-drift.yml` and the reference guard. A required
   check whose workflow a path filter skips stays pending and blocks the merge, so the one workflow meant to be
   required, `reference-guard.yml`, has no path filter.
 - **The reference guard in CI** (AIUE-104, archived Confluence page 5111855): `.github/workflows/reference-guard.yml`, on
@@ -735,4 +735,4 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
 - There is no BASIS CI. `build-basis.yml` was removed (AIUE-178, owner 2026-10-23): its `fusionbillm/basisuedge` image
   built LLNL/UEDGE's branch of the same name, never the fork (LLNL `master` for a branch upstream lacks; on
   `v9-develop`, LLNL's `v9-develop`, which fails in BASIS make on `bbb.pack`). A `#@nobasis` tag has no effect.
-- `claude-review.yml` runs `/code-review` on PR open or `@claude-review` comment.
+- `claude-review.yml` runs `/code-review` only on a trusted contributor's `@claude-review` comment on a PR (owner, 2026-11-24).

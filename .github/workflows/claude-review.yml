@@ -2,25 +2,22 @@
 # posts the review as a PR comment. Claude reads code and comments; it never writes
 # to the branch (contents: read).
 #
-# Fires automatically when a PR is opened, and on demand when a trusted contributor
-# comments `@claude-review`. Requires the CLAUDE_CODE_OAUTH_TOKEN repo/org secret.
+# Fires only on demand, when a trusted contributor comments `@claude-review` on a PR (owner,
+# 2026-11-24: the pipeline's review gates already review ticket PRs). The comment runs this file
+# as it is on the default branch, with the token below: read a fork PR before asking for a
+# review of it. Requires the CLAUDE_CODE_OAUTH_TOKEN repo/org secret.
 name: Claude Review
 
 on:
-  pull_request:
-    types: [opened, ready_for_review]
   issue_comment:
     types: [created]
 
 jobs:
   claude-review:
     if: |
-      github.event_name == 'pull_request' || (
-        github.event_name == 'issue_comment'
-        && github.event.issue.pull_request
-        && contains(github.event.comment.body, '@claude-review')
-        && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
-      )
+      github.event.issue.pull_request
+      && contains(github.event.comment.body, '@claude-review')
+      && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -39,7 +36,6 @@ jobs:
       - name: Run Claude code review
         uses: anthropics/claude-code-action@v1
         with:
-          allowed_bots: "dependabot"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: "@claude-review"
           track_progress: true
