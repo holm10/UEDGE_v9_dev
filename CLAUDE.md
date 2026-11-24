@@ -33,7 +33,7 @@ pip install . -C "--build-option=--debug"         # -fcheck=all, FPE traps, -Og 
 pip install . -C "--build-option=--checkbounds"
 pip install . -C "--build-option=--noopt"         # -O0, no FPE traps (round-off measurement); not with --debug
 pip install . -C "--build-option=--coverage"      # serial, -O0 --coverage (gcov); writes .gcno/.gcda under build/; not with --debug; Linux links with gcc
-pip install -v . -C "--build-option=--noclean"    # keeps build/ unless it holds objects of other options, compilers, .v/.h files or a foreign build (T27; uedge-gotchas.md)
+pip install -v . -C "--build-option=--noclean"    # keeps build/ unless it holds objects of other options, compilers, .v/.h/.inc files or a foreign build (T27; uedge-gotchas.md)
 
 # Smoke test
 python -c "import uedge; from uedge import bbb; print(bbb.uedge_ver)"

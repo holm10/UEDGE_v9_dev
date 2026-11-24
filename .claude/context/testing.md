@@ -384,9 +384,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `clean_noclean` is the `NOCLEAN` that make clean sees (T27). It needs setuptools, which a venv of Python >= 3.12 lacks
   until installed. Not covered: what reaches Forthon's real `FCompiler` and its own flags (the record's `forthon_fopt` is the fake's fixed value),
   `-g`/`-t`/`-F`, `--parallel`, PETSc.
-  `--noclean` (T27) instead runs 79 sequences of builds on both platforms (what a `--noclean` build does after a build
-  with other options, compilers, environment or `.v`/`.h` files, a foreign object or `.F`, a failed or interrupted step, or a
-  clean that leaves files; make, the conversion and `build.run` stubbed, the fake `make clean` honours `NOCLEAN`) and
+  `--noclean` (T27) instead runs 100 sequences of builds on both platforms (what a `--noclean` build does after a build
+  with other options, compilers, environment or `.v`/`.h`/`.inc` files (among them one that cannot be opened), a foreign
+  object or `.F`, a failed or interrupted step, or a clean that leaves files; make, the conversion and `build.run`
+  stubbed, the fake `make clean` honours `NOCLEAN`) and
   prints per step whether it cleaned, the note, the `NOCLEAN` of each make call, the stamp and the exit message.
   CI makes no `--noclean` build; T27 ran real ones on macOS and in the Linux image.
   `tests/yldot/test_build_flags.py` pins that table (29 cases: the default, `--noclean`, `--serial`, `--debug`,
@@ -398,7 +399,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `test_finclude_refusal` gives setup.py a relative, missing, spaced and failing `finclude` and requires every
   Linux build to stop with AIUE-211's message and every macOS one to be unchanged; an unedited copy
   must show no difference and `--no-git` must null only the git fields. `test_noclean_scenarios` holds the expected
-  step of every `--noclean` sequence, and `test_detects_stamp_changes` requires each of 36 wrong versions of `setup.py`
+  step of every `--noclean` sequence, and `test_detects_stamp_changes` requires each of 51 wrong versions of `setup.py`
   (`STAMP_EDITS`) to change the sequence it should. `test_installed_record` checks the record of
   the UEDGE installed in the running interpreter against its own options (last `-O`, `-fopenmp`, `-nostdinc` exactly
   on Linux, platform, the commit `_provenance.py` reports, loaded by path without importing `uedge`); a UEDGE built
