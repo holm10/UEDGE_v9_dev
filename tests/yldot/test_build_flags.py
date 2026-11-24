@@ -395,6 +395,7 @@ def noclean_expected(platform):
         "make interrupted, then again": [normal(), reused(built=False, exit="interrupted"), reused()],
         "build.run fails, then again": [normal(), reused(exit="build.run failure"), reused()],
         # ... but the .F file of an interrupted conversion may be half written
+        "a .v file edited while make runs": [normal(), reused(), forced("bbb/x.v"), reused()],
         "conversion interrupted, then again": [
             normal(), reused(noclean={}, stamp=None, built=False, exit="interrupted"), forced("bbb/x.F")],
         "converted, then again": [normal(), reused(), reused()],
@@ -424,10 +425,18 @@ def noclean_expected(platform):
         "before: an object of the stamp's time": [normal(), reused(), reused()],
         "before: another file": [normal(), reused(), reused()],
         "before: a .F90 file": [normal(), reused(), reused()],
+        # The .v and .h files count by content: make recompiles no Fortran for them
+        "before: a .v file edited": [normal(), forced("bbb/x.v"), reused()],
+        "before: a .v file added": [normal(), forced("bbb/new.v"), reused()],
+        "before: a .v file removed": [normal(), forced("bbb/x.v"), reused()],
+        "before: a .h file edited": [normal(), forced("bbb/x.h"), reused()],
+        "before: a top-level .h file edited": [normal(), forced("x.h"), reused()],
+        "before: a .v file touched": [normal(), reused(), reused()],
+        "before: another source edited": [normal(), reused(), reused()],
     }
     for name in VARIABLES:
         expected["variable " + name] = [normal(), forced(name)]
-    for stamp in ("deleted", "empty", "not JSON", "a list", "without env"):
+    for stamp in ("deleted", "empty", "not JSON", "a list", "without env", "without files"):
         expected["before: stamp " + stamp] = [normal(), forced(NO_RECORD), reused()]
     return expected
 
@@ -463,8 +472,8 @@ def noclean_differences(table):
 
 def test_noclean_scenarios(tmp_path):
     """A --noclean build cleans, naming why, if the tree's objects are not this build's: built with other options,
-    compilers or environment, by an older setup.py, by make alone or by an interrupted build, or of unknown origin.
-    Otherwise it keeps them. A normal build cleans as it always has (T27)."""
+    compilers or environment, from other .v or .h files, by an older setup.py, by make alone or by an interrupted build,
+    or of unknown origin. Otherwise it keeps them. A normal build cleans as it always has (T27)."""
     found = noclean_differences(noclean_table(SETUP, tmp_path))
     assert not found, "\n".join("{} {}: {}".format(*f) for f in found)
 
@@ -510,6 +519,14 @@ STAMP_EDITS = {
                                          "Fortran compiler version"),
     "C compiler version dropped": ("stamp['ccompiler_version'] = version.splitlines()[0] if version else None",
                                    "stamp['ccompiler_version'] = None", "C compiler version"),
+    ".v files dropped": (" + glob(os.path.join('*', '*.v')):", ":", "before: a .v file edited"),
+    "package headers dropped": (" + glob(os.path.join('*', '*.h'))", "", "before: a .h file edited"),
+    "top-level headers dropped": ("in glob('*.h') + ", "in ", "before: a top-level .h file edited"),
+    "files not compared": ("**s['files'], ", "", "before: a .v file edited"),
+    "stamp without env accepted": ("isinstance(old.get(k), dict) for k in",
+                                   "isinstance(old.setdefault(k, {}), dict) for k in", "before: stamp without env"),
+    "stamp without files accepted": ("isinstance(old.get(k), dict) for k in",
+                                     "isinstance(old.setdefault(k, {}), dict) for k in", "before: stamp without files"),
     "clean's leftovers ignored": (STOP, "if status != 0:", "clean leaves build/"),
     "clean's status ignored": (STOP, "if left and changes:", "clean removes all and fails"),
     "leftovers stop a normal build": (STOP, "if status != 0 or left:", "normal build, clean leaves build/"),

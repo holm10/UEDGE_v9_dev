@@ -11,7 +11,8 @@ setup.py must follow the working directory, not $PWD).
 
 --noclean instead runs sequences of builds (scenarios()) in scratch trees, each build one uedgeBuild.run with stubbed
 make, conversion and build.run, and prints what each did, as JSON (T27: a --noclean build must clean if the tree's
-objects were built with other flags, compilers or environment, or by other means than setup.py). The stubbed make clean
+objects were built with other flags, compilers or environment, from other .v or .h files, or by other means than
+setup.py). The stubbed make clean
 removes files only if it sees NOCLEAN=FALSE, as Makefile.Forthon's does, and the stubbed steps write an object, a .F
 file and an extension, each later than the rest of the tree whatever the clock's resolution. Every scenario runs on
 both platforms.
@@ -313,6 +314,12 @@ def edit_stamp(text):
     FAKE_STAMP.write_text(text)
 
 
+def edit_file(name, text="edited"):
+    """Write name with a time older than everything else: an edit counts by content."""
+    Path(name).write_text(text)
+    os.utime(name, (1, 1))
+
+
 BEFORE = {"an object": lambda: write_later("build/temp/bbb/oderhs.o"),
           "an extension": lambda: write_later("build/lib/uedge/bbbpy.so"),
           "a .F file": lambda: write_later("bbb/x.F"),
@@ -321,7 +328,12 @@ BEFORE = {"an object": lambda: write_later("build/temp/bbb/oderhs.o"),
           "a .F90 file": lambda: write_later("bbb/y.F90"),
           "stamp deleted": lambda: FAKE_STAMP.unlink(missing_ok=True),
           "stamp empty": lambda: edit_stamp(""), "stamp not JSON": lambda: edit_stamp("{"),
-          "stamp a list": lambda: edit_stamp("[]"), "stamp without env": lambda: edit_stamp("{}")}
+          "stamp a list": lambda: edit_stamp("[]"), "stamp without env": lambda: edit_stamp('{"files": {}}'),
+          "stamp without files": lambda: edit_stamp('{"env": {}}'),
+          "a .v file edited": lambda: edit_file("bbb/x.v"), "a .v file added": lambda: edit_file("bbb/new.v"),
+          "a .v file removed": lambda: Path("bbb/x.v").unlink(), "a .h file edited": lambda: edit_file("bbb/x.h"),
+          "a top-level .h file edited": lambda: edit_file("x.h"), "a .v file touched": lambda: Path("bbb/x.v").touch(),
+          "another source edited": lambda: edit_file("bbb/x.m")}
 
 
 def scenarios():
@@ -348,6 +360,7 @@ def scenarios():
            "other options fail, then again": [default, step(("noopt",), make="fails"), step(("noopt",))],
            "same options fail, then again": [default, step(make="fails"), step()],
            "make interrupted, then again": [default, step(make="interrupted"), step()],
+           "a .v file edited while make runs": [default, step(make="edits a .v file"), step(), step()],
            "build.run fails, then again": [default, step(build_run="fails"), step()],
            "conversion interrupted, then again": [default, step(convert="interrupted"), step()],
            "converted, then again": [default, step(convert="one file"), step()],
@@ -413,6 +426,8 @@ def run_step(setup_path, s, platform, libgcov, finclude):
                     Path("bbb/x.F").unlink(missing_ok=True)
             return 2 if s["clean"] == "fails after removing" else 0
         write_later("build/temp/bbb/x.o")
+        if s["make"] == "edits a .v file":
+            edit_file("bbb/x.v")
         if s["make"] == "interrupted":
             raise KeyboardInterrupt()
         return 2 if s["make"] == "fails" else 0
@@ -477,7 +492,8 @@ def noclean_check(setup_path=SETUP):
                 for i, (name, steps) in enumerate(scenarios().items()):
                     tree = Path(tmp, platform + str(i))
                     (tree / "bbb").mkdir(parents=True)
-                    (tree / "bbb" / "x.m").touch()
+                    for source in ("bbb/x.m", "bbb/x.v", "bbb/x.h", "x.h"):
+                        (tree / source).touch()
                     os.chdir(tree)
                     result[platform][name] = [run_step(setup_path, s, platform, libgcov, finclude) for s in steps]
         finally:

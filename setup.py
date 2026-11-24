@@ -757,6 +757,8 @@ STAMP_ENV = ('CC', 'CPP', 'CFLAGS', 'CPPFLAGS', 'LDFLAGS', 'LDSHARED', 'AR', 'AR
 
 def build_stamp(makeenv):
     """The inputs that decide the object code, as the stamp holds them (makeenv: None if make inherits ours)."""
+    from glob import glob
+    from hashlib import sha256
     from shlex import split
     from sysconfig import get_config_var
     info = build_info(makeenv)
@@ -766,6 +768,12 @@ def build_stamp(makeenv):
     version = _probe(split(stamp['ccompiler']) + ['--version'])
     stamp['ccompiler_version'] = version.splitlines()[0] if version else None
     stamp['env'] = {k: (os.environ if makeenv is None else makeenv).get(k) for k in STAMP_ENV}
+    # make sees no header, and Forthon's rules recompile no Fortran when a .v file changes: the new C wrapper then runs
+    # on the old objects
+    stamp['files'] = {}
+    for f in glob('*.h') + glob(os.path.join('*', '*.h')) + glob(os.path.join('*', '*.v')):
+        with open(f, 'rb') as source:
+            stamp['files'][f] = sha256(source.read()).hexdigest()
     return stamp
 
 
@@ -790,9 +798,9 @@ def stamp_changes(stamp):
             old = json.load(f)
     except (OSError, ValueError):
         old = None
-    if not isinstance(old, dict) or not isinstance(old.get('env'), dict):
+    if not isinstance(old, dict) or not all(isinstance(old.get(k), dict) for k in ('env', 'files')):
         return ['no usable record of the previous build ({})'.format(STAMP)]
-    old, new = [{**s, **s['env'], 'env': None} for s in (old, stamp)]
+    old, new = [{**s, **s['env'], **s['files'], 'env': None, 'files': None} for s in (old, stamp)]
     changes = ['{}: {!r} -> {!r}'.format(k, old.get(k), new.get(k))
                for k in sorted(set(old) | set(new)) if old.get(k) != new.get(k)]
     end = os.stat(STAMP).st_mtime_ns
