@@ -19,7 +19,7 @@ its `reason` in `tests/yldot/combinations.toml` (AIUE-257); the archived page ha
 - Each option writes the guard row of `yldot`, as `nurlx*·(target − value)/norm` or as a flux balance.
 - In a Jacobian evaluation a wall row is built only when the window reaches it: `j3`/`isextr*`, `j7`, and
   `xcnearlb`/`xcnearrb`/`openbox`.
-- The set-up routines run once, from `bbb/odesetup.m:1360-1366`:
+- The set-up routines run once, from `bbb/odesetup.m:1367-1373`:
   - `walsor` (`bbb/pandf_boundary.m:363`): wall gas sources `igasi`/`igaso`, albedos `albdsi`, material walls `matwsi`;
   - `pltsor` (`bbb/pandf_boundary.m:716`): plate sources and evaporation;
   - `recyprof` (`bbb/pandf_boundary.m:886`): recycling and albedo profiles, `sputtr`, tabulated `ndatlb`.
