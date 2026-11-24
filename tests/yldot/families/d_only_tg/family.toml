@@ -1,0 +1,104 @@
+# yldot suite family (epic AIUE-9; tracker T22, owner, 2026-11-24): d_only (D only, atoms inertial), the atom temperature evolved.
+# Derived from d_only: its grid and reference_state.h5 as they are; the owner's settings are at the end of input.py.
+# W, P and the history are measured on this branch; the regions are d_only's (the same grid).
+
+[family]
+name = "d_only_tg"
+grid = "gridue"
+store = "full"
+rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+                # relative paths: every evaluation must run with the family directory as cwd
+neq = 480
+
+[source]
+family = "d_only"  # this suite's family; its [source] records the original case
+grid = "gridue"  # d_only's, copied
+state = "reference_state.h5"  # d_only's, the --source of make_base_state.py make
+state_sha256 = "f5c781f12f900c1c1939ec0ed58793a205dceef1a9577a1c3300b7be5138f1b5"
+input_changes = "d_only's input.py, then the block 'Gas temperatures evolved' (istgon for atoms, cftiexclg = 0, tgwall = 0.04 eV, the atoms' Tg boundary options, drift heating on)"
+
+[reference_state]
+file = "reference_state.h5"
+origin = "d_only's reference_state.h5 as it is, no relaxation or reconvergence (owner, 2026-11-24); re-saved after one exmain, a round-trip fixed point (AIUE-140)"
+norm = "nksol max |sfscal*yldot| <= ftol"
+ftol = 1e-08
+fmax = 1.2156e+00
+fnrm_l2 = 3.0449e+00
+converged = false  # information only, gates nothing
+build_commit = "d124e4f43c635c0271f343ff9701af698dc21e18"
+build = "serial"
+uedge_ver = "8.1.2-beta.0"
+
+[perturbation]
+sigma = 0.02
+seed = 81001
+rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
+min_block_ratio = 14.02
+floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
+near_floor_factor = 1.1
+near_floor_tes = { reference = 0, base = 0 }
+near_floor_tis = { reference = 0, base = 0 }
+near_floor_tgs = { reference = 0, base = 0 }
+near_floor_ngs = { reference = 0, base = 0 }
+base_state_sha256 = "59a8675d8b5771d274f10d7bc5c3bf189584cf5f0935e0b9531e34729804caf0"
+reference_state_sha256 = "c46ff581c2fa59643339f335eb231f98fed9bd288f2a62c6ce1b4c6504689092"
+base_state_data_sha256 = "3321fe2d50bb06ab0e0abc85c3b32b726fbac61c95c507b749118c6db42c4a52"
+reference_state_data_sha256 = "64c95e365d437a7613e3e86a6dfcf2040792f895a86b6d5e31f4ae2230fe57b4"
+source_state_sha256 = "f5c781f12f900c1c1939ec0ed58793a205dceef1a9577a1c3300b7be5138f1b5"
+roundtrip_fixed_point = true  # both states: one exmain changes no saved entry (AIUE-140)
+roundtrip_changes_source = { nis = 0, ups = 0, tes = 0, tis = 0, phis = 0, ngs = 0, tgs = 0 }
+
+[limiter_report]
+flalfe_qr_ge_1_reference = 0
+flalfe_qr_ge_1_base = 0
+
+[evaluation]  # measured (tracker T22, [history]); W = P = 1, no child reuse (owner rule, 2026-10-21)
+w = 1  # exmain warm-up count, PRD section 6 step 5
+p = 1  # pandf repeats, steps 8 and 8b
+child_reuse = false  # one fresh child per evaluation (owner, 2026-10-21, AIUE-86)
+timeout_s = 120  # per child
+dt_timestep_s = 1e-6  # timestep configuration, step 6c
+
+[history]  # tools/measure_history.py run (tracker T22): rows that differ bit for bit, yldot plus yldot_J
+measured = "2026-11-24"
+build = "T22-serial"  # d124e4f4, --serial, one thread, Darwin arm64
+uedge_ver = "8.1.2-beta.0"
+w_sweep = { steady = [0, 0], timestep = [0, 0] }
+p_sweep = { steady = [0, 0], timestep = [0, 0] }
+control_two_processes = { steady = 0, timestep = 0 }
+flag_sequence = { steady = 0, timestep = 0 }
+steady_plus_minus_rows = 0
+gated_rows = 0
+flags = { ishosor = 0, ismcnon = 0 }
+reuse = "bit-identical: steady, steady, timestep, steady, intake, steady"
+child_wall_s = { steady = 0.0556, timestep = 0.0581 }
+eval_in_child_s = { steady = 0.0426, timestep = 0.0434 }
+pandf_s = 7.60e-05
+n_variants = { steady = 1216, timestep = 9 }
+sweep_cpu_s = 68
+
+[regions]  # owner, 2026-10-20 (AIUE-83 ticket page): six disjoint regions, one guard region; inner = the ix = 0 side
+guard = "ix in {0, nx+1} or iy in {0, ny+1}"
+nx = 8
+ny = 4
+ix_inner_leg = [1, 2]
+ix_core = [3, 6]
+ix_outer_leg = [7, 8]
+iy_closed = [1, 1]  # core and private flux
+iy_open = [2, 4]  # SOL and legs
+source = { ixpt1 = 2, ixpt2 = 6, iysptrx = 1 }  # mhdgeo = 1: com.ixpt1, ixpt2, iysptrx
+cells = { guard = 28, core = 4, pf = 4, inner_leg = 6, sol = 12, outer_leg = 6 }
+
+[locality]  # PRD 7.5 (AIUE-100); owner, 2026-10-22: delta_loc and m_loc by rule D3, causes D2
+delta_loc = 1e-6
+m_loc = 100.0
+columns = "all"  # every column (AIUE-101 Q1: the small families)
+variants = "all"  # every SENSITIVE, INERT and MARGINAL variant stores a pattern (AIUE-101 Q3, owner 2026-10-25)
+calibration = "inherited from d_only (D3), not recalibrated: delta_loc and m_loc are one value for all small families. Default pattern of the probe at d124e4f4 (tol = rtol*|yldot|): 4 entries above 1, largest 3.89, all in the band, the asserted pattern P empty."
+
+[locality.causes]  # the causes of the default pattern, measured by switching one input at a time (tracker T22)
+drift_heating = "drift heating (cfnidhgy = cfnidhg2 = 1): the cell speeds vycc and v2cc of the atoms (bbb/pandf_plasma_energy.m:714-715, in seak, bbb/pandf_plasma_energy.m:749, which enters the tg[1] rows); the faces ix and ix-1 are averaged, and face ix-1 itself takes the isnonog = 1 4-point stencil, so the tg[1] and ti rows at ix+2 respond to the column at ix, one cell beyond xrinc = 1. cfnidhgy = cfnidhg2 = 0 leaves no entry, cfnidhdis = 0 and cfneutsor_ei = 0 leave all 4."
+band_only = "all in the band at delta_loc = 1e-6 (largest 3.89 of m_loc = 100), so the asserted pattern P is empty"
+
+[locality.excluded]  # owner decisions (decision 23): variants left out of the locality scope, with the cause
+"bbb.isupgon" = "isupgon(1) 1 -> 0 after the restore (POST) leaves pandf non-repeatable: every full evaluation at the same yl adds about +714 to the up[2] residual of the interior cells (d_only), so the locality f00 cannot reproduce. Its yldot variant test is unchanged. Owner, 2026-10-25 (AIUE-101); bug AIUE-208."

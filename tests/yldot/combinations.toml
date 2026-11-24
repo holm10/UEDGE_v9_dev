@@ -28,9 +28,8 @@
 # Lines below are bbb/pandf_boundary.m at a62f121; options and issues: .claude/context/boundary-conditions.md
 # (archived Confluence page 25067521). Selector values themselves are in overrides.toml (owner D2); the sets here add
 # the combinations and the branch parameters. Not here, with their disposition:
-#   - the gas-temperature options (istgpfc, istgwc, istglb/istgrb, istgcore and lytg, cgengmw, recycwe, cfdiss,
-#     tgwall, tgcore, cfalbedo, cgengmpl): no small family evolves tg; a family with istgon = 1 is AIUE-293 (owner
-#     2026-11-12);
+#   - the options of the gas temperature in families that do not evolve it (istgon = 0): the gas-temperature
+#     section (families d_mols_tg, d_only_tg; tracker T22, formerly AIUE-293);
 #   - dnull_patch, limiter_patch, isfixlb/isfixrb: family stories AIUE-171, AIUE-172, AIUE-173;
 #   - outwallflux (isoutwall, export only; AIUE-195).
 
@@ -558,6 +557,308 @@ assign = { "bbb.isnicore" = { value = 5, at = [7] } }
 families = ["d_c"]
 issues = ["AIUE-262", "AIUE-292"]
 reason = "impurity core dni/dy = 0 on the top C charge state (isnicore = 5); covers AIUE-262 as the code behaves today: the impurity loop writes the stale yldot(iv1) normalised by n0(ifld) (1688-1690); d_c's own isnicore = 3 there covers AIUE-261"
+
+# ================================================================ gas temperature (T22; families d_mols_tg, d_only_tg)
+
+# The Tg boundary options, which no other small family reaches: istgcore (2037), istgpfc (2061), istgwc (2786),
+# istglb (3570), istgrb (4303), line numbers at d124e4f4, with their parameters. Family defaults (the owner's deck,
+# 2026-11-24): atoms istgcore 2, istgpfc/istgwc/istglb/istgrb 4, molecules 2, 0, 0, 0, 0, cfdiss 1, recyce 0.3,
+# cftiexclg 0, cfnidhgy = cfnidhg2 = cfnidhdis = cfnidhmol = 1. With cfdiss = 1 the recycled-energy terms, scaled by
+# (1 - cfdiss), vanish, so the sets on recyce and recycwe set cfdiss = 0.5. The selectors' value lists
+# (overrides.toml) also run in these families, elementwise (both gases).
+
+["set:tg-pfc0"]
+assign = { "bbb.istgpfc" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall Tg fixed at tgwall (istgpfc = 0, 2061)"
+
+["set:tg-pfc0-tgwall"]
+assign = { "bbb.istgpfc" = 0, "bbb.tgwall" = { scale = 2.0 } }
+base = "set:tg-pfc0"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "tgwall, read under istgpfc = 0 (2061), varied with that branch on"
+
+["set:tg-pfc2"]
+assign = { "bbb.istgpfc" = 2 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall Tg radial gradient length lytg(1) (istgpfc = 2, 2061)"
+
+["set:tg-pfc2-lytg"]
+assign = { "bbb.istgpfc" = 2, "bbb.lytg" = { value = 0.05, at = [0] } }
+base = "set:tg-pfc2"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "lytg(1,:), read under istgpfc = 2, varied with that branch on"
+
+["set:tg-pfc3"]
+assign = { "bbb.istgpfc" = 3 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall Maxwellian thermal flux cgengmw (istgpfc = 3, 2061)"
+
+["set:tg-pfc3-cgengmw"]
+assign = { "bbb.istgpfc" = 3, "bbb.cgengmw" = { scale = 2.0 } }
+base = "set:tg-pfc3"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cgengmw, read under istgpfc = 3, varied with that branch on"
+
+["set:tg-pfc4"]
+assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall half-Maxwellian with the recycled energy (istgpfc = 4 and (1 - cfdiss)*recycwe, 2061; isrefluxclip = 0 lets the reflux through)"
+
+["set:tg-pfc4-recycwe"]
+assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.6, "bbb.isrefluxclip" = 0 }
+base = "set:tg-pfc4"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "recycwe, read under istgpfc = 4 with recycw > 0, varied with that branch on"
+
+["set:tg-pfc4-cfalbedo"]
+assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0, "bbb.cfalbedo" = { scale = 1.5 } }
+base = "set:tg-pfc4"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cfalbedo, read under istgpfc = 4, varied with that branch on"
+
+["set:tg-pfc4-recycw"]
+assign = { "bbb.istgpfc" = 4, "bbb.recycw" = -0.5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall half-Maxwellian without the recycled energy (recycw <= 0, 2091)"
+
+["set:tg-pfc5"]
+assign = { "bbb.istgpfc" = 5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "PF wall Tg = ti*cftgtipfc (istgpfc = 5, 2061)"
+
+["set:tg-pfc5-cf"]
+assign = { "bbb.istgpfc" = 5, "bbb.cftgtipfc" = 0.8 }
+base = "set:tg-pfc5"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cftgtipfc, read under istgpfc = 5, varied with that branch on"
+
+["set:tg-pfc6"]
+assign = { "bbb.istgpfc" = 6 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istgpfc = 6 stops with the invalid-option error"
+
+["set:tg-wc0"]
+assign = { "bbb.istgwc" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall Tg fixed at tgwall (istgwc = 0, 2786)"
+
+["set:tg-wc0-tgwall"]
+assign = { "bbb.istgwc" = 0, "bbb.tgwall" = { scale = 2.0 } }
+base = "set:tg-wc0"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "tgwall, read under istgwc = 0 (2786), varied with that branch on"
+
+["set:tg-wc2"]
+assign = { "bbb.istgwc" = 2 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall Tg radial gradient length lytg(2) (istgwc = 2, 2786)"
+
+["set:tg-wc2-lytg"]
+assign = { "bbb.istgwc" = 2, "bbb.lytg" = { value = 0.05, at = [1] } }
+base = "set:tg-wc2"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "lytg(2,:), read under istgwc = 2, varied with that branch on"
+
+["set:tg-wc3"]
+assign = { "bbb.istgwc" = 3 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall Maxwellian thermal flux cgengmw (istgwc = 3, 2786)"
+
+["set:tg-wc3-cgengmw"]
+assign = { "bbb.istgwc" = 3, "bbb.cgengmw" = { scale = 2.0 } }
+base = "set:tg-wc3"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cgengmw, read under istgwc = 3, varied with that branch on"
+
+["set:tg-wc4"]
+assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall half-Maxwellian with the recycled energy (istgwc = 4 and (1 - cfdiss)*recycwe, 2786; isrefluxclip = 0 lets the reflux through)"
+
+["set:tg-wc4-recycwe"]
+assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.6, "bbb.isrefluxclip" = 0 }
+base = "set:tg-wc4"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "recycwe, read under istgwc = 4 with recycw > 0, varied with that branch on"
+
+["set:tg-wc4-cfalbedo"]
+assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0, "bbb.cfalbedo" = { scale = 1.5 } }
+base = "set:tg-wc4"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cfalbedo, read under istgwc = 4, varied with that branch on"
+
+["set:tg-wc4-recycw"]
+assign = { "bbb.istgwc" = 4, "bbb.recycw" = -0.5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall half-Maxwellian without the recycled energy (recycw <= 0, 2816)"
+
+["set:tg-wc5"]
+assign = { "bbb.istgwc" = 5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "outer wall Tg = ti*cftgtiwc (istgwc = 5, 2786)"
+
+["set:tg-wc5-cf"]
+assign = { "bbb.istgwc" = 5, "bbb.cftgtiwc" = 0.8 }
+base = "set:tg-wc5"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cftgtiwc, read under istgwc = 5, varied with that branch on"
+
+["set:tg-wc6"]
+assign = { "bbb.istgwc" = 6 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istgwc = 6 stops with the invalid-option error"
+
+["set:tg-pfcix"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istgpfcix" = { cycle = [0, 0, 1, 0, 0, 0, 0, 3, 4, 0] } }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "per-cell istgpfcix on the interior PF cells ix = 1, 2, 7, 8: options 0, 1, 3, 4 (2061)"
+
+["set:tg-pfcix5"]
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istgpfc" = 0, "bbb.istgpfcix" = { cycle = [2, 2, 5, 0, 0, 0, 0, 2, 0, 0] } }
+families = ["d_mols_tg", "d_only_tg"]
+issues = ["AIUE-269"]
+reason = "per-cell istgpfcix = 5 with the scalar istgpfc = 0: option 5 tests the scalar, so cell ix = 2 writes no equation (2103)"
+
+["set:tg-wcix"]
+assign = { "bbb.iswobcvsix" = 1, "bbb.istgwcix" = { cycle = [0, 1, 2, 3, 4] } }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "per-cell istgwcix on the outer wall: options 0 to 4 (2786)"
+
+["set:tg-wcix5"]
+assign = { "bbb.iswobcvsix" = 1, "bbb.istgwc" = 0, "bbb.istgwcix" = { cycle = [0, 5] } }
+families = ["d_mols_tg", "d_only_tg"]
+issues = ["AIUE-269"]
+reason = "per-cell istgwcix = 5 with the scalar istgwc = 0: option 5 tests the scalar (2827)"
+
+["set:tg-plt4-cfdiss"]
+assign = { "bbb.cfdiss" = 0.5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate half-Maxwellian with the recycled energy (recylb > 0, (1 - cfdiss)*recyce, 3588; family default option 4)"
+
+["set:tg-plt4-recyce"]
+assign = { "bbb.cfdiss" = 0.5, "bbb.recyce" = 0.6 }
+base = "set:tg-plt4-cfdiss"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "recyce, read under istglb/istgrb = 4 with cfdiss < 1, varied with that branch on"
+
+["set:tg-plt4-albedo"]
+assign = { "bbb.recycp" = { value = -0.5, at = [0] } }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate half-Maxwellian with an albedo (-1 <= recylb <= 0, 3601)"
+
+["set:tg-plt4-halfmaxw"]
+assign = { "bbb.recycp" = { value = -1.5, at = [0] } }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate half-Maxwellian of the ion flux (recylb < -1, 3610)"
+
+["set:tg-plt4mol"]
+assign = { "bbb.istglb" = { value = 4, at = [1] }, "bbb.istgrb" = { value = 4, at = [1] } }
+families = ["d_mols_tg"]
+issues = ["AIUE-273"]
+reason = "option 4 for the diffusive molecules, which acts only with isupgon = 1: no equation is written, yldot is 0 in their plate rows (3587, 4320)"
+
+["set:tg-plt0"]
+assign = { "bbb.istglb" = 0, "bbb.istgrb" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate Tg fixed at tgwall (istglb = istgrb = 0, 3570, 4303)"
+
+["set:tg-plt0-tgwall"]
+assign = { "bbb.istglb" = 0, "bbb.istgrb" = 0, "bbb.tgwall" = { scale = 2.0 } }
+base = "set:tg-plt0"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "tgwall, read under istglb/istgrb = 0, varied with that branch on"
+
+["set:tg-plt3"]
+assign = { "bbb.istglb" = 3, "bbb.istgrb" = 3 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate Maxwellian thermal flux cgengmpl (istglb = istgrb = 3, 3580, 4313)"
+
+["set:tg-plt3-cgengmpl"]
+assign = { "bbb.istglb" = 3, "bbb.istgrb" = 3, "bbb.cgengmpl" = { scale = 2.0 } }
+base = "set:tg-plt3"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cgengmpl, read under istglb/istgrb = 3, varied with that branch on"
+
+["set:tg-plt5"]
+assign = { "bbb.istglb" = 5, "bbb.istgrb" = 5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "plate Tg = ti*cftgtipltl/r (istglb = istgrb = 5, 3618, 4351)"
+
+["set:tg-plt5-cf"]
+assign = { "bbb.istglb" = 5, "bbb.istgrb" = 5, "bbb.cftgtipltl" = 0.8, "bbb.cftgtipltr" = 0.8 }
+base = "set:tg-plt5"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cftgtipltl and cftgtipltr, read under istglb/istgrb = 5, varied with that branch on"
+
+["set:tg-lb2"]
+assign = { "bbb.istglb" = 2 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istglb = 2 stops with an error (gradient placeholder, 3578)"
+
+["set:tg-lb6"]
+assign = { "bbb.istglb" = 6 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istglb = 6 stops with an error (unknown option, 3621)"
+
+["set:tg-rb2"]
+assign = { "bbb.istgrb" = 2 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istgrb = 2 stops with an error (gradient placeholder, 4311)"
+
+["set:tg-rb6"]
+assign = { "bbb.istgrb" = 6 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "istgrb = 6 stops with an error (unknown option, 4354)"
+
+["set:tg-core0"]
+assign = { "bbb.istgcore" = 0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "core Tg = ti*cftgticore (istgcore = 0, 2037)"
+
+["set:tg-core0-cf"]
+assign = { "bbb.istgcore" = 0, "bbb.cftgticore" = 0.8 }
+base = "set:tg-core0"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cftgticore, read under istgcore = 0, varied with that branch on"
+
+["set:tg-core1"]
+assign = { "bbb.istgcore" = 1 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "core Tg fixed at tgcore (istgcore = 1, 2040)"
+
+["set:tg-core1-tgcore"]
+assign = { "bbb.istgcore" = 1, "bbb.tgcore" = { scale = 0.5 } }
+base = "set:tg-core1"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "tgcore, read under istgcore = 1, varied with that branch on"
+
+["set:tg-core2-albedoc"]
+assign = { "bbb.albedoc" = 0.5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "core energy flux with albedoc (istgcore = 2, 2043)"
+
+["set:tg-core2-cfalbedo"]
+assign = { "bbb.albedoc" = 0.5, "bbb.cfalbedo" = { scale = 1.5 } }
+base = "set:tg-core2-albedoc"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cfalbedo, read under istgcore = 2, varied with that branch on"
+
+["set:tg-cftiexclg05"]
+assign = { "bbb.cftiexclg" = 0.5 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "half of the atom energy in the ion energy equation (cftiexclg between its two limits)"
+
+["set:tg-nodrift"]
+assign = { "bbb.cfnidhdis" = 0.0 }
+families = ["d_mols_tg", "d_only_tg"]
+reason = "no dissociation drift heating (pandf_gas_energy.m:415, 423, 432, 489; cfnidhdis = 0)"
+
+["set:tg-nodrift-cfnidhmol"]
+assign = { "bbb.cfnidhdis" = 0.0, "bbb.cfnidhmol" = 0.0 }
+base = "set:tg-nodrift"
+families = ["d_mols_tg", "d_only_tg"]
+reason = "cfnidhmol without cfnidhdis: no effect, since the molecule terms are scaled by cfnidhdis"
 
 # ================================================================ owner family large_dd2c (isnewpot = 1; sketch store: no base)
 # owner 2026-11-12: these branches need isnewpot = 1, which no small family runs; large_dd2c only (~423 s per
