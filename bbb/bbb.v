@@ -3886,7 +3886,7 @@ isimpon                 integer   /0/ +input
                                # 6 for force-balance model or nusp_imp > 0;
                                #   see also isofric for full-Z drag term
                                # 7 for simultaneous fixed-fraction and
-                               #       multi-charge-state (isimpon=6) models
+                               #       multi-charge-state (isimpon=6) models; needs impurity species (nzspt>0)
 nusp_imp        integer  /0/   +input # fixes nusp for total num. of par. mom. eqns.
 isupimpap       integer  /1/   +input # =1 includes imp atm phys in up eqn; =0, omits
 ismctab		integer		/1/	+input

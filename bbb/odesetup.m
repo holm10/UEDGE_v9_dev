@@ -1156,6 +1156,13 @@ c ... Set up tables for impurity atomic-physics processes.
             if (newapi == 1) call readmc(nzdf,mcfilename)
          endif
       elseif (isimpon .eq. 7) then      # read both Post and Braams tables
+c ... Without impurity species pandf evaluates neither radiation model (T178)
+         if (nzspt .lt. 1) then
+            call xerrab('Error in subroutine ueinit: isimpon=7 needs '//
+     .        'impurity species, but nzspt=0: use isimpon=2 for '//
+     .        'fixed-fraction impurities alone, or set ngsp and nzsp '//
+     .        'and call allocate')
+         endif
 c.....First the Post table(s):
          call readpost(coronalimpfname)
          call splinem
