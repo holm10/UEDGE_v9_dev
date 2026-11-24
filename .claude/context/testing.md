@@ -6,7 +6,8 @@ and its last state is kept in "Retired suite" below. CI runs the yldot PR tier (
 facts below). There are no unit tests of individual Fortran routines.
 
 The repository holds two test trees. `tests/deterministic_omp/` is the OpenMP Jacobian reproducer of AIUE-8 (deck, trimmed
-data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`), with the bitwise
+data, `tests/deterministic_omp/tools/fingerprint.py`; see `tests/deterministic_omp/README.md`; its rate files are the synthetic ones of
+`tests/yldot/data`, T169), with the bitwise
 harness in `tests/deterministic_omp/harness/` (OpenMP vs serial: `cli.py`, with the test flow `cli.py flow`, see
 `openmp-jacobian.md`; serial old vs new: `serial_check.py`). No CI job runs them yet. Each run directory's
 `run.log` is in time order (`GFORTRAN_UNBUFFERED_PRECONNECTED` and the workers' line-buffered stdout, AIUE-239,
@@ -20,7 +21,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
 
 - **Families** `tests/yldot/families/<f>/`: `input.py` in normal form (it never loads a state), the grid,
   `reference_state.h5`, a seeded perturbed `base_state.h5` and `family.toml` (provenance, convergence norms, σ, seed,
-  floors, `[evaluation]` W/P/timeout/Δt, owner-confirmed `[regions]`); the rate files once in `data/`. A measured
+  floors, `[evaluation]` W/P/timeout/Δt, owner-confirmed `[regions]`); the rate files once in `data/` (synthetic, next
+  bullet). A measured
   family (AIUE-86) has W = P = 1, `child_reuse = false` (owner: one fresh child per evaluation; d_mols' `input.py`
   cannot run twice in one process) and a `[history]` table; an unmeasured one keeps the 2/2 placeholders.
   Both states are round-trip fixed points: re-saved after one `exmain`, so a further `exmain` changes no saved entry
@@ -52,6 +54,15 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   the internal boundary-condition rows) and AIUE-253 (the orthogonal cut-guard face), one regeneration for both.
   `yldot-data-v22` is a full sweep of the five small families with the boundary-condition sets and value lists (run
   43355786083 from 003370ef, AIUE-257), `v23` adds large_dd2c's six sets (`--only`, run 43451194928 from b86d14b8).
+- **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
+  (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
+  or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic`. Real rate tables are not
+  publicly shareable: never add one, never fit a formula to one, never tune one to make a test pass (owner,
+  2026-11-23). `tests/yldot/test_rate_files.py`: the directory is byte for byte the tool's, every notice, no known
+  real table tracked in the repository (by SHA-256, archives unpacked), and each file read back through UEDGE.
+  The same bytes on macOS arm64 and in the Linux image (probed, T169). The states are the old ones, so the five
+  families that read a table are far from equilibrium; `converged` gates nothing, and the base-state ratio rule
+  (>= 10) fails in slab_phi, large_dd2c and imp7 (accepted, owner, T169 D1).
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Timeouts: `family.toml` `timeout_s` per child,
@@ -349,7 +360,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `collect.sh` builds a `git archive` of one commit; `generate.sh`, run from the mounted `tests/`, does the same for
   `make_references.py`, and refuses (exit 2) a build whose extensions call libmvec, AIUE-211). macOS `-O3` is the outlier the serial pairs measure. Since AIUE-92 it covers all eight
   families: `tg` gets its first `rtol` (from large_dd2c) and `up` 1.589e-8 (dnull_imp2's atoms on its wall ring);
-  imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`.
+  imp7 sets none (`com.redopltvtag = 1`, AIUE-170). Its collections are kept in `../uedge-wt/data/AIUE-92/`. They are
+  runs with the real rate tables; T169 kept the file and every `sigma.h5` for the synthetic ones (owner, D2): with
+  them every spread of mac-serial, mac-noopt and linux-serial is at most 0.0114 of its tolerance, all eight families
+  (`../uedge-wt/data/T169/roundoff-collections`).
 - **Coverage** (PRD §7.10, AIUE-107) `tests/yldot/tools/coverage.sh` and `coverage_compare.py`: line and branch
   coverage of `bbb/pandf*.F` under the yldot suite. Needs a coverage build of the checkout (`pip install . -C
   "--build-option=--coverage"`, AIUE-105: serial, `-O0 --coverage`; it refuses any other build by its record) and
