@@ -9,7 +9,9 @@ Linux flags. An intended flag change updates EXPECTED, with the reason in the PR
 the installed package (uedge/_build_info.json, AIUE-181): its options, the same flags, and the tool's fixed compiler
 and git answers. The negative control edits a copy of setup.py ten ways (eight flag changes, the record dropped,
 the record without its platform) and requires the check to see each edit; an unedited copy must show none, and a
-source tree without .git records no commit. test_installed_record checks the record of the UEDGE installed in this
+source tree without .git records no commit. NOCLEAN_EXPECTED is what each --noclean build must do in a tree that an
+earlier build left (T27: clean if its objects are another build's), with STAMP_EDITS as its negative control.
+test_installed_record checks the record of the UEDGE installed in this
 interpreter against its own options, and test_installed_no_vector_math its Linux extensions for libmvec calls
 (AIUE-211).
 """
@@ -38,7 +40,7 @@ LINUX = " -nostdinc -fintrinsic-modules-path <finclude>"
 # adds nothing to the compiler's own uedgeC compile arguments (no readline macro: the tool's readline probe fails).
 COMMON = {"make_env": {"NOCLEAN": "FALSE"}, "uedgec_compile": ["<fcompiler>"],
           "uedgec_macros": [["WITH_NUMERIC", "0"], ["FORTHON_PKGNAME", '"uedgeC"'], ["FORTHON", "1"]],
-          "make_calls": 2}
+          "make_calls": 2, "clean_noclean": "FALSE"}
 
 
 def omp(fargs, ldflags):
@@ -85,6 +87,8 @@ def platform_table(platform, omp_ldflags, coverage_ldflags):
     tail = LINUX if platform == "linux" else ""
     cases = {
         "default": omp(BASE + " -fopenmp -O3" + tail, omp_ldflags),
+        # A fresh tree, so it cleans: make clean sees NOCLEAN=FALSE, make still TRUE (T27)
+        "noclean": {**omp(BASE + " -fopenmp -O3" + tail, omp_ldflags), "make_env": {"NOCLEAN": "TRUE"}},
         "serial": serial(BASE + " -O3" + tail),
         "debug": omp(BASE + " -fopenmp " + DEBUG + tail, omp_ldflags),
         "checkbounds": omp(BASE + " -fopenmp -O3 " + BOUNDS + tail, omp_ldflags),
@@ -137,7 +141,7 @@ def table(tmp_path_factory):
 
 
 def test_flags_unchanged(table):
-    assert len(EXPECTED) == 27
+    assert len(EXPECTED) == 29
     lines = differences(table)
     assert not lines, ("setup.py's build flags changed (an intended change updates EXPECTED in this file, with the "
                        "reason in the PR):\n" + "\n".join(lines))
@@ -333,3 +337,222 @@ def test_detects_flag_changes(edit, tmp_path):
     edited.write_text(source.replace(old, new))
     lines = differences(flag_table(edited, tmp_path))
     assert any(line.startswith(case + " ") for line in lines), "edit {!r} not detected in {}".format(edit, case)
+
+
+# ---- --noclean (T27)
+
+NO_RECORD = "no usable record of the previous build (build/.uedge_build_stamp.json)"
+# The environment variables a --noclean build must compare, apart from OMP (uedgeBuild.run sets it from --serial) and
+# CC (it names the C compiler too): the test's own list, not the tool's or setup.py's
+VARIABLES = ["CPP", "CFLAGS", "CPPFLAGS", "LDFLAGS", "LDSHARED", "AR", "ARFLAGS", "RANLIB", "ARCHFLAGS", "MACHTYPE",
+             "MACOSX_DEPLOYMENT_TARGET", "SDKROOT", "DEVELOPER_DIR", "CPATH", "C_INCLUDE_PATH", "LIBRARY_PATH",
+             "GCC_EXEC_PREFIX", "COMPILER_PATH", "FCOMP", "READLINE", "PACT_DIR", "PETSC_DIR", "PARALLEL"]
+
+
+def normal(**changes):
+    """The step record of a build without --noclean: it cleans, says nothing, and leaves a stamp."""
+    return {"cleaned": True, "header": False, "notes": [], "noclean": {"clean": "FALSE", "make": "FALSE"},
+            "stamp": True, "built": True, "exit": None, **changes}
+
+
+def reused(**changes):
+    """A --noclean build that keeps the tree: no make clean, no note."""
+    return {**normal(), "cleaned": False, "noclean": {"make": "TRUE"}, **changes}
+
+
+def forced(*notes, **changes):
+    """A --noclean build that cleans, naming why: make clean gets NOCLEAN=FALSE, make the build's own TRUE."""
+    return {**normal(), "header": True, "notes": list(notes), "noclean": {"clean": "FALSE", "make": "TRUE"}, **changes}
+
+
+STOPPED = {"noclean": {"clean": "FALSE"}, "stamp": None, "built": False, "exit": "Pre-UEDGE build clean failure"}
+FAILED = {"built": False, "exit": "UEDGE build failure"}
+
+
+def noclean_expected(platform):
+    # A change between a serial (or coverage) and an OpenMP build; on Linux the LDFLAGS that make gets change too
+    parallel = ["OMP", "cargs", "fargs", "ompflags"]
+    serial_switch = (["LDFLAGS"] if platform == "linux" else []) + parallel
+    expected = {
+        "fresh tree": [forced(NO_RECORD), reused()],
+        "normal build first": [normal(), reused()],
+        "normal build with other options": [normal(), normal()],
+        "variable outside the list": [normal(), reused()],
+        "OMP alone": [normal(), reused()],
+        "serial to OpenMP": [normal(), forced(*serial_switch), forced(*serial_switch)],
+        # Linux: make gets -fopenmp in LDFLAGS either way
+        "LDFLAGS=-fopenmp": [normal(), reused() if platform == "linux" else forced("LDFLAGS")],
+        "Fortran compiler version": [normal(), forced("fcompiler_version")],
+        "C compiler version": [normal(), forced("ccompiler_version")],
+        "CC": [normal(), forced("CC", "ccompiler", "ccompiler_version"), reused(), forced("ccompiler_version")],
+        "C compiler with arguments": [normal(), forced("CC", "ccompiler")],
+        "Forthon's flags": [normal(), forced("forthon_fopt")],
+        "Fortran compiler": [normal(), forced("fcompiler")],
+        # The objects a failed or interrupted make leaves are its stamp's
+        "other options fail, then the first": [normal(), forced("fargs", **FAILED), forced("fargs")],
+        "other options fail, then again": [normal(), forced("fargs", **FAILED), reused()],
+        "same options fail, then again": [normal(), reused(**FAILED), reused()],
+        "make interrupted, then again": [normal(), reused(built=False, exit="interrupted"), reused()],
+        "build.run fails, then again": [normal(), reused(exit="build.run failure"), reused()],
+        # ... but the .F file of an interrupted conversion may be half written
+        "conversion interrupted, then again": [
+            normal(), reused(noclean={}, stamp=None, built=False, exit="interrupted"), forced("bbb/x.F")],
+        "converted, then again": [normal(), reused(), reused()],
+        # A forced clean that does not clean stops the build and leaves no stamp
+        "clean leaves build/": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
+        "clean leaves a .F file": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
+        "clean fails": [normal(), forced("fargs", cleaned=False, **STOPPED), forced(NO_RECORD)],
+        "clean removes all and fails": [normal(), forced("fargs", **STOPPED), forced(NO_RECORD)],
+        "clean interrupted": [normal(), forced("fargs", cleaned=False, **{**STOPPED, "exit": "interrupted"}),
+                              forced(NO_RECORD)],
+        "clean leaves an empty build/": [normal(), forced("fargs"), reused()],
+        # A normal build goes on over what its clean left, as it always has; a later --noclean build doesn't trust it
+        "normal build, clean leaves build/": [normal(), normal(stamp=False), forced(NO_RECORD)],
+        "normal build, clean leaves a .F file": [normal(), normal(stamp=False), forced(NO_RECORD)],
+        "normal build, clean leaves the stamp": [normal(), normal(), forced("bbb/x.F")],
+        "normal build, clean leaves an empty build/": [normal(), normal(), reused()],
+        "normal build, clean fails": [normal(), normal(cleaned=False, **STOPPED)],
+        "--noopt": [normal(), forced("fargs")],
+        "--checkbounds": [normal(), forced("fargs")],
+        "--debug": [normal(), forced("fargs")],
+        "--serial": [normal(), forced(*serial_switch)],
+        "--coverage": [normal(), forced("LDFLAGS", *parallel)],
+        # Outputs newer than the end of the last build are another build's
+        "before: an object": [normal(), forced("build/temp/bbb/oderhs.o"), reused()],
+        "before: an extension": [normal(), forced("build/lib/uedge/bbbpy.so"), reused()],
+        "before: a .F file": [normal(), forced("bbb/x.F"), reused()],
+        "before: an object of the stamp's time": [normal(), reused(), reused()],
+        "before: another file": [normal(), reused(), reused()],
+        "before: a .F90 file": [normal(), reused(), reused()],
+    }
+    for name in VARIABLES:
+        expected["variable " + name] = [normal(), forced(name)]
+    for stamp in ("deleted", "empty", "not JSON", "a list", "without env"):
+        expected["before: stamp " + stamp] = [normal(), forced(NO_RECORD), reused()]
+    return expected
+
+
+NOCLEAN_EXPECTED = {platform: noclean_expected(platform) for platform in ("linux", "darwin")}
+
+
+def noclean_table(setup_path, cwd):
+    """The tool's --noclean records for setup_path, from a child interpreter. A run that fails or lacks a scenario is an
+    error: two crashes would compare equal."""
+    proc = subprocess.run([sys.executable, "-I", str(TOOL), "--setup", str(setup_path), "--noclean"], cwd=cwd,
+                          capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    table = json.loads(proc.stdout)
+    assert {p: sorted(t) for p, t in table.items()} == {p: sorted(t) for p, t in NOCLEAN_EXPECTED.items()}
+    for platform, expected in NOCLEAN_EXPECTED.items():
+        assert {n: len(t) for n, t in table[platform].items()} == {n: len(t) for n, t in expected.items()}
+    return table
+
+
+def noclean_differences(table):
+    """(platform, scenario, the differing step and its fields) for each scenario that differs from NOCLEAN_EXPECTED."""
+    found = []
+    for platform, expected in NOCLEAN_EXPECTED.items():
+        for name, steps in expected.items():
+            lines = ["step {} {}: {!r} -> {!r}".format(i, field, want.get(field), got.get(field))
+                     for i, (want, got) in enumerate(zip(steps, table[platform][name]))
+                     for field in sorted(set(want) | set(got)) if want.get(field) != got.get(field)]
+            if lines:
+                found.append((platform, name, "; ".join(lines)))
+    return found
+
+
+def test_noclean_scenarios(tmp_path):
+    """A --noclean build cleans, naming why, if the tree's objects are not this build's: built with other options,
+    compilers or environment, by an older setup.py, by make alone or by an interrupted build, or of unknown origin.
+    Otherwise it keeps them. A normal build cleans as it always has (T27)."""
+    found = noclean_differences(noclean_table(SETUP, tmp_path))
+    assert not found, "\n".join("{} {}: {}".format(*f) for f in found)
+
+
+TOUCH = "        finally:\n            if stamped:\n                os.utime(STAMP)"
+STOP = "if status != 0 or (left and changes):"
+BUILD_RUN = "            build.run(self)\n        finally:\n"
+# (text in setup.py, occurring exactly once; what replaces it; a scenario it must change, and on linux only for "linux")
+STAMP_EDITS = {
+    "the clean inherits NOCLEAN": ("env={**os.environ, 'NOCLEAN': 'FALSE'}", "env=dict(os.environ)", "fresh tree"),
+    "stamp not removed before the clean": ("                remove(STAMP)\n", "                pass\n", "clean fails"),
+    "empty stamp written": ("json.dump(stamp, f", "json.dump({}, f", "fresh tree"),
+    "stamp never touched": ("                os.utime(STAMP)", "                pass", "fresh tree"),
+    "stamp touched only after a success": (
+        TOUCH, "        except ZeroDivisionError:\n            pass\n        else:\n            if stamped:\n"
+        "                os.utime(STAMP)", "same options fail, then again"),
+    "stamp touched after an interrupted conversion": (
+        "        mppl2f90()\n", "        try:\n            mppl2f90()\n        finally:\n            if stamped:\n"
+        "                os.utime(STAMP)\n", "conversion interrupted, then again"),
+    "stamp touched if it exists": (TOUCH, TOUCH.replace("if stamped:", "if os.path.exists(STAMP):"),
+                                   "normal build, clean leaves the stamp"),
+    "stamp touched before build.run": (BUILD_RUN, "            if stamped:\n                os.utime(STAMP)\n"
+                                     "                stamped = False\n" + BUILD_RUN, "fresh tree"),
+    "build.run dropped": (BUILD_RUN, "        finally:\n", "fresh tree"),
+    "file times ignored": ("    if later:\n", "    if False:\n", "before: an object"),
+    "objects ignored": ("('*.o', '*.so')", "('*.so',)", "before: an object"),
+    "extensions ignored": ("('*.o', '*.so')", "('*.o',)", "before: an extension"),
+    ".F files ignored": ("return sorted(objects + [f for f in converted if os.path.exists(f)])",
+                         "return sorted(objects)", "before: a .F file"),
+    "equal times count as newer": ("st_mtime_ns > end", "st_mtime_ns >= end", "before: an object of the stamp's time"),
+    "nothing compared": ("stamp_changes(stamp) if arglist['noclean'] else []", "[]", "--noopt"),
+    "note in a normal build": ("stamp_changes(stamp) if arglist['noclean'] else []", "stamp_changes(stamp)",
+                               "normal build first"),
+    "note's header dropped": (
+        '            print("--noclean: cleaning anyway, the build tree does not match this build:")\n', "", "--noopt"),
+    "SDKROOT dropped": ("'SDKROOT', ", "", "variable SDKROOT"),
+    "missing stamp accepted": ("        return ['no usable record of the previous build ({})'.format(STAMP)]",
+                               "        return []", "before: stamp deleted"),
+    "Linux make environment ignored": ("stamp = build_stamp(makeenv)", "stamp = build_stamp(None)", "linux"),
+    "Forthon's flags dropped": ("'ompflags', 'forthon_fopt', ", "'ompflags', ", "Forthon's flags"),
+    "Fortran compiler dropped": ("'fcompiler', 'fcompiler_version')}", "'fcompiler_version')}", "Fortran compiler"),
+    "Fortran compiler version dropped": ("'fcompiler', 'fcompiler_version')}", "'fcompiler')}",
+                                         "Fortran compiler version"),
+    "C compiler version dropped": ("stamp['ccompiler_version'] = version.splitlines()[0] if version else None",
+                                   "stamp['ccompiler_version'] = None", "C compiler version"),
+    "clean's leftovers ignored": (STOP, "if status != 0:", "clean leaves build/"),
+    "clean's status ignored": (STOP, "if left and changes:", "clean removes all and fails"),
+    "leftovers stop a normal build": (STOP, "if status != 0 or left:", "normal build, clean leaves build/"),
+    "stamp over leftovers": ("stamped = not left", "stamped = True", "normal build, clean leaves build/"),
+    "files left in build/ accepted": ("for d, _, names in os.walk('build') for f in names]",
+                                      "for d, _, names in [] for f in names]", "clean leaves build/"),
+    ".F files left accepted": ("sorted(files + [f for f in build_outputs() if f.endswith('.F')])", "sorted(files)",
+                               "clean leaves a .F file"),
+}
+
+
+@pytest.mark.parametrize("edit", list(STAMP_EDITS))
+def test_detects_stamp_changes(edit, tmp_path):
+    """Negative control of test_noclean_scenarios: each wrong version of setup.py changes the scenario it should, on
+    both platforms (Linux only for make's own environment, which macOS builds don't have)."""
+    old, new, scenario = STAMP_EDITS[edit]
+    source = SETUP.read_text()
+    assert source.count(old) == 1, "edit {!r} no longer matches setup.py exactly once; update STAMP_EDITS".format(edit)
+    edited = tmp_path / "setup.py"
+    edited.write_text(source.replace(old, new))
+    found = {(platform, name) for platform, name, _ in noclean_differences(noclean_table(edited, tmp_path))}
+    if scenario == "linux":
+        wanted = {("linux", "LDFLAGS=-fopenmp"), ("linux", "serial to OpenMP")}
+    else:
+        wanted = {(platform, scenario) for platform in NOCLEAN_EXPECTED}
+    assert wanted <= found, "edit {!r} not detected in {}".format(edit, sorted(wanted - found))
+
+
+def test_stamp_edits_of_an_unedited_copy(tmp_path):
+    """The copies test_detects_stamp_changes evaluates differ only by their edit."""
+    copy = tmp_path / "setup.py"
+    copy.write_text(SETUP.read_text())
+    assert noclean_differences(noclean_table(copy, tmp_path)) == []
+
+
+def test_tool_leaves_cwd_alone(tmp_path, table):
+    """The tool neither writes into the caller's directory nor reads it: a build/ there, with a stamp, changes nothing
+    (setup.py keeps its stamp in build/ of the working directory, T27)."""
+    planted = {"build/.uedge_build_stamp.json": "{}", "build/x.o": "x", "bbb/x.m": "", "bbb/x.F": "x"}
+    for name, text in planted.items():
+        (tmp_path / name).parent.mkdir(exist_ok=True)
+        (tmp_path / name).write_text(text)
+    assert flag_table(SETUP, tmp_path) == table
+    assert noclean_differences(noclean_table(SETUP, tmp_path)) == []
+    left = {str(f.relative_to(tmp_path)): f.read_text() for f in tmp_path.rglob("*") if f.is_file()}
+    assert left == planted
