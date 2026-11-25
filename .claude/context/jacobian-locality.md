@@ -53,7 +53,8 @@ perturbed cell.
    2026-10-25, AIUE-101).
 2. **te one cell away, inside the window (large_dd2c, imp7).** `te` rows at dix ±1 (or diy ±1 from `phi`) respond to
    `te`, `ni` or `phi`. These cells are inside the window, so some part of the te path is computed over a narrower
-   range than the window. large_dd2c: `te[1](2,1) → te[1](1,1)` scores 38 at δ = 1e-6; 13 of 44 asserted entries at
+   range than the window. large_dd2c: `te[1](2,1) → te[1](1,1)` scores 38 at δ = 1e-6
+   (29.8 with the synthetic rate files, `yldot-data-v26`, T169; the rest here is with the real tables); 13 of 44 asserted entries at
    δ = 1e-5; about 18 % of the 887 entries above 1 on the full grid at δ = 1e-6. imp7: 3-17 entries from δ = 1e-5.
    **Not investigated**; recorded as unattributed (`te_ix_minus_1` in `tests/yldot/families/large_dd2c/family.toml:109`; owner, 2026-10-25,
    AIUE-101).

@@ -359,7 +359,7 @@
  "tests/yldot/families/d_mols/input.py:134": "com.ngsp = 2",
  "tests/yldot/families/d_mols/input.py:30": "com.ngsp=1",
  "tests/yldot/families/d_only/input.py:58": "bbb.allocate() #bbb.allocate() space of bbb.nwallo,i",
- "tests/yldot/families/large_dd2c/family.toml:109": "te_ix_minus_1 = \"te[1](2,1) -> te[1](1,1), score 38 at 1e-6, in the unasserted band: a te entry one cell inside the window (dix -1), not the nonog signature; unattributed, recorded by the owner's decision (2026-10-25, AIUE-101 Q5).\"",
+ "tests/yldot/families/large_dd2c/family.toml:109": "te_ix_minus_1 = \"te[1](2,1) -> te[1](1,1), score 29.8 at 1e-6 with the synthetic rate files (T169; 38 with the real tables), in the unasserted band and no longer within 3x of M_loc: a te entry one cell inside the window (dix -1), not the nonog signature; unattributed, recorded by the owner's decision (2026-10-25, AIUE-101 Q5).\"",
  "tests/yldot/harness/__init__.py:10": "os.environ[\"OMP_NUM_THREADS\"] = \"1\"",
  "tests/yldot/harness/build.py:17": "# every BuildLimitWarning's message starts so: pytest -W \"error:<REPORTED>:UserWarning\" turns them into failures",
  "tests/yldot/harness/build.py:19": "REPORTED = \"reported, not failed\"",

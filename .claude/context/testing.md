@@ -57,7 +57,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   are full sweeps with the synthetic rate files (T169, next entry).
 - **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
   (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
-  or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic`. Real rate tables are not
+  or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic` (`b2frates` and `carbmc.dat` keep
+  UEDGE's default names). Real rate tables are not
   publicly shareable: never add one, never fit a formula or a grid to one, never tune one to make a test pass
   (owner, 2026-11-23). `tests/yldot/test_rate_files.py`: the directory is byte for byte the tool's, every notice, no known
   real table tracked in the repository (by SHA-256, compressed files and archives unpacked), and each file read back through UEDGE.
