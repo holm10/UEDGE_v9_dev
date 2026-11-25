@@ -1296,6 +1296,26 @@ def test_eqset_check_refuses_another_layout(tmp_path, kind, imap, message):
             s.check_eqset("timestep", "bbb.isteon", YE, YJE, TOLE, EMAP)
 
 
+@pytest.mark.parametrize("kind, edit, message", [
+    ("full", lambda masks: masks["istgonxy"].__setitem__((1, 1, 0), 0), "rows stored for the 39 added rows"),
+    ("sketch", lambda masks: masks["istgonxy"].__setitem__((1, 1, 0), 0), "rows stored for the 39 added rows"),
+    ("sketch", lambda masks: masks["isphionxy"].__setitem__(slice(None), 0), "stored sketches, the shared rows have")])
+def test_eqset_data_of_another_layout_refused(tmp_path, kind, edit, message):
+    """Stored data whose sizes do not fit the manifest's layout (a consistent tamper: every SHA-256 agrees) is refused,
+    not broadcast or cut: one added row less, and one equation's blocks less."""
+    def masks(m):
+        other_set(m)
+        edit(m)
+    imap = index_map(make_data(edit=masks), SPEC)
+    y = np.ones(imap.neq)
+    m = build(tmp_path, kind, eqset=(("bbb.isteon", y, y, imap),))
+    m["variables"]["bbb.isteon"]["layout"].update(neq=EMAP.neq, sha256=layout_sha(EMAP), rows=layout_rows(EMAP))
+    mf.dump(m, mf.path("fam", tmp_path))
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        with pytest.raises(store.StoreIntegrityError, match=message):
+            s.check_eqset("steady", "bbb.isteon", YE, YJE, TOLE, EMAP)
+
+
 @pytest.mark.parametrize("kind", mf.STORES)
 def test_eqset_without_added_rows(tmp_path, kind):
     """A variant that only loses rows stores no added group."""
