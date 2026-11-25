@@ -60,7 +60,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `yldot-data-v22` is a full sweep of the five small families with the boundary-condition sets and value lists (run
   43355786083 from 003370ef, AIUE-257), `v23` adds large_dd2c's six sets (`--only`, run 43451194928 from b86d14b8).
   `v25` (imp7, run 45428198918) and `v26` (d_c, slab_phi, large_dd2c, dnull_imp2, run 45428193326), both from 457a81d7,
-  are full sweeps with the synthetic rate files (T169, next entry).
+  are full sweeps with the synthetic rate files (T169, next entry). `v27` (run 45650284601 from 1032dc11, T22) is a full
+  sweep of d_mols_tg, d_only_tg and large_dd2c after the tg rtol rise; in large_dd2c only the `tg[2]` sketch weights and
+  projections moved (thresholds, defaults and classes as in v26).
 - **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
   (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
   or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic` (`b2frates` and `carbmc.dat` keep
