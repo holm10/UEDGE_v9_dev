@@ -12,7 +12,8 @@ import pytest
 from yldot.harness import CONFIGS, FAMILIES, compare
 
 SUITE = Path(__file__).resolve().parent
-SMALL = ("d_c", "d_mols", "d_only", "ortho", "slab_phi")  # measured by AIUE-87; the owner families are AIUE-92's
+# measured by AIUE-87 and, for the two Tg families, tracker T22; the owner families are AIUE-92's
+SMALL = ("d_c", "d_mols", "d_mols_tg", "d_only", "d_only_tg", "ortho", "slab_phi")
 
 
 @pytest.fixture(scope="module")

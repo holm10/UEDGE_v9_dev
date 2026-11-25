@@ -288,19 +288,19 @@ reason = "outer-wall up BC: 1 fmiy = 0, 2 dup/dy = 0, 3 lyup(2), else (0) up = 0
 
 ["bbb.istgpfc"]
 values = [0, 1, 2, 3, 4, 5]
-families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi", "d_mols_tg", "d_only_tg"]
 others = "not a coded option: > 5 stops with xerrab, < 0 writes no equation (PF Tg, 2061-2107; AIUE-273)"
 reason = "PF-wall Tg BC: 0 tgwall, 1 extrapolation, 2 lytg, 3 Maxwellian, 4 half-Maxwellian, 5 cftgtipfc (2061; option 5 tests the scalar, AIUE-269); AIUE-257 D2"
 
 ["bbb.istgwc"]
 values = [0, 1, 2, 3, 4, 5]
-families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi", "d_mols_tg", "d_only_tg"]
 others = "not a coded option: > 5 stops with xerrab, < 0 writes no equation (outer Tg, 2786-2830; AIUE-273)"
 reason = "outer-wall Tg BC: 0 tgwall, 1 extrapolation (AIUE-266), 2 lytg, 3 Maxwellian, 4 half-Maxwellian, 5 cftgtiwc (2786; option 5 tests the scalar, AIUE-269); AIUE-257 D2"
 
 ["bbb.istgcore"]
 values = [0, 1, 2, 3]
-families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi", "d_mols_tg", "d_only_tg"]
 others = "same as 3: every value outside 0-2 takes the else branch, zero gradient (2037)"
 reason = "core Tg BC: 0 ti*cftgticore, 1 tgcore, 2 cfalbedo flux, else (3) zero gradient (2037); AIUE-257 D2"
 
@@ -372,13 +372,13 @@ reason = "sheath kappa: 0 log form with expkmx, 1 kappa() (3305, 4033); AIUE-257
 
 ["bbb.istglb"]
 values = [0, 1, 3, 4, 5]
-families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi", "d_mols_tg", "d_only_tg"]
 others = "not a coded option: 2 is an xerrab placeholder and > 5 stops with xerrab (3570)"
 reason = "left-plate Tg BC: 0 tgwall, 1 extrapolation (AIUE-267), 3 Maxwellian, 4 half-Maxwellian (needs isupgon, else no equation), 5 ti*cftgtipltl (3570); AIUE-257 D2"
 
 ["bbb.istgrb"]
 values = [0, 1, 3, 4, 5]
-families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi", "d_mols_tg", "d_only_tg"]
 others = "not a coded option: 2 is an xerrab placeholder and > 5 stops with xerrab (4303)"
 reason = "right-plate Tg BC: 0 tgwall, 1 extrapolation, 3 Maxwellian, 4 half-Maxwellian (needs isupgon, else no equation), 5 ti*cftgtipltr (4303); AIUE-257 D2"
 

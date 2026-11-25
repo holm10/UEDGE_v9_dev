@@ -161,7 +161,7 @@ def test_loop_range_from_bcl():
 
 @pytest.mark.toml_only
 @pytest.mark.parametrize("family", ["d_only", "d_mols", "ortho", "d_c", "slab_phi", "large_dd2c", "dnull_imp2",
-                                    "imp7"])
+                                    "imp7", "d_mols_tg", "d_only_tg"])
 def test_family_regions_counts(family):
     spec = family_regions(family)
     check_regions(spec)

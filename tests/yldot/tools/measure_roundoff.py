@@ -114,8 +114,13 @@ OWNER_ANSWERS = (
     "ni, up, ti and phi (AIUE-164), is removed by com.redopltvtag = 1 in imp7's deck (AIUE-170); imp7 sets no rtol",
     "2026-10-23, AIUE-92: up rises from 1.505e-8 to 1.589e-8, set by dnull_imp2 up[2] on its wall ring iy = ny "
     "(-O3 arm64 against -O0 and Linux, 2.3e-8 of the entry): accepted",
+    "2026-11-24, T22: d_mols_tg and d_only_tg (the gas-temperature families) are added from their own collections "
+    "(mac-serial and mac-noopt at d124e4f4, linux-serial at 25a44a0e, whose compiled Fortran equals d124e4f4) to the "
+    "AIUE-92 collections, so the other families' sigma is unchanged; their 42 new floor groups over 10 % are accepted "
+    "with the PRD 7.4 floor unchanged; tg rises from 2.544e-10 to 9.273e-9, set by d_only_tg, and the others stay: "
+    "accepted",
 )
-OWNER_ITEMS_ANSWERED = 290  # the owner items of the run those answers cover (the 145 floor groups per configuration)
+OWNER_ITEMS_ANSWERED = 332  # the owner items of the run those answers cover (166 floor groups per configuration)
 
 
 class Stop(Exception):
