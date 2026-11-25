@@ -17,8 +17,8 @@ import pytest
 
 from yldot.harness import manifest as mf
 from yldot.harness import store
-from yldot.harness.compare import index_map
-from yldot.test_compare_unit import SPEC, make_data
+from yldot.harness.compare import index_map, layout_rows, layout_sha
+from yldot.test_compare_unit import SPEC, make_data, other_set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
@@ -35,6 +35,7 @@ YJ = Y.copy()
 YJ[[0, 3]] += 1.0
 SIGMA = np.full(N, 1e-13)
 DIAG = {"resco": np.arange(4.0)}
+EMAP = index_map(make_data(edit=other_set), SPEC)  # an EQSET variant's rows (T24)
 V1, V2 = "yldot-data-v1", "yldot-data-v2"
 G = "tests/yldot/"
 STATE = "families/fam/base_state.h5"
@@ -92,10 +93,14 @@ def variant(seed):
     return y
 
 
+def eqset(seed):
+    return np.random.default_rng(seed).standard_normal(EMAP.neq)
+
+
 def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=DIAG, external=None, applied=None,
              locality=None, kind="full", thresholds=None, weights=None, loc_variants=None):
     """(manifest, .h5 bytes) of a reference (a full store unless kind); variables {id: (class, seed)}, the SENSITIVE
-    ones stored; locality: (delta, entries) of a stored locality pattern; thresholds: the tol of a sketch store's
+    and EQSET ones stored; locality: (delta, entries) of a stored locality pattern; thresholds: the tol of a sketch store's
     stored sketch thresholds (default THR: a sketch store always has them and its weights, AIUE-174); weights: its
     stored weights (default 1 / thresholds); loc_variants: {id: (added, dropped)} steady locality differences."""
     p = Path(where) / "{}-{}.h5".format(family, next(COUNTER))
@@ -109,6 +114,8 @@ def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=
     for vid, (cls, seed) in sorted(variables.items()):
         if cls == "SENSITIVE":
             w.write_variant("steady", vid, variant(seed), variant(seed) + (YJ - Y))
+        if cls == "EQSET":
+            w.write_eqset("steady", vid, eqset(seed), eqset(seed), EMAP)
     for vid, (added, dropped) in sorted((loc_variants or {}).items()):
         w.write_locality_variant("steady", vid, added, dropped)
     out = w.finish()
@@ -120,6 +127,10 @@ def make_ref(where, family, variables, release=V1, default=Y, sigma=SIGMA, diag=
                         "config": "steady", "sha256": mf.variant_sha(out["datasets"], "steady", vid) if sens else None,
                         "block_l2": store.block_l2(variant(seed) - Y, LABELS, ROWS) if sens else {},
                         "jflag_block_l2": {}}
+        if cls == "EQSET":
+            entries[vid].update(sha256=mf.variant_sha(out["datasets"], "steady", vid, "eqset"),
+                                layout={"neq": EMAP.neq, "sha256": layout_sha(EMAP), "rows": layout_rows(EMAP),
+                                        "moved": []})
     m = {"schema": mf.SCHEMA, "family": family, "store": kind, "release": release,
          "external": dict({mf.reference_path(family): {"sha256": out["sha256"], "bytes": out["bytes"]}},
                           **(external or {})),
@@ -1014,6 +1025,14 @@ def test_invalid_head_manifest(repo):
     assert code == 1 and any(e.startswith("oth:") for e in v["errors"])
 
 
+def test_invalid_class_in_head_manifest(repo):
+    m = repo.manifest("oth")
+    next(iter(m["variables"].values()))["class"] = ["SENSITIVE"]
+    repo.write(G + "references/oth.manifest.json", json.dumps(m))
+    code, v, text = repo.check()
+    assert code == 1 and any(e.startswith("oth:") for e in v["errors"]) and "Traceback" not in text
+
+
 def test_no_download_skips_the_asset_checks(repo):
     repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.new": ("SENSITIVE", 5)}))
     code, v, text = repo.check(no_download=True)
@@ -1763,3 +1782,102 @@ def test_history_output_is_escaped(repo):
 
     assert guard.history(repo.root, repo.base, run=failing, out=lines.append) == 2
     assert lines == ["error: gh release list failed: HTTP 401\\x0a::error::injected"]
+
+
+# ---------------------------------------------------------------- EQSET variants (T24)
+
+
+def eqset_base(repo, cls="EQSET", kind="full"):
+    """The repository with bbb.eqs in the base manifest of fam."""
+    variables = dict(BASE_VARIABLES["fam"], **{"bbb.eqs": (cls, 24 if cls == "EQSET" else None)})
+    repo.put_ref("fam", variables, release=V1, kind=kind)
+    repo.base = repo.commit("base with bbb.eqs")
+    return variables
+
+
+def test_invalid_to_eqset_is_a_default_change(repo):
+    variables = eqset_base(repo, "INVALID")
+    repo.put_ref("fam", dict(variables, **{"bbb.eqs": ("EQSET", 24)}))
+    code, verdict, out = repo.check()
+    assert code == 1 and reqs(verdict) == {"default"}
+    assert "variant bbb.eqs changed: class, layout, sha256" in out and "fam:bbb.eqs" in out
+    assert repo.check("Default results: changed\nit is tested now\nfam:bbb.eqs")[0] == 0
+
+
+@pytest.mark.parametrize("cls", ["INVALID", "INERT", "SENSITIVE"])
+def test_eqset_to_another_class_is_a_default_change(repo, cls):
+    """The head entry has no layout: no KeyError, and the stored data that goes is declared."""
+    variables = eqset_base(repo)
+    repo.put_ref("fam", dict(variables, **{"bbb.eqs": (cls, 5 if cls == "SENSITIVE" else None)}))
+    code, verdict, out = repo.check()
+    assert code == 1 and reqs(verdict) == {"default"} and "variant bbb.eqs changed: " in out and "class, layout" in out
+    assert "layout" in out
+    assert repo.check("Default results: changed\nwhy\nfam:bbb.eqs")[0] == 0
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_changed_eqset_data_is_a_default_change(repo, kind):
+    """Only the entry's sha256 speaks for the stored datasets: one item, no dataset items, added rows included."""
+    variables = eqset_base(repo, kind=kind)
+    repo.put_ref("fam", dict(variables, **{"bbb.eqs": ("EQSET", 25)}), kind=kind)
+    code, verdict, out = repo.check("Default results: changed\nwhy\nfam:bbb.eqs")
+    assert code == 0, out
+    assert "variant bbb.eqs changed: sha256" in out
+    assert "dataset /steady/eqset" not in out
+    assert repo.check()[0] == 1
+
+
+@pytest.mark.parametrize("key, value", [("moved", ["te[1] core"]), ("sha256", "a" * 64),
+                                        ("rows", {"ni[1]": EMAP.neq})])
+def test_changed_layout_is_a_default_change(repo, key, value):
+    variables = eqset_base(repo)
+    repo.put_ref("fam", variables, edit=lambda m: m["variables"]["bbb.eqs"]["layout"].update({key: value}))
+    code, verdict, out = repo.check()
+    assert code == 1 and reqs(verdict) == {"default"} and "variant bbb.eqs changed: layout" in out
+    assert repo.check("Default results: changed\nwhy\nfam:bbb.eqs")[0] == 0
+
+
+def test_removed_eqset_entry_is_a_default_change(repo):
+    """Stored data goes: like a SENSITIVE entry, not a prune."""
+    eqset_base(repo)
+    repo.put_ref("fam", BASE_VARIABLES["fam"])
+    code, verdict, out = repo.check()
+    assert code == 1 and reqs(verdict) == {"default"}
+    assert "variant bbb.eqs removed, EQSET in a base manifest" in out
+    assert repo.check("Default results: changed\nwhy\nfam:bbb.eqs")[0] == 0
+
+
+def test_removed_entry_eqset_in_another_family_is_a_default_change(repo):
+    eqset_base(repo)
+    repo.put_ref("oth", dict(BASE_VARIABLES["oth"], **{"bbb.eqs": ("INERT", None)}), release=V1)
+    repo.base = repo.commit("base with bbb.eqs INERT in oth")
+    repo.put_ref("oth", BASE_VARIABLES["oth"])
+    code, verdict, out = repo.check()
+    assert code == 1 and "variant bbb.eqs removed, EQSET in a base manifest" in out
+
+
+def test_new_eqset_entry_is_an_addition(repo):
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.eqs": ("EQSET", 24)}))
+    code, verdict, out = repo.check()
+    assert code == 0, out
+    assert "addition: variants ['bbb.eqs']" in out
+
+
+def test_eqset_rename_needs_the_same_data_and_layout(repo):
+    variables = eqset_base(repo)
+    renamed = dict(BASE_VARIABLES["fam"], **{"bbb.eqs2": variables["bbb.eqs"]})
+    repo.put_ref("fam", renamed)
+    code, verdict, out = repo.check()
+    assert code == 0 and "rename bbb.eqs -> bbb.eqs2 (identical data)" in out, out
+    repo.put_ref("fam", renamed, edit=lambda m: m["variables"]["bbb.eqs2"]["layout"].update(moved=["te[1] core"]))
+    assert repo.check()[0] == 1
+    repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.eqs2": ("EQSET", 25)}))
+    code, _, out = repo.check()
+    assert code == 1 and "variant bbb.eqs removed, EQSET in a base manifest" in out
+
+
+def test_stored_names_the_group(tmp_path):
+    """The same dataset names under variants/ and eqset/ are different stored data (rename_differences)."""
+    m, _ = make_ref(tmp_path, "fam", {"bbb.a": ("SENSITIVE", 1), "bbb.b": ("EQSET", 24)})
+    assert {g for g, _ in guard.stored(m, "steady", "bbb.a")} == {"variants"}
+    assert {g for g, _ in guard.stored(m, "steady", "bbb.b")} == {"eqset"}

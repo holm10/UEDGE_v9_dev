@@ -16,8 +16,8 @@ import pytest
 
 from yldot.harness import manifest as mf
 from yldot.harness import store
-from yldot.harness.compare import index_map
-from yldot.test_compare_unit import SPEC, make_data
+from yldot.harness.compare import index_map, layout_rows, layout_sha, mapping
+from yldot.test_compare_unit import SPEC, make_data, other_set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
@@ -40,6 +40,14 @@ YV[[5, 40]] *= 2.0
 YJV = YV.copy()
 YJV[9] += 3.0
 TAG = "yldot-data-v3"
+EMAP = index_map(make_data(edit=other_set), SPEC)  # a variant with another equation set (T24)
+I0, I1, NEW = mapping(IMAP, EMAP)
+YE = RNG.standard_normal(EMAP.neq)  # the shared rows equal the default's, but two
+YE[I1] = Y[I0]
+YE[I1[[4, 30]]] += 0.25
+YJE = YE.copy()
+YJE[[I1[2], NEW[3]]] += [0.5, -0.5]
+TOLE = np.full(EMAP.neq, 1e-8)
 
 
 LOC = {"column": np.array([3, 0, 3]), "row": np.array([5, 2, 1]), "mismatch": np.array([2e-6, -1e-7, 3e-5]),
@@ -47,10 +55,11 @@ LOC = {"column": np.array([3, 0, 3]), "row": np.array([5, 2, 1]), "mismatch": np
 
 
 def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", release=None, locality=None, tol=TOL,
-          columns=None, loc_variants=()):
+          columns=None, loc_variants=(), eqset=()):
     """A reference file and its manifest in a scratch suite; returns the manifest. locality: (delta, entries); tol:
     the tolerance a sketch store's weights are 1 / of; columns: the locality's perturbed columns; loc_variants:
-    (config, id, added, dropped) locality differences (an id not in variants is an INERT variable)."""
+    (config, id, added, dropped) locality differences (an id not in variants is an INERT variable); eqset: (id, yldot,
+    yldot_J, index map) EQSET variants (T24)."""
     ref = Path(suite) / "references"
     ref.mkdir(parents=True, exist_ok=True)
     w = store.create(ref / "{}.h5".format(family), kind, family, DATA, IMAP)
@@ -62,6 +71,8 @@ def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", releas
         w.write_locality("steady", *locality, columns=columns)
     for vid, yv, yjv in variants:
         w.write_variant("steady", vid, yv, yjv)
+    for vid, yv, yjv, imap in eqset:
+        w.write_eqset("steady", vid, yv, yjv, imap)
     for config, vid, added, dropped in loc_variants:
         w.write_locality_variant(config, vid, added, dropped)
     out = w.finish()
@@ -71,6 +82,12 @@ def build(suite, kind, variants=(("bbb.cfvisx", YV, YJV),), family="fam", releas
                        "block_l2": store.block_l2(yv - Y, LABELS, ROWS),
                        "jflag_block_l2": store.block_l2((yjv - yv) - (YJ - Y), LABELS, ROWS)}
                  for vid, yv, yjv in variants}
+    for vid, _, _, imap in eqset:
+        variables[vid] = {"class": "EQSET", "reason": "neq {} -> {}".format(N, imap.neq), "applied": None, "d": None,
+                          "phase": "PRE", "config": "steady", "block_l2": {}, "jflag_block_l2": {},
+                          "sha256": mf.variant_sha(out["datasets"], "steady", vid, "eqset"),
+                          "layout": {"neq": imap.neq, "sha256": layout_sha(imap), "rows": layout_rows(imap),
+                                     "moved": ["ni[1] guard"]}}
     for config, vid, _, _ in loc_variants:
         variables.setdefault(vid, {"class": "INERT", "reason": "", "applied": None, "d": None, "phase": "PRE",
                                    "config": config, "sha256": None, "block_l2": {}, "jflag_block_l2": {}})
@@ -1105,6 +1122,314 @@ def test_manifest_validates_a_set_entry(tmp_path):
 def test_manifest_validate_rejects_a_bad_set_entry(tmp_path, over, message):
     with pytest.raises(mf.ManifestError, match=message):
         mf.validate(set_entry(build(tmp_path, "sketch"), **over))
+
+
+# ---------------------------------------------------------------- EQSET variants (T24)
+
+
+E = (("bbb.isteon", YE, YJE, EMAP),)
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_manifest_validates_an_eqset_entry(tmp_path, kind):
+    m = build(tmp_path, kind, eqset=E)
+    mf.validate(m)
+    assert mf.load("fam", tmp_path)["variables"]["bbb.isteon"] == m["variables"]["bbb.isteon"]  # the text round-trips
+    text = mf.dumps(m)
+    assert mf.dumps(mf.loads(text)) == text
+    mf.validate(set_entry(m, **{"class": "EQSET", "sha256": "a" * 64,
+                                "layout": m["variables"]["bbb.isteon"]["layout"]}))
+
+
+def drop(d, *keys):
+    for k in keys:
+        del d[k]
+
+
+@pytest.mark.parametrize("edit, message", [
+    (lambda e: drop(e, "layout"), "needs a layout"),
+    (lambda e: e.update(layout=None), "needs a layout"),
+    (lambda e: drop(e["layout"], "moved"), "needs a layout"),
+    (lambda e: e["layout"].update(extra=1), "needs a layout"),
+    (lambda e: e.update({"class": "INERT", "sha256": None}), "only an EQSET variant has a layout"),
+    (lambda e: e.update({"class": "SENSITIVE"}), "only an EQSET variant has a layout"),
+    (lambda e: e.update({"class": "INVALID", "sha256": None, "layout": None}), "only an EQSET variant has a layout"),
+    (lambda e: e.update(sha256=None), "class EQSET needs the SHA-256"),
+    (lambda e: e["layout"].update(sha256="XYZ"), "layout.sha256 must be 64 hex"),
+    (lambda e: e["layout"].update(sha256=None), "layout.sha256 must be 64 hex"),
+    (lambda e: e["layout"].update(neq=e["layout"]["neq"] + 1), "summing to layout.neq"),
+    (lambda e: e["layout"].update(neq=float(e["layout"]["neq"])), "summing to layout.neq"),
+    (lambda e: e["layout"].update(neq=True, rows={"ni[1]": 1}), "summing to layout.neq"),
+    (lambda e: e["layout"]["rows"].update({"te[1]": 0}), "summing to layout.neq"),
+    (lambda e: e["layout"].update(neq=0, rows={}), "summing to layout.neq"),
+    (lambda e: e["layout"].update(rows=[]), "summing to layout.neq"),
+    (lambda e: e["layout"].update(rows={"ni1": 1}, neq=1), "summing to layout.neq"),
+    (lambda e: e["layout"].update(rows={"ni[01]": 1}, neq=1), "summing to layout.neq"),
+    (lambda e: e["layout"].update(rows={"xx[1]": 1}, neq=1), "summing to layout.neq"),
+    (lambda e: e.update({"class": ["SENSITIVE"]}), r"class \['SENSITIVE'\], need one of"),
+    (lambda e: e.update({"class": {"a": 1}}), "need one of"),
+    (lambda e: e["layout"].update(moved=["te[1] sol", "ni[1] core"]), "sorted list of different"),
+    (lambda e: e["layout"].update(moved=["ni[1] core", "ni[1] core"]), "sorted list of different"),
+    (lambda e: e["layout"].update(moved=[1]), "sorted list of different"),
+    (lambda e: e["layout"].update(moved="ni[1] core"), "sorted list of different"),
+    (lambda e: e.update(extra=1), "need exactly the keys"),
+])
+def test_manifest_validate_rejects_a_bad_eqset_entry(tmp_path, edit, message):
+    m = build(tmp_path, "full", eqset=E)
+    edit(m["variables"]["bbb.isteon"])
+    with pytest.raises(mf.ManifestError, match=message):
+        mf.validate(m)
+
+
+def test_an_eqset_variant_has_no_locality(tmp_path):
+    """Owner, D5: locality_variants stays with SENSITIVE, INERT and MARGINAL."""
+    m = build(tmp_path, "full", eqset=E)
+    m["locality_variants"] = {"bbb.isteon": {"config": "steady", "sha256": "a" * 64, "added": 1, "dropped": 0}}
+    with pytest.raises(mf.ManifestError, match="not a SENSITIVE, INERT or MARGINAL variable"):
+        mf.validate(m)
+
+
+def test_an_eqset_is_not_guarded(tmp_path):
+    """guarded and unguarded (mf.summarize) hold no eqset dataset: the entry's sha256 does."""
+    a, b = build(tmp_path / "a", "full"), build(tmp_path / "b", "full", eqset=E)
+    assert (a["guarded"], a["unguarded"]) == (b["guarded"], b["unguarded"])
+    new = set(b["datasets"]) - set(a["datasets"])
+    assert new and all(n.startswith("/steady/eqset/bbb.isteon/") for n in new)
+    assert mf.variant_sha(b["datasets"], "steady", "bbb.isteon") is None
+    assert mf.variant_sha(b["datasets"], "steady", "bbb.isteon", "eqset") == b["variables"]["bbb.isteon"]["sha256"]
+
+
+def test_full_eqset_round_trip(tmp_path):
+    build(tmp_path, "full", eqset=E)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.variants("steady", "eqset") == ["bbb.isteon"] and s.variants("steady") == ["bbb.cfvisx"]
+        assert s.variants("timestep", "eqset") == []
+        y, j = s.eqset("steady", "bbb.isteon", EMAP)
+        assert y.tobytes() == YE.tobytes() and np.array_equal(j, YJE - YE)
+        assert s.read("/steady/eqset/bbb.isteon/yldot/index").tolist() == [4, 30]  # of the shared rows, not of neq
+        assert s.read("/steady/eqset/bbb.isteon/jflag/index").tolist() == [2]
+        ya, ja = s.eqset_added("steady", "bbb.isteon")
+        assert ya.tobytes() == YE[NEW].tobytes() and np.flatnonzero(ja).tolist() == [3]
+        c = s.check_eqset("steady", "bbb.isteon", YE, YJE, TOLE, EMAP)
+        assert c.ok and c.ratio == 0.0
+
+
+def test_sketch_eqset_round_trip(tmp_path):
+    build(tmp_path, "sketch", eqset=E)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        labels, rows = store.cut_blocks(LABELS, ROWS, I0)
+        assert not any(label.startswith("te") for label in labels) and "ti[1] core" not in labels  # te; the ti cell
+        assert set(np.concatenate(rows).tolist()) == set(I0.tolist())
+        sk, sj = s.eqset("steady", "bbb.isteon")
+        placed = np.zeros(N)
+        placed[I0] = YE[I1]
+        want = store.sketch(placed, labels, rows, w=1.0 / TOL)
+        assert all(np.array_equal(sk[key], want[key]) for key in want) and sj["proj"].shape == (len(labels), store.K)
+        assert s.eqset_added("steady", "bbb.isteon")[0].tobytes() == YE[NEW].tobytes()
+        c = s.check_eqset("steady", "bbb.isteon", YE, YJE, TOLE, EMAP)
+        assert c.ok and c.ratio == 0.0 and len(c.lines) == 4
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+@pytest.mark.parametrize("what, row", [("shared", int(I1[11])), ("shared", int(I1[4])), ("added", int(NEW[0])),
+                                       ("added", int(NEW[3]))])
+@pytest.mark.parametrize("flag", [False, True])
+def test_eqset_check_sees_one_row(tmp_path, kind, what, row, flag):
+    """One row of yldot (and so of the flag difference) or of yldot_J alone moved by far more than its tolerance."""
+    build(tmp_path, kind, eqset=E)
+    y, yj = YE.copy(), YJE.copy()
+    yj[row] += 1e-3
+    if not flag:
+        y[row] += 1e-3
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        c = s.check_eqset("steady", "bbb.isteon", y, yj, TOLE, EMAP)
+        assert not c.ok and c.ratio > 1
+        failed = [line for line in c.lines if "FAIL" in line]
+        assert len(failed) == 1 and ("flag difference" in failed[0]) == flag
+        if kind == "full" or what == "added":
+            assert EMAP.label(row) in c.report and c.ratio == pytest.approx(1e5)
+            assert ("added rows" in failed[0]) == (kind == "sketch")
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+@pytest.mark.parametrize("row", [int(I1[11]), int(NEW[0])])
+def test_eqset_check_fails_on_a_non_finite_entry(tmp_path, kind, row):
+    build(tmp_path, kind, eqset=E)
+    y = YE.copy()
+    y[row] = np.nan
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        c = s.check_eqset("steady", "bbb.isteon", y, YJE, TOLE, EMAP)
+        assert not c.ok and c.ratio == float("inf")
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_eqset_tolerance_is_per_row(tmp_path, kind):
+    """The tol vector is in the variant's rows: a row's own tolerance decides for it, in both stores."""
+    build(tmp_path, kind, eqset=E)
+    row = int(NEW[5])
+    y = YE.copy()
+    y[row] += 1e-6
+    loose = TOLE.copy()
+    loose[row] = 2e-6
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert not s.check_eqset("steady", "bbb.isteon", y, y + (YJE - YE), TOLE, EMAP).ok
+        assert s.check_eqset("steady", "bbb.isteon", y, y + (YJE - YE), loose, EMAP).ok
+        shared = YE.copy()
+        shared[I1[11]] += 1e-6
+        loose = TOLE.copy()
+        loose[I1[11]] = 1e-5
+        assert not s.check_eqset("steady", "bbb.isteon", shared, shared + (YJE - YE), TOLE, EMAP).ok
+        assert s.check_eqset("steady", "bbb.isteon", shared, shared + (YJE - YE), loose, EMAP).ok
+
+
+def swapped_map():
+    """EMAP's rows and counts with two rows of one cell swapped."""
+    d = make_data(edit=other_set)
+    d["idxn"][1, 1] = d["idxn"][1, 1][::-1].copy()
+    return index_map(d, SPEC)
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+@pytest.mark.parametrize("imap, message", [(IMAP, "the layout has neq"), (swapped_map(), "rows of the layout differ")])
+def test_eqset_check_refuses_another_layout(tmp_path, kind, imap, message):
+    build(tmp_path, kind, eqset=E)
+    y = np.zeros(imap.neq)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        with pytest.raises(store.StoreError, match=message):
+            s.check_eqset("steady", "bbb.isteon", y, y, np.ones(imap.neq), imap)
+        with pytest.raises(store.StoreError, match="no stored variant"):
+            s.check_eqset("timestep", "bbb.isteon", YE, YJE, TOLE, EMAP)
+
+
+@pytest.mark.parametrize("kind, edit, message", [
+    ("full", lambda masks: masks["istgonxy"].__setitem__((1, 1, 0), 0), "rows stored for the 39 added rows"),
+    ("sketch", lambda masks: masks["istgonxy"].__setitem__((1, 1, 0), 0), "rows stored for the 39 added rows"),
+    ("sketch", lambda masks: masks["isphionxy"].__setitem__(slice(None), 0), "stored sketches, the shared rows have")])
+def test_eqset_data_of_another_layout_refused(tmp_path, kind, edit, message):
+    """Stored data whose sizes do not fit the manifest's layout (a consistent tamper: every SHA-256 agrees) is refused,
+    not broadcast or cut: one added row less, and one equation's blocks less."""
+    def masks(m):
+        other_set(m)
+        edit(m)
+    imap = index_map(make_data(edit=masks), SPEC)
+    y = np.ones(imap.neq)
+    m = build(tmp_path, kind, eqset=(("bbb.isteon", y, y, imap),))
+    m["variables"]["bbb.isteon"]["layout"].update(neq=EMAP.neq, sha256=layout_sha(EMAP), rows=layout_rows(EMAP))
+    mf.dump(m, mf.path("fam", tmp_path))
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        with pytest.raises(store.StoreIntegrityError, match=message):
+            s.check_eqset("steady", "bbb.isteon", YE, YJE, TOLE, EMAP)
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_eqset_without_added_rows(tmp_path, kind):
+    """A variant that only loses rows stores no added group."""
+    imap = index_map(make_data(edit=lambda masks: masks["isteonxy"].__setitem__((slice(None), 1), 0)), SPEC)
+    i0, i1, added = mapping(IMAP, imap)
+    assert added.size == 0 and i0.size == N - 5
+    m = build(tmp_path, kind, eqset=(("bbb.isteoffxy", Y[i0], YJ[i0], imap),))
+    assert not any("/added/" in n for n in m["datasets"])
+    tol = np.full(imap.neq, 1e-8)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        assert s.eqset_added("steady", "bbb.isteoffxy")[0].size == 0
+        c = s.check_eqset("steady", "bbb.isteoffxy", Y[i0], YJ[i0], tol, imap)
+        assert c.ok and len(c.lines) == 2
+        assert not s.check_eqset("steady", "bbb.isteoffxy", Y[i0] + 1e-3, YJ[i0], tol, imap).ok
+
+
+@pytest.mark.parametrize("kind", mf.STORES)
+def test_copy_eqset_is_verbatim(tmp_path, kind):
+    """A file whose EQSET variants are copied has the bytes of a fresh write (make_references --only)."""
+    m = build(tmp_path / "src", kind, eqset=E)
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        p = tmp_path / "copy.h5"
+        w = store.create(p, kind, "fam", DATA, IMAP)
+        for config in mf.CONFIG_NAMES:
+            w.write_default(config, Y, YJ, SIGMA, DIAG)
+            if kind == "sketch":
+                w.write_sketch_thresholds(config, TOL)
+        w.copy_variant("steady", "bbb.cfvisx", s)
+        w.copy_variant("steady", "bbb.isteon", s, "eqset")
+        with pytest.raises(store.StoreError, match="already written"):
+            w.copy_variant("steady", "bbb.isteon", s, "eqset")
+        with pytest.raises(store.StoreError, match="no stored variant bbb.cfvisx in steady/eqset"):
+            w.copy_variant("steady", "bbb.cfvisx", s, "eqset")
+        with pytest.raises(store.StoreError, match="no stored variant"):
+            w.copy_variant("steady", "bbb.isteon", s)
+        out = w.finish()
+    assert out["datasets"] == m["datasets"]
+    assert out["sha256"] == m["external"][mf.reference_path("fam")]["sha256"]
+
+
+def test_copy_eqset_refuses_another_index(tmp_path):
+    """The stored rows are those of the source's default: another default layout cannot take them over."""
+    build(tmp_path / "src", "full", eqset=E)
+    with store.open_store("fam", tmp_path / "src", regions=SPEC) as s:
+        w = store.create(tmp_path / "copy.h5", "full", "fam", make_data(edit=other_set), EMAP)
+        w.write_default("steady", YE, YJE, np.full(EMAP.neq, 1e-13), DIAG)
+        with pytest.raises(store.StoreError, match="index map differs"):
+            w.copy_variant("steady", "bbb.isteon", s, "eqset")
+        w.f.close()
+
+
+@pytest.mark.parametrize("vid, message", [("a/b", "without '/'"), ("", "non-empty")])
+def test_write_eqset_refuses(tmp_path, vid, message):
+    w = store.create(tmp_path / "a.h5", "sketch", "fam", DATA, IMAP)
+    with pytest.raises(store.StoreError, match="write the default before"):
+        w.write_eqset("steady", "bbb.x", YE, YJE, EMAP)
+    w.write_default("steady", Y, YJ, SIGMA, DIAG)
+    with pytest.raises(store.StoreError, match="sketch weights"):
+        w.write_eqset("steady", "bbb.x", YE, YJE, EMAP)
+    w.write_sketch_thresholds("steady", TOL)
+    with pytest.raises(ValueError, match=message):
+        w.write_eqset("steady", vid, YE, YJE, EMAP)
+    with pytest.raises(ValueError, match="has shape"):
+        w.write_eqset("steady", "bbb.x", Y, YJ, EMAP)
+    bad = YE.copy()
+    bad[3] = np.inf
+    with pytest.raises(ValueError, match="non-finite"):
+        w.write_eqset("steady", "bbb.x", bad, YJE, EMAP)
+    w.f.close()
+
+
+def test_eqset_tampering_refused(tmp_path):
+    """A removed entry, a removed dataset, a changed SHA and a moved class each fail at open (check_derived)."""
+    def edited(name, edit):
+        m = build(tmp_path / name, "full", eqset=E)
+        edit(m)
+        mf.dump(m, mf.path("fam", tmp_path / name))
+        return tmp_path / name
+
+    def remove_dataset(m):
+        with h5py.File(tmp_path / "dataset" / mf.reference_path("fam"), "a") as f:
+            del f["steady/eqset/bbb.isteon/added/jflag_value"]
+        del m["datasets"]["/steady/eqset/bbb.isteon/added/jflag_value"]
+        p = tmp_path / "dataset" / mf.reference_path("fam")
+        m["external"][mf.reference_path("fam")] = {"sha256": store.file_sha256(p), "bytes": p.stat().st_size}
+
+    def to_invalid(m):
+        m["variables"]["bbb.isteon"].update({"class": "INVALID", "sha256": None})
+        del m["variables"]["bbb.isteon"]["layout"]
+
+    for name, edit, message in (
+            ("entry", lambda m: m["variables"].pop("bbb.isteon"), "stored variants not EQSET variables"),
+            ("class", to_invalid, "stored variants not EQSET variables"),
+            ("sha", lambda m: m["variables"]["bbb.isteon"].update(sha256="a" * 64), "sha256 of the variables"),
+            ("dataset", remove_dataset, "sha256 of the variables"),
+            ("moved", lambda m: m["variables"]["bbb.isteon"]["layout"].update(moved=["ng[1] core"]),
+             "block labels of the manifest's variables")):
+        with pytest.raises(store.StoreIntegrityError, match=message):
+            store.open_store("fam", edited(name, edit), regions=SPEC)
+
+
+def test_eqset_dataset_changed_after_open_refused(tmp_path):
+    build(tmp_path, "full", eqset=E)
+    with h5py.File(tmp_path / mf.reference_path("fam"), "a") as f:
+        f["steady/eqset/bbb.isteon/added/yldot"][0] += 1.0
+    reseal(tmp_path)
+    with store.open_store("fam", tmp_path, regions=SPEC) as s:
+        with pytest.raises(store.StoreIntegrityError, match="added/yldot has SHA-256"):
+            s.check_eqset("steady", "bbb.isteon", YE, YJE, TOLE, EMAP)
 
 
 # ---------------------------------------------------------------- fetch_data.py

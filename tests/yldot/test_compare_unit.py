@@ -2,6 +2,7 @@
 fallbacks (PRD section 7.4, safeguard (a)) and the comparator. Pure Python on synthetic index arrays built the way
 bbb/convert.m builds them; no uedge import, no child process.
 """
+import re
 import tomllib
 
 import numpy as np
@@ -9,9 +10,10 @@ import pytest
 
 from yldot.harness import FAMILIES
 from yldot.harness.compare import (EQUATIONS, PANDF_ORDER, REGIONS, RESIDUAL_ROWS, RULE_FAMILY, RULE_OWN,
-                                   RULE_REGION, UNORDERED, IndexTruthError, ToleranceEscalation, check_regions,
-                                   compare, first_difference, index_map, mask_dead, region_cells, region_of,
-                                   tolerances)
+                                   RULE_REGION, SWITCHES, UNORDERED, IndexTruthError, ToleranceEscalation,
+                                   check_masks, check_order, check_regions, compare, expected_rows, first_difference,
+                                   index_map, layout_rows, layout_sha, mapping, mask_dead, region_cells, region_of,
+                                   row_keys, tolerances)
 
 NX, NY, NISP, NUSP, NGSP = 3, 2, 2, 1, 1
 SPEC = {"nx": NX, "ny": NY, "ix_inner_leg": [1, 1], "ix_core": [2, 2], "ix_outer_leg": [3, 3], "iy_closed": [1, 1],
@@ -19,10 +21,10 @@ SPEC = {"nx": NX, "ny": NY, "ix_inner_leg": [1, 1], "ix_core": [2, 2], "ix_outer
         "cells": {"guard": 14, "core": 1, "pf": 2, "inner_leg": 1, "sol": 1, "outer_leg": 1}}
 
 
-def make_data(bcl=(1, 1, 1, 1), phi_off=((0, 0), (4, 3))):
+def make_data(bcl=(1, 1, 1, 1), phi_off=((0, 0), (4, 3)), edit=None):
     """A result dict as state.py returns it: masks, then idx*/igyl filled in convert.m's loop order (iy outer, ix
     inner; per cell ni, up, te, ti, ng, tg, phi). isuponxy has nisp slices, as in bbb/bbb.v:237; ng and tg are off;
-    phi is off at phi_off."""
+    phi is off at phi_off. edit(masks): changes to the masks, for another equation set (T24)."""
     shape = (NX + 2, NY + 2)
     masks = {"isnionxy": np.ones(shape + (NISP,), int), "isuponxy": np.ones(shape + (NISP,), int),
              "isteonxy": np.ones(shape, int), "istionxy": np.ones(shape, int),
@@ -30,6 +32,8 @@ def make_data(bcl=(1, 1, 1, 1), phi_off=((0, 0), (4, 3))):
              "isphionxy": np.ones(shape, int)}
     for c in phi_off:
         masks["isphionxy"][c] = 0
+    if edit:
+        edit(masks)
     idx = {"idxn": np.zeros(shape + (NISP,), int), "idxu": np.zeros(shape + (NUSP,), int),
            "idxte": np.zeros(shape, int), "idxti": np.zeros(shape, int), "idxg": np.zeros(shape + (NGSP,), int),
            "idxtg": np.zeros(shape + (NGSP,), int), "idxphi": np.zeros(shape, int)}
@@ -59,6 +63,15 @@ def make_data(bcl=(1, 1, 1, 1), phi_off=((0, 0), (4, 3))):
 def family_regions(name):
     with open(FAMILIES / name / "family.toml", "rb") as f:
         return tomllib.load(f)["regions"]
+
+
+def other_set(masks):
+    """Another equation set than make_data's: te off everywhere, ti off in one cell, ng and tg on (tg not in a cell)."""
+    masks["isteonxy"][:] = 0
+    masks["istionxy"][2, 1] = 0
+    masks["isngonxy"][:] = 1
+    masks["istgonxy"][:] = 1
+    masks["istgonxy"][3, 2, 0] = 0
 
 
 # ---------------------------------------------------------------- index truth
@@ -578,3 +591,141 @@ def test_report_names_the_first_difference(imap, case):
     new[0] += 10 * tol[0]
     text = compare(new, ref, tol, imap).report(diag(), diag(fnix=diag()["fnix"] + 1))
     assert "first differing intermediate: fnix (pandf order)" in text
+
+
+# ---------------------------------------------------------------- equation sets (T24)
+
+
+BASE, EQSET = make_data(), make_data(edit=other_set)
+
+
+@pytest.mark.parametrize("data", [BASE, EQSET, make_data(bcl=(0, 1, 1, 0), edit=other_set)])
+def test_expected_rows_are_the_live_rows(data):
+    imap = index_map(data, SPEC)
+    assert expected_rows(data) == row_keys(imap)
+    check_order(imap, data)
+
+
+def test_order_check_sees_a_swap_within_one_cell():
+    """Two equations' rows swapped in one cell keep the bijection and igyl (index_map's limitation): check_order fails."""
+    d = make_data(edit=other_set)
+    d["idxn"][1, 1, 0], d["idxtg"][1, 1, 0] = d["idxtg"][1, 1, 0], d["idxn"][1, 1, 0]
+    imap = index_map(d, SPEC)
+    with pytest.raises(IndexTruthError, match=r"2 rows differ, first .*ask the epic owner") as e:
+        check_order(imap, d)
+    assert "row {}: ('tg', 1, 1, 1) expected ('ni', 1, 1, 1)".format(d["idxtg"][1, 1, 0]) in str(e.value)
+
+
+def test_order_check_sees_species_swapped_within_one_cell():
+    d = make_data()
+    d["idxn"][1, 1] = d["idxn"][1, 1][::-1].copy()
+    with pytest.raises(IndexTruthError, match="2 rows differ"):
+        check_order(index_map(d, SPEC), d)
+
+
+def test_order_check_sees_another_count():
+    """More masked cells than rows: expected_rows gives another number of rows than the map has."""
+    d = make_data()
+    imap = index_map(d, SPEC)
+    d["masks"]["isphionxy"][0, 0] = 1
+    with pytest.raises(IndexTruthError, match="{} rows, the masks and the grid give {}".format(
+            imap.neq, imap.neq + 1)):
+        check_order(imap, d)
+
+
+def test_order_check_names_the_missing_or_extra_row(monkeypatch):
+    """The compared rows agree and only the count differs: no "0 rows differ", the first row beyond the shorter list."""
+    from yldot.harness import compare as cmp
+    imap = index_map(BASE, SPEC)
+    rows = row_keys(imap)
+    monkeypatch.setattr(cmp, "expected_rows", lambda data: rows + [("ni", 9, 9, 9)])
+    with pytest.raises(IndexTruthError, match=r"agree up to row {}; missing row \('ni', 9, 9, 9\)".format(
+            len(rows))) as e:
+        check_order(imap, BASE)
+    assert "0 rows differ" not in str(e.value)
+    monkeypatch.setattr(cmp, "expected_rows", lambda data: rows[:-1])
+    with pytest.raises(IndexTruthError, match="agree up to row {}; extra row {}".format(
+            len(rows) - 1, re.escape(str(rows[-1])))):
+        check_order(imap, BASE)
+
+
+def switches(nispmx=31, **over):
+    """The live switches whose product gives make_data's masks (phi off in two cells); is<eq>on past the species."""
+    shape = (NX + 2, NY + 2)
+    off = {"isphioffxy": np.zeros(shape, int)}
+    off["isphioffxy"][0, 0] = off["isphioffxy"][4, 3] = 1
+    out = {"isnion": np.ones(nispmx, int), "isupon": np.ones(nispmx, int), "isteon": np.array(1),
+           "istion": np.array(1), "isngon": np.zeros(6, int), "istgon": np.zeros(6, int), "isphion": np.array(1),
+           "isnioffxy": np.zeros(shape + (NISP,), int), "isupoffxy": np.zeros(shape + (NISP,), int),
+           "isteoffxy": np.zeros(shape, int), "istioffxy": np.zeros(shape, int),
+           "isngoffxy": np.zeros(shape + (NGSP,), int), "istgoffxy": np.zeros(shape + (NGSP,), int), **off}
+    out.update(over)
+    return out
+
+
+def test_masks_follow_the_switches():
+    assert [m for m, _, _ in SWITCHES] == [m for _, _, m in EQUATIONS]
+    check_masks(BASE["masks"], switches())
+
+
+@pytest.mark.parametrize("mask, cell", [("isnionxy", (2, 1, 1)), ("isuponxy", (4, 3, 0)), ("isteonxy", (0, 0)),
+                                        ("istionxy", (3, 2)), ("isngonxy", (1, 1, 0)), ("istgonxy", (1, 1, 0)),
+                                        ("isphionxy", (0, 0))])
+def test_mask_off_by_one_cell_fails(mask, cell):
+    masks = make_data()["masks"]
+    masks[mask][cell] = 1 - masks[mask][cell]
+    with pytest.raises(IndexTruthError, match=r"{} differs from .* at 1 cells, first \(ix, iy, species\) \[\({}, {}"
+                       .format(mask, *cell[:2])):
+        check_masks(masks, switches())
+
+
+def test_mask_of_a_species_past_the_rows_is_checked():
+    """isuponxy has nisp slices and idxu nusp: the rows never read the last slice, the mask rule still holds in it."""
+    masks = make_data()["masks"]
+    masks["isuponxy"][1, 1, NISP - 1] = 0
+    with pytest.raises(IndexTruthError, match="isuponxy"):
+        check_masks(masks, switches())
+
+
+@pytest.mark.parametrize("over", [{"isnion": np.ones(1, int)}, {"isteoffxy": np.zeros((2, 2), int)}])
+def test_switches_that_do_not_fit_fail(over):
+    with pytest.raises(IndexTruthError, match="do not fit"):
+        check_masks(BASE["masks"], switches(**over))
+
+
+def test_mapping_removed_added_and_both():
+    base, imap = index_map(BASE, SPEC), index_map(EQSET, SPEC)
+    i0, i1, added = mapping(base, imap)
+    kb, kv = row_keys(base), row_keys(imap)
+    assert [kb[i] for i in i0] == [kv[i] for i in i1]
+    assert (np.diff(i0) > 0).all() and (np.diff(added) > 0).all()
+    assert set(kb[i][0] for i in set(range(base.neq)) - set(i0.tolist())) == {"te", "ti"}
+    assert set(kv[i][0] for i in added) == {"ng", "tg"}
+    assert sorted(i1.tolist() + added.tolist()) == list(range(imap.neq))
+    assert base.neq - i0.size == 20 + 1 and added.size == 2 * 20 - 1
+    assert [a.tolist() for a in mapping(base, base)] == [list(range(base.neq))] * 2 + [[]]
+    back = mapping(imap, base)
+    assert (np.diff(back[0]) > 0).all() and back[2].size == 21
+
+
+def test_mapping_is_by_meaning_not_by_row_number():
+    """Two rows of the variant swapped within a cell are still paired with the default's rows of the same equation."""
+    d = make_data()
+    d["idxn"][1, 1, 0], d["idxte"][1, 1] = d["idxte"][1, 1], d["idxn"][1, 1, 0]
+    base, imap = index_map(BASE, SPEC), index_map(d, SPEC)
+    i0, i1, added = mapping(base, imap)
+    assert not added.size and (i0 != i1).sum() == 2
+    assert [row_keys(base)[i] for i in i0] == [row_keys(imap)[i] for i in i1]
+
+
+def test_layout_sha_and_rows():
+    base, imap = index_map(BASE, SPEC), index_map(EQSET, SPEC)
+    assert layout_rows(base) == {"ni[1]": 20, "ni[2]": 20, "up[1]": 20, "te[1]": 20, "ti[1]": 20, "phi[1]": 18}
+    assert layout_rows(imap) == {"ni[1]": 20, "ni[2]": 20, "up[1]": 20, "ti[1]": 19, "ng[1]": 20, "tg[1]": 19,
+                                 "phi[1]": 18}
+    d = make_data()
+    d["idxn"][1, 1] = d["idxn"][1, 1][::-1].copy()  # the same rows and counts in another order
+    swapped = index_map(d, SPEC)
+    assert layout_rows(swapped) == layout_rows(base)
+    assert len({layout_sha(m) for m in (base, imap, swapped)}) == 3
+    assert layout_sha(base) == layout_sha(index_map(make_data(), None))  # regions are no part of it

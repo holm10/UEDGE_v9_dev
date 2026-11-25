@@ -9,7 +9,9 @@ bbb/convert.m:31-152 numbers the rows over iy = 1-iymnbcl..ny+iymxbcl, ix = 1-ix
 equation where its is<eq>onxy mask is 1, and writes (ix, iy) to igyl(iv,1:2). index_map inverts idx* over exactly
 those active cells and checks that the inverse is a bijection onto 1..neq that agrees with igyl. No variable order
 is assumed anywhere. Limitation: igyl holds the cell only, so two equations' rows swapped within one cell keep a
-valid bijection; the check sees every permutation that moves a row to another cell.
+valid bijection; the check sees every permutation that moves a row to another cell. For a variant with another
+equation set (class EQSET, T24) check_order and check_masks close that gap: the rows equal the ones convert.m's loops
+give for the masks and the grid, and the masks equal the product setonxy forms from the switches.
 
 Regions: the [regions] table of family.toml, confirmed by the epic owner per family (2026-10-20, AIUE-83 ticket
 page): guard, core, pf, inner_leg, sol, outer_leg. A double null (nxpt = 2, owner, 2026-10-21, AIUE-91 ticket page)
@@ -19,6 +21,7 @@ are compared under the same rule as interior rows (decision 20).
 
 Every failure that needs the epic owner raises IndexTruthError or ToleranceEscalation; nothing is masked.
 """
+import hashlib
 import tomllib
 from dataclasses import dataclass
 
@@ -30,6 +33,8 @@ from .process import family_dir
 EQUATIONS = (("ni", "idxn", "isnionxy"), ("up", "idxu", "isuponxy"), ("te", "idxte", "isteonxy"),
              ("ti", "idxti", "istionxy"), ("ng", "idxg", "isngonxy"), ("tg", "idxtg", "istgonxy"),
              ("phi", "idxphi", "isphionxy"))
+# (mask array, on switch, per-cell off switch) of setonxy (bbb/odesetup.m:644-664): mask = on * (1 - off)
+SWITCHES = tuple((m, m[:-2], m[:-4] + "offxy") for _, _, m in EQUATIONS)
 REGIONS = ("guard", "core", "pf", "inner_leg", "sol", "outer_leg", "pf_upper", "pf_lower", "sol_between",
            "lower_inner_leg", "upper_inner_leg", "upper_outer_leg", "lower_outer_leg")
 DNULL_SOURCE = {"ixlb", "ixrb", "ixpt1", "ixpt2", "iysptrx1", "iysptrx2"}  # one value per mesh half
@@ -413,6 +418,79 @@ def index_map(data, regions=None):
         check_regions(regions, grid)
         region = np.array([region_of(int(a), int(b), regions) for a, b in zip(ix, iy)], dtype=object)
     return IndexMap(neq, eq.astype(str), species, ix, iy, region.astype(str))
+
+
+# ---------------------------------------------------------------- equation sets (T24)
+
+
+def row_keys(imap):
+    """[(equation, species, ix, iy)] per row: what a row means, whatever its number."""
+    return list(zip(imap.eq.tolist(), imap.species.tolist(), imap.ix.tolist(), imap.iy.tolist()))
+
+
+def expected_rows(data):
+    """row_keys as convert.m's loops number the rows (bbb/convert.m:31-152: iy outer, ix, then ni, up, te, ti, ng, tg,
+    phi, each over the species of its idx* array), from the masks and the grid alone; no idx* value is read."""
+    grid, masks = data["grid"], data["masks"]
+    spec = [(name, cells3(masks[mask]), cells3(data[idx]).shape[2]) for name, idx, mask in EQUATIONS]
+    return [(name, s + 1, ix, iy)
+            for iy in range(1 - int(grid["iymnbcl"]), int(grid["ny"]) + int(grid["iymxbcl"]) + 1)
+            for ix in range(1 - int(grid["ixmnbcl"]), int(grid["nx"]) + int(grid["ixmxbcl"]) + 1)
+            for name, mask, n in spec for s in range(n) if mask[ix, iy, s] == 1]
+
+
+def check_order(imap, data):
+    """IndexTruthError unless the rows of imap (index_map of data) are expected_rows in that order."""
+    got, want = row_keys(imap), expected_rows(data)
+    if got != want:
+        bad = [i for i, (a, b) in enumerate(zip(got, want)) if a != b]
+        if bad:
+            what = "{} rows differ, first {}".format(len(bad), listed(
+                "row {}: {} expected {}".format(i + 1, got[i], want[i]) for i in bad))
+        else:  # the common rows agree: the shorter list lacks the rows the longer one has
+            n = min(len(got), len(want))
+            what = "the rows agree up to row {}; {}".format(
+                n, "extra row {}".format(got[n]) if len(got) > n else "missing row {}".format(want[n]))
+        raise IndexTruthError("row order: {} rows, the masks and the grid give {}; {}; {}".format(
+            len(got), len(want), what, OWNER))
+
+
+def check_masks(masks, switches):
+    """IndexTruthError unless every is<eq>onxy equals is<eq>on * (1 - is<eq>offxy) (setonxy, bbb/odesetup.m:644-664) at
+    every cell of every species slice. switches: the live is<eq>on and is<eq>offxy (state.index_data)."""
+    errors = []
+    for mask_name, on_name, off_name in SWITCHES:
+        mask, off = cells3(masks[mask_name]), cells3(switches[off_name])
+        on = np.atleast_1d(np.asarray(switches[on_name]))  # per species, dimensioned past the species in use
+        if off.shape != mask.shape or on.ndim != 1 or on.size < mask.shape[2]:
+            errors.append("{} {} / {} {} / {} {} do not fit".format(mask_name, mask.shape, on_name, on.shape, off_name,
+                                                                    off.shape))
+            continue
+        bad = np.argwhere(mask != on[:mask.shape[2]] * (1 - off))
+        if bad.size:
+            errors.append("{} differs from {} * (1 - {}) at {} cells, first (ix, iy, species) {}".format(
+                mask_name, on_name, off_name, len(bad), listed((ix, iy, s + 1) for ix, iy, s in bad.tolist())))
+    if errors:
+        raise IndexTruthError("equation masks: {}; {}".format("; ".join(errors), OWNER))
+
+
+def layout_sha(imap):
+    """SHA-256 of the "equation species ix iy" line of every row, in row order."""
+    return hashlib.sha256("".join("{} {} {} {}\n".format(*key) for key in row_keys(imap)).encode()).hexdigest()
+
+
+def layout_rows(imap):
+    """{"ni[1]": number of rows, ...}."""
+    return {"{}[{}]".format(name, sp): int(rows.size) for (name, sp), rows in imap.blocks().items()}
+
+
+def mapping(base, imap):
+    """(i0, i1, added): the rows the two maps share (the same equation, species and cell) as row numbers of base, in
+    base's order, and of imap, and the rows of imap that base lacks, in imap's order (0-based)."""
+    at = {key: i for i, key in enumerate(row_keys(imap))}
+    pairs = [(i, at.pop(key)) for i, key in enumerate(row_keys(base)) if key in at]
+    i0, i1 = (np.array([pair[n] for pair in pairs], dtype=np.int64) for n in (0, 1))
+    return i0, i1, np.array(sorted(at.values()), dtype=np.int64)
 
 
 # ---------------------------------------------------------------- tolerances and comparison

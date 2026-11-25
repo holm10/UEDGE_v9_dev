@@ -14,12 +14,12 @@ description is read without its HTML comments and fenced code blocks. Every prin
 escaped (\\x0a), so a path or name chosen by the PR cannot start a log line. Each changed path needs one or more
 declaration lines in the PR description (owner decisions, 2026-10-22, AIUE-97 ticket page):
 
-    Default results: changed     a manifest change that is not an addition, a prune of an entry not SENSITIVE in any
-                                 family, a rename with identical data or a diagnostics-only change; followed, anywhere
-                                 below, by every changed item as <family>:<id>, or by a family's digest line in place
-                                 of its items (the guard prints both). A variant's locality pattern goes with its
-                                 prune or rename (identical slice) and needs no declaration of its own (owner,
-                                 2026-10-28, AIUE-95)
+    Default results: changed     a manifest change that is not an addition, a prune of an entry neither SENSITIVE nor
+                                 EQSET (T24) in any family, a rename with identical data or a diagnostics-only change;
+                                 followed, anywhere below, by every changed item as <family>:<id>, or by a family's
+                                 digest line in place of its items (the guard prints both). A variant's locality
+                                 pattern goes with its prune or rename (identical slice) and needs no declaration of
+                                 its own (owner, 2026-10-28, AIUE-95)
     Test criteria: changed       any change to the guarded set (tests/yldot/** and the four workflows) other than
                                  manifests and new files under mutations/; with a justification
     Test criteria: loosened      a loosening (PRD 7.6: larger tolerances, changed sigma or stored sketch thresholds,
@@ -415,12 +415,16 @@ def diff_locality(a, b):
 
 
 def stored(m, config, vid):
-    """{dataset path below the variant: SHA-256} of one stored variant."""
-    prefix = "/{}/variants/{}/".format(config, vid)
-    return {n[len(prefix):]: s for n, s in m.get("datasets", {}).items() if n.startswith(prefix)}
+    """{group and dataset path below the variant: SHA-256} of one stored variant, SENSITIVE or EQSET (mf.STORED)."""
+    out = {}
+    for group in mf.STORED.values():
+        prefix = "/{}/{}/{}/".format(config, group, vid)
+        out.update({(group, n[len(prefix):]): s for n, s in m.get("datasets", {}).items() if n.startswith(prefix)})
+    return out
 
 
-RENAME_FIELDS = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2", "keys", "base")  # a set's too
+RENAME_FIELDS = ("class", "applied", "d", "phase", "config", "block_l2", "jflag_block_l2", "keys", "base",  # a set's too
+                 "layout")  # an EQSET variant's (T24)
 
 
 def rename_differences(m0, a, va, m1, b, vb):
@@ -494,8 +498,9 @@ def diff_manifest(family, m0, m1, base_classes):
             carried |= {("old", vid), ("new", twin)}
             add(None, "rename {} -> {} (identical data{})".format(vid, twin, "; its locality pattern" if vid in l0
                                                                     else ""))
-        elif "SENSITIVE" in base_classes.get(vid, set()):
-            add(DEFAULT, "variant {} removed, SENSITIVE in a base manifest".format(vid), "{}:{}".format(family, vid))
+        elif base_classes.get(vid, set()) & set(mf.STORED):  # stored data goes: SENSITIVE or EQSET somewhere
+            add(DEFAULT, "variant {} removed, {} in a base manifest".format(
+                vid, "/".join(sorted(base_classes[vid] & set(mf.STORED)))), "{}:{}".format(family, vid))
         else:
             carried.add(("old", vid))
             add(None, "prune {} ({} in every family{})".format(vid, "/".join(sorted(base_classes.get(vid, set()))),
@@ -514,7 +519,8 @@ def diff_manifest(family, m0, m1, base_classes):
         if l0[vid] != l1[vid]:
             add(DEFAULT, "locality pattern of variant {} changed".format(vid), "{}:{}".format(family, vid))
     for vid in sorted(set(v0) & set(v1)):
-        diff = sorted(k for k in v0[vid] if k != "reason" and not same(v0[vid][k], v1[vid][k]))
+        diff = sorted(k for k in set(v0[vid]) | set(v1[vid]) if k != "reason"  # an EQSET entry alone has a layout (T24)
+                      and not same(v0[vid].get(k), v1[vid].get(k)))
         if diff:
             add(DEFAULT, "variant {} changed: {}".format(vid, ", ".join(diff)), "{}:{}".format(family, vid))
     ref = mf.reference_path(family) if "datasets" in m1 else None  # judged through the datasets, if there are any
