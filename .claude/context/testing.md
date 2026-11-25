@@ -51,7 +51,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   Every family holds `sigma.h5`, the measured round-off spread σ_i per configuration (see Tolerances). The
   reference files `references/<f>.h5` are release assets of the release their manifest names, gitignored, named by
   `references/<f>.manifest.json`; `fetch_data.py` fetches them. Every family's holds the defaults and the
-  SENSITIVE variants and its manifest classifies every variant (since AIUE-99, which swept the owner families'
+  SENSITIVE and EQSET variants and its manifest classifies every variant (since AIUE-99, which swept the owner families'
   sketch stores and made `bbb.isfixrb` family-level; AIUE-88, AIUE-94); `yldot-data-v13` (AIUE-101, `locality-only`
   on Intel) keeps every v9 default and variant bit for bit and adds the locality data. `yldot-data-v14` (seven
   families) and `v15` (imp7) are full sweeps with the scalar-math Linux build (AIUE-211), the same on any x86 CPU.
@@ -134,7 +134,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   branches, nightly; `load_sets`, 2026-11-13), plus 56 gas-temperature sets that run in `d_mols_tg` (49 of them in `d_only_tg`) only (T22:
   the Tg selectors 0-6, `lytg`, `cgengmw`, `cfdiss`, `recyce`, `recycwe`, `cfalbedo`, the per-cell Tg arrays, the drift
   heating). The Tg value lists in `overrides.toml` also run in these two, elementwise; `bbb.istglb=4` leaves the
-  molecule rows unwritten there (yldot 0; AIUE-273).
+  molecule rows unwritten there (yldot 0; AIUE-273). Six `set:eqoff-*` sets (T24, 21 set and family pairs, small
+  families) turn te, ti, phi or ng[2] off in part of the grid through `is*offxy`; none turns ni or up off in single
+  cells, where the code reads array index 0 (T195; owner, 2026-11-24).
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
@@ -167,7 +169,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   of its own tolerances while tol is the generation tol (unweighted, the owner families' guard rows needed up to
   1e13), within the owner's R_max = 2·c·sqrt(N_block) (AIUE-92 D3). `make_references.py --only` keeps the stored
   weights, so the copied variant sketches stay valid.
-  A variant with another equation set (class EQSET, T24; no manifest has one yet) has other rows than the default: its
+  A variant with another equation set (class EQSET, T24) has other rows than the default: its
   manifest entry also has `layout` (`neq`, `rows` per equation and species, `sha256` of its rows' meaning,
   `compare.layout_sha`, and `moved`, the default's blocks that differ), and `Writer.write_eqset` stores it in
   `/<config>/eqset/<id>/`: the rows it shares with the default (`compare.mapping`, by equation, species and cell) in the
@@ -271,7 +273,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   null` (owner, 2026-10-22, AIUE-88); default families: the small ones
   (with `sigma.h5`, not owner families); an owner family only when named (swept like the others since AIUE-99, or
   `--defaults-only`), its `families/<f>/` assets checked against its manifest and carried into the new one with its
-  `sigma.h5` (AIUE-92); `CAPS_MB` 13 MB for each owner family (owner, 2026-10-24, AIUE-99), 2/3/7/2/9 MB for
+  `sigma.h5` (AIUE-92); `CAPS_MB` 13 MB for each owner family (owner, 2026-10-24, AIUE-99; 14 for large_dd2c and imp7:
+  owner, 2026-11-24, T24), 2/3/7/2/9 MB for
   d_only/d_mols/d_c/ortho/slab_phi (d_mols 2 → 3: owner, 2026-11-12, AIUE-257);
   a sketch store also gets the sketch thresholds; refuses a `tests/yldot` that differs from SHA (references/
   excepted; also an ignored file in the families' directories or `data/` other than those owner assets), a
@@ -280,20 +283,22 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `open_store`). It also sweeps every variant of `variants.plan()` in a fresh child each and
   classifies it (PRD §7.2, `M_CLS = 100` × the default's `tol_i`, for `yldot` and `yldot_J`): SENSITIVE (evaluated
   twice, stored only if both agree bit for bit, else INVALID "nondeterministic"), INERT (bitwise equal), MARGINAL,
-  INVALID (error, crash, timeout, `neq` change, an equation layout change at the same `neq`, non-finite; owner,
-  2026-10-22, AIUE-94), EXCLUDED (as planned, or the application changes nothing
+  INVALID (error, crash, timeout, `neq` = 0 (T196), non-finite; owner,
+  2026-10-22, AIUE-94), EQSET (T24; finite with another `neq` or another equation layout at the same `neq`: evaluated
+  twice too, index arrays included, its index truth a finding if broken (`eqset_map`), stored over its own rows with
+  its `layout`, whose `moved` names the default's blocks that differ by more than `MOVED` = 0.01 × `tol_i`), EXCLUDED (as planned, or the application changes nothing
   in the family: value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94). Results that fit no class
   and a file over its PRD §7.3 cap (`CAPS_MB`) are findings: exit 3, nothing written. `--defaults-only` (the AIUE-88
   run), `--only VAR…` (the rest copied verbatim from the installed reference, whose defaults must be reproduced bit
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1492`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1569`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
   `--rename` takes every following word too) run the `--only` path: prune drops the manifest entries no longer in the
-  inventory (SENSITIVE ones too, then the guard needs `Default results: changed`), rename classifies each NEW again
+  inventory (SENSITIVE and EQSET ones too, then the guard needs `Default results: changed`), rename classifies each NEW again
   and drops OLD; every kept entry is copied with its stored data and its locality pattern
   (`Writer.copy_locality_variant`, never re-run), every other guarded SHA-256 must come out the same (exit 3), and
   NEW must reproduce OLD, the applied value first (exit 1 "applied value differs", then the guard's
@@ -342,9 +347,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   store keeps no dense variant reference: its SENSITIVE variant is checked under the same rule with the replayed
   run's `yldot` in the `rtol_eq` term, through the sketch comparator with the stored weights, ratio the largest
   |dP| / bound (owner, 2026-10-24, AIUE-99 Q2); `run_mutations.py` refuses a `Variant` in a sketch-store family.
-  `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE variant with a build's
-  own python and checks it under that rule (exit 3 = owner; `check_sensitive`, one variant's check, is also
-  `test_variants.py`'s); on the yldot-data-v3 references mac-noopt passes every
+  `variant_tolerances.py` (PRD §7.4, AIUE-94): `replay REFS|installed` replays every SENSITIVE and EQSET variant with a
+  build's own python and checks it under that rule (exit 3 = owner; `check_sensitive`, one variant's check, is also
+  `test_variants.py`'s; `check_eqset` adds an EQSET variant's index truth, layout and unmoved blocks); on the yldot-data-v3 references mac-noopt passes every
   family (largest 0.006 × tol_i) and mac-serial (`-O3`) fails three variants by 1.7–3.1 × (d_c `bbb.mvolcur`, ortho
   `com.isnonog`, slab_phi `bbb.icnucx`; a recorded macOS `-O3` limit, owner, 2026-10-22, for AIUE-96's test
   design); on yldot-data-v5, where `com.isnonog` is EXCLUDED as family-level (AIUE-159), mac-serial fails the other
@@ -510,9 +515,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `test_locality_variant[<family>-<id>]` for every stored variant pattern are `nightly`, and
   `test_locality_everywhere` requires `[locality]` in every family and a pattern for exactly its `variant_scope`
   (AIUE-101);
-  `tests/yldot/test_variants.py` every stored SENSITIVE, INERT and INVALID variant of every family whose manifest
+  `tests/yldot/test_variants.py` every stored SENSITIVE, EQSET, INERT and INVALID variant of every family whose manifest
   classifies variants, one fresh child each, ids `<family>-<id>` (AIUE-96; PRD §7.2): SENSITIVE replayed against
-  its stored reference (`variant_tolerances.check_sensitive`), INERT replayed against the live default within the
+  its stored reference (`variant_tolerances.check_sensitive`), EQSET replayed against its index truth, row order, masks,
+  stored layout and reference, and its unmoved blocks against the live default (`check_eqset`; only a finite mismatch with
+  the stored reference counts as a macOS FMA limit; T24), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5); an owner
   family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
   the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
@@ -741,7 +748,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   owner family that shares a job runs its evaluations one after another, at the pre-T19 cost. An `--only` dispatch
   re-runs each owner
   family's default and its stored variant locality patterns (only `--prune` and `--rename` copy them,
-  `tests/yldot/tools/make_references.py:727`), so run
+  `tests/yldot/tools/make_references.py:789`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone, where its
   locality runs also go `--jobs` at a time (AIUE-242, T19), three
