@@ -8,9 +8,9 @@ Usage:
 NONE OF THESE FILES HOLDS ACTUAL DATA. Every number comes from the closed formulas below, invented for software tests:
 positive, smooth, different from table to table, and NOT physical. This program reads no table, and no value was taken
 from, fitted to or scaled to a measured, calculated or published one (owner, 2026-11-23, T169: real rate tables are not
-publicly shareable). The Te-ne grids of the aphread files and the 101 temperatures of carbmc.dat are fixed by the
-Fortran; the other grids are arbitrary. Never replace a file here by a real table, and never tune a formula or a grid
-to one. A case run with these files need not converge.
+publicly shareable). The Te-ne grids of the aphread files and the number of temperatures of carbmc.dat (101, com/com.v
+ntev) are fixed by the Fortran; the other grids, carbmc.dat's temperatures included, are arbitrary. Never replace a file
+here by a real table, and never tune a formula or a grid to one. A case run with these files need not converge.
 
 Every file says so on its first or second line and on its last line. A format without a header record (nwfits, eh.dat,
 carbmc.dat) carries the notice on line 1, after the columns that are read.
@@ -24,7 +24,8 @@ The layouts are those of UEDGE's readers:
     b2frates, C_rates.synthetic        api/fimp.m readmc (the pre-2012 format; hydrogen, carbon)
     mist_c.synthetic, mist_ne.synthetic   api/apip93.m readpost
     carbmc.dat                         api/inelrates.m inelinput (impflag = 2)
-aphread's names are fixed in the Fortran; the decks choose the others, which say .synthetic.
+aphread's names are fixed in the Fortran, and b2frates (com.hdfilename) and carbmc.dat (api.inelmc) keep their default
+names; the decks choose the others, which say .synthetic.
 
 Values are rounded to at most SIG significant digits before they are formatted, so that the last bit of a platform's
 math library does not show (macOS arm64 and Linux amd64 write the same bytes; probed, T169). Standard library only.
@@ -149,10 +150,13 @@ def ehr(name):
     return text(out)
 
 
-def degas(funcs, nt, nd, old=False):
+NWFITS_SCALE = 1.3  # not one of EHR_SCALE's
+
+
+def degas(funcs, nt, nd, old=False, scale=1.0):
     out = []
     for f in funcs:
-        for row in grid(f, nt, nd, old):
+        for row in grid(f, nt, nd, old, scale):
             out += blocks(row, nt)
     return text(out, column=78)
 
@@ -180,24 +184,26 @@ def atmc():
 class Braams:
     """A table in B. Braams' layout: species zn+1 charge states 0..zn, nt+1 temperatures, nn+1 densities."""
 
-    def __init__(self, zn, tmin=0.17, tmax=1.3e4, nt=31, nn=11, nmin=3e15, nmax=2e22):
-        self.zn, self.nt, self.nn, self.ns = zn, nt, nn, zn + 1
+    def __init__(self, zn, tmin=0.17, tmax=1.3e4, nt=31, nn=11, nmin=3e15, nmax=2e22, scale=1.0):
+        self.zn, self.nt, self.nn, self.ns, self.lscale = zn, nt, nn, zn + 1, math.log(scale)
         self.lt = [num(math.log(tmin) + i * math.log(tmax / tmin) / nt) for i in range(nt + 1)]
         self.ln = [num(math.log(nmin) + j * math.log(nmax / nmin) / nn) for j in range(nn + 1)]
 
     def ionization(self, t, n, k):
         """ln of the rate in m^3/s (as all five)."""
-        return math.log(1e-13 / (k + 1)) - 10.0 * (k + 1) ** 1.6 / t + 0.02 * (n - 43) if k < self.zn else -120.0
+        return (math.log(1e-13 / (k + 1)) - 10.0 * (k + 1) ** 1.6 / t + 0.02 * (n - 43) + self.lscale
+                if k < self.zn else -120.0)
 
     def recombination(self, t, n, k):
-        return math.log(3e-19 * k ** 2) - 0.6 * math.log(1 + t) + 0.03 * (n - 43) if k > 0 else -120.0
+        return (math.log(3e-19 * k ** 2) - 0.6 * math.log(1 + t) + 0.03 * (n - 43) + self.lscale
+                if k > 0 else -120.0)
 
     def radiation(self, t, n, k):
         return (math.log(2e-13 * (self.zn + 1 - k) / (k + 1)) - 4.0 * (k + 1) / t - 0.2 * math.log(1 + t)
-                + 0.01 * (n - 43))
+                + 0.01 * (n - 43) + self.lscale)
 
     def exchange(self, t, n, k):
-        return math.log(1e-15 * k) + 0.2 * math.log(1 + t) if k > 0 else -120.0
+        return math.log(1e-15 * k) + 0.2 * math.log(1 + t) + self.lscale if k > 0 else -120.0
 
     def values(self, f):
         """f over (charge state, density, temperature), the temperature fastest, as the readers loop."""
@@ -224,7 +230,7 @@ class Braams:
         return text(out)
 
 
-BRAAMS = {"rates.adpak": (Braams(1), False), "rates.strahl": (Braams(1, tmin=0.3), False),
+BRAAMS = {"rates.adpak": (Braams(1, scale=1.1), False), "rates.strahl": (Braams(1, tmin=0.3), False),
           "b2frates": (Braams(1), True), "C_rates.synthetic": (Braams(6), True)}
 
 
@@ -304,7 +310,7 @@ FILES = {name: (lambda name=name: ehr(name)) for name in EHR_SCALE}
 FILES.update({name: (lambda t=t, za2=za2: t.text(za2)) for name, (t, za2) in BRAAMS.items()})
 FILES.update({name: t.text for name, t in MIST.items()})
 FILES.update({
-    "nwfits": lambda: degas([ionization, recombination, line_emission], 60, 15),
+    "nwfits": lambda: degas([ionization, recombination, line_emission], 60, 15, scale=NWFITS_SCALE),
     "eh.dat": lambda: degas([ionization, recombination, line_emission, mean_energy, population(0), population(2)], 48,
                             11, old=True),
     "atmc.dat": atmc,

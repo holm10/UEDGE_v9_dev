@@ -14,5 +14,6 @@ exist so that the tests can run every rate option without distributing real rate
 - A case run with these files need not converge. The yldot suite and the OpenMP reproducer compare one build with another;
   neither needs a converged state.
 
-`aphread` fixes the names of the hydrogen files in the Fortran, so those keep the names of the real ones. Files whose name
-the input deck chooses end in `.synthetic`.
+`aphread` fixes the names of the hydrogen files in the Fortran, so those keep the names of the real ones; `b2frates` and
+`carbmc.dat` keep UEDGE's default names (`com.hdfilename`, `api.inelmc`). The other files, whose names the input deck chooses,
+end in `.synthetic`.

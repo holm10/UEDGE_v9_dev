@@ -208,7 +208,7 @@ def expected(name):
         return out
     if name in ("nwfits", "eh.dat"):
         def t(f):
-            return tab(f) if name == "nwfits" else tab(f, 48, 11, True)
+            return tab(f, scale=rf.NWFITS_SCALE) if name == "nwfits" else tab(f, 48, 11, True)
         out = {"wsveh": (np.maximum(t(rf.ionization), 1e-50) * rate)[:, :, None],
                "wsveh0": (np.maximum(t(rf.recombination), 1e-50) * rate)[:, :, None],
                "wlemiss": np.maximum(t(rf.line_emission), 1e-75) * line}
@@ -239,6 +239,29 @@ def expected(name):
            for a, (f, first, last), u in zip(("rsi", "rre", "rpwr", "rrcx"), c.tables(), units)}
     out["tevb"] = np.array(ts) * EV
     return out
+
+
+RATES = ("wsveh", "wsveh0", "welms1", "welms2", "wlemiss", "lsa", "lra", "lqa", "lcx", "svphcx")
+
+
+def same_rates(names):
+    """(a, b, array) of every rate array that two files' readers return with the same values."""
+    rates = {n: {k.removeprefix("ht").removeprefix("rt"): v for k, v in expected(n).items()} for n in names}
+    return [(a, b, k) for i, a in enumerate(names) for b in names[i + 1:] for k in RATES
+            if k in rates[a] and k in rates[b] and np.array_equal(rates[a][k], rates[b][k])]
+
+
+def test_tables_differ():
+    """No two files return the same rate table: a run that reads the wrong file must show it."""
+    assert same_rates(sorted(set(rf.EHR_SCALE) | set(rf.BRAAMS) | {"nwfits", "eh.dat", "atmc.dat"})) == []
+
+
+def test_same_rates_finds_a_copy(monkeypatch):
+    monkeypatch.setitem(rf.BRAAMS, "rates.adpak", (rf.Braams(1), False))
+    monkeypatch.setattr(rf, "NWFITS_SCALE", 1.0)
+    assert same_rates(["b2frates", "ehr1.dat", "nwfits", "rates.adpak"]) == [
+        ("b2frates", "rates.adpak", k) for k in ("lsa", "lra", "lqa", "lcx")] + [
+        ("ehr1.dat", "nwfits", k) for k in ("wsveh", "wsveh0")]
 
 
 def read_back(name, data, tmp_path):
