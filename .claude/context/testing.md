@@ -167,6 +167,16 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   of its own tolerances while tol is the generation tol (unweighted, the owner families' guard rows needed up to
   1e13), within the owner's R_max = 2·c·sqrt(N_block) (AIUE-92 D3). `make_references.py --only` keeps the stored
   weights, so the copied variant sketches stay valid.
+  A variant with another equation set (class EQSET, T24; no manifest has one yet) has other rows than the default: its
+  manifest entry also has `layout` (`neq`, `rows` per equation and species, `sha256` of its rows' meaning,
+  `compare.layout_sha`, and `moved`, the default's blocks that differ), and `Writer.write_eqset` stores it in
+  `/<config>/eqset/<id>/`: the rows it shares with the default (`compare.mapping`, by equation, species and cell) in the
+  default's order, sparse in a full store, the default's blocks cut to them in a sketch store with the default's
+  weights, and its added rows dense in both. `Store.check_eqset` refuses another layout and compares under
+  `make_references.eqset_tolerance` (shared rows as a SENSITIVE variant's, added rows rtol times the larger of the row
+  and its block's maximum; owner, 2026-11-24). `compare.check_order` (rows against `bbb/convert.m:31-152`'s loops over
+  the masks) and `check_masks` (masks against `setonxy`) are its index truth. The guard judges it by its entry, removal
+  like a SENSITIVE one's.
 - **Locality** (PRD §7.5; AIUE-100) `tests/yldot/harness/locality.py`: `jac_calc`'s protocol (`bbb/oderhs.m:1095-1226`)
   in the child after step 8b (`Runner.evaluate(family, locality=delta)`; the PR tier: steady, no variant): flag +1, `f00` (must
   equal `yldot_J` bitwise), then per column reset to `f00`, perturb by `delta·(|y|+dylconst/suscal)`, local `pandf`,
@@ -278,7 +288,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   for bit; in a sketch store its stored weights are kept and the thresholds recomputed from them, so `--only` does
   not notice a changed `tolerances.toml` rule, only the guard's changed `sketch_threshold` keys do: regenerate in
   full after one, AIUE-99 review; it takes every following word (`nargs="+"`,
-  `tests/yldot/tools/make_references.py:1451`), so name the families first: `generate … d_only ortho --only
+  `tests/yldot/tools/make_references.py:1490`), so name the families first: `generate … d_only ortho --only
   bbb.isfixrb`, AIUE-198; the copied entries keep their `reason` text, so an `--only` release's provenance commit is
   where only the regenerated entries were computed, AIUE-98, AIUE-206)
   and `--full` (dense vectors for localization). `--prune` and `--rename OLD=NEW…` (AIUE-95; owner, 2026-10-28, D1;
@@ -731,7 +741,7 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   owner family that shares a job runs its evaluations one after another, at the pre-T19 cost. An `--only` dispatch
   re-runs each owner
   family's default and its stored variant locality patterns (only `--prune` and `--rename` copy them,
-  `tests/yldot/tools/make_references.py:687`), so run
+  `tests/yldot/tools/make_references.py:726`), so run
   42760918518 (`--only bbb.newapi` on d_c, large_dd2c and imp7, AMD EPYC 7763) spent 9315 s in large_dd2c's children
   and 18549 s in imp7's (22 evaluations each) and took 316 of the 350 minutes: dispatch imp7 alone, where its
   locality runs also go `--jobs` at a time (AIUE-242, T19), three
