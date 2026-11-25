@@ -1,5 +1,5 @@
 """The variant tests of the yldot suite (AIUE-96; PRD sections 4, 7.2 and 7.4; decision 27): every stored variant of
-class SENSITIVE, INERT or INVALID of every family whose manifest classifies variants, one fresh evaluation each.
+class SENSITIVE, EQSET, INERT or INVALID of every family whose manifest classifies variants, one fresh evaluation each.
 
 SENSITIVE  its recorded applied value replayed and checked against its stored reference, yldot and the Jacobian-flag
            difference yldot_J - yldot, under tol_i(variant) (AIUE-94 D8) through Store.check
@@ -8,10 +8,15 @@ SENSITIVE  its recorded applied value replayed and checked against its stored re
            decides (owner, 2026-10-24, AIUE-99 Q2). On a macOS build that may contract into FMA instructions (the build
            record, harness/build.py) a mismatch is reported as a BuildLimitWarning, not failed (owner, 2026-10-23,
            AIUE-96 D1); without a build record it fails, naming that (D4).
+EQSET      (another neq or equation layout, T24; owner, 2026-11-24) its recorded applied value replayed and checked by
+           variant_tolerances.eqset_result: its index truth, row order, masks and stored layout; its stored reference
+           under make_references.eqset_tolerance; and the blocks it left unmoved at generation against the live default
+           within its tol_i. A finite value out of tolerance against the stored reference alone is reported on an FMA
+           macOS build as for SENSITIVE; everything else fails.
 INERT      its recorded applied value replayed: yldot and yldot_J equal the live default of its configuration within
            the default's tol_i (PRD 7.3).
 INVALID    evaluated with the rules (no applied value is recorded): make_references.classify still gives INVALID, for
-           the same kind of reason (error, crash, timeout, neq, equation layout, non-finite); a different text is
+           the same kind of reason (error, crash, timeout, neq (0 only, T196), non-finite); a different text is
            printed, not failed. A bounds-check entry (the --checkbounds audit's runtime error, reproducible only in
            that build) pins the serial build's outcome instead: the serial run must give the class and, for INVALID,
            the kind of reason its reason ends with 'serial build: ...' (owner, 2026-10-28, AIUE-95 D5).
@@ -117,6 +122,29 @@ def test_sensitive(runner, plan, stores, record, family, vid):
     pytest.fail(what, pytrace=False)
 
 
+@pytest.mark.parametrize("family, vid", params("EQSET"))
+def test_eqset(runner, plan, stores, default, record, family, vid):
+    s = stores(family)
+    e = s.manifest["variables"][vid]
+    row = vt.check_eqset(family, s, runner, plan[vid], e, None, default(family, e["config"]))
+    if row["ok"]:
+        return
+    if "status" in row:
+        pytest.fail("{}-{}: {}".format(family, vid, row["message"]), pytrace=False)
+    what = "{}-{}: largest {} = {:.3g}\n{}".format(
+        family, vid, "ratio (sketch |dP| / bound, added rows |d_i| / tol_i)" if s.kind == "sketch"
+        else "|d_i| / tol_i(variant)", row["ratio"], row["report"])
+    if row.get("hard"):  # the layout, an unmoved block or a non-finite entry: not a limit of the build
+        pytest.fail(what, pytrace=False)
+    if record is None:
+        pytest.fail("{}\n{}".format(build.MISSING, what), pytrace=False)
+    if build.fma_contraction(record) and math.isfinite(row["ratio"]):
+        warnings.warn(build.BuildLimitWarning("{}, on a macOS FMA-contracting build (owner D1, AIUE-96): {}".format(
+            build.REPORTED, what.splitlines()[0])))
+        return
+    pytest.fail(what, pytrace=False)
+
+
 def comparison_base(runner, plan, default, family, e):
     """What a variant is compared with: the live default of its configuration, or for a set with a base (AIUE-257)
     the base set's live result, its stored applied value replayed."""
@@ -164,6 +192,9 @@ def invalid_problem(stored, cls, reason):
     ("neq 420 -> 360", "INVALID", "neq 420 -> 300", True),
     ("neq 420 -> 360", "INVALID", "error: boom", False),
     ("neq 420 -> 360", "INERT", "", False),
+    ("neq 420 -> 0", "EQSET", "neq 420 -> 360", False),
+    ("bounds-check: bbb/x.F:1: Index (serial build: EQSET)", "EQSET", "neq 420 -> 360", True),
+    ("bounds-check: bbb/x.F:1: Index (serial build: EQSET)", "INVALID", "error: boom", False),
 ])
 def test_invalid_problem(stored, cls, reason, ok):
     assert (invalid_problem(stored, cls, reason) is None) == ok

@@ -4,7 +4,7 @@ build reproduces the sample bit for bit (every ratio 0); replay of every SENSITI
 make_references.variant_tolerance (a pass, an entry off by 2 x tol_i(variant), a NaN, a failed evaluation, another
 commit) and the installed references; replay of a sketch store (large_dd2c, two variants, built without its
 locality pass, AIUE-291) through the sketch comparator under the new run's tol_i (AIUE-99 Q2); the tolerance of
-an EQSET variant (T24) on synthetic maps. collect and replay need the built uedge (in the Runner's children).
+an EQSET variant (T24) on synthetic maps, and its three checks on d_only and large_dd2c (eqset_result). collect and replay need the built uedge (in the Runner's children).
 """
 import json
 import sys
@@ -321,6 +321,167 @@ def test_replay_of_a_sketch_store_fails_what_does_not_reproduce(tmp_path, sketch
         assert row["ratio"] == float("inf") and "flag difference FAIL" in row["report"]
     else:
         assert row["ratio"] == float("inf") and row["status"] == "error"
+
+
+# ---------------------------------------------------------------- EQSET variants (T24)
+
+
+@pytest.fixture(scope="module")
+def eqsets(tmp_path_factory):
+    """A d_only sweep: te off (rows removed, nothing else moves), phi off (the te rows move), tg on (rows added), and a
+    SENSITIVE variant."""
+    d = tmp_path_factory.mktemp("eqsets")
+    (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)", "runner_image": "t"}))
+    mr.child(["d_only"], d / "references", d / "build.json",
+             sweep=["bbb.isteon", "bbb.isphion", "bbb.istgon", "bbb.cfvisx"])
+    return d
+
+
+@pytest.fixture(scope="module")
+def eqsets_sketched(tmp_path_factory):
+    """A sketch store's: large_dd2c without its locality pass (as sketched): tg swapped (rows removed and added)."""
+    d = tmp_path_factory.mktemp("eqsets_sketched")
+    (d / "build.json").write_text(json.dumps({"commit": SHA, "compiler": "gfortran (test)", "runner_image": "t"}))
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(locality, "load_config", lambda fdir: None)
+        mr.child(["large_dd2c"], d / "references", d / "build.json", sweep=["bbb.istgon"])
+    return d
+
+
+def test_replay_reproduces_every_eqset_variant(tmp_path, eqsets, capsys):
+    out = tmp_path / "replay.json"
+    assert vt.main(["vt", "replay", str(eqsets / "references"), "--build", str(eqsets / "build.json"),
+                    "--json", str(out)]) == 0
+    assert "d_only: 1 SENSITIVE and 3 EQSET replayed, 0 fail, largest ratio 0 (" in capsys.readouterr().out
+    rows = json.loads(out.read_text())["families"]["d_only"]
+    assert set(rows) == {"bbb.isteon", "bbb.isphion", "bbb.istgon", "bbb.cfvisx"}
+    assert all(r == {"ok": True, "ratio": 0.0} for r in rows.values())
+
+
+def eqset_rows(refs, change, default=lambda d: None):
+    """{id: check_eqset's row} with change(id, data, store) applied to every variant's data and default to the live
+    default's."""
+    from yldot.harness import Runner
+
+    plan = {v.id: v for v in variants.plan()}
+    runner, out = Runner(), {}
+    with vt.reference_stores(refs / "references", []) as stores:
+        for name, s in stores.items():
+            base = runner.evaluate(name).data
+            default(base)
+            for vid, e in s.manifest["variables"].items():
+                if e["class"] != "EQSET":
+                    continue
+                r = runner.evaluate(name, variant=plan[vid], replay=e["applied"])
+                change(vid, r.data, s)
+                out[vid] = vt.eqset_result(name, s, plan[vid], e, r, base)
+    return out
+
+
+def row_of(d, eq, name, k=0):
+    """The k-th row of equation eq in the first cell that has a row of it."""
+    imap = compare.index_map(d, compare.load_regions(family_dir(name)))
+    return int(np.flatnonzero(imap.eq == eq)[k])
+
+
+def test_eqset_values_off_are_not_hard(eqsets):
+    """A value out of tolerance in a block that moved, or in an added row, fails check 2 alone: finite, not hard."""
+    def change(vid, d, s):
+        if vid == "bbb.isphion":  # the te rows moved at generation
+            imap = compare.index_map(d, compare.load_regions(family_dir("d_only")))
+            i = int(np.flatnonzero((imap.eq == "te") & (imap.region == "core"))[0])
+            d["yldot"][i] *= 1 + 1e-5
+            d["yldot_J"][i] *= 1 + 1e-5
+        if vid == "bbb.istgon":
+            d["yldot_J"][row_of(d, "tg", "d_only")] += 1e6 * np.abs(d["yldot"]).max()
+    rows = eqset_rows(eqsets, change)
+    assert rows["bbb.isteon"] == {"ok": True, "ratio": 0.0}
+    for vid, label in (("bbb.isphion", "te[1]"), ("bbb.istgon", "tg[1]")):
+        row = rows[vid]
+        assert not row["ok"] and 1 < row["ratio"] < np.inf and "hard" not in row and label in row["report"], row
+
+
+def test_eqset_unmoved_block_is_compared_with_the_live_default(eqsets):
+    """Check 3: the variant equals its stored reference, the live default differs from it in rows the variant left
+    unmoved: every variant with that block unmoved fails, whatever the build."""
+    def default(d):
+        i = row_of(d, "ti", "d_only", 3)
+        d["yldot_J"][i] += 1e-3 * np.abs(d["yldot"]).max()
+    rows = eqset_rows(eqsets, lambda vid, d, s: None, default)
+    for vid in ("bbb.isteon", "bbb.istgon", "bbb.isphion"):
+        assert not rows[vid]["ok"] and rows[vid]["hard"] and rows[vid]["ratio"] == 0.0
+        assert "blocks unmoved at generation differ from the live default: ti[1]" in rows[vid]["report"]
+
+
+def test_eqset_moved_block_is_not_compared_with_the_live_default(eqsets):
+    """The te rows of phi off are in layout.moved: a live default that differs there is no failure; te off has no te."""
+    def default(d):
+        imap = compare.index_map(d, compare.load_regions(family_dir("d_only")))
+        i = int(np.flatnonzero((imap.eq == "te") & (imap.region == "core"))[0])
+        d["yldot"][i] += 1e-3 * np.abs(d["yldot"]).max()
+    rows = eqset_rows(eqsets, lambda vid, d, s: None, default)
+    assert rows["bbb.isphion"]["ok"] and rows["bbb.isteon"]["ok"] and rows["bbb.istgon"].get("hard")
+
+
+@pytest.mark.parametrize("kind, message", [
+    ("nan", "non-finite yldot or yldot_J"), ("order", "row order: "), ("switch", "equation masks: "),
+    ("idx", "index truth: "), ("layout", "the layout has neq"), ("sha", "rows of the layout differ")])
+def test_eqset_layout_and_non_finite_failures_are_hard(eqsets, kind, message):
+    """Check 1 and a non-finite entry: no build's round-off explains them (test_variants never reports them only)."""
+    def change(vid, d, s):
+        if kind == "nan":
+            d["yldot_J"][11] = np.nan
+        elif kind == "order":  # two species' rows swapped within one cell: the bijection and igyl hold
+            d["idxn"][3, 3] = d["idxn"][3, 3][::-1].copy()
+        elif kind == "switch":
+            d["switches"]["istioffxy"][2, 2] = 1
+        elif kind == "idx":
+            d["idxti"][2, 2] = 0
+        else:
+            lay = s.manifest["variables"][vid]["layout"]
+            lay.update(neq=lay["neq"] + 1) if kind == "layout" else lay.update(sha256="a" * 64)
+    for vid, row in eqset_rows(eqsets, change).items():
+        assert not row["ok"] and row["hard"] and row["ratio"] == np.inf and message in row["report"], (vid, row)
+
+
+def test_eqset_of_a_sketch_store(eqsets_sketched):
+    """large_dd2c, tg swapped: the shared rows through the sketches, the added rows one by one, unmoved blocks live."""
+    ok = eqset_rows(eqsets_sketched, lambda vid, d, s: None)
+    assert ok == {"bbb.istgon": {"ok": True, "ratio": 0.0}}
+
+    def added(vid, d, s):
+        imap = compare.index_map(d, compare.load_regions(family_dir("large_dd2c")))
+        i = int(compare.mapping(s.imap, imap)[2][5])
+        d["yldot"][i] *= 1 + 1e-4
+        d["yldot_J"][i] *= 1 + 1e-4
+
+    def shared(vid, d, s):
+        i = row_of(d, "ti", "large_dd2c", 100)
+        d["yldot_J"][i] += np.abs(d["yldot"]).max()
+
+    row = eqset_rows(eqsets_sketched, added)["bbb.istgon"]
+    assert not row["ok"] and 1 < row["ratio"] < np.inf and "added rows: yldot FAIL" in row["report"]
+    assert "hard" not in row
+    row = eqset_rows(eqsets_sketched, shared)["bbb.istgon"]
+    assert not row["ok"] and "flag difference FAIL" in row["report"] and row.get("hard")  # ti is unmoved
+
+
+def test_a_failed_eqset_evaluation_keeps_its_status(eqsets, monkeypatch):
+    from yldot.harness import Result, Runner
+
+    real = Runner.evaluate
+
+    def fails(self, family, **kw):
+        if "variant" not in kw:
+            return real(self, family, **kw)
+        return Result(status="error", family=family, config="steady", mode="spawn", message="Traceback\nRuntimeError: x\n",
+                      log_tail="")
+
+    monkeypatch.setattr(Runner, "evaluate", fails)
+    plan = {v.id: v for v in variants.plan()}
+    with vt.reference_stores(eqsets / "references", []) as stores:
+        rows = vt.replay_family("d_only", stores["d_only"], Runner(), plan, None)
+    assert rows["bbb.isteon"] == {"ok": False, "ratio": float("inf"), "status": "error", "message": "error: RuntimeError: x"}
 
 
 def test_replay_opens_the_installed_references():

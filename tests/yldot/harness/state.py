@@ -45,6 +45,7 @@ from . import locality, variants
 STATE_VARS = ["nis", "ups", "tes", "tis", "ngs", "tgs", "phis"]  # the saved arrays of step 6c
 INDEX_ARRAYS = ["idxn", "idxu", "idxte", "idxti", "idxg", "idxtg", "idxphi", "igyl"]
 MASK_ARRAYS = ["isnionxy", "isuponxy", "isteonxy", "istionxy", "isngonxy", "istgonxy", "isphionxy"]
+SWITCHES = [n for m in MASK_ARRAYS for n in (m[:-2], m[:-4] + "offxy")]  # is<eq>on, is<eq>offxy (compare.SWITCHES)
 GRID = {"bbb": ["ixmnbcl", "ixmxbcl", "iymnbcl", "iymxbcl", "mhdgeo"],
         "com": ["nx", "ny", "nxpt", "iysptrx", "ixpt1", "ixpt2", "ixlb", "ixrb", "iysptrx1", "iysptrx2", "nxcore",
                 "nxleg", "nycore", "nysol", "geometry"]}
@@ -104,9 +105,11 @@ def steady(bbb):
 
 
 def index_data(bbb, com):
-    """The index arrays, equation masks and grid indices (bbb/convert.m:31-152 builds the rows from them)."""
+    """The index arrays, equation masks and grid indices (bbb/convert.m:31-152 builds the rows from them), and the
+    equation switches (setonxy, bbb/odesetup.m:644-664, builds the masks from them; T24)."""
     out = {name: np.array(getattr(bbb, name)).copy() for name in INDEX_ARRAYS}
     out["masks"] = {name: np.array(getattr(bbb, name)).copy() for name in MASK_ARRAYS}
+    out["switches"] = {name: np.array(getattr(bbb, name)).copy() for name in SWITCHES}
     grid = {}
     for pkg, module in (("bbb", bbb), ("com", com)):
         for name in GRID[pkg]:
