@@ -23,7 +23,8 @@ Description: a single weak coupling removed from the evaluation window: the poin
  2.2e3, d_mols 1.2e2 (demonstrated without the 10x margin).
  Not in dnull_imp2 and imp7 since the synthetic rate files (T169): the largest score outside the pattern is 61.7
  and 18.0, below m_loc = 100 (caught at 190 and 193 times m_loc with the real tables), because the kept states'
- residuals widen the row tolerances there. Owner, 2026-11-24 (T169); T197 restores it.
+ residuals widen the row tolerances there. Owner, 2026-11-24 (T169); T197 restores it. In d_c it reaches 8.26 times
+ m_loc (256 before), still caught.
 
 diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
 index 7e0e260..7a37935 100644
