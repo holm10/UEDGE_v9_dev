@@ -413,6 +413,22 @@ def test_eqset_unmoved_block_is_compared_with_the_live_default(eqsets):
         assert "blocks unmoved at generation differ from the live default: ti[1]" in rows[vid]["report"]
 
 
+@pytest.mark.parametrize("key", ["yldot", "yldot_J"])
+def test_eqset_unmoved_block_tolerance_is_the_defaults_tol_i(eqsets, key):
+    """Check 3 allows the default's tol_i and no more: a live default off by 0.9 tol_i in one unmoved row passes, by
+    1.1 tol_i fails hard (decision 23; review I1-m1)."""
+    def off(factor):
+        def default(d):
+            imap = compare.index_map(d, compare.load_regions(family_dir("d_only")))
+            i = row_of(d, "ti", "d_only", 3)
+            d[key][i] += factor * mr.tolerance(family_dir("d_only"), d["yldot"], "steady", imap)[i]
+        return default
+    for vid, row in eqset_rows(eqsets, lambda vid, d, s: None, off(0.9)).items():
+        assert row["ok"] and row["ratio"] == 0.0, (vid, row)
+    for vid, row in eqset_rows(eqsets, lambda vid, d, s: None, off(1.1)).items():
+        assert not row["ok"] and row["hard"] and "ti[1]" in row["report"], (vid, row)
+
+
 def test_eqset_moved_block_is_not_compared_with_the_live_default(eqsets):
     """The te rows of phi off are in layout.moved: a live default that differs there is no failure; te off has no te."""
     def default(d):

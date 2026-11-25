@@ -61,7 +61,7 @@ def describe(res):
 
 
 def kind(reason):
-    """The kind of an INVALID reason: its first word (error, crash, timeout, neq, equation, non-finite)."""
+    """The kind of an INVALID reason: its first word (error, crash, timeout, neq, non-finite); neq only "neq N -> 0"."""
     return re.match(r"[^:\s]*", reason).group()
 
 
