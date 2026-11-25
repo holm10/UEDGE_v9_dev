@@ -10,10 +10,8 @@ Blocks: d_only: primary te[1]
  d_c: primary te[1]
  slab_phi: primary te[1]
  large_dd2c: primary te[1]
- dnull_imp2: primary te[1]
- imp7: primary te[1]
 Intermediate: none
-Families: d_only, ortho, d_mols, d_c, slab_phi, large_dd2c, dnull_imp2, imp7
+Families: d_only, ortho, d_mols, d_c, slab_phi, large_dd2c
 Source: bbb/pandf_plasma_energy.m:646 (at 6ccd347)
 Description: a single weak coupling removed from the evaluation window: the point-wise copy of the electron energy
  source vsoree = vsoreec (iseesorave = 0) stops one row short. A local (Jacobian) evaluation's point range is the
@@ -23,6 +21,9 @@ Description: a single weak coupling removed from the evaluation window: the poin
  difference must not fire. Owner, 2026-10-22 (AIUE-100 D1): replaces the j5p site, which was window padding.
  Probes at delta 1e-6: max score outside the default pattern slab_phi 1.6e4, d_c 2.6e4, ortho 7.5e3, d_only
  2.2e3, d_mols 1.2e2 (demonstrated without the 10x margin).
+ Not in dnull_imp2 and imp7 since the synthetic rate files (T169): the largest score outside the pattern is 61.7
+ and 18.0, below m_loc = 100 (caught at 190 and 193 times m_loc with the real tables), because the kept states'
+ residuals widen the row tolerances there. Owner, 2026-11-24 (T169); T197 restores it.
 
 diff --git a/bbb/pandf_plasma_energy.m b/bbb/pandf_plasma_energy.m
 index 7e0e260..7a37935 100644
