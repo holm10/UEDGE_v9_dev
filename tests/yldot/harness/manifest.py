@@ -21,7 +21,10 @@ The manifest is the reviewable text next to each family's one binary reference f
     variables   {variant id: {class, reason, applied, d (variants.encode form), phase, config, sha256 (of the
                 variant's stored datasets, or null), block_l2, jflag_block_l2}}. block_l2 is the L2 norm of
                 yldot_variant - yldot_default per (equation, species, region) block, zero blocks omitted (owner,
-                2026-10-21, AIUE-84); jflag_block_l2 the same for the flag differences;
+                2026-10-21, AIUE-84); jflag_block_l2 the same for the flag differences. A variant of class EQSET (T24:
+                another equation set than the default's, so other rows) has the same keys and layout = {neq, sha256
+                (compare.layout_sha of its rows), rows {"ni[1]": number of rows, ...}, moved [the blocks of the default
+                that differ from it, sorted]}; its block norms are over the rows it shares with the default;
     locality_variants (optional) {variant id: {config, sha256, added, dropped}}: the variants whose locality pattern
                 the reference stores as a difference from the default pattern (store.py, /<config>/locality_variants;
                 AIUE-101), with the SHA-256 of the variant's slice (store.locality_slice_sha) and its entry counts;
@@ -46,7 +49,9 @@ SUITE = Path(__file__).resolve().parent.parent
 SCHEMA = 1
 STORES = ("full", "sketch")
 CONFIG_NAMES = ("steady", "timestep")
-CLASSES = ("SENSITIVE", "INERT", "MARGINAL", "INVALID", "EXCLUDED")
+CLASSES = ("SENSITIVE", "INERT", "MARGINAL", "INVALID", "EXCLUDED", "EQSET")
+STORED = {"SENSITIVE": "variants", "EQSET": "eqset"}  # the classes with stored data and their group in a reference file
+LAYOUT = {"neq", "sha256", "rows", "moved"}
 PHASES = ("PRE", "POST")
 TAG_RE = re.compile(r"^yldot-data-v[1-9][0-9]*$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -223,9 +228,9 @@ def summarize(datasets):
     return guarded, unguarded
 
 
-def variant_sha(datasets, config, vid):
-    """The SHA-256 of one variant's stored datasets, or None if it stores none."""
-    prefix = "/{}/variants/{}/".format(config, vid)
+def variant_sha(datasets, config, vid, group="variants"):
+    """The SHA-256 of one variant's stored datasets below group (STORED), or None if it stores none."""
+    prefix = "/{}/{}/{}/".format(config, group, vid)
     shas = {n: s for n, s in datasets.items() if n.startswith(prefix)}
     return combined_sha(shas) if shas else None
 
@@ -252,6 +257,27 @@ def _norms(where, d, errors):
     if not isinstance(d, dict) or not all(isinstance(k, str) and isinstance(v, float) and math.isfinite(v) and v > 0
                                               for k, v in d.items()):
         errors.append("{}: need {{block label: finite positive float}}".format(where))
+
+
+def _layout(where, v, errors):
+    """The layout of an EQSET entry (T24), which no other class has."""
+    if v["class"] != "EQSET":
+        if "layout" in v:
+            errors.append("{}: only an EQSET variant has a layout".format(where))
+        return
+    lay = v.get("layout")
+    if not (isinstance(lay, dict) and set(lay) == LAYOUT):
+        errors.append("{}: an EQSET variant needs a layout with exactly the keys {}".format(where, sorted(LAYOUT)))
+        return
+    rows, moved = lay["rows"], lay["moved"]
+    if not (_int(lay["neq"]) and lay["neq"] > 0 and isinstance(rows, dict) and rows
+            and all(isinstance(k, str) and _int(n) and n > 0 for k, n in rows.items())
+            and sum(rows.values()) == lay["neq"]):
+        errors.append("{}: layout.rows must be {{block: int > 0}} summing to layout.neq, an int > 0".format(where))
+    if not (isinstance(lay["sha256"], str) and SHA_RE.match(lay["sha256"])):
+        errors.append("{}: layout.sha256 must be 64 hex".format(where))
+    if not (isinstance(moved, list) and all(isinstance(b, str) for b in moved) and moved == sorted(set(moved))):
+        errors.append("{}: layout.moved must be a sorted list of different block labels".format(where))
 
 
 def _locality_variants(m, variables, errors):
@@ -345,7 +371,7 @@ def validate(m):
             is_set = vid.startswith(SET_PREFIX)
             if is_set:  # a combination set (AIUE-257): its keys and its base set, d and applied per key
                 keys |= {"keys", "base"}
-            if not isinstance(v, dict) or set(v) != keys:
+            if not isinstance(v, dict) or set(v) - {"layout"} != keys:
                 errors.append("{}: need exactly the keys {}".format(where, sorted(keys)))
                 continue
             if is_set:
@@ -368,10 +394,11 @@ def validate(m):
             if v["phase"] not in PHASES or v["config"] not in CONFIG_NAMES:
                 errors.append("{}: phase {!r} / config {!r}".format(where, v["phase"], v["config"]))
             sha = v["sha256"]
-            if v["class"] == "SENSITIVE" and not (isinstance(sha, str) and SHA_RE.match(sha)):
-                errors.append("{}: a SENSITIVE variant needs the SHA-256 of its stored data".format(where))
-            if v["class"] != "SENSITIVE" and sha is not None:
-                errors.append("{}: only a SENSITIVE variant stores data (sha256 must be null)".format(where))
+            if v["class"] in STORED and not (isinstance(sha, str) and SHA_RE.match(sha)):
+                errors.append("{}: a variant of class {} needs the SHA-256 of its stored data".format(where, v["class"]))
+            if v["class"] not in STORED and sha is not None:
+                errors.append("{}: only a SENSITIVE or EQSET variant stores data (sha256 must be null)".format(where))
+            _layout(where, v, errors)
             _norms(where + ".block_l2", v["block_l2"], errors)
             _norms(where + ".jflag_block_l2", v["jflag_block_l2"], errors)
         _locality_variants(m, variables, errors)

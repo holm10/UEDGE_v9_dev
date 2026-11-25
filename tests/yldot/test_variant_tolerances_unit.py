@@ -3,20 +3,22 @@
 build reproduces the sample bit for bit (every ratio 0); replay of every SENSITIVE variant under
 make_references.variant_tolerance (a pass, an entry off by 2 x tol_i(variant), a NaN, a failed evaluation, another
 commit) and the installed references; replay of a sketch store (large_dd2c, two variants, built without its
-locality pass, AIUE-291) through the sketch comparator under the new run's tol_i (AIUE-99 Q2). collect and replay
-need the built uedge (in the Runner's children).
+locality pass, AIUE-291) through the sketch comparator under the new run's tol_i (AIUE-99 Q2); the tolerance of
+an EQSET variant (T24) on synthetic maps. collect and replay need the built uedge (in the Runner's children).
 """
 import json
 import sys
 import tomllib
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pytest
 
 from yldot.harness import compare, locality, variants
 from yldot.harness.process import family_dir
 from yldot.harness.state import INDEX_ARRAYS
+from yldot.test_compare_unit import SPEC, make_data, other_set
 
 SUITE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SUITE / "tools"))
@@ -130,6 +132,77 @@ def test_variant_tolerance_is_the_prd_rule_with_the_variants_reference(sampled):
             assert not np.array_equal(tv, mr.tolerance(fdir, s.default(config), config, s.imap))
             assert np.array_equal(mr.variant_tolerance(fdir, s.default(config), config, s.imap),
                                   mr.tolerance(fdir, s.default(config), config, s.imap))
+
+
+RTOL = {"ni": 1e-8, "up": 2e-8, "te": 3e-8, "ti": 4e-8, "ng": 5e-8, "tg": 6e-8, "phi": 7e-8}
+
+
+def eqset_case(tmp_path, rtol=RTOL):
+    """A scratch suite with a sigma.h5 and tolerances.toml for the synthetic default (make_data) and its other_set
+    variant: (family directory, default map, variant map, sigma, (i0, i1, added))."""
+    base, imap = (compare.index_map(d, SPEC) for d in (make_data(), make_data(edit=other_set)))
+    sig = np.linspace(1e-13, 2e-13, base.neq)
+    sig[base.eq == "up"] = 0.0
+    sig[np.flatnonzero(base.eq == "up")[:2]] = (3e-12, 5e-12)
+    with h5py.File(tmp_path / "sigma.h5", "w") as f:
+        for config in ("steady", "timestep"):
+            f["{}/sigma".format(config)] = sig * (1 if config == "steady" else 2)
+    lines = ["[rule]", "k = 100.0", "[rtol]"] + ["{} = {!r}".format(e, v) for e, v in rtol.items()]
+    (tmp_path / "tolerances.toml").write_text("\n".join(lines) + "\n")
+    return tmp_path, base, imap, sig, compare.mapping(base, imap)
+
+
+def test_eqset_tolerance_of_the_shared_rows_is_the_default_rule(tmp_path):
+    """Owner, T24: the variant's values under compare.tolerances on the default's map, sigma and floors, cut to the
+    shared rows; the rows the variant lacks (te) keep their say in the default's floors and nothing escalates."""
+    fdir, base, imap, sig, (i0, i1, added) = eqset_case(tmp_path)
+    ref = np.random.default_rng(24).standard_normal(imap.neq) * 1e3
+    for config, f in (("steady", 1), ("timestep", 2)):
+        tol = mr.eqset_tolerance(fdir, ref, config, base, imap, suite=tmp_path)
+        placed = np.random.default_rng(1).standard_normal(base.neq)  # what the missing rows hold does not matter
+        placed[i0] = ref[i1]
+        assert np.array_equal(tol[i1], compare.tolerances(placed, sig * f, RTOL, 100.0, base).tol[i0])
+        assert (tol > 0).all()
+    # by hand: a ti row, rtol_ti * |ref| against 100 sigma_i of the default's row of the same equation and cell
+    k = int(np.flatnonzero(imap.eq[i1] == "ti")[0])
+    tol = mr.eqset_tolerance(fdir, ref, "steady", base, imap, suite=tmp_path)
+    assert tol[i1[k]] == max(4e-8 * abs(ref[i1[k]]), 100.0 * sig[i0[k]])
+
+
+def test_eqset_tolerance_of_the_added_rows(tmp_path):
+    """D2, by hand: rtol_eq * max(|ref_i|, the largest |ref| of the added rows of the block); a block of zeros takes
+    the smallest block maximum > 0 of its equation and species."""
+    fdir, base, imap, _, (i0, i1, added) = eqset_case(tmp_path)
+    ref = np.zeros(imap.neq)
+    ng = added[imap.eq[added] == "ng"]
+    guard, core, pf = (ng[imap.region[ng] == r] for r in ("guard", "core", "pf"))
+    ref[guard] = np.linspace(-7.0, 3.0, guard.size)  # largest |ref| 7
+    ref[pf] = 0.5
+    ref[added[imap.eq[added] == "tg"]] = 100.0
+    ref[i1] = 1e9  # the shared rows have no say
+    tol = mr.eqset_tolerance(fdir, ref, "steady", base, imap, suite=tmp_path)
+    assert guard.size == 14 and core.size == 1 and pf.size == 2
+    assert np.array_equal(tol[guard], np.full(guard.size, 5e-8 * 7.0))
+    assert np.array_equal(tol[pf], np.full(2, 5e-8 * 0.5))
+    assert np.array_equal(tol[core], [5e-8 * 0.5])  # a block of zeros: the smallest maximum > 0, pf's
+    assert np.array_equal(tol[imap.eq == "tg"], np.full(int((imap.eq == "tg").sum()), 6e-8 * 100.0))
+
+
+def test_eqset_tolerance_refuses(tmp_path):
+    fdir, base, imap, _, (i0, i1, added) = eqset_case(tmp_path)
+    ref = np.ones(imap.neq)
+    ref[imap.eq == "tg"] = 0.0
+    with pytest.raises(compare.ToleranceEscalation, match=r"tg\[1\]: the 19 rows the default lacks are 0 everywhere"):
+        mr.eqset_tolerance(fdir, ref, "steady", base, imap, suite=tmp_path)
+    ref[imap.eq == "tg"] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        mr.eqset_tolerance(fdir, ref, "steady", base, imap, suite=tmp_path)
+    with pytest.raises(ValueError, match="shape"):
+        mr.eqset_tolerance(fdir, np.ones(base.neq), "steady", base, imap, suite=tmp_path)
+    (tmp_path / "b").mkdir()
+    fdir, base, imap, *_ = eqset_case(tmp_path / "b", {e: v for e, v in RTOL.items() if e != "tg"})
+    with pytest.raises(ValueError, match=r"no value for equations \['tg'\]"):
+        mr.eqset_tolerance(fdir, np.ones(imap.neq), "steady", base, imap, suite=tmp_path / "b")
 
 
 def test_replay_reproduces_every_sensitive_variant(tmp_path, sampled, capsys):

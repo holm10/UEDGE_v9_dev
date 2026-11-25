@@ -23,6 +23,13 @@ Layout (root attributes schema, family, store; a sketch file also k and seed):
     full:   /<config>/variants/<id>/yldot/{index, value}                rows differing (bitwise) from the default
             /<config>/variants/<id>/jflag/{index, value}                the variant's own flag difference
     sketch: /<config>/variants/<id>/{yldot, jflag}/{proj, l2, maxabs, argmax}
+    /<config>/eqset/<id>/{yldot, jflag}/...                             a variant with another equation set (class
+                                                                       EQSET, T24), over the rows it shares with the
+        default (compare.mapping), in the default's order; full: index counts those shared rows, sketch: the default's
+        blocks cut to them (empty ones left out), with the default's weights, argmax a row of the default
+    /<config>/eqset/<id>/added/{yldot, jflag_index, jflag_value}        its rows the default lacks, dense, in its own
+                                                                       row order (both stores; only when it has some).
+        The manifest's layout.sha256 (compare.layout_sha) ties these rows to the run that is checked
     /steady/locality/{delta, column, row, mismatch, dfull}             the locality entries with score > 1 at delta
                                                                        (locality.py, PRD 7.5; AIUE-100), both stores
     /steady/locality/columns                                           the perturbed columns, only when not every
@@ -62,7 +69,8 @@ from pathlib import Path
 import numpy as np
 
 from . import manifest as mf
-from .compare import DIAG_SCALED_RTOL, compare, index_map, listed, load_regions, mask_dead
+from .compare import (DIAG_SCALED_RTOL, compare, index_map, layout_rows, layout_sha, listed, load_regions, mapping,
+                      mask_dead)
 from .state import INDEX_ARRAYS, MASK_ARRAYS
 
 K = 8
@@ -71,6 +79,7 @@ C = 6.5  # owner-confirmed, decision 30
 SCHEMA = 1
 WEIGHT = "sketch_weight"  # /<config>/default/sketch_weight, a sketch store's weights (AIUE-174)
 LIBVER = ("v110", "latest")  # owner, 2026-10-22 (AIUE-94 D3)
+ADDED = ("yldot", "jflag_index", "jflag_value")  # /<config>/eqset/<id>/added, the rows the default lacks (T24)
 FETCH = "python tests/yldot/tools/fetch_data.py"
 
 
@@ -186,6 +195,12 @@ def blocks(imap):
         raise StoreError("rows in no block (index map without regions?): {}".format(listed(np.flatnonzero(ids < 0)
                                                                                            + 1)))
     return labels, rows, ids
+
+
+def cut_blocks(labels, rows, keep):
+    """(labels, rows) of the blocks cut to the rows in keep (row numbers), without the blocks that have none."""
+    cut = [(label, r[np.isin(r, keep)]) for label, r in zip(labels, rows)]
+    return [label for label, r in cut if r.size], [r for _, r in cut if r.size]
 
 
 @functools.lru_cache(maxsize=4096)
@@ -519,7 +534,8 @@ class Writer:
                 _ds(g, name, np.concatenate(cat[name]).astype(dt))
         return out
 
-    def write_variant(self, config, vid, yldot, yldot_J):
+    def _writable(self, config, vid):
+        """Refuse a variant before its default and weights, or with an unusable id."""
         _config(config)
         if config not in self.defaults:
             raise StoreError("{}: write the default before its variants".format(config))
@@ -527,32 +543,63 @@ class Writer:
             raise ValueError("variant id {!r}: non-empty, without '/'".format(vid))
         if self.kind == "sketch" and config not in self.weights:
             raise StoreError("{}: write the sketch weights (write_sketch_thresholds) before its variants".format(config))
+
+    @staticmethod
+    def _write_parts(g, parts):
+        for name, datasets in parts:
+            gs = g.create_group(name)
+            for key, a in datasets:
+                _ds(gs, key, a)
+
+    def write_variant(self, config, vid, yldot, yldot_J):
+        self._writable(config, vid)
         n = self.imap.neq
         yldot, yldot_J = _f64("yldot", yldot, n), _f64("yldot_J", yldot_J, n)
         g = self.f.create_group("{}/variants/{}".format(config, vid))
         if self.kind == "full":
-            for name, (i, v) in (("yldot", sparse_diff(yldot, self.defaults[config])),
-                                 ("jflag", jflag_sparse(yldot, yldot_J))):
-                gs = g.create_group(name)
-                _ds(gs, "index", i)
-                _ds(gs, "value", v)
+            parts = [(name, zip(("index", "value"), sp)) for name, sp in (
+                ("yldot", sparse_diff(yldot, self.defaults[config])), ("jflag", jflag_sparse(yldot, yldot_J)))]
         else:
-            for name, x in (("yldot", yldot), ("jflag", yldot_J - yldot)):
-                gs = g.create_group(name)
-                for key, a in sketch(x, self.labels, self.rows, self.seed, self.k, self.weights[config]).items():
-                    _ds(gs, key, a)
+            parts = [(name, sketch(x, self.labels, self.rows, self.seed, self.k, self.weights[config]).items())
+                     for name, x in (("yldot", yldot), ("jflag", yldot_J - yldot))]
+        self._write_parts(g, parts)
 
-    def copy_variant(self, config, vid, src):
+    def write_eqset(self, config, vid, yldot, yldot_J, imap):
+        """A variant with another equation set (class EQSET, T24; layout above), from its vectors in its own rows.
+        imap: its index map with regions."""
+        self._writable(config, vid)
+        yldot, yldot_J = _f64("yldot", yldot, imap.neq), _f64("yldot_J", yldot_J, imap.neq)
+        i0, i1, added = mapping(self.imap, imap)
+        g = self.f.create_group("{}/eqset/{}".format(config, vid))
+        if self.kind == "full":
+            parts = [(name, zip(("index", "value"), sp)) for name, sp in (
+                ("yldot", sparse_diff(yldot[i1], self.defaults[config][i0])),
+                ("jflag", jflag_sparse(yldot[i1], yldot_J[i1])))]
+        else:
+            labels, rows = cut_blocks(self.labels, self.rows, i0)
+            parts = [(name, sketch(dense(i0, x[i1], self.imap.neq), labels, rows, self.seed, self.k,
+                                   self.weights[config]).items())
+                     for name, x in (("yldot", yldot), ("jflag", yldot_J - yldot))]
+        if added.size:
+            j, v = jflag_sparse(yldot[added], yldot_J[added])
+            parts.append(("added", (("yldot", yldot[added]), ("jflag_index", j), ("jflag_value", v))))
+        self._write_parts(g, parts)
+
+    def copy_variant(self, config, vid, src, group="variants"):
         """Copy a stored variant of the Store src verbatim (each dataset read through src.read, so SHA-checked):
         make_references.py --only keeps the variants it does not regenerate bit for bit, which write_variant cannot
-        (the flag difference yldot_J - yldot does not round-trip through yldot_J)."""
+        (the flag difference yldot_J - yldot does not round-trip through yldot_J). group "eqset": an EQSET variant
+        (write_eqset), whose rows are those of src's default, so src's index map must be this file's."""
         _config(config)
         if config not in self.defaults:
             raise StoreError("{}: write the default before its variants".format(config))
         if src.kind != self.kind:
             raise StoreError("copy from a {} store into a {} store".format(src.kind, self.kind))
-        if vid not in src.variants(config):
-            raise StoreError("{}: no stored variant {} in {}".format(src.path, vid, config))
+        if vid not in src.variants(config, group):
+            raise StoreError("{}: no stored variant {} in {}{}".format(
+                src.path, vid, config, "" if group == "variants" else "/" + group))
+        if group == "eqset":
+            src._same_index(self.imap)
         if self.kind == "sketch":  # the stored projections are in the source's weights
             if config not in self.weights:
                 raise StoreError("{}: write the sketch weights (write_sketch_thresholds) before its variants".format(
@@ -560,15 +607,16 @@ class Writer:
             if np.asarray(src.weights(config)).tobytes() != self.weights[config].tobytes():
                 raise StoreError("{}: the sketch weights of {} differ from this file's: its variant sketches cannot "
                                  "be copied".format(config, src.path))
-        prefix = "{}/variants/{}".format(config, vid)
+        prefix = "{}/{}/{}".format(config, group, vid)
         if prefix in self.f:
             raise StoreError("{}: variant {} already written".format(config, vid))
         g = self.f.create_group(prefix)
         keys = ("index", "value") if self.kind == "full" else ("proj", "l2", "maxabs", "argmax")
-        for name in ("yldot", "jflag"):  # write_variant's order, so the bytes match a fresh write
-            gs = g.create_group(name)
-            for key in keys:
-                _ds(gs, key, src.read("/{}/{}/{}".format(prefix, name, key)))
+        names = [("yldot", keys), ("jflag", keys)]  # write_variant's order, so the bytes match a fresh write
+        if prefix + "/added" in src.f:
+            names.append(("added", ADDED))
+        self._write_parts(g, [(name, [(key, src.read("/{}/{}/{}".format(prefix, name, key))) for key in ks])
+                              for name, ks in names])
 
     def copy_locality_variant(self, config, vid, src):
         """Copy one variant's stored locality difference from the Store src (read SHA-checked against src's
@@ -628,6 +676,9 @@ class Store:
                              "from the stored blocks (regions or index layout changed: regenerate)".format(self.path))
         unknown = sorted("{}.{}: {}".format(vid, key, label) for vid, v in manifest.get("variables", {}).items()
                          for key in ("block_l2", "jflag_block_l2") for label in v[key] if label not in self.labels)
+        unknown += sorted("{}.layout.moved: {}".format(vid, label)
+                          for vid, v in manifest.get("variables", {}).items() if "layout" in v
+                          for label in v["layout"]["moved"] if label not in self.labels)
         if unknown:
             raise StoreIntegrityError("{}: block labels of the manifest's variables are not blocks of the store: "
                                       "{}".format(self.path, listed(unknown)))
@@ -750,9 +801,55 @@ class Store:
             new = {name: a for name, a in new.items() if name in ref}
         return mask_dead(ref, live), mask_dead(new, live)
 
-    def variants(self, config):
-        g = "{}/variants".format(config)
+    def variants(self, config, group="variants"):
+        """The ids stored in config: the SENSITIVE variants, or group "eqset": the EQSET ones (T24)."""
+        g = "{}/{}".format(config, group)
         return sorted(self.f[g]) if g in self.f else []
+
+    def eqset_added(self, config, vid):
+        """(yldot, flag difference) of an EQSET variant's rows that the default lacks, dense in its row order."""
+        g = "/{}/eqset/{}/added".format(config, vid)
+        if g[1:] not in self.f:
+            return np.zeros(0), np.zeros(0)
+        y, j, v = (self.read("{}/{}".format(g, key)) for key in ADDED)
+        return y, dense(j, v, y.size)
+
+    def eqset_rows(self, vid, imap):
+        """compare.mapping of the default's map and imap, an EQSET variant's new map, once imap is the layout the
+        reference was made from (layout_difference)."""
+        problem = layout_difference(self.manifest["variables"][vid]["layout"], imap)
+        if problem:
+            raise StoreError("{}: {}: {}".format(self.path, vid, problem))
+        return mapping(self.imap, imap)
+
+    def _added_ref(self, config, vid, added):
+        """eqset_added, checked to be the added rows' number."""
+        y, j = self.eqset_added(config, vid)
+        if y.shape != added.shape:
+            raise StoreIntegrityError("{}: {} rows stored for the {} added rows of {}".format(self.path, y.shape,
+                                                                                             added.size, vid))
+        return y, j
+
+    def check_eqset(self, config, vid, yldot, yldot_J, tol, imap):
+        """Compare a new run of an EQSET variant (T24) with its stored reference, yldot and the Jacobian-flag
+        difference, under tol per row of the variant (make_references.eqset_tolerance): a full store every row, a
+        sketch store the shared rows' sketches and every added row. imap: the new run's map with regions, which must
+        be the stored layout. The Check's ratio: the largest |d| / tol of a row compared by itself and |dP| / bound of
+        a sketch, inf if not finite."""
+        if vid not in self.variants(config, "eqset"):
+            raise StoreError("{}: no stored variant {} in {}/eqset".format(self.path, vid, config))
+        n = imap.neq
+        yldot, yldot_J = _f64("yldot", yldot, n, False), _f64("yldot_J", yldot_J, n, False)
+        tol = per_entry("tol", tol, n)
+        parts = self._check_eqset(config, vid, yldot, yldot_J, tol, imap)
+        return Check(all(p.ok for p in parts), [line for p in parts for line in p.lines], max(p.ratio for p in parts))
+
+    def _rows_check(self, new, ref, tol, imap, what):
+        c = self._full_check(new, ref, tol, imap, what)
+        with np.errstate(invalid="ignore", over="ignore"):
+            r = np.abs(new - ref) / tol
+        c.ratio = float(r.max(initial=0.0)) if np.isfinite(r).all() else float("inf")
+        return c
 
     def _same_index(self, imap):
         same = (imap.neq == self.imap.neq and all(np.array_equal(getattr(imap, a), getattr(self.imap, a))
@@ -799,6 +896,24 @@ class FullVectorStore(Store):
         return [self._full_check(yldot, ref, tol, imap, "yldot"),
                 self._full_check(yldot_J - yldot, ref_j, tol, imap, "flag difference")]
 
+    def eqset(self, config, vid, imap):
+        """An EQSET variant's dense yldot and Jacobian-flag difference in its own rows (imap: a map of its layout)."""
+        i0, i1, added = self.eqset_rows(vid, imap)
+        p = "/{}/eqset/{}".format(config, vid)
+        shared = (dense(*self._sparse(p + "/yldot"), i0.size, base=self.default(config)[i0]),
+                  dense(*self._sparse(p + "/jflag"), i0.size))
+        out = []
+        for a, b in zip(shared, self._added_ref(config, vid, added)):
+            x = np.zeros(imap.neq)
+            x[i1], x[added] = a, b
+            out.append(x)
+        return tuple(out)
+
+    def _check_eqset(self, config, vid, yldot, yldot_J, tol, imap):
+        ref, ref_j = self.eqset(config, vid, imap)
+        return [self._rows_check(yldot, ref, tol, imap, "yldot"),
+                self._rows_check(yldot_J - yldot, ref_j, tol, imap, "flag difference")]
+
 
 class SketchStore(Store):
     kind = "sketch"
@@ -843,9 +958,47 @@ class SketchStore(Store):
         return [sketch_compare(ref, new, tol, self.labels, self.rows, imap, what="yldot", w=w),
                 sketch_compare(ref_j, new_j, tol, self.labels, self.rows, imap, what="flag difference", w=w)]
 
+    def eqset(self, config, vid):
+        """An EQSET variant's stored sketches of yldot and of the Jacobian-flag difference over the shared rows."""
+        p = "/{}/eqset/{}".format(config, vid)
+        return tuple({key: self.read("{}/{}/{}".format(p, what, key)) for key in ("proj", "l2", "maxabs", "argmax")}
+                     for what in ("yldot", "jflag"))
 
-STORED_VARIANT = re.compile(r"^/([^/]+)/variants/([^/]+)/")
+    def _check_eqset(self, config, vid, yldot, yldot_J, tol, imap):
+        i0, i1, added = self.eqset_rows(vid, imap)
+        labels, rows = cut_blocks(self.labels, self.rows, i0)
+        n, w = self.imap.neq, self.weights(config)
+        tol0 = np.ones(n)  # the rows the variant lacks are in no cut block
+        tol0[i0] = tol[i1]
+        new = [("yldot", yldot), ("flag difference", yldot_J - yldot)]
+        parts = []
+        for (what, x), ref in zip(new, self.eqset(config, vid)):
+            sk = sketch(dense(i0, x[i1], n), labels, rows, self.seed, self.k, w)
+            if sk["proj"].shape != ref["proj"].shape:
+                raise StoreIntegrityError("{}: {}: {} stored sketches, the shared rows have {}".format(
+                    self.path, vid, ref["proj"].shape, sk["proj"].shape))
+            parts.append(sketch_compare(ref, sk, tol0, labels, rows, self.imap, what=what, w=w))
+        for (what, x), ref in zip(new, self._added_ref(config, vid, added)):
+            if added.size:  # the shared rows compare equal here (0 and 0); the labels are the variant's
+                a, b = np.zeros(imap.neq), np.zeros(imap.neq)
+                a[added], b[added] = x[added], ref
+                parts.append(self._rows_check(a, b, tol, imap, "added rows: " + what))
+        return parts
+
+
+STORED_VARIANT = re.compile(r"^/([^/]+)/(variants|eqset)/([^/]+)/")  # config, group (mf.STORED), id
 LOCALITY_VARIANTS = re.compile(r"^/([^/]+)/locality_variants/ids$")
+
+
+def layout_difference(layout, imap):
+    """How imap differs from an EQSET variant's stored layout (the manifest's), or None."""
+    rows = layout_rows(imap)
+    if imap.neq != layout["neq"] or rows != layout["rows"]:
+        return "the layout has neq {} and rows {}, the stored one {} and {}".format(imap.neq, rows, layout["neq"],
+                                                                                   layout["rows"])
+    if layout_sha(imap) != layout["sha256"]:
+        return "the rows of the layout differ from the stored ones at the same counts"
+    return None
 
 
 def check_locality_variants(s):
@@ -876,7 +1029,8 @@ def check_locality_variants(s):
 
 def check_derived(m, path):
     """The manifest fields derived from m["datasets"] agree with them: guarded (with the locality pattern) and
-    unguarded, each SENSITIVE variant's sha256, and the stored variants against the SENSITIVE variables."""
+    unguarded, the sha256 of each variant with stored data (mf.STORED: SENSITIVE, EQSET), and the stored variants against
+    those variables."""
     problems = []
     guarded, unguarded = mf.summarize(m["datasets"])
     for what, got, want in (("guarded", m["guarded"], guarded), ("unguarded", m["unguarded"], unguarded)):
@@ -888,12 +1042,14 @@ def check_derived(m, path):
         hit = STORED_VARIANT.match(name)
         if hit:
             stored.add(hit.groups())
-    sensitive = {(v["config"], vid) for vid, v in m["variables"].items() if v["class"] == "SENSITIVE"}
-    if stored != sensitive:
-        problems.append("stored variants not SENSITIVE variables {}, SENSITIVE variables not stored {}".format(
-            sorted(stored - sensitive), sorted(sensitive - stored)))
-    bad = sorted(vid for vid, v in m["variables"].items()
-                 if v["class"] == "SENSITIVE" and mf.variant_sha(m["datasets"], v["config"], vid) != v["sha256"])
+    for cls, group in mf.STORED.items():
+        got = {(config, vid) for config, g, vid in stored if g == group}
+        want = {(v["config"], vid) for vid, v in m["variables"].items() if v["class"] == cls}
+        if got != want:
+            problems.append("stored variants not {0} variables {1}, {0} variables not stored {2}".format(
+                cls, sorted(got - want), sorted(want - got)))
+    bad = sorted(vid for vid, v in m["variables"].items() if v["class"] in mf.STORED and mf.variant_sha(
+        m["datasets"], v["config"], vid, mf.STORED[v["class"]]) != v["sha256"])
     if bad:
         problems.append("sha256 of the variables {} differs from their datasets".format(bad))
     loc = m.get("locality_variants", {})

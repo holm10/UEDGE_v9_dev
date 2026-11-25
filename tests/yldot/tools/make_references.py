@@ -205,6 +205,45 @@ def variant_tolerance(fdir, ref, config, imap, suite=SUITE):
     return tolerance(fdir, ref, config, imap, suite)
 
 
+def eqset_tolerance(fdir, ref, config, base_imap, imap, suite=SUITE):
+    """The tolerance per row of an EQSET variant (T24; owner, 2026-11-24, D2) from ref, its yldot in its own rows (imap;
+    both maps with regions): the stored one, in a sketch store the run's own in the rows it shares with the default
+    (AIUE-99 Q2) and the stored one in the others.
+    Shared rows (compare.mapping): variant_tolerance's rule, so the default's sigma_i of the row and the floors of the
+    default's map. Added rows have no sigma: rtol_eq * max(|ref_i|, the largest |ref| of the added rows of its (equation,
+    species, region)); a region whose added rows are all 0 takes the smallest such maximum > 0 of its (equation,
+    species). ToleranceEscalation when the added rows of an (equation, species) are 0 everywhere."""
+    from yldot.harness import compare
+
+    ref = np.asarray(ref, dtype=np.float64)
+    if ref.shape != (imap.neq,) or not np.isfinite(ref).all():
+        raise ValueError("ref must have shape ({},) and be finite".format(imap.neq))
+    i0, i1, added = compare.mapping(base_imap, imap)
+    placed = np.zeros(base_imap.neq)  # the rows the variant lacks keep 0: their sigma counts in the floors, not they
+    placed[i0] = ref[i1]
+    tol = np.zeros(imap.neq)
+    tol[i1] = tolerance(fdir, placed, config, base_imap, suite)[i0]
+    with open(suite / "tolerances.toml", "rb") as f:
+        rtol = tomllib.load(f)["rtol"]
+    missing = sorted(set(imap.eq[added].tolist()) - set(rtol))
+    if missing:
+        raise ValueError("rtol has no value for equations {}".format(missing))
+    is_added = np.zeros(imap.neq, dtype=bool)
+    is_added[added] = True
+    for (name, sp), rows in imap.blocks().items():
+        rows = rows[is_added[rows]]
+        if not rows.size:
+            continue
+        a, region = np.abs(ref[rows]), imap.region[rows]
+        top = {r: float(a[region == r].max()) for r in np.unique(region)}
+        if not any(top.values()):
+            raise compare.ToleranceEscalation("{}[{}]: the {} rows the default lacks are 0 everywhere, no scale for "
+                                              "their tolerance; {}".format(name, sp, rows.size, compare.OWNER))
+        least = min(t for t in top.values() if t > 0)
+        tol[rows] = rtol[name] * np.array([top[r] or least for r in region])
+    return tol
+
+
 def applied_record(data):
     """The variant's apply record (variants.apply): the POST one for a POST variant, else the PRE one."""
     v = data.get("variant") or {}
