@@ -55,6 +55,7 @@ LAYOUT = {"neq", "sha256", "rows", "moved"}
 PHASES = ("PRE", "POST")
 TAG_RE = re.compile(r"^yldot-data-v[1-9][0-9]*$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+ROW_KEY_RE = re.compile(r"(ni|up|te|ti|ng|tg|phi)\[[1-9][0-9]*\]")  # a layout.rows key: equation and 1-based species
 PATH_RE = re.compile(r"^(families|references)(/[A-Za-z0-9_.][A-Za-z0-9_.-]*)+$")  # no glob characters, no ".."
 PROVENANCE = ("commit", "compiler", "flags", "runner_image", "numpy", "h5py", "date")
 REQUIRED = ("schema", "family", "store", "release", "external")
@@ -261,7 +262,7 @@ def _norms(where, d, errors):
 
 def _layout(where, v, errors):
     """The layout of an EQSET entry (T24), which no other class has."""
-    if v["class"] != "EQSET":
+    if v["class"] != "EQSET":  # a class that is not a string is reported by validate
         if "layout" in v:
             errors.append("{}: only an EQSET variant has a layout".format(where))
         return
@@ -271,9 +272,10 @@ def _layout(where, v, errors):
         return
     rows, moved = lay["rows"], lay["moved"]
     if not (_int(lay["neq"]) and lay["neq"] > 0 and isinstance(rows, dict) and rows
-            and all(isinstance(k, str) and _int(n) and n > 0 for k, n in rows.items())
+            and all(isinstance(k, str) and ROW_KEY_RE.fullmatch(k) and _int(n) and n > 0 for k, n in rows.items())
             and sum(rows.values()) == lay["neq"]):
-        errors.append("{}: layout.rows must be {{block: int > 0}} summing to layout.neq, an int > 0".format(where))
+        errors.append("{}: layout.rows must be {{block like ni[1]: int > 0}} summing to layout.neq, an int > 0".format(
+            where))
     if not (isinstance(lay["sha256"], str) and SHA_RE.match(lay["sha256"])):
         errors.append("{}: layout.sha256 must be 64 hex".format(where))
     if not (isinstance(moved, list) and all(isinstance(b, str) for b in moved) and moved == sorted(set(moved))):
@@ -387,6 +389,7 @@ def validate(m):
                     errors.append("{}: base must be null or another set id".format(where))
             elif not (_encoded(v["applied"]) and _encoded(v["d"])):
                 errors.append("{}: applied and d must be null or variants.encode values".format(where))
+            stored = isinstance(v["class"], str) and v["class"] in STORED  # a list or dict class is unhashable
             if v["class"] not in CLASSES:
                 errors.append("{}: class {!r}, need one of {}".format(where, v["class"], CLASSES))
             if not isinstance(v["reason"], str):
@@ -394,9 +397,9 @@ def validate(m):
             if v["phase"] not in PHASES or v["config"] not in CONFIG_NAMES:
                 errors.append("{}: phase {!r} / config {!r}".format(where, v["phase"], v["config"]))
             sha = v["sha256"]
-            if v["class"] in STORED and not (isinstance(sha, str) and SHA_RE.match(sha)):
+            if stored and not (isinstance(sha, str) and SHA_RE.match(sha)):
                 errors.append("{}: a variant of class {} needs the SHA-256 of its stored data".format(where, v["class"]))
-            if v["class"] not in STORED and sha is not None:
+            if not stored and sha is not None:
                 errors.append("{}: only a SENSITIVE or EQSET variant stores data (sha256 must be null)".format(where))
             _layout(where, v, errors)
             _norms(where + ".block_l2", v["block_l2"], errors)

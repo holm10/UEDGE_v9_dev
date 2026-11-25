@@ -444,9 +444,15 @@ def check_order(imap, data):
     got, want = row_keys(imap), expected_rows(data)
     if got != want:
         bad = [i for i, (a, b) in enumerate(zip(got, want)) if a != b]
-        raise IndexTruthError("row order: {} rows, the masks and the grid give {}; {} rows differ, first {}; {}".format(
-            len(got), len(want), len(bad), listed("row {}: {} expected {}".format(i + 1, got[i], want[i]) for i in bad),
-            OWNER))
+        if bad:
+            what = "{} rows differ, first {}".format(len(bad), listed(
+                "row {}: {} expected {}".format(i + 1, got[i], want[i]) for i in bad))
+        else:  # the common rows agree: the shorter list lacks the rows the longer one has
+            n = min(len(got), len(want))
+            what = "the rows agree up to row {}; {}".format(
+                n, "extra row {}".format(got[n]) if len(got) > n else "missing row {}".format(want[n]))
+        raise IndexTruthError("row order: {} rows, the masks and the grid give {}; {}; {}".format(
+            len(got), len(want), what, OWNER))
 
 
 def check_masks(masks, switches):

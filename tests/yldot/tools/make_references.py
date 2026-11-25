@@ -211,8 +211,9 @@ def eqset_tolerance(fdir, ref, config, base_imap, imap, suite=SUITE):
     (AIUE-99 Q2) and the stored one in the others.
     Shared rows (compare.mapping): variant_tolerance's rule, so the default's sigma_i of the row and the floors of the
     default's map. Added rows have no sigma: rtol_eq * max(|ref_i|, the largest |ref| of the added rows of its (equation,
-    species, region)); a region whose added rows are all 0 takes the smallest such maximum > 0 of its (equation,
-    species). ToleranceEscalation when the added rows of an (equation, species) are 0 everywhere."""
+    species, region)): the added rows are the only rows of the block that both store kinds hold dense. A region whose
+    added rows are all 0 takes the smallest such maximum > 0 of its (equation, species).
+    ToleranceEscalation when the added rows of an (equation, species) are 0 everywhere."""
     from yldot.harness import compare
 
     ref = np.asarray(ref, dtype=np.float64)

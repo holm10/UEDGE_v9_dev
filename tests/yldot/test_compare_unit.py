@@ -2,6 +2,7 @@
 fallbacks (PRD section 7.4, safeguard (a)) and the comparator. Pure Python on synthetic index arrays built the way
 bbb/convert.m builds them; no uedge import, no child process.
 """
+import re
 import tomllib
 
 import numpy as np
@@ -627,8 +628,25 @@ def test_order_check_sees_another_count():
     d = make_data()
     imap = index_map(d, SPEC)
     d["masks"]["isphionxy"][0, 0] = 1
-    with pytest.raises(IndexTruthError, match="{} rows, the masks and the grid give {}".format(imap.neq, imap.neq + 1)):
+    with pytest.raises(IndexTruthError, match="{} rows, the masks and the grid give {}".format(
+            imap.neq, imap.neq + 1)):
         check_order(imap, d)
+
+
+def test_order_check_names_the_missing_or_extra_row(monkeypatch):
+    """The compared rows agree and only the count differs: no "0 rows differ", the first row beyond the shorter list."""
+    from yldot.harness import compare as cmp
+    imap = index_map(BASE, SPEC)
+    rows = row_keys(imap)
+    monkeypatch.setattr(cmp, "expected_rows", lambda data: rows + [("ni", 9, 9, 9)])
+    with pytest.raises(IndexTruthError, match=r"agree up to row {}; missing row \('ni', 9, 9, 9\)".format(
+            len(rows))) as e:
+        check_order(imap, BASE)
+    assert "0 rows differ" not in str(e.value)
+    monkeypatch.setattr(cmp, "expected_rows", lambda data: rows[:-1])
+    with pytest.raises(IndexTruthError, match="agree up to row {}; extra row {}".format(
+            len(rows) - 1, re.escape(str(rows[-1])))):
+        check_order(imap, BASE)
 
 
 def switches(nispmx=31, **over):

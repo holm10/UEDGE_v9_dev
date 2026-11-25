@@ -1025,6 +1025,14 @@ def test_invalid_head_manifest(repo):
     assert code == 1 and any(e.startswith("oth:") for e in v["errors"])
 
 
+def test_invalid_class_in_head_manifest(repo):
+    m = repo.manifest("oth")
+    next(iter(m["variables"].values()))["class"] = ["SENSITIVE"]
+    repo.write(G + "references/oth.manifest.json", json.dumps(m))
+    code, v, text = repo.check()
+    assert code == 1 and any(e.startswith("oth:") for e in v["errors"]) and "Traceback" not in text
+
+
 def test_no_download_skips_the_asset_checks(repo):
     repo.put_ref("fam", dict(BASE_VARIABLES["fam"], **{"bbb.new": ("SENSITIVE", 5)}))
     code, v, text = repo.check(no_download=True)
