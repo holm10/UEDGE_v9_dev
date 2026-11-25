@@ -107,8 +107,8 @@ bbb.eion=5
 bbb.ediss=10
 
 # ==== CARBON ====
-com.mcfilename[0]="C_rates.adas"
-com.coronalimpfname="../../data/mist_c.dat"  # isimpon=2 Post93 table: the case's mist.dat (Z=6, carbon)
+com.mcfilename[0]="C_rates.synthetic"  # not actual data (T169)
+com.coronalimpfname="../../data/mist_c.synthetic"  # isimpon=2 Post93 layout, Z=6; not actual data (T169)
 com.iscxfit=2
 bbb.ziin[2:8]=[1, 2, 3, 4, 5, 6]
 bbb.minu[2:8]=[12, 12, 12, 12, 12, 12]

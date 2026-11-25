@@ -5,7 +5,7 @@
 name = "d_c"
 grid = "gridue_16x8"
 store = "full"
-rate_files = ["ehr2.dat", "C_rates.strahl"]  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["ehr2.dat", "C_rates.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 2340
 
@@ -16,17 +16,17 @@ input = "templates/fulltests/nonog_d_c-fb_16x8/input.py"
 grid = "templates/fulltests/nonog_d_c-fb_16x8/gridue_16x8"
 state = "templates/fulltests/nonog_d_c-fb_16x8/solution.h5"
 state_sha256 = "8c98c8d825169e80dbced67e0fc814a4a67a1d96cb5a44dad3fd394d2b53307f"
-input_changes = "normal form: bbb.restart = 1 (132) and allocate + hdf5_restore (143-144) removed; aph.aphdir, api.apidir set"
+input_changes = "normal form: bbb.restart = 1 (132) and allocate + hdf5_restore (143-144) removed; aph.aphdir, api.apidir set; com.mcfilename = C_rates.synthetic (T169; was C_rates.strahl), ehr2.dat synthetic"
 
 [reference_state]
 file = "reference_state.h5"
 origin = "pytests template state, no reconvergence (owner, 2026-10-19); re-saved after one exmain, a round-trip fixed point (owner, 2026-10-21, AIUE-140)"
 norm = "nksol max |sfscal*yldot| <= ftol"
 ftol = 1e-08
-fmax = 3.9466e-05
-fnrm_l2 = 8.9816e-05
-converged = false  # information only, gates nothing
-build_commit = "c82a515b416db8f5a710f47133a5361107df84cd"
+fmax = 1.1350e+00  # with the synthetic rate files (T169); 3.9466e-05 with the real tables
+fnrm_l2 = 8.6485e+00
+converged = false  # information only, gates nothing; not expected with the synthetic rate files (owner, 2026-11-23, T169)
+build_commit = "0863c97938311eed87957128822af9ab9deb6c35"  # the Fortran measured (T169 changes none)
 build = "serial"
 uedge_ver = "8.1.2-beta.0"
 
@@ -34,7 +34,7 @@ uedge_ver = "8.1.2-beta.0"
 sigma = 0.02
 seed = 81003
 rule = "every (equation, species) block: RMS(raw yldot at base) / RMS(at reference) >= 10"
-min_block_ratio = 1.671e+06
+min_block_ratio = 14.07  # with the synthetic rate files (T169); 1.671e+06 with the real tables
 floors = "te, ti >= temin*ev; tg >= tgmin*ev; ng >= 0.1*ngbackg(igsp); impurity ni >= 0.1*nzbackg(ifld)"
 near_floor_factor = 1.1
 near_floor_tes = { reference = 0, base = 0 }
@@ -95,8 +95,8 @@ delta_loc = 1e-6
 m_loc = 100.0
 columns = "all"  # every column (AIUE-101 Q1: the small families)
 variants = "listed"  # the bbb.meth* variants and the window inputs store a pattern (AIUE-101 Q3, owner 2026-10-25)
-calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 3.91e+05, range_window_coupling 2.56e+04; largest default entry 3.92. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the Linux-image preview of f6122cb: bbb.xrinc 993, bbb.isjaccorall 2; none in the other variants."
+calibration = "D3: the smallest delta of 1e-6, 1e-5, 1e-4, 1e-3 (one for all small families) with both range mutations >= 10*M_loc on slab_phi and d_c and no stored entry within 3x of M_loc; only 1e-6 meets the 3x rule. Here at 1e-6, max score outside the default pattern: range_loop_bound 3.91e+05, range_window_coupling 2.56e+04; largest default entry 3.92. Variant patterns (AIUE-101; owner, 2026-10-25: the 3x rule calibrates delta on the default pattern only, the variants inherit it and are asserted as stored): entries within 3x of M_loc in the Linux-image preview of f6122cb: bbb.xrinc 993, bbb.isjaccorall 2; none in the other variants. With the synthetic rate files (T169, yldot-data-v26): 17 stored default entries (12 before), no new kind, the same causes; the figures above are from the real tables. range_window_coupling now reaches 8.26*M_loc here (256 before), below the rule's 10: accepted, still caught (owner, 2026-11-25, T169; T197 restores it)."
 
 [locality.causes]  # the by-design causes of the default pattern
 nonog = "isnonog = 1: the neutral heat-conductivity 4-point average in feixy (cftiexclg*cfneut*cfneutsor_ei*0.25*(hcyn(ix,iy)+hcyn(ix,iy1)+hcyn(ix2,iy)+hcyn(ix4,iy1)), bbb/pandf_plasma_energy.m:476-477, noted at :458-459) reaches cell ix-1, so ti at ix+2 (and iy-1) responds to ni[1], ni[2] and ti at ix, one cell beyond xrinc = 1; vanishes with cfneutsor_ei = 0 or cftiexclg = 0. By design (owner, 2026-10-22, AIUE-100 D2)."
-band_only = "at delta_loc = 1e-6 these entries are in the band (largest 3.92), so the asserted pattern P is empty: they must grow about 25x before the test sees them (owner, 2026-10-22, AIUE-100 D3)."
+band_only = "at delta_loc = 1e-6 these entries are in the band (largest 6.90; 3.92 with the real tables), so the asserted pattern P is empty: they must grow about 14.5x (25x) before the test sees them (owner, 2026-10-22, AIUE-100 D3; the first figures with the synthetic rate files, T169)."

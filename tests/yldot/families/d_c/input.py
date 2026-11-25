@@ -119,7 +119,7 @@ bbb.n0[2:8] = 1.e17
 bbb.nzbackg = 1.e9          #background density for impurities
 bbb.inzb = 2		    #exponent for switching on nzbackg
 bbb.ismctab = 2             # use Braams" rate tables
-com.mcfilename[0] = "C_rates.strahl"     # Imp rate file name
+com.mcfilename[0] = "C_rates.synthetic"  # Imp rate file name; not actual data (T169)
 aph.aphdir = "../../data"   # shared rate files, tests/yldot/data
 api.apidir = "../../data"   # shared rate files, tests/yldot/data
 

@@ -15,16 +15,15 @@ are populated, then `isimpon=7` with `afracs`), drifts and potential on. It
 3. restores `save_input_mod4.h5` and raises the D⁺ diffusivity in the core/near-SOL region.
 
 It does **not** call `exmain` at the end: the caller does. With all equations on, `neq = 44352` and the Jacobian
-has 3 190 290 nonzeros. Every run prints two `iter= 0` lines: the first (`fnrm≈2.7e8`) is the populate `exmain` in
+has 3 190 290 nonzeros. Every run prints two `iter= 0` lines: the first (`fnrm≈2.9e8`) is the populate `exmain` in
 the deck, the second is the caller's.
 
 | File | Content |
 |---|---|
-| `case/input_mod4.py` | The deck. The only change from the owner's copy: the rate directories (below). |
+| `case/input_mod4.py` | The deck. The only change from the owner's copy: the rate directory and files (below). |
 | `case/b0p1.hdf5` | Trimmed to `restore/bbb/{ngs,nis,phis,tes,tgs,tis,ups}` and `diffusivities/` (1.1 MB; the original was 11.7 MB) |
 | `case/save_input_mod4.h5` | Trimmed to `bbb/{ngs,nis,phis,tes,tgs,tis,ups}`, which is all `hdf5_restore` reads (0.6 MB) |
 | `case/gridue.hdf5` | Grid (`com.isgriduehdf5=1`) |
-| `case/mist.dat` | POST93 carbon radiation data, read from the working directory by `api/apip93.m` |
 | `case/testscript*.py`, `case/comp*.sh` | The owner's scripts, kept for reference (`testscript1.py`/`testscript2.py` need `uetools`) |
 | `tools/trim_case_data.py` | How the two HDF5 files were trimmed |
 | `tools/fingerprint.py` | SHA-256/`float.hex` fingerprint of one evaluation (yldot, jac, jacj, jaci, sfscal, suscal, fnrm) |
@@ -41,14 +40,15 @@ with gfortran 15.
 
 ### Rate files
 
-The deck needs `ehr2.dat` (hydrogen rates, `aph.aphdir`) and `C_rates.adas` (carbon rates, `api.apidir`). Both are
-already tracked in the repository in `builder/test/Forthon_cases/Forthon_case5/`, and the deck points there by
-default (a path relative to the deck file). To use another directory holding both files, set
-`UEDGE_OMP_RATES_DIR`. **Set it whenever the deck is copied out of this tree** (a temporary run directory, for
-example), because the default path is relative to the deck. `aphdir`/`apidir` hold at most 120 characters: in a
-deeper checkout the deck falls back to the path relative to the working directory (a relative `UEDGE_OMP_RATES_DIR`
-also works). The deck stops with an error if a rate file is missing or no form of the path fits. The case thus depends
-on the legacy `builder/test/` directory; moving or deleting those files breaks it.
+The deck needs `ehr2.dat` (hydrogen rates, `aph.aphdir`), `C_rates.synthetic` (carbon rates, `api.apidir`) and
+`mist_ne.synthetic` (fixed-fraction radiation, `com.coronalimpfname`). They are **synthetic files, not actual data**
+(`tests/yldot/data/README.md`, T169), and the deck points to that directory by default (a path relative to the deck
+file). To use another directory holding them, set `UEDGE_OMP_RATES_DIR`. **Set it whenever the deck is copied out of this tree** (a temporary run directory, for
+example), because the default path is relative to the deck. `aphdir`, `apidir` and `coronalimpfname` hold at most 120
+characters: in a deeper checkout the deck falls back to the path relative to the working directory (a relative `UEDGE_OMP_RATES_DIR`
+also works). The deck stops with an error if a rate file is missing or no form of the path fits. The case was set up
+on real tables, so its state is not in equilibrium with these files and it is not expected to converge (owner,
+2026-11-23): the checks compare OpenMP with serial bit for bit.
 
 ### Provenance of the data
 
@@ -74,7 +74,7 @@ Copy the case to a scratch directory and run from there:
 
 ```bash
 cp -R tests/deterministic_omp/case /tmp/omp_case && cd /tmp/omp_case
-export UEDGE_OMP_RATES_DIR=$OLDPWD/builder/test/Forthon_cases/Forthon_case5
+export UEDGE_OMP_RATES_DIR=$OLDPWD/tests/yldot/data
 export OMP_STACKSIZE=512M OMP_NUM_THREADS=4 HOME=/tmp/emptyhome
 python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py --tebox            # serial Te box (25 equations)
 python -I $OLDPWD/tests/deterministic_omp/tools/fingerprint.py --tebox --omp-jac  # OpenMP Jacobian (needs the OpenMP build)
@@ -339,13 +339,13 @@ The owner's original check, from inside a copy of `case/` (with the environment 
 ./comp.sh          # runs testscript.py twice (OpenMP build); different "iter= 0 fnrm=" lines mean non-determinism
 ```
 
-### Reference values (serial, `v9-develop` `0fac655`, macOS arm64, gfortran 15)
+### Reference values (serial, `v9-develop` `0863c979`, synthetic rate files of T169, macOS arm64, gfortran 15)
 
 | Configuration | neq | printed iteration-0 `fnrm` | `get_fnrm()` after `exmain` |
 |---|---|---|---|
-| Full problem, `ftol=1e20` | 44352 | `1.918820629111277` | `0x1.eb37d428ec4f0p+0` |
-| Te box, `ftol=1e20` | 25 | `0.3221264477609989` | `0x1.49db83f93d961p-2` |
-| Full problem, `itermx=3` | 44352 | 1.918820629111277, 1.836097068513709, 1.782757715864211, 1.762443625980891 | `0x1.c32f8166a1af7p+0` |
+| Full problem, `ftol=1e20` | 44352 | `32.91786622674181` | `0x1.0757ca3f8fac0p+5` |
+| Te box, `ftol=1e20` | 25 | `4.462290349050821` | `0x1.1d962a429b803p+2` |
+| Full problem, `itermx=3` | 44352 | 32.91786622674181, 32.91772507995744, 32.91763669553815, 32.91757613157029 | `0x1.07573227a57a1p+5` |
 
 These values are for orientation. Bitwise comparisons are always made against a reference run of the same build on
 the same machine, never against this table.
@@ -372,8 +372,8 @@ common block `/ompcommonscalarcopy/` must be defined first by `bbbpy` and no lat
 `OMP_CI_GEN_DIR` names the build's generated sources (the workflow sets it with `ci/gen_dir.sh`, which requires
 exactly one `build/temp.*` with `bbb_p.F90`); the AIUE-52 flow for the selected set; the **C1 bound**
 (`ci/jac_bound.py`) on every flow; and `ci/report.py`, which writes the combined `summary.md`, appends it to
-`$GITHUB_STEP_SUMMARY`, annotates the run and sets the exit code. The rate files are the tracked ones in
-`builder/test/Forthon_cases/Forthon_case5/` (AIUE-46); nothing is downloaded. The harness sets `OMP_STACKSIZE=512M`.
+`$GITHUB_STEP_SUMMARY`, annotates the run and sets the exit code. The rate files are the synthetic ones in
+`tests/yldot/data/` (T169); nothing is downloaded. The harness sets `OMP_STACKSIZE=512M`.
 
 A flow spec is `name|configurations|threads|K|arms|itermx|ppp`; `ppp` is JSON passed to the flow as `--ppp` (every
 run, serial included). The Te-box flows set `{"OMPJacMinChunkLen": 1, "OMPJacVerbose": 1}`: with the AIUE-61 fixed
