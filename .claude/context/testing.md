@@ -129,7 +129,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   that is not SENSITIVE, INERT or MARGINAL makes it EXCLUDED, "base set X is C"). A set's manifest entry carries
   `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 113
   of AIUE-257's sets, 50 of them based (89-104 per small family; six in large_dd2c for the `isnewpot = 1` potential
-  branches, nightly; `load_sets`, 2026-11-13), plus 54 gas-temperature sets that run in `d_mols_tg` and `d_only_tg` only (T22:
+  branches, nightly; `load_sets`, 2026-11-13), plus 56 gas-temperature sets that run in `d_mols_tg` (49 of them in `d_only_tg`) only (T22:
   the Tg selectors 0-6, `lytg`, `cgengmw`, `cfdiss`, `recyce`, `recycwe`, `cfalbedo`, the per-cell Tg arrays, the drift
   heating). The Tg value lists in `overrides.toml` also run in these two, elementwise; `bbb.istglb=4` leaves the
   molecule rows unwritten there (yldot 0; AIUE-273).
