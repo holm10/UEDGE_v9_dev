@@ -99,6 +99,17 @@ families = ["d_mols"]
 issues = ["AIUE-260"]
 reason = "diffusive molecule gas at the plates with recylb <= -2 (3444); covers AIUE-260 as the code behaves today: the left plate writes yldot(iv1), the Te row, with an ion-density difference (3474-3475)"
 
+["set:plate-mol-ngfix"]
+assign = { "bbb.recycp" = { value = -1.5, at = [1] } }
+families = ["d_mols"]
+reason = "molecule gas at the plates with -2 < recylb < -1: ng = nglfix/ngrfix (3470-3472, 4205-4207)"
+
+["set:plate-mol-ngfix-ng"]
+assign = { "bbb.recycp" = { value = -1.5, at = [1] }, "bbb.nglfix" = { scale = 2.0 }, "bbb.ngrfix" = { scale = 2.0 } }
+base = "set:plate-mol-ngfix"
+families = ["d_mols"]
+reason = "nglfix/ngrfix, read under -2 < recylb < -1, varied with that branch on"
+
 ["set:plate-mom-zerograd"]
 assign = { "bbb.recycm" = -9.95 }
 reason = "plate atom parallel momentum zero gradient (recycm in (-10.1, -9.9], 3238)"
@@ -139,6 +150,19 @@ assign = { "bbb.isph_sput" = { value = 0, at = [1] }, "bbb.sputtr" = -10.0, "bbb
 base = "set:plate-imp-fixed"
 families = ["d_c"]
 reason = "ngplatlb/ngplatrb, read only under sputtlb < -9.9 (3559, 4292), varied with that branch on"
+
+["set:recyprof-pf"]
+assign = { "bbb.ndatlb" = { value = 2, at = [0] }, "bbb.ydatlb" = { value = -0.2, at = [0, 0] }, "bbb.rdatlb" = { value = 0.5, at = [0, 0] }, "bbb.ndatrb" = { value = 2, at = [0] }, "bbb.ydatrb" = { value = -0.2, at = [0, 0] }, "bbb.rdatrb" = { value = 0.5, at = [0, 0] } }
+reason = "tabulated recycling of gas 1 at both plates (recyprof 934-941, 960-967): two points, R = 0.5 at -0.2 m and R = 0 at the separatrix, so the private-flux cells take the interpolated values (recyprof reads one point more than ndatlb, tracker T193; unset here, its interval is empty)"
+
+["set:recyprof-sol"]
+assign = { "bbb.ndatlb" = { value = 2, at = [0] }, "bbb.ydatlb" = { value = 0.2, at = [0, 1] }, "bbb.rdatlb" = { value = 0.5, at = [0, 1] }, "bbb.ndatrb" = { value = 2, at = [0] }, "bbb.ydatrb" = { value = 0.2, at = [0, 1] }, "bbb.rdatrb" = { value = 0.5, at = [0, 1] } }
+reason = "tabulated recycling of gas 1 at both plates (recyprof 934-941, 960-967): R = 0 at the separatrix and 0.5 at 0.2 m, so the SOL cells take the interpolated values (tracker T193 as in set:recyprof-pf)"
+
+["set:recyprof-sol-alb"]
+assign = { "bbb.ndatlb" = { value = 2, at = [0] }, "bbb.ydatlb" = { value = 0.2, at = [0, 1] }, "bbb.rdatlb" = { value = 0.5, at = [0, 1] }, "bbb.ndatrb" = { value = 2, at = [0] }, "bbb.ydatrb" = { value = 0.2, at = [0, 1] }, "bbb.rdatrb" = { value = 0.5, at = [0, 1] }, "bbb.adatlb" = { value = 0.5, at = [0, 1] }, "bbb.adatrb" = { value = 0.5, at = [0, 1] } }
+base = "set:recyprof-sol"
+reason = "the tabulated plate albedo adatlb/adatrb (1 at the separatrix, 0.5 at 0.2 m; recyprof 942-950, 968-976), read when one point is < 1, varied with the tabulated recycling on"
 
 # ================================================================ PF wall (iwall_boundary 1302, iy = 0, isixcore = 0)
 
@@ -366,33 +390,98 @@ assign = { "bbb.igaso" = { value = 1.0, at = [0] }, "bbb.matwso" = { value = 0, 
 issues = ["AIUE-280"]
 reason = "outer gas puff igaso without a material wall: the puff replaces the whole wall equation (2489, 2777), AIUE-280"
 
+# ================================================================ both walls (gas 2; coupling: wsmodi 574, wsmodo 647)
+
+["set:gasmat-albedo"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.5, at = [1] } }
+families = ["d_mols", "d_c"]
+reason = "gas 2 on material walls with recycw in [-1, 0]: diffusive-gas albedo 1 + recycw (PF 2013-2018, outer 2768-2773)"
+
+["set:gasmat-albedo-r"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -0.3, at = [1] } }
+base = "set:gasmat-albedo"
+families = ["d_mols", "d_c"]
+reason = "recycw(2) as the albedo 1 + recycw, varied with that branch on"
+
+["set:gasmat-backg"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [1] } }
+families = ["d_mols", "d_c"]
+reason = "gas 2 on material walls with recycw < -1: ng = ngbackg (PF 2010-2011, outer 2765-2767)"
+
+["set:gasmat-backg-ng"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = -1.5, at = [1] }, "bbb.ngbackg" = { scale = 10.0, at = [1] } }
+base = "set:gasmat-backg"
+families = ["d_mols", "d_c"]
+reason = "ngbackg(2), read under recycw(2) < -1 on a material wall, varied with that branch on"
+
+["set:wscpl"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = 0.5, at = [0] }, "bbb.albdsi" = { value = 0.5, at = [0] }, "bbb.albdso" = { value = 0.5, at = [0] } }
+reason = "both walls material with recycw(1) = 0.5 and source albedo 0.5 (albdsi/albdso of source 1): the base of the wall-source coupling sets, whose loss wsmodi/wsmodo re-inject"
+
+["set:wscpl-in"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = 0.5, at = [0] }, "bbb.albdsi" = { value = 0.5, at = [0] }, "bbb.albdso" = { value = 0.5, at = [0] }, "bbb.ncpli" = { value = 1, at = [0] }, "bbb.cplsori" = { value = 0.5, at = [0] } }
+base = "set:wscpl"
+reason = "wall-source coupling on the inner (PF) wall (wsmodi 609-617, 628-638): ncpli(1) = 1 re-injects the albedo loss of inner source 1 at inner source 1, times cplsori(1)"
+
+["set:wscpl-in-out"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = 0.5, at = [0] }, "bbb.albdsi" = { value = 0.5, at = [0] }, "bbb.albdso" = { value = 0.5, at = [0] }, "bbb.ncpli" = { value = -1, at = [0] }, "bbb.cplsori" = { value = 0.5, at = [0] } }
+base = "set:wscpl"
+reason = "wall-source coupling from the outer to the inner wall (wsmodi 618-625, 628-638): a negative ncpli(isor) = -k, which bbb.v does not document, takes the albedo loss of the OUTER wall over source isor and re-injects it on the inner wall at source k, times cplsori(k) (owner, 2026-11-24; unchecked ranges: tracker T194)"
+
+["set:wscpl-out"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = 0.5, at = [0] }, "bbb.albdsi" = { value = 0.5, at = [0] }, "bbb.albdso" = { value = 0.5, at = [0] }, "bbb.ncplo" = { value = 1, at = [0] }, "bbb.cplsoro" = { value = 0.5, at = [0] } }
+base = "set:wscpl"
+reason = "wall-source coupling on the outer wall (wsmodo 682-688, 699-707): ncplo(1) = 1 re-injects the albedo loss of outer source 1 at outer source 1, times cplsoro(1)"
+
+["set:wscpl-out-in"]
+assign = { "bbb.matwsi" = { value = 1, at = [0] }, "bbb.matwso" = { value = 1, at = [0] }, "bbb.recycw" = { value = 0.5, at = [0] }, "bbb.albdsi" = { value = 0.5, at = [0] }, "bbb.albdso" = { value = 0.5, at = [0] }, "bbb.ncplo" = { value = -1, at = [0] }, "bbb.cplsoro" = { value = 0.5, at = [0] } }
+base = "set:wscpl"
+reason = "wall-source coupling from the inner to the outer wall (wsmodo 689-697, 699-707): ncplo(isor) = -k, the mirror of ncpli = -k (owner, 2026-11-24; tracker T194)"
+
+["set:wscpl-mol"]
+assign = { "bbb.albdsi" = { value = 0.5, at = [1] }, "bbb.albdso" = { value = 0.5, at = [1] } }
+families = ["d_mols"]
+reason = "molecule source 2 with albedo 0.5 on both walls (d_mols default 0.9999): the base of the molecule coupling sets"
+
+["set:wscpl-mol-in-out"]
+assign = { "bbb.albdsi" = { value = 0.5, at = [1] }, "bbb.albdso" = { value = 0.5, at = [1] }, "bbb.ncpli" = { value = -2, at = [1] }, "bbb.cplsori" = { value = 0.5, at = [1] } }
+base = "set:wscpl-mol"
+families = ["d_mols"]
+reason = "coupling of the molecule source 2 from the outer to the inner wall: ncpli(2) = -2 (wsmodi(2) called at 1896; see set:wscpl-in-out)"
+
+["set:wscpl-mol-out-in"]
+assign = { "bbb.albdsi" = { value = 0.5, at = [1] }, "bbb.albdso" = { value = 0.5, at = [1] }, "bbb.ncplo" = { value = -2, at = [1] }, "bbb.cplsoro" = { value = 0.5, at = [1] } }
+base = "set:wscpl-mol"
+families = ["d_mols"]
+reason = "coupling of the molecule source 2 from the inner to the outer wall: ncplo(2) = -2 (wsmodo(2) called at 2687; see set:wscpl-out-in)"
+
 # ================================================================ per-cell wall arrays (setwallbcarrays, odesetup.m:548)
 
 ["set:pfvsix"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [3, 1, 0, 3] }, "bbb.istipfcix" = { cycle = [1, 3, 1, 0] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
 reason = "per-cell PF Te/Ti options 0, 1, 3 mixed along the wall (ispfbcvsix = 1; 1808, 1861), with non-uniform lyteix"
 
 ["set:pfvsix-tewalli"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 7.5 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [3, 1, 0, 3] }, "bbb.istipfcix" = { cycle = [1, 3, 1, 0] }, "bbb.tewalli" = { value = 7.5 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
 base = "set:pfvsix"
 reason = "tewalli in the cells where istepfcix = 1, varied with the per-cell options on"
 
 ["set:pfvsix-lyteix"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.istipfcix" = { cycle = [3, 0, 1] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.03, 0.07], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [3, 1, 0, 3] }, "bbb.istipfcix" = { cycle = [1, 3, 1, 0] }, "bbb.tewalli" = { value = 5.0 }, "bbb.tiwalli" = { value = 5.0 }, "bbb.lyteix" = { cycle = [0.03, 0.07], at = [0] }, "bbb.lytiix" = { cycle = [0.05], at = [0] } }
 base = "set:pfvsix"
 reason = "lyteix(1,) in the cells where istepfcix = 3, varied with the per-cell options on"
 
 ["set:pfvsix-n"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 0, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
 reason = "per-cell PF ni options 0, 1, 3 and up options 1, 2, 3, 0 mixed along the wall (ispfbcvsix = 1; 1517, 1624)"
 
 ["set:pfvsix-n-nwalli"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 2.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 0, 3] }, "bbb.nwalli" = { value = 2.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] } }
 base = "set:pfvsix-n"
 reason = "nwalli in the cells where isnwconiix = 1, varied with the per-cell options on"
 
 ["set:pfvsix-lyupix"]
-assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] }, "bbb.lyupix" = { value = 0.05, at = [0] } }
+assign = { "bbb.ispfbcvsix" = 1, "bbb.isnwconiix" = { cycle = [0, 1, 0, 3] }, "bbb.nwalli" = { value = 1.0e18 }, "bbb.lyniix" = { cycle = [0.05], at = [0] }, "bbb.isupwiix" = { cycle = [1, 2, 3, 0] }, "bbb.lyupix" = { value = 0.05, at = [0] } }
 base = "set:pfvsix-n"
 issues = ["AIUE-270"]
 reason = "lyupix(1,,), which no routine reads (isupwiix = 3 reads the scalar lyup(1), 1633): expected INERT against its base, AIUE-270"
@@ -545,6 +634,13 @@ assign = { "bbb.isnicore" = { value = 2, at = [7] } }
 families = ["d_c"]
 issues = ["AIUE-292"]
 reason = "impurity core flux plus ncore over a range on the top C charge state (isnicore = 2; 1474 and 1661, AIUE-292)"
+
+["set:core-imp-nicore2-range"]
+assign = { "bbb.isnicore" = { value = 2, at = [7] }, "bbb.ixfixnc" = 6, "bbb.incixc" = 1 }
+base = "set:core-imp-nicore2"
+families = ["d_c"]
+issues = ["AIUE-292"]
+reason = "the fixed-density range ixfixnc/incixc of the impurity core condition (isnicore = 2 on the top C charge state, 1667-1669) inside d_c's core cells 5-12: ix 6-7"
 
 ["set:core-imp-nicore4"]
 assign = { "bbb.isnicore" = { value = 4, at = [7] } }
@@ -885,6 +981,12 @@ reason = "core phi at iy = 1: d2ey/dy2 = 0 (iphibcc = 1, 2279, 2334), isnewpot =
 assign = { "bbb.iphibcc" = 2 }
 families = ["large_dd2c"]
 reason = "core phi at iy = 1: te constant, midplane ey = eycore (iphibcc = 2, 2283, 2338), isnewpot = 1"
+
+["set:lg-pfphi1"]
+assign = { "bbb.iphibcwi" = 1, "bbb.phintewi" = { scale = 1.5 } }
+families = ["large_dd2c"]
+issues = ["AIUE-274"]
+reason = "PF-wall phi = phintewi*Te (iphibcwi = 1, 2370-2372) with phintewi 3 -> 4.5; bbb.iphibcwi=1 stores it at 3, isnewpot = 1"
 
 ["set:lg-pfphi3"]
 assign = { "bbb.iphibcwi" = 3, "bbb.lyphi" = { value = 0.05, at = [0] } }

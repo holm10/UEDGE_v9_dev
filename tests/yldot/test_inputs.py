@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import pytest
 
-from yldot.harness import inputs, variants
+from yldot.harness import compare, inputs, variants
 
 CHARACTER = {"bbb.svrpkg", "bbb.petscoptfile", "bbb.petscopts", "bbb.GridFileName", "com.geometry",
              "com.mcfilename", "com.coronalimpfname"}  # PRD section 7.2
@@ -349,6 +349,36 @@ def test_sets_file_valid():
     sets = variants.load_sets()
     ids = [v.id for v in variants.plan()]
     assert len(ids) == len(set(ids)) and all(v.id in ids for v in sets)
+
+
+def pf_cycle_gaps(sets, family):
+    """(set id, key, options) of the per-cell PF cycles whose options the family's interior PF cells (iy = 1) miss."""
+    spec = compare.load_regions(family)
+    cells = [ix for ix in range(1, int(spec["nx"]) + 1) if compare.region_of(ix, 1, spec) == "pf"]
+    gaps = []
+    for v in sets:
+        for key, kind, x, at in v.assign:
+            if kind == "cycle" and key.partition(".")[2] in variants.PF_ARRAYS and family in (v.families or (family,)):
+                missed = set(x) - {x[ix % len(x)] for ix in cells}
+                if missed:
+                    gaps.append((v.id, key, sorted(missed)))
+    return gaps
+
+
+# slab_phi is not here: its [regions] and the boundary conditions' isixcore disagree on the PF cells (tracker T23)
+@pytest.mark.parametrize("family", ["d_only", "ortho", "d_mols", "d_c"])
+def test_set_pf_cycles_reach_interior(tmp_path, family):
+    """Every option of a per-cell PF cycle lies on an interior PF cell: on a plate guard cell the plate condition
+    writes the row, so the option there tests nothing (tracker T23). The cycle [0, 1, 3] misses 0 in the 10-cell
+    grids, whose PF cells are ix 1, 2, 7 and 8."""
+    sets = [v for v in variants.load_sets() if family in v.families]
+    cycles = [(v.id, key) for v in sets for key, kind, x, at in v.assign
+              if kind == "cycle" and key.partition(".")[2] in variants.PF_ARRAYS]
+    assert len(cycles) == 12  # two arrays in each of the six set:pfvsix* sets
+    assert pf_cycle_gaps(sets, family) == []
+    old = load_sets_text(tmp_path, GOOD_SETS.replace('families = ["d_only"]\nreason = "per-cell', 'reason = "per-cell'))
+    missed = [] if family == "d_c" else [("set:pfvsix", "bbb.istepfcix", [0])]  # d_c has PF cells at every ix mod 3
+    assert pf_cycle_gaps([v for v in old if v.id == "set:pfvsix"], family) == missed
 
 
 def test_set_value():
