@@ -603,24 +603,30 @@ reason = "cgengmw, read under istgpfc = 3, varied with that branch on"
 ["set:tg-pfc4"]
 assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0 }
 families = ["d_mols_tg", "d_only_tg"]
-reason = "PF wall half-Maxwellian with the recycled energy (istgpfc = 4 and (1 - cfdiss)*recycwe, 2061; isrefluxclip = 0 lets the reflux through)"
+reason = "PF wall half-Maxwellian with the recycled energy (istgpfc = 4 and (1 - cfdiss)*recycwe, 2061; isrefluxclip = 0 lets the reflux through) (in d_only_tg both walls move, the wc twin is stored in d_mols_tg only)"
+
+["set:tg-pfc4-clip"]
+assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 1 }
+base = "set:tg-pfc4"
+families = ["d_mols_tg"]
+reason = "isrefluxclip at its default 1 with the recycled energy live (cfdiss 0.5, recycwe 0.3; min/max clip at 2094): twin of pfc4 with the clip on; measured at d124e4f4: 19 rows differ from pfc4, tg[1] and tg[2] rows at ix = 1, 2, 7, 8 on the PF wall (iy = 0)"
 
 ["set:tg-pfc4-recycwe"]
 assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.6, "bbb.isrefluxclip" = 0 }
 base = "set:tg-pfc4"
 families = ["d_mols_tg", "d_only_tg"]
-reason = "recycwe, read under istgpfc = 4 with recycw > 0, varied with that branch on"
+reason = "recycwe, read under istgpfc = 4 with recycw > 0, varied with that branch on (in d_only_tg both walls move, the wc twin is stored in d_mols_tg only)"
 
 ["set:tg-pfc4-cfalbedo"]
 assign = { "bbb.istgpfc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0, "bbb.cfalbedo" = { scale = 1.5 } }
 base = "set:tg-pfc4"
 families = ["d_mols_tg", "d_only_tg"]
-reason = "cfalbedo, read under istgpfc = 4, varied with that branch on"
+reason = "cfalbedo, read under istgpfc = 4, varied with that branch on (in d_only_tg both walls move, the wc twin is stored in d_mols_tg only)"
 
 ["set:tg-pfc4-recycw"]
 assign = { "bbb.istgpfc" = 4, "bbb.recycw" = -0.5 }
 families = ["d_mols_tg", "d_only_tg"]
-reason = "PF wall half-Maxwellian without the recycled energy (recycw <= 0, 2091)"
+reason = "PF wall half-Maxwellian without the recycled energy (recycw <= 0, 2091) (in d_only_tg both walls move, the wc twin is stored in d_mols_tg only)"
 
 ["set:tg-pfc5"]
 assign = { "bbb.istgpfc" = 5 }
@@ -673,24 +679,30 @@ reason = "cgengmw, read under istgwc = 3, varied with that branch on"
 
 ["set:tg-wc4"]
 assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0 }
-families = ["d_mols_tg", "d_only_tg"]
+families = ["d_mols_tg"]
 reason = "outer wall half-Maxwellian with the recycled energy (istgwc = 4 and (1 - cfdiss)*recycwe, 2786; isrefluxclip = 0 lets the reflux through)"
+
+["set:tg-wc4-clip"]
+assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 1 }
+base = "set:tg-wc4"
+families = ["d_mols_tg"]
+reason = "isrefluxclip at its default 1 with the recycled energy live (cfdiss 0.5, recycwe 0.3; min/max clip at 2818): twin of wc4 with the clip on; measured at d124e4f4: 15 rows differ from wc4, tg rows only on the PF wall (iy = 0); no outer-wall (iy = 5) tg row differs, only ng rows there, so the clip at 2818 is not observed in tg at this state"
 
 ["set:tg-wc4-recycwe"]
 assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.6, "bbb.isrefluxclip" = 0 }
 base = "set:tg-wc4"
-families = ["d_mols_tg", "d_only_tg"]
+families = ["d_mols_tg"]
 reason = "recycwe, read under istgwc = 4 with recycw > 0, varied with that branch on"
 
 ["set:tg-wc4-cfalbedo"]
 assign = { "bbb.istgwc" = 4, "bbb.cfdiss" = 0.5, "bbb.recycwe" = 0.3, "bbb.isrefluxclip" = 0, "bbb.cfalbedo" = { scale = 1.5 } }
 base = "set:tg-wc4"
-families = ["d_mols_tg", "d_only_tg"]
+families = ["d_mols_tg"]
 reason = "cfalbedo, read under istgwc = 4, varied with that branch on"
 
 ["set:tg-wc4-recycw"]
 assign = { "bbb.istgwc" = 4, "bbb.recycw" = -0.5 }
-families = ["d_mols_tg", "d_only_tg"]
+families = ["d_mols_tg"]
 reason = "outer wall half-Maxwellian without the recycled energy (recycw <= 0, 2816)"
 
 ["set:tg-wc5"]
