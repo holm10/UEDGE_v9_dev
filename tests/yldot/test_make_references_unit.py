@@ -485,6 +485,21 @@ def test_only_keeps_every_other_entry(tmp_path, swept):
         assert z["yldot"].shape == z["default"].shape == (420,) and len(z["labels"]) == 420
 
 
+def test_only_of_an_eqset_entry(tmp_path, swept):
+    """--only of the EQSET entry reproduces the installed file bit for bit; --full labels its own rows (ni off)."""
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    d = tmp_path / "only"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.isnion"],
+             full=True, suite=suite)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
+    new, old = (mf.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
+    assert new["variables"] == old["variables"]
+    with np.load(d / "references" / "full" / "d_only.bbb.isnion.npz") as z:
+        assert z["default"].shape == (420,) and z["yldot"].shape == z["yldot_J"].shape == z["labels"].shape == (300,)
+        assert not any(x.startswith("ni[") for x in z["labels"])
+
+
 def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
     suite = tmp_suite(tmp_path)
     mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
@@ -690,12 +705,14 @@ def test_same_run_needs_the_same_index():
     assert mr.same_run(a, c) is None
 
 
-def test_child_reports_an_eqset_that_breaks_the_index_truth(tmp_path, monkeypatch):
+@pytest.mark.parametrize("function, error", [("eqset_map", compare.IndexTruthError),
+                                             ("eqset_tolerance", compare.ToleranceEscalation)])
+def test_child_reports_an_eqset_without_index_truth_or_tolerance(tmp_path, monkeypatch, function, error):
     """A row order that the masks do not give, or added rows without a scale, is a finding; nothing is stored."""
-    def broken(d, regions):
-        raise compare.IndexTruthError("row order: boom")
+    def broken(*a, **kw):
+        raise error("row order: boom")
 
-    monkeypatch.setattr(mr, "eqset_map", broken)
+    monkeypatch.setattr(mr, function, broken)
     d = tmp_path / "broken"
     mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.isteon"])
     m = mf.loads((d / "references" / "d_only.json").read_text())

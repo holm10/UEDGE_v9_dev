@@ -466,6 +466,82 @@ def test_eqset_of_a_sketch_store(eqsets_sketched):
     assert not row["ok"] and "flag difference FAIL" in row["report"] and row.get("hard")  # ti is unmoved
 
 
+def eqset_tolerance_refs(refs, monkeypatch):
+    """{id: (ref that eqset_result gives eqset_tolerance, this run's yldot, the stored shared reference or None, the
+    stored added rows, the added rows' indices)}, every value of this run 1 + 1e-3 times the stored one."""
+    real, out, seen = mr.eqset_tolerance, {}, []
+
+    def spy(fdir, ref, *a, **kw):
+        seen.append(np.array(ref))
+        return real(fdir, ref, *a, **kw)
+
+    def change(vid, d, s):
+        d["yldot"] *= 1 + 1e-3
+        d["yldot_J"] *= 1 + 1e-3
+        imap = compare.index_map(d, compare.load_regions(family_dir(s.manifest["family"])))
+        added = compare.mapping(s.imap, imap)[2]
+        out[vid] = [d["yldot"].copy(), s.eqset("steady", vid, imap)[0] if s.kind == "full" else None,
+                    s.eqset_added("steady", vid)[0], added]
+
+    monkeypatch.setattr(mr, "eqset_tolerance", spy)
+    eqset_rows(refs, change)
+    assert len(seen) == len(out)
+    return {vid: (ref, *rest) for ref, (vid, rest) in zip(seen, out.items())}
+
+
+def test_eqset_tolerance_of_a_full_store_takes_the_stored_reference(eqsets, monkeypatch):
+    """rtol times the stored rows, not this run's: the shared rows and the added ones (T24 D2)."""
+    for vid, (ref, y, stored, stored_added, added) in eqset_tolerance_refs(eqsets, monkeypatch).items():
+        shared = np.setdiff1d(np.arange(ref.size), added)
+        np.testing.assert_array_equal(ref[shared], stored[shared])
+        np.testing.assert_array_equal(ref[added], stored_added)
+        assert not np.array_equal(ref, y) and (added.size > 0) == (vid == "bbb.istgon")
+
+
+def test_eqset_tolerance_of_a_sketch_store_takes_this_runs_shared_rows(eqsets_sketched, monkeypatch):
+    """No dense shared reference is stored (AIUE-99 Q2); the added rows are, and the stored ones count (T24 D2)."""
+    (ref, y, _, stored_added, added), = eqset_tolerance_refs(eqsets_sketched, monkeypatch).values()
+    shared = np.setdiff1d(np.arange(ref.size), added)
+    np.testing.assert_array_equal(ref[shared], y[shared])
+    np.testing.assert_array_equal(ref[added], stored_added)
+    assert added.size and not np.array_equal(ref[added], y[added])
+
+
+def test_check_eqset_replays_the_recorded_value(eqsets, monkeypatch):
+    from yldot.harness import Result, Runner
+
+    seen = []
+
+    def evaluate(self, family, **kw):
+        seen.append(kw)
+        return Result(status="error", family=family, config="steady", mode="spawn", message="x\n", log_tail="")
+
+    monkeypatch.setattr(Runner, "evaluate", evaluate)
+    v, e = object(), {"applied": {"value": 7}}
+    vt.check_eqset("d_only", None, Runner(), v, e, 3.0, None)
+    assert seen == [{"variant": v, "replay": e["applied"], "timeout": 3.0}]
+
+
+def test_replay_compares_with_the_default_of_the_entrys_configuration(eqsets, monkeypatch):
+    """Each EQSET entry gets the live default of its own configuration, evaluated once per configuration."""
+    from types import SimpleNamespace
+
+    runs, got = [], {}
+
+    class FakeRunner:
+        def evaluate(self, family, config="steady", timeout=None):
+            runs.append(config)
+            return SimpleNamespace(ok=True, data="default " + config)
+
+    monkeypatch.setattr(vt, "check_eqset", lambda name, s, runner, v, e, timeout, base: got.setdefault(v, base))
+    entries = {"a": {"class": "EQSET", "config": "timestep"}, "b": {"class": "EQSET", "config": "steady"},
+               "c": {"class": "EQSET", "config": "timestep"}, "d": {"class": "INERT", "config": "steady"}}
+    s = SimpleNamespace(manifest={"variables": entries})
+    vt.replay_family("d_only", s, FakeRunner(), {k: k for k in entries}, None)
+    assert got == {"a": "default timestep", "b": "default steady", "c": "default timestep"}
+    assert sorted(runs) == ["steady", "timestep"]
+
+
 def test_a_failed_eqset_evaluation_keeps_its_status(eqsets, monkeypatch):
     from yldot.harness import Result, Runner
 

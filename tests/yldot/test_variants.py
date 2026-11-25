@@ -145,6 +145,44 @@ def test_eqset(runner, plan, stores, default, record, family, vid):
     pytest.fail(what, pytrace=False)
 
 
+OFF = {"ok": False, "ratio": 3.0, "report": "off"}
+MAC, LINUX = ({"platform": p, "forthon_fopt": "-O3", "fargs": "-g -O3"} for p in ("darwin", "linux"))
+
+
+@pytest.mark.parametrize("row, rec, outcome", [
+    ({"ok": True, "ratio": 0.5}, LINUX, "pass"),
+    ({"ok": True, "ratio": 0.5}, None, "pass"),
+    (OFF, LINUX, "fail"),
+    (OFF, None, "fail"),
+    (OFF, MAC, "report"),
+    (dict(OFF, hard=True), MAC, "fail"),  # the layout, the masks or an unmoved block: never a limit of the build
+    (dict(OFF, ratio=float("inf")), MAC, "fail"),
+    ({"ok": False, "ratio": float("inf"), "status": "error", "message": "error: boom"}, MAC, "fail"),
+])
+def test_eqset_outcome(monkeypatch, row, rec, outcome):
+    """test_eqset's rule on every kind of row of check_eqset, which gets the live default of the entry's configuration."""
+    from types import SimpleNamespace
+
+    seen = []
+    monkeypatch.setattr(vt, "check_eqset", lambda *a: seen.append(a) or row)
+    s = SimpleNamespace(kind="full", manifest={"variables": {"v": {"config": "timestep"}}})
+
+    def check():
+        test_eqset("runner", {"v": "plan v"}, lambda f: s, lambda f, config: (f, config), rec, "fam", "v")
+
+    if outcome == "fail":
+        with pytest.raises(pytest.fail.Exception, match="fam-v"):
+            check()
+    elif outcome == "report":
+        with pytest.warns(build.BuildLimitWarning, match=build.REPORTED):
+            check()
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            check()
+    assert seen == [("fam", s, "runner", "plan v", {"config": "timestep"}, None, ("fam", "timestep"))]
+
+
 def comparison_base(runner, plan, default, family, e):
     """What a variant is compared with: the live default of its configuration, or for a set with a base (AIUE-257)
     the base set's live result, its stored applied value replayed."""
