@@ -964,12 +964,13 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
                 special = locality.special_columns(dict(data["steady"], neq=imap.neq))
             base_p = locality.variant_base(default_p, special)
             # copied with its entry, not run again (AIUE-95): a --prune or --rename run's kept entries
-            scope = [vid for vid in locality.variant_scope(loc, variables) if not (copying and vid not in selected)]
+            loc_scope = [vid for vid in locality.variant_scope(loc, variables)
+                         if not (copying and vid not in selected)]
             loc_runs = stack.enter_context(contextlib.closing(Ahead(
                 lambda vid: runner.evaluate(name, variant=by_id[vid], replay=variables[vid]["applied"],
                                             timeout=timeout, locality=loc["delta_loc"],
-                                            columns=locality_columns(loc, variant=True)), scope, jobs)))
-            for vid in scope:
+                                            columns=locality_columns(loc, variant=True)), loc_scope, jobs)))
+            for vid in loc_scope:
                 e = variables[vid]
                 r = loc_runs.take(vid)
                 if isinstance(r, FamilyError):

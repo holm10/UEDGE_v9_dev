@@ -634,6 +634,16 @@ def test_child_classifies_with_the_variants_config_tol(tmp_path, monkeypatch):
         assert not np.array_equal(f["/steady/default/yldot"][()], f["/timestep/default/yldot"][()])
 
 
+def test_child_sweeps_every_family_alike(tmp_path):
+    """A family's locality scope does not limit the next family's sweep in the same process (T24; T19 reused the name):
+    an INVALID variant is in both families' entries."""
+    d = tmp_path / "two"
+    ids = ["bbb.cfvisx", "bbb.isphion"]
+    mr.child(["d_only", "d_mols"], d / "references", build_record(tmp_path), sweep=ids)
+    for name in ("d_only", "d_mols"):
+        assert sorted(mf.loads((d / "references" / "{}.json".format(name)).read_text())["variables"]) == ids
+
+
 MIST = """Reading uedge.hdf5-style save-file 'base_state.h5'.
 >>> Save read successfully
 **** data file mist.dat not found --
