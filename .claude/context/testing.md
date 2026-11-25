@@ -344,7 +344,7 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `test_locality.py`'s `test_locality[<family>]` cases as its cross-check (by node id, `locality_cases`: a `-k`
   expression also selects every `test_locality_variant`, AIUE-101), the others never (owner, 2026-10-22, AIUE-100 D4), and only in families
   with `[locality]` (owner, 2026-10-23, AIUE-92), over the family's column set; every family has one since AIUE-101,
-  and both range mutations list the owner families; writes the coverage matrix `matrix.json`/`matrix.md` (a working
+  and both range mutations list the owner families, except `range_window_coupling` dnull_imp2 and imp7 (T169, T197); writes the coverage matrix `matrix.json`/`matrix.md` (a working
   document, not committed) and its four gates (PRD §7.11 c; a run of named mutations evaluates G1 and G2 only and
   prints G3 and G4 as `SKIP`, exit 0 when no gate fails; owner, 2026-11-20, T26 D2; `test_mutations_unit.py`);
   `gates DIR`; exit 3 = owner; run at the end of every phase, about 3 min per mutation; a range mutation about
