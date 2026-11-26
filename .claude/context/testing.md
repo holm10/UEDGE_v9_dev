@@ -64,7 +64,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   sweep of d_mols_tg, d_only_tg and large_dd2c after the tg rtol rise; in large_dd2c only the `tg[2]` sketch weights and
   projections moved (thresholds, defaults and classes as in v26). `v28` (imp7, run 45729539152) and `v29` (the other
   nine families, run 45729542774), both `--only` from 9177593d (T24), store the 133 equation-set variants as EQSET and
-  add the 21 set entries of the six `set:eqoff-*` sets; no other entry or dataset moved.
+  add the 21 set entries of the six `set:eqoff-*` sets; no other entry or dataset moved. `v30` (run 45762306234 from
+  2bd360f3, T23, `--only` of d_only, d_mols, d_c, ortho, slab_phi and large_dd2c) adds the 55 entries of T23's 19 sets
+  and regenerates the six `set:pfvsix*` sets with their new cycles (30 entries); no other entry or dataset moved.
 - **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
   (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
   or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic` (`b2frates` and `carbmc.dat` keep
@@ -131,14 +133,15 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `issues` names AIUE-259 keys. A set with `base = "set:<other>"` must assign every key of its base, and is
   classified against the base set's result instead of the default (`make_references`: evaluated after its base; a base
   that is not SENSITIVE, INERT or MARGINAL makes it EXCLUDED, "base set X is C"). A set's manifest entry carries
-  `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 113
-  of AIUE-257's sets, 50 of them based (89-104 per small family; six in large_dd2c for the `isnewpot = 1` potential
-  branches, nightly; `load_sets`, 2026-11-13), plus 56 gas-temperature sets that run in `d_mols_tg` (49 of them in `d_only_tg`) only (T22:
+  `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 132
+  sets of AIUE-257 and T23, 61 of them based (97-117 per small family; seven in large_dd2c for the `isnewpot = 1`
+  potential branches, nightly; `load_sets`, T23), plus 56 gas-temperature sets that run in `d_mols_tg` (49 of them in `d_only_tg`) only (T22:
   the Tg selectors 0-6, `lytg`, `cgengmw`, `cfdiss`, `recyce`, `recycwe`, `cfalbedo`, the per-cell Tg arrays, the drift
   heating). The Tg value lists in `overrides.toml` also run in these two, elementwise; `bbb.istglb=4` leaves the
   molecule rows unwritten there (yldot 0; AIUE-273). Six `set:eqoff-*` sets (T24, 21 set and family pairs, small
   families) turn te, ti, phi or ng[2] off in part of the grid through `is*offxy`; none turns ni or up off in single
-  cells, where the code reads array index 0 (T195; owner, 2026-11-24).
+  cells, where the code reads array index 0 (T195; owner, 2026-11-24). `test_inputs.py` checks that every option of a
+  per-cell PF cycle lies on an interior PF cell of d_only, ortho, d_mols and d_c.
 - **Store** (PRD §7.3): `tests/yldot/harness/store.py` writes and reads one HDF5 reference file per family
   (`create`, `open_store`): `FullVectorStore` (full default, variants as the rows that differ bitwise) or
   `SketchStore` (full default, per (equation, species, region) block k = 8 projections of the weighted vector x·w
@@ -416,7 +419,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   With AIUE-257's sets (`yldot-data-v22`/`v23`, run at b86d14b8 plus a top-up of large_dd2c's six sets, counts summed)
   the generated pandf_boundary.F takes 1537/2305 lines and 1227/1854 branches (from 1365 and 1110); the untaken rest
   is family-level code (AIUE-171/172/173), the gas temperature until T22's families, known issues (AIUE-259), error stops and the
-  gaps of AIUE-301. `coverage.sh report --base` refuses a base built before a change to the generated pandf.F's
+  gaps of AIUE-301, whose lines T23's sets take (macOS coverage build of 2bd360f3 with `yldot-data-v30`'s data,
+  `coverage.sh new` restricted to T23's sets, 2026-11-26: `../uedge-wt/data/T23/`). `coverage.sh report --base` refuses a base built before a change to the generated pandf.F's
   instrumented lines (exit 2), so compare such runs per file.
 - **Build flags** (PRD §8) `tests/yldot/tools/build_flags.py`: runs `setup.py` per option set on `linux` and `darwin`
   without building (Forthon's `FCompiler`, `setup()`, `os.system`, the `make` calls, `mppl2f90`, `check_output` and

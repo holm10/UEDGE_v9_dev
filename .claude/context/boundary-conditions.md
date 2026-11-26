@@ -22,7 +22,15 @@ its `reason` in `tests/yldot/combinations.toml` (AIUE-257); the archived page ha
 - The set-up routines run once, from `bbb/odesetup.m:1367-1373`:
   - `walsor` (`bbb/pandf_boundary.m:363`): wall gas sources `igasi`/`igaso`, albedos `albdsi`, material walls `matwsi`;
   - `pltsor` (`bbb/pandf_boundary.m:716`): plate sources and evaporation;
-  - `recyprof` (`bbb/pandf_boundary.m:886`): recycling and albedo profiles, `sputtr`, tabulated `ndatlb`.
+  - `recyprof` (`bbb/pandf_boundary.m:886`): recycling and albedo profiles, `sputtr`, tabulated `ndatlb`. The table
+    loops read point `idat + 1` up to `ndatlb + 1`, one past the count (`bbb/pandf_boundary.m:934-938`; T193).
+- **Wall-source coupling** (`wsmodi`, `bbb/pandf_boundary.m:574`; `wsmodo`, `bbb/pandf_boundary.m:647`), in the PF and outer-wall gas
+  conditions of cells where `walsor` set the output flag `iscpli`/`iscplo` = 1 (not inputs; it does so for `ncpli(isor)` > 0
+  or `cplsori(isor)` > 0, so a negative `ncpli` alone flags no cell). For source `isor` of the gas, `ncpli(isor)` = 0:
+  none. k > 0: the albedo loss `(1 - albedoi)·ng·v·sy` summed over inner source `isor` is re-injected on the inner wall at source k, times `cplsori(k)`. -k (no text in `bbb.v` says so): the loss is that of
+  the OUTER wall over outer source `isor`, re-injected on the inner wall at source k, times `cplsori(k)`. `ncplo` is
+  the mirror with `cplsoro`. The re-injected flux is a wall sum, so it is outside the Jacobian window (code reading),
+  races under OpenMP (T65) and has unchecked index ranges (T194). Stored as `set:wscpl*` (tracker T23).
 
 ## Per-cell wall options (the trap)
 

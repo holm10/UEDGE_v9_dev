@@ -1860,24 +1860,24 @@
     "/steady/variants/set:pfup3-lyup/yldot/value": "06c3035342fc5753563156be39a79f99fa5e99fdb136a53d15037642300cbf41",
     "/steady/variants/set:pfvsix-lyteix/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:pfvsix-lyteix/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/set:pfvsix-lyteix/yldot/index": "1072391e9e73dd6a5e1de99216a551ec083348141161a4d04df9c2b6acddf22d",
-    "/steady/variants/set:pfvsix-lyteix/yldot/value": "09bc6103c6613deb40ca02fa42eff5d6530be36a5fb20cf6c5c190238232663b",
+    "/steady/variants/set:pfvsix-lyteix/yldot/index": "ee819d2b95eba2c5a13b81a9f83812c10a25dc81ca49d7ac8da4788511a6f375",
+    "/steady/variants/set:pfvsix-lyteix/yldot/value": "fe30930f7604c45267bf327f05f60fd6a975d359630cfc2f64769e314a4bccce",
     "/steady/variants/set:pfvsix-n-nwalli/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:pfvsix-n-nwalli/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:pfvsix-n-nwalli/yldot/index": "88020c8a66a43142a06ef5353d4a44c49e5e4c193abae64c21a7f7e57f304839",
-    "/steady/variants/set:pfvsix-n-nwalli/yldot/value": "56ef1ac59169e893098a65fdd49aa02a7d03ca4647ef38a522bbee0afb43e065",
+    "/steady/variants/set:pfvsix-n-nwalli/yldot/value": "a77def9eab922adce76651d2de5046c54070157d22c05ac140fab4c074019971",
     "/steady/variants/set:pfvsix-n/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:pfvsix-n/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/set:pfvsix-n/yldot/index": "97fc2228c69de00b55af36001ad1a6403da6b8dde7e58e35479383cd45c0f587",
-    "/steady/variants/set:pfvsix-n/yldot/value": "5d94c5d56db7b1815027cd136d6e393599a7c3dd9d34837c7f643df736a7c2b7",
+    "/steady/variants/set:pfvsix-n/yldot/index": "102bbc357ab7404a2e3bee395dbfcbb7058c93672fafcd570237545cc125dbe3",
+    "/steady/variants/set:pfvsix-n/yldot/value": "9f498ee6c3fce25575667171fafcef287705076bce769c852e9936fcc9f61ddb",
     "/steady/variants/set:pfvsix-tewalli/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:pfvsix-tewalli/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/set:pfvsix-tewalli/yldot/index": "9ecb51be7dfc601b025c2e55a393065db70d93c5364eff696563e5adfbc8ca4f",
-    "/steady/variants/set:pfvsix-tewalli/yldot/value": "cf72661184ddda363581b73445961606f0bb1f7b8cb0d94ae07f9ce925cb4b47",
+    "/steady/variants/set:pfvsix-tewalli/yldot/index": "81f28ba887dfc55965fa7aa6016bca289af94dfdef7a666e1323ee59717dd668",
+    "/steady/variants/set:pfvsix-tewalli/yldot/value": "4a2581dff9783ee14087c8022f02e4c264aa05a47634143d5f66075ed12f640a",
     "/steady/variants/set:pfvsix/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:pfvsix/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/set:pfvsix/yldot/index": "9ecb51be7dfc601b025c2e55a393065db70d93c5364eff696563e5adfbc8ca4f",
-    "/steady/variants/set:pfvsix/yldot/value": "a9c950dceff3c0daa4ece854011fc793dbbe8c8971bc2ff664cd36c9075b28dc",
+    "/steady/variants/set:pfvsix/yldot/index": "81f28ba887dfc55965fa7aa6016bca289af94dfdef7a666e1323ee59717dd668",
+    "/steady/variants/set:pfvsix/yldot/value": "008ee096c967d28ecd67a264a9f39c4425fa2b7581df058ce13d49b19e1e6527",
     "/steady/variants/set:plate-albedo-r/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:plate-albedo-r/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:plate-albedo-r/yldot/index": "b845382ff35b0083b6bf8240cfadc2217a58d92ca12badd67283d1b59635cd71",
@@ -1910,6 +1910,18 @@
     "/steady/variants/set:plate-zerograd/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:plate-zerograd/yldot/index": "b845382ff35b0083b6bf8240cfadc2217a58d92ca12badd67283d1b59635cd71",
     "/steady/variants/set:plate-zerograd/yldot/value": "432308007ce6e5ce7ca12fafd85f50508f0b5495398aa27183934685e31871d0",
+    "/steady/variants/set:recyprof-pf/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:recyprof-pf/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:recyprof-pf/yldot/index": "80099406cfb454f0e7a0122782035cd80653c6f55fbbaa2b7791bd6a56f1f0d7",
+    "/steady/variants/set:recyprof-pf/yldot/value": "f163f2700a310f2f4d375af48f5098081e33c1260efed40fcb7129aa1c69b7e8",
+    "/steady/variants/set:recyprof-sol-alb/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:recyprof-sol-alb/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:recyprof-sol-alb/yldot/index": "c6f9a6830c1074cc63a4effc529342c768948010c685b231672214ccda8ae9d4",
+    "/steady/variants/set:recyprof-sol-alb/yldot/value": "ddaf7c8a9f765e38282060dfa9387e77831cc7dfda13ed0cdc574380dd606745",
+    "/steady/variants/set:recyprof-sol/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:recyprof-sol/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:recyprof-sol/yldot/index": "c6f9a6830c1074cc63a4effc529342c768948010c685b231672214ccda8ae9d4",
+    "/steady/variants/set:recyprof-sol/yldot/value": "2369c7606f1495f277c1edc7d4573015e8ce358d15dde7ed0d1661fedd866fdd",
     "/steady/variants/set:womat-albedo/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:womat-albedo/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:womat-albedo/yldot/index": "7a0da11f23d7eae546af08c22f876036d367ce92aac965262fe33900450a4224",
@@ -1998,6 +2010,26 @@
     "/steady/variants/set:wovsix/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:wovsix/yldot/index": "124d684741c96fb15e89058bc610e63cf07afc8f46d73a02f971679f0b362ce4",
     "/steady/variants/set:wovsix/yldot/value": "3863f77ae12a405010af886cf3681594e4b4ba8170b0c126ce0eabbc40adaf85",
+    "/steady/variants/set:wscpl-in-out/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:wscpl-in-out/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:wscpl-in-out/yldot/index": "0474f7bb8b7cb3f7ffe278d8b885d39b1bf1bcba4ff021db09b8f0746c0af8b7",
+    "/steady/variants/set:wscpl-in-out/yldot/value": "d4b47c68c1363a630607a046f3b5b79ded31e255a20b62656178d4e2a9873c66",
+    "/steady/variants/set:wscpl-in/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:wscpl-in/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:wscpl-in/yldot/index": "0474f7bb8b7cb3f7ffe278d8b885d39b1bf1bcba4ff021db09b8f0746c0af8b7",
+    "/steady/variants/set:wscpl-in/yldot/value": "6133916da409017f23b5e1ea66fd975e968d96af9b14290b2fbce18961b3d47f",
+    "/steady/variants/set:wscpl-out-in/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:wscpl-out-in/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:wscpl-out-in/yldot/index": "0474f7bb8b7cb3f7ffe278d8b885d39b1bf1bcba4ff021db09b8f0746c0af8b7",
+    "/steady/variants/set:wscpl-out-in/yldot/value": "7369fa78db9ea183ad1b494ceade82e844b0832bc0da96e4877e197878b42917",
+    "/steady/variants/set:wscpl-out/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:wscpl-out/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:wscpl-out/yldot/index": "0474f7bb8b7cb3f7ffe278d8b885d39b1bf1bcba4ff021db09b8f0746c0af8b7",
+    "/steady/variants/set:wscpl-out/yldot/value": "95b9f5da0fa7335c9fb046615c20e02f78fa27d57405b35e6e3b5ad0f2101337",
+    "/steady/variants/set:wscpl/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/set:wscpl/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/set:wscpl/yldot/index": "0474f7bb8b7cb3f7ffe278d8b885d39b1bf1bcba4ff021db09b8f0746c0af8b7",
+    "/steady/variants/set:wscpl/yldot/value": "caa4eab043d30e6046af36cad91d690d617b807d98fd39d9c2fc61a7f43fb7e7",
     "/timestep/default/diagnostics/edisse": "0477813e763898ebeac8f4deb83221777d723e1039a85f8f5c3eb10c3c327829",
     "/timestep/default/diagnostics/eiamoldiss": "acaa9724d566b646ca60db946dc1535f6b5cadee1fc2f7dd805caf2f0d95671d",
     "/timestep/default/diagnostics/emolia": "acaa9724d566b646ca60db946dc1535f6b5cadee1fc2f7dd805caf2f0d95671d",
@@ -2167,8 +2199,8 @@
   },
   "external": {
     "references/d_only.h5": {
-      "bytes": 1346634,
-      "sha256": "850669b75e4bcc697b77ebe84bfe26cfcc18e57d32f9082cd7ca2b9f8617253c"
+      "bytes": 1360402,
+      "sha256": "62af0eaf6a59bc6e6bb323fba90771b81eabd29f302aa9d821b74768c3101534"
     }
   },
   "family": "d_only",
@@ -8256,15 +8288,15 @@
     }
   },
   "provenance": {
-    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
+    "commit": "2bd360f3d1e56c7d9c884035aa187f50e8b10eeb",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-26T01:03:35+00:00",
+    "date": "2026-11-26T06:01:07+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v29",
+  "release": "yldot-data-v30",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -37952,14 +37984,14 @@
           "shape": []
         },
         "bbb.istepfcix": {
-          "data": [0, 1, 3, 0, 1, 3, 0, 1, 3, 0],
           "dtype": "int64",
+          "runs": [[3, 1], [1, 1], [0, 1], [3, 2], [1, 1], [0, 1], [3, 2], [1, 1]],
           "shape": [
             10
           ]
         },
         "bbb.istipfcix": {
-          "data": [3, 0, 1, 3, 0, 1, 3, 0, 1, 3],
+          "data": [1, 3, 1, 0, 1, 3, 1, 0, 1, 3],
           "dtype": "int64",
           "shape": [
             10
@@ -37998,8 +38030,8 @@
       },
       "base": null,
       "block_l2": {
-        "te[1] guard": 6062057.591197085,
-        "ti[1] guard": 864966.3739010358
+        "te[1] guard": 3940765.9945698064,
+        "ti[1] guard": 1580135.18336837
       },
       "class": "SENSITIVE",
       "config": "steady",
@@ -38065,8 +38097,8 @@
         "bbb.lytiix"
       ],
       "phase": "POST",
-      "reason": "max |diff|/tol = 8.86e+09",
-      "sha256": "a05d221637b1865e91e776cda9dd54cfcd62a838f89d3f5371ac9fa306751df5"
+      "reason": "max |diff|/tol = 3.41e+09",
+      "sha256": "e9d45079443ce63438ff08c60987c331143e6c79d56c43e1048d3c308b93453c"
     },
     "set:pfvsix-lyteix": {
       "applied": {
@@ -38076,14 +38108,14 @@
           "shape": []
         },
         "bbb.istepfcix": {
-          "data": [0, 1, 3, 0, 1, 3, 0, 1, 3, 0],
           "dtype": "int64",
+          "runs": [[3, 1], [1, 1], [0, 1], [3, 2], [1, 1], [0, 1], [3, 2], [1, 1]],
           "shape": [
             10
           ]
         },
         "bbb.istipfcix": {
-          "data": [3, 0, 1, 3, 0, 1, 3, 0, 1, 3],
+          "data": [1, 3, 1, 0, 1, 3, 1, 0, 1, 3],
           "dtype": "int64",
           "shape": [
             10
@@ -38122,7 +38154,7 @@
       },
       "base": "set:pfvsix",
       "block_l2": {
-        "te[1] guard": 1520001.521027194
+        "te[1] guard": 833760.7128283515
       },
       "class": "SENSITIVE",
       "config": "steady",
@@ -38188,14 +38220,14 @@
         "bbb.lytiix"
       ],
       "phase": "POST",
-      "reason": "max |diff|/tol = 8.86e+09 against base set set:pfvsix",
-      "sha256": "9061611cac3826bdef35195dbe3e97df3a663cc91dcb4c7d66f873442d1de161"
+      "reason": "max |diff|/tol = 2.78e+08 against base set set:pfvsix",
+      "sha256": "64ea6b74a886b6666eacab697b22cf2d572d00142c6f88363afbf5728ebb79d0"
     },
     "set:pfvsix-lyupix": {
       "applied": {
         "bbb.isnwconiix": {
           "dtype": "int64",
-          "runs": [[0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31]],
+          "runs": [[0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31]],
           "shape": [
             10,
             31
@@ -38309,7 +38341,7 @@
       "applied": {
         "bbb.isnwconiix": {
           "dtype": "int64",
-          "runs": [[0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31]],
+          "runs": [[0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31]],
           "shape": [
             10,
             31
@@ -38347,7 +38379,7 @@
       },
       "base": null,
       "block_l2": {
-        "ni[1] guard": 349769.827457582,
+        "ni[1] guard": 118866.02005018231,
         "up[1] guard": 202330.16042239137,
         "up[2] guard": 185870.03545268526
       },
@@ -38402,13 +38434,13 @@
       ],
       "phase": "POST",
       "reason": "max |diff|/tol = 1.32e+10",
-      "sha256": "cc2cd90eed740efd934422736685e16f5ad09bf985db6642c55cb9ca9756e6fb"
+      "sha256": "d5f5f871afbf980c1c4aa97c3d45380b82af4fbd2378f6bb5173730aa10f9d2e"
     },
     "set:pfvsix-n-nwalli": {
       "applied": {
         "bbb.isnwconiix": {
           "dtype": "int64",
-          "runs": [[0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31], [1, 31], [3, 31], [0, 31]],
+          "runs": [[0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31], [0, 31], [3, 31], [0, 31], [1, 31]],
           "shape": [
             10,
             31
@@ -38446,7 +38478,7 @@
       },
       "base": "set:pfvsix-n",
       "block_l2": {
-        "ni[1] guard": 1414213.5623730952
+        "ni[1] guard": 1000000.0
       },
       "class": "SENSITIVE",
       "config": "steady",
@@ -38498,8 +38530,8 @@
         "bbb.isupwiix"
       ],
       "phase": "POST",
-      "reason": "max |diff|/tol = 7.46e+08 against base set set:pfvsix-n",
-      "sha256": "6dc1552d957fb6e28a87d5c5a13ea4b12a57d88b34d7f75c79f538d0ea3d46cf"
+      "reason": "max |diff|/tol = 5.58e+08 against base set set:pfvsix-n",
+      "sha256": "3feeae45a99dba16edc4cb68b206e2247d40b546442129f5c2560bb994d43385"
     },
     "set:pfvsix-tewalli": {
       "applied": {
@@ -38509,14 +38541,14 @@
           "shape": []
         },
         "bbb.istepfcix": {
-          "data": [0, 1, 3, 0, 1, 3, 0, 1, 3, 0],
           "dtype": "int64",
+          "runs": [[3, 1], [1, 1], [0, 1], [3, 2], [1, 1], [0, 1], [3, 2], [1, 1]],
           "shape": [
             10
           ]
         },
         "bbb.istipfcix": {
-          "data": [3, 0, 1, 3, 0, 1, 3, 0, 1, 3],
+          "data": [1, 3, 1, 0, 1, 3, 1, 0, 1, 3],
           "dtype": "int64",
           "shape": [
             10
@@ -38555,7 +38587,7 @@
       },
       "base": "set:pfvsix",
       "block_l2": {
-        "te[1] guard": 3535533.9059327375
+        "te[1] guard": 2499999.9999999995
       },
       "class": "SENSITIVE",
       "config": "steady",
@@ -38622,7 +38654,7 @@
       ],
       "phase": "POST",
       "reason": "max |diff|/tol = 2.27e+09 against base set set:pfvsix",
-      "sha256": "11499edd22f41f364bd8f098d6d415f2be1cc603e531403cf847e092f1a38b1f"
+      "sha256": "02804d46308a2eb6c959e8c47639850e2b2f6f431029a07ca53f51eef586d07d"
     },
     "set:plate-albedo": {
       "applied": {
@@ -38914,6 +38946,428 @@
       "phase": "PRE",
       "reason": "max |diff|/tol = 7.04e+09",
       "sha256": "4cae04968fa5a403d690241cbf666e83152619ec73aacf942d6b4ed85b28594b"
+    },
+    "set:recyprof-pf": {
+      "applied": {
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.5, 2], [0.0, 598]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.5, 2], [0.0, 598]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[-0.2, 2], [0.0, 598]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[-0.2, 2], [0.0, 598]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "base": null,
+      "block_l2": {
+        "ni[2] guard": 60251.23681883175
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.ndatlb",
+        "bbb.ydatlb",
+        "bbb.rdatlb",
+        "bbb.ndatrb",
+        "bbb.ydatrb",
+        "bbb.rdatrb"
+      ],
+      "phase": "POST",
+      "reason": "max |diff|/tol = 6e+08",
+      "sha256": "eb9b50cac000c96bd16c8b7e6bd7b019981088393c1c4810465b2361da518b8b"
+    },
+    "set:recyprof-sol": {
+      "applied": {
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.5, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.5, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.2, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.2, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "base": null,
+      "block_l2": {
+        "ni[2] guard": 1216982.6805465545
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.ndatlb",
+        "bbb.ydatlb",
+        "bbb.rdatlb",
+        "bbb.ndatrb",
+        "bbb.ydatrb",
+        "bbb.rdatrb"
+      ],
+      "phase": "POST",
+      "reason": "max |diff|/tol = 7.56e+08",
+      "sha256": "5883e7828203b108169737a033a263e09ceefc038f15e323fe212fac8c83cf9d"
+    },
+    "set:recyprof-sol-alb": {
+      "applied": {
+        "bbb.adatlb": {
+          "dtype": "float64",
+          "runs": [[1.0, 2], [0.5, 2], [1.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.adatrb": {
+          "dtype": "float64",
+          "runs": [[1.0, 2], [0.5, 2], [1.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[2, 2], [0, 10]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.5, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.5, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.2, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 2], [0.2, 2], [0.0, 596]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "base": "set:recyprof-sol",
+      "block_l2": {
+        "ni[2] guard": 120772.49028791503
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.adatlb": {
+          "dtype": "float64",
+          "runs": [[1.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.adatrb": {
+          "dtype": "float64",
+          "runs": [[1.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ndatlb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.ndatrb": {
+          "dtype": "int64",
+          "runs": [[0, 12]],
+          "shape": [
+            6,
+            2
+          ]
+        },
+        "bbb.rdatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.rdatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatlb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        },
+        "bbb.ydatrb": {
+          "dtype": "float64",
+          "runs": [[0.0, 600]],
+          "shape": [
+            6,
+            50,
+            2
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.ndatlb",
+        "bbb.ydatlb",
+        "bbb.rdatlb",
+        "bbb.ndatrb",
+        "bbb.ydatrb",
+        "bbb.rdatrb",
+        "bbb.adatlb",
+        "bbb.adatrb"
+      ],
+      "phase": "POST",
+      "reason": "max |diff|/tol = 1.69e+07 against base set set:recyprof-sol",
+      "sha256": "e3c400d0221d453861a744f02149e850cf4b89a749c6082c68067cde048b965e"
     },
     "set:womat-albedo": {
       "applied": {
@@ -40202,6 +40656,596 @@
       "phase": "POST",
       "reason": "max |diff|/tol = 5.44e+09 against base set set:wovsix",
       "sha256": "6bf16876f5587608f2df9c97f14ca8aab2a8d65ff06bf1b1ad8d4e859620cda8"
+    },
+    "set:wscpl": {
+      "applied": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "base": null,
+      "block_l2": {
+        "ni[2] guard": 2420717.5606504567,
+        "ti[1] guard": 123.41250725916301,
+        "ti[1] inner_leg": 11.248848514437896,
+        "ti[1] outer_leg": 12.0762439479709,
+        "ti[1] pf": 18.46488023399203,
+        "ti[1] sol": 498.4770734291439
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.9, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.matwsi",
+        "bbb.matwso",
+        "bbb.recycw",
+        "bbb.albdsi",
+        "bbb.albdso"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 5.62e+07",
+      "sha256": "06ddc6c0fdc71ed9d0410744d5a406d730ab8345f84ed0dacc5f6c27614f26ca"
+    },
+    "set:wscpl-in": {
+      "applied": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsori": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [0.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncpli": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "base": "set:wscpl",
+      "block_l2": {
+        "ni[2] guard": 490142.7071301774
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsori": {
+          "dtype": "float64",
+          "runs": [[0.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncpli": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.9, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.matwsi",
+        "bbb.matwso",
+        "bbb.recycw",
+        "bbb.albdsi",
+        "bbb.albdso",
+        "bbb.ncpli",
+        "bbb.cplsori"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 1.78e+07 against base set set:wscpl",
+      "sha256": "0890e5c104d6669545777bd4124ec0d63366d2285fadeaa594e41e40b5c750f4"
+    },
+    "set:wscpl-in-out": {
+      "applied": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsori": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [0.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncpli": {
+          "dtype": "int64",
+          "runs": [[-1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "base": "set:wscpl",
+      "block_l2": {
+        "ni[2] guard": 718854.9039850237
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsori": {
+          "dtype": "float64",
+          "runs": [[0.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncpli": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.9, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.matwsi",
+        "bbb.matwso",
+        "bbb.recycw",
+        "bbb.albdsi",
+        "bbb.albdso",
+        "bbb.ncpli",
+        "bbb.cplsori"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 2.6e+07 against base set set:wscpl",
+      "sha256": "43cf0544d1fb1e2538ea6c0c6b8912c71ba054b8c51c2926c66142b78b45eb2e"
+    },
+    "set:wscpl-out": {
+      "applied": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsoro": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [0.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncplo": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "base": "set:wscpl",
+      "block_l2": {
+        "ni[2] guard": 79875.40174445492
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsoro": {
+          "dtype": "float64",
+          "runs": [[0.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncplo": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.9, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.matwsi",
+        "bbb.matwso",
+        "bbb.recycw",
+        "bbb.albdsi",
+        "bbb.albdso",
+        "bbb.ncplo",
+        "bbb.cplsoro"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 2.69e+07 against base set set:wscpl",
+      "sha256": "e3f1afda348468d9cd058151f1c3f49ba42dcd3e16e394020c13e30540eb570e"
+    },
+    "set:wscpl-out-in": {
+      "applied": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsoro": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [0.0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncplo": {
+          "dtype": "int64",
+          "runs": [[-1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.5, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "base": "set:wscpl",
+      "block_l2": {
+        "ni[2] guard": 54462.09718693553
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.albdsi": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.albdso": {
+          "dtype": "float64",
+          "runs": [[1.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.cplsoro": {
+          "dtype": "float64",
+          "runs": [[0.0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwsi": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.matwso": {
+          "dtype": "int64",
+          "runs": [[1, 1], [0, 9]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.ncplo": {
+          "dtype": "int64",
+          "runs": [[0, 10]],
+          "shape": [
+            10
+          ]
+        },
+        "bbb.recycw": {
+          "dtype": "float64",
+          "runs": [[0.9, 1], [1e-10, 5]],
+          "shape": [
+            6
+          ]
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.matwsi",
+        "bbb.matwso",
+        "bbb.recycw",
+        "bbb.albdsi",
+        "bbb.albdso",
+        "bbb.ncplo",
+        "bbb.cplsoro"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 1.84e+07 against base set set:wscpl",
+      "sha256": "837dc5b81c65cf63e8bebf94c2ef23865d8a366e3f08019bc86ae8fdbe472461"
     }
   }
 }
