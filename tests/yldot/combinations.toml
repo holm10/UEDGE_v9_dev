@@ -10,6 +10,10 @@
 #              { scale = x, at = [...] }      d[at] * x (real variables only)
 #              { cycle = [a, b], at = [...] } along the 0:nx+1 axis of d[at], cell i takes entry i mod n of the list
 #                                             (the other axes broadcast); at must reach that axis
+#              { noise = [c, a, seed], at = [...] }  real arrays only, at must leave an axis: each element of d[at]
+#                                             (C order) takes c + a*(2u - 1), u in [0, 1) from unit_noise(seed)
+#                                             (the 53 high bits of numpy's PCG64 raw stream); a > 0, seed an
+#                                             integer >= 0 (tracker T17). The applied array is recorded and replayed
 #   reason   = "..."                          required: the branch the set takes (pandf_boundary.m lines)
 #   base     = "set:<name>"                   optional: classified against that set's result instead of the family
 #                                             default (the base has no base; full-store families only)
