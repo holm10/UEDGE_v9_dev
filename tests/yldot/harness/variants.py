@@ -201,6 +201,14 @@ def _is_number(x):
     return not isinstance(x, bool) and isinstance(x, (int, float))
 
 
+def _finite(x):
+    """A finite number that converts to a float (TOML integers have no size limit in tomllib)."""
+    try:
+        return math.isfinite(x)
+    except OverflowError:
+        return False
+
+
 def _set_entry(key, var, val, bad):
     """One assign entry of a set as (key, kind, x, at), checked against the variable's type and dimensions."""
     if var.type not in ("integer", "real"):
@@ -231,7 +239,7 @@ def _set_entry(key, var, val, bad):
             x = tuple(x)
         elif kind == "noise":
             if (not isinstance(x, list) or len(x) != 3 or not all(_is_number(e) for e in x)
-                    or not math.isfinite(x[0]) or not math.isfinite(x[1]) or x[1] <= 0
+                    or not _finite(x[0]) or not _finite(x[1]) or x[1] <= 0
                     or not isinstance(x[2], int) or x[2] < 0):
                 raise bad("{}: noise must be [centre, amplitude > 0, integer seed >= 0]".format(key))
             if len(at) >= len(dims):

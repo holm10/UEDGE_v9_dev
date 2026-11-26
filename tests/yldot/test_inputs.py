@@ -357,6 +357,8 @@ def test_value_list_families_refused(tmp_path, text, match):
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, -0.01, 1] } }\nreason = "x"\n', "noise must be"),
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, inf, 1] } }\nreason = "x"\n', "noise must be"),
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [nan, 0.01, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [1' + "0" * 400 + ', 0.01, 1] } }\nreason = "x"\n',
+     "noise must be"),  # an integer beyond float range (tomllib has no limit)
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [true, 0.01, 1] } }\nreason = "x"\n', "noise must be"),
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, -1] } }\nreason = "x"\n', "noise must be"),
     ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, 1.0] } }\nreason = "x"\n', "noise must be"),
