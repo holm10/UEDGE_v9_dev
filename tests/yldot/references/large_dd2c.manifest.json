@@ -3414,6 +3414,14 @@
     "/steady/variants/set:lg-iphibcc2/yldot/l2": "933ec7c1396727ce5c4817955987b583467fcf4f68eb7b64c72d27bc6a015135",
     "/steady/variants/set:lg-iphibcc2/yldot/maxabs": "bb5321f2cff2b1b294f4d2549e249163388ed61055a2668647f2b65b1125103d",
     "/steady/variants/set:lg-iphibcc2/yldot/proj": "9e3024267695264846db7176f306992fb5c67767777c70bcfd9e2434f46996c7",
+    "/steady/variants/set:lg-pfphi1/jflag/argmax": "02f10c1dce25abb41ca46baaa9f90e8ebe1db75f035eede9382fa3b9e160d2f1",
+    "/steady/variants/set:lg-pfphi1/jflag/l2": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
+    "/steady/variants/set:lg-pfphi1/jflag/maxabs": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
+    "/steady/variants/set:lg-pfphi1/jflag/proj": "ad6c8492d97ad88762eb73657a61c68e78bd5c36c5da3452b9d3094aaf7ea8bd",
+    "/steady/variants/set:lg-pfphi1/yldot/argmax": "3fdec3aeaf5faa475096e4cd4ba9e8ce2cd58dc9f614d917efc453fe2ce4ccef",
+    "/steady/variants/set:lg-pfphi1/yldot/l2": "efa2c202029ff1e91f883920ba777f90dde94a692ef1e9936038134ce46dbc57",
+    "/steady/variants/set:lg-pfphi1/yldot/maxabs": "bb5321f2cff2b1b294f4d2549e249163388ed61055a2668647f2b65b1125103d",
+    "/steady/variants/set:lg-pfphi1/yldot/proj": "9313664bffb6fed0278781eeb392b224ff0fbff1b570893d3dc8e4012255e062",
     "/steady/variants/set:lg-pfphi3/jflag/argmax": "02f10c1dce25abb41ca46baaa9f90e8ebe1db75f035eede9382fa3b9e160d2f1",
     "/steady/variants/set:lg-pfphi3/jflag/l2": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
     "/steady/variants/set:lg-pfphi3/jflag/maxabs": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
@@ -3550,8 +3558,8 @@
       "sha256": "c771adeb6fdaf2bb06c4d0b1f5d5cf691a56a82e68ad4074d2c5bce808ba7e70"
     },
     "references/large_dd2c.h5": {
-      "bytes": 11821896,
-      "sha256": "794115095ea7fdaa7816a3c3d609f5b77e850145b277ab3b9e4bfef8d549d81b"
+      "bytes": 11840584,
+      "sha256": "a96293065f539df21f36adea35a008deee300ef5b79fb3de6c2bf18e185a2d84"
     }
   },
   "family": "large_dd2c",
@@ -3684,15 +3692,15 @@
     }
   },
   "provenance": {
-    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
+    "commit": "2bd360f3d1e56c7d9c884035aa187f50e8b10eeb",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-26T02:28:28+00:00",
+    "date": "2026-11-26T08:12:33+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v29",
+  "release": "yldot-data-v30",
   "schema": 1,
   "sketch": {
     "k": 8,
@@ -32873,6 +32881,46 @@
       "phase": "PRE",
       "reason": "max |diff|/tol = 5.54e+08",
       "sha256": "2f4f0a210bd3df85dcb97e69d7f55363575ddcfbee5cade90582809a26c2ec00"
+    },
+    "set:lg-pfphi1": {
+      "applied": {
+        "bbb.iphibcwi": {
+          "data": [1],
+          "dtype": "int64",
+          "shape": []
+        },
+        "bbb.phintewi": {
+          "data": [4.5],
+          "dtype": "float64",
+          "shape": []
+        }
+      },
+      "base": null,
+      "block_l2": {
+        "phi[1] guard": 10481185.528243167
+      },
+      "class": "SENSITIVE",
+      "config": "steady",
+      "d": {
+        "bbb.iphibcwi": {
+          "data": [0],
+          "dtype": "int64",
+          "shape": []
+        },
+        "bbb.phintewi": {
+          "data": [3.0],
+          "dtype": "float64",
+          "shape": []
+        }
+      },
+      "jflag_block_l2": {},
+      "keys": [
+        "bbb.iphibcwi",
+        "bbb.phintewi"
+      ],
+      "phase": "PRE",
+      "reason": "max |diff|/tol = 3.3e+10",
+      "sha256": "675c1ee0121805c6261a96091d015112119739060ea67867edf94585e250337b"
     },
     "set:lg-pfphi3": {
       "applied": {
