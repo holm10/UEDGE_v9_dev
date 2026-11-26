@@ -36,45 +36,9 @@ permissions:
 
 jobs:
 
-  check-requests:
-    name: Checks whether tests and/or wheels are requested
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set UBUNTU tags env variables.
-      if: runner.os == 'Linux'
-      run: |
-          # Set "checking" variable to false by default.
-          # Get your last commit message, not the merge commit.
-          text=$(git log -1 --no-merges --pretty=%B)
-          # Tags sit on a line that starts with "#", e.g. "#@notest @nowheel".
-          # Only those lines count: a squash title ends in "(#N)".
-          tags=$(grep -E '^#[[:space:]]*@' <<< "$text" | grep -oE '@[a-z]+' | tr '\n' ' ' || true)
-          # Sanity check.
-          echo "Tags are: ${tags}"
-          # Add tags and overwrite "checking" variable to true if there are tags.
-          if [[ "${tags}" == *"@notest"*  ]]; then
-              echo "Seting test flags to FALSE"
-              echo "test=FALSE" >> $GITHUB_OUTPUT
-          else
-              echo "Seting test flags to TRUE"
-              echo "test=TRUE" >> $GITHUB_OUTPUT
-          fi
-          if [[ "${tags}" == *"@nowheel"*  ]]; then
-              echo "Seting wheel flags to FALSE"
-              echo "wheel=FALSE" >> $GITHUB_OUTPUT
-          else
-              echo "Seting wheel flags to TRUE"
-              echo "wheel=TRUE" >> $GITHUB_OUTPUT
-          fi
-
-
-
   build-serial:
     name: Builds the serial wheel once
     runs-on: ubuntu-24.04
-    needs: check-requests
     timeout-minutes: 30
     outputs:
       shards: ${{ steps.shards.outputs.shards }}
@@ -119,7 +83,7 @@ jobs:
   yldot-pr-tier:
     name: yldot PR tier (${{ matrix.shard }})
     runs-on: ubuntu-24.04
-    needs: [check-requests, build-serial]
+    needs: build-serial
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -191,43 +155,51 @@ jobs:
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.pyver }}
-    needs: [yldot-pr-tier, check-requests]
-    # Wheels only on pushes to v9-develop, main and tags (owner D5, AIUE-103); the matrix itself is a follow-up ticket
+    needs: yldot-pr-tier
+    # Wheels only on pushes to v9-develop, main and tags (owner D5, AIUE-103). Legs, build options and the cp315 test
+    # skip: owner decisions of T145 (2026-11-26). cibuildwheel v4 builds manylinux_2_28; it no longer builds cp38.
     if: >-
-      needs.check-requests.outputs.wheels != 'TRUE' && github.event_name == 'push' &&
+      github.event_name == 'push' &&
       (github.ref == 'refs/heads/v9-develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ${{ matrix.os }}
     continue-on-error: true
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14] 
-        pyver: [cp38, cp39, cp310, cp311, cp312]
+        os: [ubuntu-24.04, macos-15, macos-15-intel]
+        pyver: [cp39, cp310, cp311, cp312, cp313, cp314, cp315]
 
     steps:
       - name: Checks out repo
         uses: actions/checkout@v4
 
-      - name: Set up macOS-specific paths and libraries
+      - name: Set up the macOS compilers and OpenMP
         if: runner.os == 'macOS'
         run: |
-            # Symlink the correct gfortran compiler 
-            ln -s $(brew --prefix)/bin/gfortran-13 $(brew --prefix)/bin/gfortran
-            # Install OMP libraries
+            # Forthon calls "gfortran"; the macos-15 images have gfortran-13/14/15 and llvm@18 (no llvm@15)
+            ln -sf "$(brew --prefix)/bin/gfortran-14" "$(brew --prefix)/bin/gfortran"
             brew install libomp
-            # Link environments to env for later us with cibuildwheel
-            echo "LIBOMPPATH=$(brew --prefix libomp)" >> $GITHUB_ENV
-            echo "LLVMCLANG=$(brew --prefix llvm@15)" >> $GITHUB_ENV
+            {
+              echo "CC=$(brew --prefix llvm@18)/bin/clang"
+              echo "LDFLAGS=-L$(brew --prefix libomp)/lib"
+              # delocate refuses bundled libraries (Homebrew's libgfortran, libomp) newer than the wheel's target
+              echo "MACOSX_DEPLOYMENT_TARGET=15.0"
+            } >> "$GITHUB_ENV"
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
+        uses: pypa/cibuildwheel@v4.3.5
         env:
-            CIBW_BUILD: ${{matrix.pyver}}-*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_ARCHS_LINUX: auto
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-            CC: ${{ env.LLVMCLANG }}/bin/clang
-            LDFLAGS: "-L${{env.LIBOMPPATH }}/lib"
+            CIBW_BUILD: ${{ matrix.pyver }}-*
+            CIBW_SKIP: "*-musllinux_*"
+            # Build without isolation: [build-system] requires lists h5py, which has no wheel for every image and
+            # Python, and its source build needs libhdf5 (T145). before_build installs what the build needs.
+            CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
+            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'setuptools>=77' wheel
+            CIBW_TEST_COMMAND: cd / && python -I -c "from uedge import bbb; print(bbb.uedge_ver)"
+            # Installing the wheel pulls in h5py, which has no cp315 wheel yet (h5py 3.16.0, 2026-11-26): lift this
+            # skip once PyPI has h5py cp315 wheels (owner, T145)
+            CIBW_TEST_SKIP: "cp315-*"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -235,114 +207,9 @@ jobs:
           name: cibw-wheels-${{ matrix.os }}-${{ matrix.pyver }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
-  build_wheels_pypy:
-    name: Build PyPy wheels on ${{ matrix.os }} 
-    if: false
-#    if: github.event_name == 'pull_request'
-    needs: yldot-pr-tier
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-13, macos-14] 
-
-    steps:
-      - name: Checks out repo
-        uses: actions/checkout@v4
-
-      - name: Set up macOS-specific paths and libraries
-        if: runner.os == 'macOS'
-        run: |
-            # Symlink the correct gfortran compiler 
-            ln -s $(brew --prefix)/bin/gfortran-13 $(brew --prefix)/bin/gfortran
-            # Install OMP libraries
-            brew install libomp
-            # Link environments to env for later us with cibuildwheel
-            echo "LIBOMPPATH=$(brew --prefix libomp)" >> $GITHUB_ENV
-            echo "LLVMCLANG=$(brew --prefix llvm@15)" >> $GITHUB_ENV
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        env:
-            CIBW_BUILD: pp*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-            CC: ${{ env.LLVMCLANG }}/bin/clang
-            LDFLAGS: "-L${{env.LIBOMPPATH }}/lib"
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-wheels-pyp-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
-  build_wheels_cross:
-    name: Build Linux cross-wheels
-    if: false
-    needs: yldot-pr-tier
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        pyver: [cp38, cp39, cp310, cp311, cp312]
-        arch: [aarch64, ppc64le]
-
-    steps:
-      - name: Checks out repo
-        uses: actions/checkout@v4
-    
-      - name: Set up QEMU for multi-arch build
-        uses: docker/setup-qemu-action@v2
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        env:
-            CIBW_BUILD: ${{matrix.pyver}}-*
-            IBW_SKIP: cp37-*
-            CIBW_ARCHS: ${{matrix.arch}}
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-cross-wheels-${{ matrix.arch }}-${{ matrix.pyver }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
-  build_wheels_cross_pypy:
-    name: Build Linux PyPy cross-wheels
-    if: false
-    needs: yldot-pr-tier
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-
-    steps:
-      - name: Checks out repo
-        uses: actions/checkout@v4
-    
-      - name: Set up QEMU for multi-arch build
-        uses: docker/setup-qemu-action@v2
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        env:
-            CIBW_BUILD: pp*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-cross-wheels-pypy-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
   gather_wheels:
     name: Gather built wheels
-    needs: [build_wheels] #, build_wheels_pypy]
-#    if: github.event_name == 'pull_request'
+    needs: [build_wheels]
     runs-on: ubuntu-latest
     steps:
       - name: Download all Artifacts and merges them
