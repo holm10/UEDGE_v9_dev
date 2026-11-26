@@ -1,0 +1,71 @@
+name: T192 probe (temporary)
+
+# Tracker T192 (owner decision Q2, 2026-11-26): repeats the 14 bounds-check INVALID entries of the yldot suite on
+# GitHub runners, with the PR tier's Python 3.11 and numpy 1.26.4, to find out whether their pinned serial class can
+# change from run to run. Probe only: it never fails on a probe result, and this file and .github/t192-probe/ are
+# removed before the PR is reviewed.
+on:
+  pull_request:
+    paths:
+      - ".github/t192-probe/**"
+      - ".github/workflows/t192-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - run: |
+        python -m pip install --upgrade pip
+        python -m pip install "forthon>=0.10.7" numpy==1.26.4 h5py setuptools wheel
+        python -m pip wheel -v --no-build-isolation --no-deps -w dist . -C "--build-option=--serial"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: t192-wheel
+        path: dist/*.whl
+        retention-days: 3
+
+  probe:
+    runs-on: ubuntu-24.04
+    needs: build
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [pad0, pad1, pad2, pad3, padall, plain, pytest]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - uses: actions/download-artifact@v4
+      with:
+        name: t192-wheel
+        path: dist
+    - run: |
+        python -m pip install --upgrade pip
+        python -m pip install "$(ls dist/*.whl)[test]" numpy==1.26.4
+    - uses: actions/cache@v4
+      with:
+        path: tests/yldot/.data
+        key: yldot-data-${{ hashFiles('tests/yldot/references/*.manifest.json') }}
+    - env:
+        GH_TOKEN: ${{ github.token }}
+      run: python tests/yldot/tools/fetch_data.py
+    - name: Probe
+      run: |
+        grep -m1 '^model name' /proc/cpuinfo
+        bash .github/t192-probe/ci_probe.sh ${{ matrix.leg }}
+    - if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: t192-results-${{ matrix.leg }}
+        path: t192-results/*.*
+        retention-days: 30
