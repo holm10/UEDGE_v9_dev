@@ -126,8 +126,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `others` EXCLUDED with a reason that follows the code (no equation written, same as a coded value, or `xerrab`).
   **Sets** (AIUE-257 D1): `tests/yldot/combinations.toml`, tables `["set:<name>"]`, each assigning several keys at once
   (`variants.load_sets`, fields `assign`, `phase`, `config`, `families`, `base`, `reason`, `issues`). An `assign`
-  value is a scalar (elementwise) or a table with one of `value`, `scale` (d·x, reals) or `cycle` (a list cycled along
-  the 0:nx+1 axis), and optional `at` (a numpy index prefix, e.g. a species slot or the row of `ly*ix(2,0:nx+1)`).
+  value is a scalar (elementwise) or a table with one of `value`, `scale` (d·x, reals), `cycle` (a list cycled along
+  the 0:nx+1 axis) or `noise` (`[centre, amplitude, seed]`, real arrays: each element of d[at] takes
+  centre + amplitude·(2u − 1), u from `variants.unit_noise`, the 53 high bits of numpy's `PCG64` raw stream, not a
+  `Generator` method; numbers pinned in `test_inputs.py::test_set_value_noise`; T17), and optional `at` (a numpy index
+  prefix, e.g. a species slot or the row of `ly*ix(2,0:nx+1)`).
   Default families: the five small ones; `phase` POST if any key is dynamic. A per-cell wall array (`istepfcix`, …)
   needs its `setwallbcarrays` switch (`ispfbcvsix`/`iswobcvsix`) = 1 in the same set, or `allocate` overwrites it;
   `issues` names AIUE-259 keys. A set with `base = "set:<other>"` must assign every key of its base, and is
