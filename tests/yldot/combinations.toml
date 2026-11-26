@@ -907,3 +907,37 @@ reason = "isphicore0 = 1 sends the core cells to the PF-wall iphibcwi options (b
 assign = { "bbb.ispfbcvsix" = 1, "bbb.iphibcwiix" = { cycle = [0, 1, 3, 4] }, "bbb.phiwi" = { value = 10.0 }, "bbb.lyphiix" = { cycle = [0.05], at = [0] } }
 families = ["large_dd2c"]
 reason = "per-cell PF phi options 0, 1, 3, 4 mixed along the wall with a finite lyphiix (ispfbcvsix = 1, 2368), isnewpot = 1"
+
+# ================================================================ equations off in some cells (is*offxy; T24)
+# Owner, 2026-11-24 (T24 D3): the sets below give another equation set than the default's (class EQSET), with the
+# equation off in part of the grid only, so setonxy's per-cell masks (bbb/odesetup.m:644-664) and convert.m's numbering
+# (bbb/convert.m:30-152) are checked cell by cell. No set takes ni or up off in single cells: the code then reads array
+# index 0 (bbb/oderhs.m:622, bbb/convert.m:467; tracker T195).
+
+["set:eqoff-te-cell"]
+assign = { "bbb.isteoffxy" = { value = 1, at = [3, 3] } }
+reason = "te off in one cell (bbb/odesetup.m:661)"
+
+["set:eqoff-ti-cell"]
+assign = { "bbb.istioffxy" = { value = 1, at = [3, 3] } }
+reason = "ti off in one cell (bbb/odesetup.m:662)"
+
+["set:eqoff-phi-cell"]
+assign = { "bbb.isphioffxy" = { value = 1, at = [3, 3] } }
+families = ["d_only", "d_mols", "ortho", "slab_phi"]
+reason = "phi off in one cell (bbb/odesetup.m:663)"
+
+["set:eqoff-ng2-cell"]
+assign = { "bbb.isngoffxy" = { value = 1, at = [3, 3, 1] } }
+families = ["d_mols", "d_c"]
+reason = "ng[2] off in one cell (bbb/odesetup.m:654)"
+
+["set:eqoff-mixed-phi"]
+assign = { "bbb.isteoffxy" = { value = 1, at = [2] }, "bbb.istioffxy" = { value = 1, at = [4, 2] }, "bbb.isphioffxy" = { value = 1, at = [3, 3] } }
+families = ["d_only", "ortho", "slab_phi"]
+reason = "te off at ix = 2, ti and phi each in one cell"
+
+["set:eqoff-mixed-ng2"]
+assign = { "bbb.isteoffxy" = { value = 1, at = [2] }, "bbb.istioffxy" = { value = 1, at = [4, 2] }, "bbb.isngoffxy" = { value = 1, at = [3, 3, 1] } }
+families = ["d_mols", "d_c"]
+reason = "te off at ix = 2, ti and ng[2] each in one cell"

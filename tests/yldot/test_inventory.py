@@ -175,6 +175,70 @@ def test_inventory_detects_removed_entry(plan):
                                                                                      "reason": " "})}))
 
 
+NEQ_TO_ZERO = re.compile(r"neq \d+ -> 0")  # the one neq reason left INVALID (T196)
+
+
+def eqset_problems(manifest, plan):
+    """T24: what keeps a family's equation-set entries from being the EQSET ones: a set:eqoff-* id the plan runs in it
+    that is not an EQSET entry with a layout, and an INVALID entry for another neq or another equation layout."""
+    stored = manifest.get("variables") or {}
+    out = []
+    for v in plan:
+        if v.id.startswith("set:eqoff-") and v.runs_in(manifest["family"]):
+            e = stored.get(v.id)
+            if e is None or e["class"] != "EQSET" or not e.get("layout"):
+                out.append("{}: {}".format(v.id, "missing" if e is None else "{} with{} a layout".format(
+                    e["class"], "" if e.get("layout") else "out")))
+    for vid, e in stored.items():
+        reason = str(e.get("reason") or "")
+        if e["class"] == "INVALID" and (reason.startswith("equation layout changed") or (
+                reason.startswith("neq ") and not NEQ_TO_ZERO.fullmatch(reason))):
+            out.append("{}: INVALID for an equation set ({})".format(vid, reason))
+    return out
+
+
+@pytest.mark.toml_only
+@pytest.mark.parametrize("family", FAMILY_NAMES)
+def test_manifest_equation_sets(plan, family):
+    """T24: every manifest has its set:eqoff-* variants as EQSET with a layout, and no variant INVALID for its
+    equation set (regenerate with make_references.py)."""
+    m = mf.load(family)
+    if m.get("variables"):
+        problems = eqset_problems(m, plan)
+        assert not problems, "{}: equation-set entries wrong ({} of them): {}".format(family, len(problems),
+                                                                                       problems[:10])
+
+
+def test_plan_has_21_eqoff_pairs(plan):
+    """T24: the plan runs the 21 set:eqoff-* sets in their families (5+5+4+2+3+2)."""
+    pairs = [(v.id, f) for v in plan if v.id.startswith("set:eqoff-") for f in FAMILY_NAMES if v.runs_in(f)]
+    assert len(pairs) == 21, pairs
+
+
+def test_eqset_problems_detects(plan):
+    """The check passes on correct entries and names a missing, a wrong-class and a layout-less set entry and an
+    INVALID entry for an equation set, on a planted manifest."""
+    sets = [v for v in plan if v.id.startswith("set:eqoff-")]
+    family = next(f for f in FAMILY_NAMES if any(v.runs_in(f) for v in sets))
+    ids = [v.id for v in sets if v.runs_in(family)]
+    ok = {vid: {"class": "EQSET", "reason": "", "layout": {"neq": 1}} for vid in ids}
+    ok["bbb.a"] = {"class": "INVALID", "reason": "neq 10 -> 0"}
+    ok["bbb.b"] = {"class": "INVALID", "reason": "bounds-check: neq 3 (serial build: error: x)"}
+    ok["bbb.c"] = {"class": "INVALID", "reason": "non-finite yldot"}
+    m = {"family": family, "variables": ok}
+    assert not eqset_problems(m, plan)
+    gone = {k: v for k, v in ok.items() if k != ids[0]}
+    assert eqset_problems(dict(m, variables=gone), plan) == [ids[0] + ": missing"]
+    inert = dict(ok, **{ids[0]: {"class": "INERT", "reason": ""}})
+    assert eqset_problems(dict(m, variables=inert), plan) == [ids[0] + ": INERT without a layout"]
+    bare = dict(ok, **{ids[0]: {"class": "EQSET", "reason": ""}})
+    assert eqset_problems(dict(m, variables=bare), plan) == [ids[0] + ": EQSET without a layout"]
+    for reason in ("neq 10 -> 12", "neq 10 -> 0 and more", "equation layout changed (ni) at the same neq"):
+        planted = dict(ok, **{"bbb.a": {"class": "INVALID", "reason": reason}})
+        assert eqset_problems(dict(m, variables=planted), plan) == [
+            "bbb.a: INVALID for an equation set ({})".format(reason)]
+
+
 def test_owner_family_must_be_complete(plan):
     """AIUE-99: every owner family's manifest classifies the inventory; an empty one fails like a partial one (D6's
     "or none" ended with the owner sweep)."""

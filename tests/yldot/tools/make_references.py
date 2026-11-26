@@ -40,7 +40,7 @@ generate  builds SHA --serial and, per family (default: every family with sigma.
                 default's pattern and the variants', PRD 7.5) is computed; every guarded SHA-256 of the installed
                 reference must come out the same (exit 3 otherwise; AIUE-101).
           --prune: as --only with no variant named, and the manifest entries no longer in the inventory dropped
-                (SENSITIVE ones too: the guard then needs Default results: changed); every kept entry is copied
+                (SENSITIVE and EQSET ones too: the guard then needs Default results: changed); every kept entry is copied
                 with its stored data and its locality pattern, never re-run, and every other guarded SHA-256 must
                 come out the same (exit 3 otherwise; owner, 2026-10-28, AIUE-95 D1). Nothing to prune: exit 1.
           --rename OLD=NEW ...: as --prune, with each NEW (in the inventory, not in the manifest) classified again
@@ -79,8 +79,11 @@ only: a result that depends on the build or on the memory layout (an uninitialis
 set to 1 with isupgon(1) = 1, AIUE-179, is a suspect) is stable here and is found by replaying every stored variant
 on other builds (tools/variant_tolerances.py replay) and by AIUE-95's audit. INERT if bitwise equal; MARGINAL if
 0 < difference <= M_cls*tol_i; INVALID on an error (the reason holds the exception's text, for an xerrab the '***'
-message of the child's log), crash, timeout, neq change, an equation layout change at the same neq (index arrays or
-is*onxy masks; owner, 2026-10-22, AIUE-94 D4) or non-finite yldot; EXCLUDED as variants.plan() says, and where the
+message of the child's log), crash, timeout, neq = 0 (T196) or non-finite yldot; EQSET (T24; owner, 2026-11-24) when
+finite with another neq or another equation layout at the same neq (index arrays or is*onxy masks; AIUE-94 D4): its
+index truth, row order and masks must hold (eqset_map, else a finding), it is evaluated twice like a SENSITIVE one
+(index arrays included), and stored over its own rows with its layout and the blocks of the default it moves
+(eqset_layout, MOVED); EXCLUDED as variants.plan() says, and where the
 application changes nothing in the family (value equals d, no valid index, unallocated; owner, 2026-10-22, AIUE-94
 D1). Results that fit no class (bitwise differences of size zero, a harness FamilyError such as variants.Mismatch)
 and a reference file over its CAPS_MB cap (PRD 7.3) are findings for the epic owner (decision 23): generate prints
@@ -141,9 +144,11 @@ TIMEOUT_FACTOR = 5  # x family.toml timeout_s per child: x86 emulation runs slow
 M_CLS = 100.0  # the classification margin (PRD section 7.2)
 CAPS_MB = {"d_only": 2, "ortho": 2, "d_mols": 3, "d_c": 7, "slab_phi": 9,  # reference file caps, PRD 7.3; 10^6 bytes
            "d_mols_tg": 3, "d_only_tg": 2,  # 2.33 and 1.28 MB at T22's prototype sweep (tracker T22)
-           "large_dd2c": 13, "dnull_imp2": 13, "imp7": 13}  # owner, 2026-10-24 (AIUE-99; 9 MB in AIUE-92 B4)
+           "large_dd2c": 14, "dnull_imp2": 13, "imp7": 14}  # owner, 2026-10-24 (AIUE-99; 9 MB in AIUE-92 B4)
+# large_dd2c and imp7 13 -> 14: owner, 2026-11-24 (T24 D6: the EQSET variants, about 0.33 MB each)
 # d_mols 2 -> 3: owner, 2026-11-12 (AIUE-257 Task 3: ~1.9 KB per added SENSITIVE entry put it under a 10 % margin)
 # variants whose application changes nothing in the family: EXCLUDED (owner, 2026-10-22, AIUE-94 D1)
+MOVED = 0.01  # an EQSET variant's block is unmoved up to this ratio to the default's tol_i (T24); checked against 1
 NOOP = {"equal-to-d": "value equals d", "no-valid-index": "no valid index", "unallocated": "unallocated"}
 SKETCH_DEFAULT_RE = re.compile(r"/default/sketch_(weight$|threshold/)")  # a sketch store's, not the default's own
 SAMPLE_N = 20  # the tolerance-inheritance sample per family, plus every SENSITIVE timestep variant (PRD 7.4; D2)
@@ -326,13 +331,13 @@ def audit_invalid_reason(audit_reason, cls, reason):
 
 
 def serial_outcome(reason):
-    """(class, kind) of the serial outcome in an audit_invalid_reason: (class, None) for SENSITIVE, INERT or
-    MARGINAL, ("INVALID", first word of the serial reason) otherwise; None for a reason without the suffix."""
+    """(class, kind) of the serial outcome in an audit_invalid_reason: (class, None) for SENSITIVE, INERT, MARGINAL
+    or EQSET, ("INVALID", first word of the serial reason) otherwise; None for a reason without the suffix."""
     m = SERIAL_OUTCOME.search(str(reason))
     if m is None:
         return None
     text = m.group(1)
-    if text in ("SENSITIVE", "INERT", "MARGINAL"):
+    if text in ("SENSITIVE", "INERT", "MARGINAL", "EQSET"):
         return text, None
     return "INVALID", re.match(r"[^:\s]*", text).group()
 
@@ -359,14 +364,18 @@ def classify(res, base, tol, m_cls=M_CLS):
             why += " (bound {})".format(rec["bound"])
         return "EXCLUDED", "not applicable in {}: {}".format(res.family, why), None
     if d["neq"] != base["neq"]:
-        return "INVALID", "neq {} -> {}".format(base["neq"], d["neq"]), None
-    changed = layout_changes(d, base)
-    if changed:  # the rows mean other equations: like a neq change (owner, 2026-10-22, AIUE-94 D4)
-        return "INVALID", "equation layout changed ({}) at the same neq".format(", ".join(changed)), None
+        eqset = "neq {} -> {}".format(base["neq"], d["neq"])
+        if d["neq"] == 0:  # no equation at all: UEDGE should stop (T196; owner, 2026-11-24, T24 D9)
+            return "INVALID", eqset, None
+    else:
+        changed = layout_changes(d, base)  # the rows mean other equations: like a neq change (owner, AIUE-94 D4)
+        eqset = "equation layout changed ({}) at the same neq".format(", ".join(changed)) if changed else None
     y, yj = np.asarray(d["yldot"], np.float64), np.asarray(d["yldot_J"], np.float64)
     bad = np.flatnonzero(~(np.isfinite(y) & np.isfinite(yj)))
     if bad.size:
         return "INVALID", "non-finite yldot or yldot_J at rows {}".format(listed((bad + 1).tolist())), None
+    if eqset:  # another equation set: its own rows, checked by meaning (T24)
+        return "EQSET", eqset, None
     if not (differs(y, base["yldot"]).any() or differs(yj, base["yldot_J"]).any()):
         return "INERT", "", None
     r = max(float((np.abs(y - base["yldot"]) / tol).max()), float((np.abs(yj - base["yldot_J"]) / tol).max()))
@@ -398,14 +407,66 @@ def norms(w, res, base):
             store.block_l2((yj - y) - (base["yldot_J"] - base["yldot"]), w.labels, w.rows))
 
 
+def eqset_map(d, regions):
+    """The index map of an EQSET variant's result data d, its index truth checked (T24, check 1): the bijection of
+    index_map, the row order against the masks and the grid, the masks against the switches. IndexTruthError."""
+    from yldot.harness import compare
+
+    imap = compare.index_map(d, regions)
+    compare.check_order(imap, d)
+    compare.check_masks(d["masks"], d["switches"])
+    return imap
+
+
+def shared_ratios(base_map, base, imap, d, tol):
+    """{block label: largest |variant - default| / tol_i over the block's shared rows, yldot and yldot_J} of an EQSET
+    variant's data d (map imap) against the default data base (map base_map); inf for a non-finite entry. tol: the
+    default's tol_i. Blocks that share no row are left out."""
+    from yldot.harness import compare, store
+
+    i0, i1, _ = compare.mapping(base_map, imap)
+    r = np.zeros(base_map.neq)
+    for key in ("yldot", "yldot_J"):
+        with np.errstate(invalid="ignore", over="ignore"):
+            x = np.abs(np.asarray(d[key])[i1] - np.asarray(base[key])[i0]) / tol[i0]
+        x[~np.isfinite(x)] = np.inf
+        r[i0] = np.maximum(r[i0], x)
+    labels, rows, _ = store.blocks(base_map)
+    return {label: float(r[b].max()) for label, b in zip(*store.cut_blocks(labels, rows, i0))}
+
+
+def eqset_layout(base_map, base, imap, d, tol):
+    """An EQSET entry's layout (harness/manifest.py): its rows, and the blocks of the default it moves (shared_ratios
+    above MOVED; the others are checked against the live default row by row, T24 check 3)."""
+    from yldot.harness import compare
+
+    ratios = shared_ratios(base_map, base, imap, d, tol)
+    return {"neq": imap.neq, "sha256": compare.layout_sha(imap), "rows": compare.layout_rows(imap),
+            "moved": sorted(label for label, r in ratios.items() if r > MOVED)}
+
+
+def eqset_norms(w, base_map, base, imap, d):
+    """(block_l2, jflag_block_l2) of an EQSET variant against the default, over the rows they share."""
+    from yldot.harness import compare, store
+
+    i0, i1, _ = compare.mapping(base_map, imap)
+    out = []
+    for a, b in ((d["yldot"], base["yldot"]),
+                 (d["yldot_J"] - d["yldot"], base["yldot_J"] - base["yldot"])):
+        x = np.zeros(base_map.neq)
+        x[i0] = a[i1] - b[i0]
+        out.append(store.block_l2(x, w.labels, w.rows))
+    return tuple(out)
+
+
 def same_run(a, b):
     """Rows where two evaluations of one variant differ (yldot or yldot_J, bitwise), or None if their apply
-    records or status differ."""
+    records, status or index arrays differ."""
     if a.status != b.status or not (a.ok and b.ok):
         return None
     if json.dumps(a.data.get("variant"), sort_keys=True) != json.dumps(b.data.get("variant"), sort_keys=True):
         return None
-    if a.data["neq"] != b.data["neq"]:
+    if not same_index(a.data, b.data):
         return None
     return np.flatnonzero(differs(a.data["yldot"], b.data["yldot"]) | differs(a.data["yldot_J"], b.data["yldot_J"]))
 
@@ -434,8 +495,9 @@ def summary(name, variables, findings):
     n = {c: sum(e["class"] == c for e in variables.values()) for c in mf.CLASSES}
     nondet = sum(f["finding"].startswith("nondeterministic") for f in findings)
     open_ = sum(f["id"] not in variables and not f["id"].startswith("locality:") for f in findings)
-    line = "{}: {} variants: {} sensitive, {} inert, {} marginal, {} invalid, {} excluded; {} nondeterministic".format(
-        name, len(variables) + open_, n["SENSITIVE"], n["INERT"], n["MARGINAL"], n["INVALID"], n["EXCLUDED"], nondet)
+    line = ("{}: {} variants: {} sensitive, {} inert, {} marginal, {} invalid, {} excluded, {} equation set; "
+            "{} nondeterministic").format(name, len(variables) + open_, n["SENSITIVE"], n["INERT"], n["MARGINAL"],
+                                          n["INVALID"], n["EXCLUDED"], n["EQSET"], nondet)
     return line + ("; {} unclassified (owner)".format(open_) if open_ else "")
 
 
@@ -648,9 +710,9 @@ class Ahead:
 
 
 def again_needed(cls, finding, audit_failed):
-    """Whether the sweep evaluates a variant a second time (the nondeterminism check, module docstring): SENSITIVE,
-    no finding and no failed audit run (a failed audit makes it INVALID or a finding first)."""
-    return cls == "SENSITIVE" and finding is None and audit_failed is None
+    """Whether the sweep evaluates a variant a second time (the nondeterminism check, module docstring): SENSITIVE
+    or EQSET, no finding and no failed audit run (a failed audit makes it INVALID or a finding first)."""
+    return cls in mf.STORED and finding is None and audit_failed is None
 
 
 def child(families, out, build, sweep="all", only=None, full=False, suite=SUITE, repo=None, locality_only=False,
@@ -772,7 +834,8 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
             data[config] = r.data
         if not same_index(data["steady"], data["timestep"]):
             raise Stop(2, "{}: the steady and timestep runs have different index arrays".format(name))
-        imap = compare.index_map(data["steady"], compare.load_regions(fdir))
+        regions = compare.load_regions(fdir)
+        imap = compare.index_map(data["steady"], regions)
         sig = {config: sigma(fdir, config) for config in mf.CONFIG_NAMES}
         previous, dropped = None, []
         if only is not None:
@@ -805,8 +868,8 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
                               "--rename OLD=NEW) first (AIUE-95)".format(name, listed(rest)))
             for vid in sorted(dropped) if prune else ():
                 cls = entries[vid]["class"]
-                print("{}: prune {} ({}){}".format(name, vid, cls, "; SENSITIVE: the guard needs 'Default results: "
-                                                   "changed'" if cls == "SENSITIVE" else ""), flush=True)
+                print("{}: prune {} ({}){}".format(name, vid, cls, "; {}: the guard needs 'Default results: "
+                                                   "changed'".format(cls) if cls in mf.STORED else ""), flush=True)
         w = store.create(out / "{}.h5".format(name), kind, name, data["steady"], imap)
         for config, d in data.items():
             w.write_default(config, d["yldot"], d["yldot_J"], sig[config], d["diagnostics"])
@@ -880,8 +943,8 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
                     if e is None:
                         raise Stop(1, "{}: --only needs every other variant in the manifest; {} has none: "
                                       "regenerate in full".format(name, v.id))
-                    if e["class"] == "SENSITIVE":
-                        w.copy_variant(e["config"], v.id, previous)
+                    if e["class"] in mf.STORED:
+                        w.copy_variant(e["config"], v.id, previous, mf.STORED[e["class"]])
                     if copying and v.id in prev_loc:
                         w.copy_locality_variant(prev_loc[v.id]["config"], v.id, previous)
                     variables[v.id] = e
@@ -929,11 +992,11 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
                     findings.append({"id": v.id, "finding": "owner: audit run {}: {}; this build classifies it "
                                      "{}".format(a["status"], a["reason"], cls)})
                     continue
-                if cls == "SENSITIVE":
+                if cls in mf.STORED:
                     # the second run, made by first_and_again right after the first: forked from the same
                     # forkserver, so run-to-run nondeterminism only (module docstring)
                     if again is None:
-                        raise RuntimeError("{} {}: SENSITIVE without its second run (again_needed)".format(name, v.id))
+                        raise RuntimeError("{} {}: {} without its second run (again_needed)".format(name, v.id, cls))
                     if isinstance(again, FamilyError):
                         findings.append({"id": v.id, "finding": "owner: {}".format(last_line(again))})
                         continue
@@ -941,24 +1004,38 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
                     rows = same_run(r, again)
                     if rows is None or rows.size:
                         what = ("{} rows differ".format(rows.size) if rows is not None
-                                else "the status, apply record or neq differs")
+                                else "the status, apply record or index arrays differ")
                         reason = "nondeterministic: {} between two processes".format(what)
                         findings.append({"id": v.id, "finding": "nondeterministic: {}; file a bugfix ticket".format(
                             what)})
                         variables[v.id] = entry(v, "INVALID", reason, rec_v)
                         continue
-                    w.write_variant(v.config, v.id, r.data["yldot"], r.data["yldot_J"])
-                    kept[v.id] = r.data
-                    variables[v.id] = entry(v, "SENSITIVE", reason, rec_v, sha="", l2=norms(w, r, base))
+                    if cls == "EQSET":  # always against the default, a based set too: its base has the default's rows
+                        d0 = data[v.config]
+                        try:
+                            vmap = eqset_map(r.data, regions)
+                            eqset_tolerance(fdir, r.data["yldot"], v.config, imap, vmap)  # the tests' tolerance exists
+                        except (compare.IndexTruthError, compare.ToleranceEscalation) as e:
+                            findings.append({"id": v.id, "finding": "owner: {}".format(e)})
+                            continue
+                        w.write_eqset(v.config, v.id, r.data["yldot"], r.data["yldot_J"], vmap)
+                        variables[v.id] = entry(v, cls, reason, rec_v, sha="",
+                                                l2=eqset_norms(w, imap, d0, vmap, r.data))
+                        variables[v.id]["layout"] = eqset_layout(imap, d0, vmap, r.data, tol[v.config])
+                    else:
+                        w.write_variant(v.config, v.id, r.data["yldot"], r.data["yldot_J"])
+                        kept[v.id] = r.data
+                        variables[v.id] = entry(v, cls, reason, rec_v, sha="", l2=norms(w, r, base))
                 elif cls == "MARGINAL":
                     variables[v.id] = entry(v, cls, reason, rec_v, l2=norms(w, r, base))
                 else:
                     variables[v.id] = entry(v, cls, reason, rec_v)
                 if full and selected is not None and r.ok:
                     (out / "full").mkdir(exist_ok=True)
+                    vm = vmap if cls == "EQSET" else imap  # an EQSET variant's rows are its own (T24)
                     np.savez(out / "full" / "{}.{}.npz".format(name, v.id.replace(":", "_")), default=base["yldot"],
                              default_J=base["yldot_J"], yldot=r.data["yldot"], yldot_J=r.data["yldot_J"],
-                             labels=np.array([imap.label(i) for i in range(imap.neq)]))
+                             labels=np.array([vm.label(i) for i in range(vm.neq)]))
         if loc is not None and sweep != "none":
             special = None
             if loc["columns"] != "all":
@@ -1002,8 +1079,8 @@ def families_run(families, out, build, sweep, only, full, suite, repo, locality_
         if previous is not None:
             previous.close()
         for vid, e in variables.items():
-            if e["class"] == "SENSITIVE":
-                e["sha256"] = mf.variant_sha(written["datasets"], e["config"], vid)
+            if e["class"] in mf.STORED:
+                e["sha256"] = mf.variant_sha(written["datasets"], e["config"], vid, mf.STORED[e["class"]])
         guarded, unguarded = mf.summarize(written["datasets"])
         if copying:  # only the dropped entries and the renamed ones may differ (AIUE-95)
             nl = written["locality_variants"]

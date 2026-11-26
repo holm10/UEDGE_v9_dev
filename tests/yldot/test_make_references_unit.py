@@ -20,8 +20,10 @@ import numpy as np
 import pytest
 
 from yldot.harness import FAMILIES, Result, compare, locality, open_store
+from yldot.harness import compare
 from yldot.harness import manifest as mf
 from yldot.harness.store import file_sha256
+from yldot.test_compare_unit import SPEC, make_data, other_set
 
 SUITE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SUITE / "tools"))
@@ -48,7 +50,7 @@ def children(tmp_path_factory):
 
 # the probed classes of d_only (AIUE-94 planning sweep, .claude/work/AIUE-94/probes/full_d_only.txt, and a smoke run)
 SWEEP = {"bbb.cfvisx": "SENSITIVE", "bbb.isbcwdt": "SENSITIVE", "bbb.xlinc": "INERT", "bbb.lgvmax": "MARGINAL",
-         "bbb.isnion": "INVALID", "bbb.isphiofft": "INVALID", "bbb.methe=33": "EXCLUDED", "bbb.jxsori": "EXCLUDED",
+         "bbb.isnion": "EQSET", "bbb.isphiofft": "INVALID", "bbb.methe=33": "EXCLUDED", "bbb.jxsori": "EXCLUDED",
          "com.chgstate_format": "EXCLUDED", "com.geometry": "EXCLUDED"}
 
 
@@ -434,11 +436,12 @@ def test_sweep_classes_as_probed(swept):
     assert v["bbb.xlinc"]["block_l2"] == {} and v["bbb.xlinc"]["applied"] is not None
     assert json.loads((ref / "d_only.findings.json").read_text()) == []
     assert (ref / "d_only.summary").read_text() == (
-        "d_only: 10 variants: 2 sensitive, 1 inert, 1 marginal, 2 invalid, 4 excluded; 0 nondeterministic\n")
+        "d_only: 10 variants: 2 sensitive, 1 inert, 1 marginal, 1 invalid, 4 excluded, 1 equation set; "
+        "0 nondeterministic\n")
     cost = json.loads((ref / "d_only.cost.json").read_text())
-    # the defaults, all but com.geometry, the SENSITIVE ones again, and one locality run per SENSITIVE, INERT and
-    # MARGINAL variant (AIUE-101: d_only has variants = "all")
-    assert cost["evaluations"] == 2 + 9 + 2 + 4
+    # the defaults, all but com.geometry, the SENSITIVE and EQSET ones again, and one locality run per SENSITIVE, INERT
+    # and MARGINAL variant (AIUE-101: d_only has variants = "all"; T24 D5: none for EQSET)
+    assert cost["evaluations"] == 2 + 9 + 3 + 4
     with np.load(ref / "samples" / "d_only.npz") as z:
         # plan (inventory) order: bbb.isbcwdt is at bbb/bbb.v:179, bbb.cfvisx at :331
         assert z["ids"].tolist() == ["bbb.isbcwdt", "bbb.cfvisx"] and z["configs"].tolist() == ["timestep", "steady"]
@@ -458,6 +461,12 @@ def test_sweep_writes_the_same_bytes_twice_and_opens(tmp_path, swept):
     mr.install(manifests, swept[0], suite)
     with open_store("d_only", suite) as s:
         assert s.variants("steady") == ["bbb.cfvisx"] and s.variants("timestep") == ["bbb.isbcwdt"]
+        assert s.variants("steady", "eqset") == ["bbb.isnion"] and "bbb.isnion" not in s.manifest["locality_variants"]
+        e = s.manifest["variables"]["bbb.isnion"]
+        assert e["layout"]["neq"] == 300
+        assert e["layout"]["rows"] == {"up[1]": 60, "up[2]": 60, "te[1]": 60, "ti[1]": 60, "phi[1]": 60}
+        assert "te[1] core" in e["layout"]["moved"] and "te[1] guard" not in e["layout"]["moved"]  # rscalf couples ni
+        assert e["applied"] is not None and set(e["block_l2"]) >= set(e["layout"]["moved"])
 
 
 def test_only_keeps_every_other_entry(tmp_path, swept):
@@ -474,6 +483,21 @@ def test_only_keeps_every_other_entry(tmp_path, swept):
     assert cost["evaluations"] == 2 + 2 + 4  # the defaults, cfvisx twice, the four locality runs (AIUE-101)
     with np.load(d / "references" / "full" / "d_only.bbb.cfvisx.npz") as z:
         assert z["yldot"].shape == z["default"].shape == (420,) and len(z["labels"]) == 420
+
+
+def test_only_of_an_eqset_entry(tmp_path, swept):
+    """--only of the EQSET entry reproduces the installed file bit for bit; --full labels its own rows (ni off)."""
+    suite = tmp_suite(tmp_path)
+    mr.install(mr.assemble(SHA, ["d_only"], swept[0], TAG)[0], swept[0], suite)
+    d = tmp_path / "only"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=list(SWEEP), only=["bbb.isnion"],
+             full=True, suite=suite)
+    assert file_sha256(d / "references" / "d_only.h5") == file_sha256(swept[0] / "references" / "d_only.h5")
+    new, old = (mf.loads((x / "references" / "d_only.json").read_text()) for x in (d, swept[0]))
+    assert new["variables"] == old["variables"]
+    with np.load(d / "references" / "full" / "d_only.bbb.isnion.npz") as z:
+        assert z["default"].shape == (420,) and z["yldot"].shape == z["yldot_J"].shape == z["labels"].shape == (300,)
+        assert not any(x.startswith("ni[") for x in z["labels"])
 
 
 def test_only_refuses_a_changed_default(tmp_path, swept, monkeypatch):
@@ -563,7 +587,10 @@ TOL = np.full(4, 1e-3)
     (lambda d: d["yldot"].__setitem__(1, 2.0 + 0.2), ("SENSITIVE", "max |diff|/tol = 200")),
     (lambda d: d["yldot_J"].__setitem__(1, 2.0 + 0.05), ("MARGINAL", None)),
     (lambda d: d["yldot"].__setitem__(0, np.nan), ("INVALID", "non-finite yldot or yldot_J at rows [1]")),
-    (lambda d: d.update(neq=5), ("INVALID", "neq 4 -> 5")),
+    (lambda d: d.update(neq=5), ("EQSET", "neq 4 -> 5")),
+    (lambda d: (d.update(neq=5), d["yldot_J"].__setitem__(2, np.inf)),
+     ("INVALID", "non-finite yldot or yldot_J at rows [3]")),  # another equation set does not excuse it
+    (lambda d: d.update(neq=0, yldot=np.zeros(0), yldot_J=np.zeros(0)), ("INVALID", "neq 4 -> 0")),  # T24 D9, T196
 ])
 def test_classify(change, want):
     d = data()
@@ -576,13 +603,144 @@ def test_classify(change, want):
         assert reason.startswith("max |diff|/tol = 50 <= M_cls = 100: treated as EXCLUDED")
 
 
-def test_classify_a_layout_change_at_the_same_neq_is_invalid():
-    """Owner, 2026-10-22 (AIUE-94 D4): like a neq change (bbb.isngon in d_c and d_mols swaps the gas equations)."""
+def test_classify_a_layout_change_at_the_same_neq_is_an_equation_set():
+    """Owner, 2026-10-22 (AIUE-94 D4): like a neq change (bbb.isngon in d_c and d_mols swaps the gas equations); T24."""
     d = data()
     d["idxg"] = d["idxg"][::-1].copy()
     d["masks"]["isngonxy"] = np.zeros(3, np.int32)
     assert mr.classify(result(d), data(), TOL) == (
-        "INVALID", "equation layout changed (idxg, isngonxy) at the same neq", None)
+        "EQSET", "equation layout changed (idxg, isngonxy) at the same neq", None)
+    d["yldot"][1] = np.nan
+    assert mr.classify(result(d), data(), TOL)[0] == "INVALID"
+
+
+# ---------------------------------------------------------------- EQSET (T24): the maps of test_compare_unit
+
+
+def eqset_pair():
+    """(default map, its data, variant map, its data, (i0, i1, added)): other_set's variant, its shared rows equal."""
+    d0, d = make_data(), make_data(edit=other_set)
+    base, imap = compare.index_map(d0, SPEC), compare.index_map(d, SPEC)
+    i0, i1, added = compare.mapping(base, imap)
+    rng = np.random.default_rng(24)
+    y0, y = rng.standard_normal(base.neq), rng.standard_normal(imap.neq)
+    y[i1] = y0[i0]
+    d0.update(yldot=y0, yldot_J=y0.copy())
+    d.update(yldot=y, yldot_J=y.copy())
+    return base, d0, imap, d, (i0, i1, added)
+
+
+def test_shared_ratios_and_layout():
+    """Per block the largest ratio over yldot and yldot_J of the shared rows, found by meaning; added rows have no say."""
+    base, d0, imap, d, (i0, i1, added) = eqset_pair()
+    tol = np.linspace(1e-9, 2e-9, base.neq)
+    ratios = mr.shared_ratios(base, d0, imap, d, tol)
+    assert set(ratios.values()) == {0.0}
+    assert not any(b.startswith("te") for b in ratios) and "ti[1] core" not in ratios  # blocks without shared rows
+    d["yldot"][added] += 1.0
+    k = [int(np.flatnonzero((base.eq[i0] == e) & (base.region[i0] == "guard"))[0]) for e in ("ni", "up", "phi")]
+    d["yldot"][i1[k[0]]] += 0.02 * tol[i0[k[0]]]
+    d["yldot_J"][i1[k[1]]] += 5.0 * tol[i0[k[1]]]
+    d["yldot"][i1[k[2]]] += 0.005 * tol[i0[k[2]]]
+    ratios = mr.shared_ratios(base, d0, imap, d, tol)
+    labels = ["{}[{}] guard".format(base.eq[i0[j]], base.species[i0[j]]) for j in k]
+    assert [ratios[b] for b in labels] == pytest.approx([0.02, 5.0, 0.005], rel=1e-5)
+    lay = mr.eqset_layout(base, d0, imap, d, tol)
+    assert lay["moved"] == sorted(labels[:2])  # above MOVED = 0.01; 0.005 is unmoved
+    assert lay["neq"] == imap.neq and lay["sha256"] == compare.layout_sha(imap)
+    assert lay["rows"] == compare.layout_rows(imap)
+    d["yldot"][i1[k[2]]] = np.nan
+    assert mr.shared_ratios(base, d0, imap, d, tol)[labels[2]] == np.inf
+
+
+def test_eqset_norms_are_over_the_shared_rows(tmp_path):
+    from types import SimpleNamespace
+
+    from yldot.harness import store
+
+    base, d0, imap, d, (i0, i1, added) = eqset_pair()
+    labels, rows, _ = store.blocks(base)
+    w = SimpleNamespace(labels=labels, rows=rows)
+    assert mr.eqset_norms(w, base, d0, imap, d) == ({}, {})
+    k = int(np.flatnonzero((base.eq[i0] == "up") & (base.region[i0] == "guard"))[0])
+    d["yldot"][i1[k]] += 3.0
+    d["yldot_J"][i1[k]] += 7.0
+    label = "up[1] guard"
+    l2, jl2 = mr.eqset_norms(w, base, d0, imap, d)
+    assert l2 == {label: pytest.approx(3.0)} and jl2 == {label: pytest.approx(4.0)}
+
+
+def live_switches(d):
+    """The switches whose product is the masks of d."""
+    out = {}
+    for mask, on, off in compare.SWITCHES:
+        m = d["masks"][mask]
+        out[on] = np.ones(31 if m.ndim == 3 else (), int)
+        out[off] = 1 - m
+    return out
+
+
+def test_eqset_map_checks_order_and_masks():
+    d = make_data(edit=other_set)
+    d["switches"] = live_switches(d)
+    imap = mr.eqset_map(d, SPEC)
+    assert imap.neq == d["neq"] and set(imap.region) >= {"guard", "core"}
+    d["switches"]["isteoffxy"][1, 1] = 0
+    with pytest.raises(compare.IndexTruthError, match="isteonxy differs"):
+        mr.eqset_map(d, SPEC)
+    d["switches"] = live_switches(d)
+    d["idxn"][1, 1] = d["idxn"][1, 1][::-1].copy()
+    with pytest.raises(compare.IndexTruthError, match="row order"):
+        mr.eqset_map(d, SPEC)
+
+
+def test_same_run_needs_the_same_index():
+    """Two runs with the same values in rows of another meaning are not the same run (T24)."""
+    a, b = result(data()), result(data())
+    assert mr.same_run(a, b).size == 0
+    b.data["idxte"] = b.data["idxte"][::-1].copy()
+    assert mr.same_run(a, b) is None
+    c = result(data())
+    c.data["masks"]["isngonxy"] = np.zeros(3, np.int32)
+    assert mr.same_run(a, c) is None
+
+
+@pytest.mark.parametrize("function, error", [("eqset_map", compare.IndexTruthError),
+                                             ("eqset_tolerance", compare.ToleranceEscalation)])
+def test_child_reports_an_eqset_without_index_truth_or_tolerance(tmp_path, monkeypatch, function, error):
+    """A row order that the masks do not give, or added rows without a scale, is a finding; nothing is stored."""
+    def broken(*a, **kw):
+        raise error("row order: boom")
+
+    monkeypatch.setattr(mr, function, broken)
+    d = tmp_path / "broken"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.isteon"])
+    m = mf.loads((d / "references" / "d_only.json").read_text())
+    assert m["variables"] == {} and not any("/eqset/" in k for k in m["datasets"])
+    assert json.loads((d / "references" / "d_only.findings.json").read_text()) == [
+        {"id": "bbb.isteon", "finding": "owner: row order: boom"}]
+
+
+def test_child_stores_an_eqset_only_if_both_runs_agree(tmp_path, monkeypatch):
+    from yldot.harness.process import Runner
+
+    real, seen = Runner.evaluate, []
+
+    def flaky(self, family, **kw):
+        r = real(self, family, **kw)
+        if kw.get("variant") is not None:
+            seen.append(kw["variant"].id)
+            if len(seen) == 2:
+                r.data["yldot_J"][7] += 1.0
+        return r
+
+    monkeypatch.setattr(Runner, "evaluate", flaky)
+    d = tmp_path / "flaky"
+    mr.child(["d_only"], d / "references", build_record(tmp_path), sweep=["bbb.isteon"])
+    m = mf.loads((d / "references" / "d_only.json").read_text())
+    e = m["variables"]["bbb.isteon"]
+    assert seen == ["bbb.isteon"] * 2 and e["class"] == "INVALID" and e["reason"].startswith("nondeterministic: 1 rows")
+    assert "layout" not in e and not any("/eqset/" in k for k in m["datasets"])
 
 
 def test_classify_irregular_results_are_findings():
@@ -977,12 +1135,12 @@ def guard_requirements(old, new):
 
 def test_prune_drops_the_entries_no_longer_in_the_inventory(tmp_path, swept, monkeypatch):
     """Acceptance 1 (AIUE-95): bbb.xlinc (INERT, with a locality pattern: d_only has variants = "all") and
-    bbb.isnion (INVALID) leave the inventory; --prune gives the old manifest without them, every other dataset and
+    bbb.isphiofft (INVALID) leave the inventory; --prune gives the old manifest without them, every other dataset and
     locality slice the same, nothing evaluated but the defaults, and the guard needs no declaration."""
     suite = installed(tmp_path, swept[0])
     old = mf.load("d_only", suite)
     assert old["variables"]["bbb.xlinc"]["class"] == "INERT" and "bbb.xlinc" in old["locality_variants"]
-    drop = ("bbb.xlinc", "bbb.isnion")
+    drop = ("bbb.xlinc", "bbb.isphiofft")
     plan_without(monkeypatch, drop)
     d = tmp_path / "prune"
     mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v not in drop], prune=True,
@@ -998,26 +1156,28 @@ def test_prune_drops_the_entries_no_longer_in_the_inventory(tmp_path, swept, mon
     assert "prune bbb.xlinc (INERT in every family; with its locality pattern)" in why
 
 
-def test_prune_drops_a_sensitive_entry_with_its_data_and_pattern(tmp_path, swept, monkeypatch):
-    """AIUE-95 review I1-m4: bbb.cfvisx (SENSITIVE) leaves the inventory; its variant datasets and locality pattern
-    go, every other dataset is the same, and the guard needs a Default results: changed declaration."""
+@pytest.mark.parametrize("vid, cls", [("bbb.cfvisx", "SENSITIVE"), ("bbb.isnion", "EQSET")])
+def test_prune_drops_an_entry_with_its_data_and_pattern(tmp_path, swept, monkeypatch, capsys, vid, cls):
+    """AIUE-95 review I1-m4: bbb.cfvisx (SENSITIVE; T24: bbb.isnion, EQSET) leaves the inventory; its stored datasets
+    and locality pattern go, every other dataset is the same, and the guard needs a Default results: changed
+    declaration."""
     suite = installed(tmp_path, swept[0])
     old = mf.load("d_only", suite)
-    assert old["variables"]["bbb.cfvisx"]["class"] == "SENSITIVE"
-    plan_without(monkeypatch, ("bbb.cfvisx",))
+    group = "/{}/{}/".format(mf.STORED[cls], vid)
+    assert old["variables"][vid]["class"] == cls
+    plan_without(monkeypatch, (vid,))
     d = tmp_path / "prune"
-    mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v != "bbb.cfvisx"], prune=True,
-             suite=suite)
+    mr.child(["d_only"], d, build_record(tmp_path), sweep=[v for v in SWEEP if v != vid], prune=True, suite=suite)
+    assert "prune {} ({}); {}: the guard needs".format(vid, cls, cls) in capsys.readouterr().out
     new = mf.loads((d / "d_only.json").read_text())
-    assert "bbb.cfvisx" not in new["variables"] and "bbb.cfvisx" not in new.get("locality_variants", {})
-    assert not any("/variants/bbb.cfvisx/" in k for k in new["datasets"])
-    assert any("/variants/bbb.cfvisx/" in k for k in old["datasets"])
+    assert vid not in new["variables"] and vid not in new.get("locality_variants", {})
+    assert not any(group in k for k in new["datasets"])
+    assert any(group in k for k in old["datasets"])
     # the locality pattern tables (row, offsets, ids) are shared by all entries and shrink with the pruned one
     assert {k: s for k, s in new["datasets"].items() if "/locality_variants/" not in k} == {
-        k: s for k, s in old["datasets"].items() if "/variants/bbb.cfvisx/" not in k
-        and "/locality_variants/" not in k}
+        k: s for k, s in old["datasets"].items() if group not in k and "/locality_variants/" not in k}
     required, _ = guard_requirements(old, dict(new, release=TAG, external=old["external"]))
-    assert any(req == "default" and "bbb.cfvisx" in why for req, why in required), required
+    assert any(req == "default" and vid in why for req, why in required), required
 
 
 def test_prune_refusals(tmp_path, swept, monkeypatch):
@@ -1137,18 +1297,18 @@ def test_audit_runtime_error_makes_the_variant_invalid(tmp_path):
     assert v["bbb.lgvmax"]["class"] == "MARGINAL" and v["bbb.isnion"]["reason"] == "neq 420 -> 300"
 
 
-def test_audit_runtime_error_replaces_an_invalid_reason(tmp_path):
+def test_audit_runtime_error_replaces_an_equation_set(tmp_path):
     reason = "bounds-check: bbb/pandf.F:332: Index '0' of dimension 1 of array 'yldot' below lower bound of 1"
     audit = write_audit(tmp_path / "audit", ["bbb.isnion"], {"bbb.isnion": {"status": "crash", "runtime": True,
                                                                              "reason": reason}})
     mr.child(["d_only"], tmp_path / "out", build_record(tmp_path), sweep=["bbb.isnion"], audit=audit)
-    assert mf.loads((tmp_path / "out" / "d_only.json").read_text())["variables"]["bbb.isnion"]["reason"] == (
-        reason + " (serial build: neq 420 -> 300)")
+    e = mf.loads((tmp_path / "out" / "d_only.json").read_text())["variables"]["bbb.isnion"]
+    assert (e["class"], e["reason"]) == ("INVALID", reason + " (serial build: EQSET)") and "layout" not in e
 
 
 @pytest.mark.parametrize("cls, serial, outcome", [
     ("SENSITIVE", "", ("SENSITIVE", None)), ("INERT", None, ("INERT", None)), ("MARGINAL", "", ("MARGINAL", None)),
-    ("INVALID", "neq 420 -> 360", ("INVALID", "neq")),
+    ("EQSET", "neq 420 -> 360", ("EQSET", None)), ("INVALID", "neq 420 -> 0", ("INVALID", "neq")),
     ("INVALID", "error: ValueError: bad (x: 1) (y)", ("INVALID", "error")),
 ])
 def test_audit_invalid_reason_round_trips(cls, serial, outcome):
@@ -1502,14 +1662,15 @@ def test_main_passes_jobs_to_one_family_only(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("cls, finding, audit_failed, want", [
-    ("SENSITIVE", None, None, True),
+    ("SENSITIVE", None, None, True), ("EQSET", None, None, True),
+    ("EQSET", None, {"runtime": True, "status": "error", "reason": "bounds-check: x"}, False),
     ("SENSITIVE", "owner: something", None, False),  # a finding: the loop stops before the second run
     ("SENSITIVE", None, {"runtime": True, "status": "error", "reason": "bounds-check: x"}, False),  # INVALID
     ("SENSITIVE", None, {"runtime": False, "status": "crash", "reason": "x"}, False),  # a finding
     ("MARGINAL", None, None, False), ("INERT", None, None, False), ("INVALID", None, None, False),
     ("EXCLUDED", None, None, False)])
 def test_again_needed_is_the_loops_second_run_rule(cls, finding, audit_failed, want):
-    """The task makes the second run exactly when the sweep loop reaches its SENSITIVE branch (families_run)."""
+    """The task makes the second run exactly when the sweep loop reaches its branch of the stored classes (families_run)."""
     assert mr.again_needed(cls, finding, audit_failed) is want
 
 

@@ -6,12 +6,14 @@ Usage:
     <build's python> variant_tolerances.py collect REFS --label L --out DIR --build FILE [family ...]
     python variant_tolerances.py check REFS DIR [--report FILE] [family ...]
 
-replay   the population check (review I1-B1, D8): every SENSITIVE variant of REFS, each once with this build in a
+replay   the population check (review I1-B1, D8): every SENSITIVE and EQSET variant of REFS, each once with this build in a
          fresh child, its recorded applied value replayed, checked against its stored reference through Store.check,
          yldot and the flag difference, with tol_i(variant) = max(rtol_eq*|ref_i(variant)|, k*sigma_i)
          (make_references.variant_tolerance: the PRD 7.4 rule with the variant's own reference and the default's
          sigma_i); in a sketch store, which keeps no dense reference, the replayed run's yldot takes the reference's
-         place in that rule and the sketch comparator decides (owner, 2026-10-24, AIUE-99 Q2). REFS: a
+         place in that rule and the sketch comparator decides (owner, 2026-10-24, AIUE-99 Q2). An EQSET variant (T24)
+         is checked by eqset_result: its layout, its stored reference and its unmoved blocks against this build's own
+         default. REFS: a
          make_references.py run's --out DIR/references (<family>.h5 and <family>.json) or
          "installed" (tests/yldot/references); default families: every one REFS holds with classified variants.
          Prints per family the count, the failures (a failed evaluation is one) and the largest
@@ -214,20 +216,93 @@ def check_result(name, s, v, e, r):
     return row
 
 
+def eqset_result(name, s, v, e, r, base):
+    """The row of an evaluation r (ok) of the EQSET variant v (its manifest entry e) of the open store s (T24; owner,
+    2026-11-24), with three checks:
+    1. index truth (make_references.eqset_map: the bijection, the row order, the masks) and the stored layout;
+    2. the stored reference through Store.check_eqset under make_references.eqset_tolerance: shared rows with the stored
+       yldot in the rtol term (a full store) or this run's (a sketch store, AIUE-99 Q2), added rows with the stored one;
+    3. every block of the default not in layout.moved within the default's tol_i of base, the live default's data of
+       the variant's configuration, row by row, yldot and yldot_J (make_references.shared_ratios).
+    A row: ok, ratio (check 2's, else inf), report, and hard = True when a check other than 2's values failed: check 1,
+    check 3 or a non-finite entry, which no build's round-off explains."""
+    import make_references as mr
+    from yldot.harness import compare
+    from yldot.harness.process import family_dir
+    from yldot.harness.store import layout_difference
+
+    fdir, config = family_dir(name), e["config"]
+
+    def hard(text):
+        return {"ok": False, "ratio": float("inf"), "hard": True, "report": text, "message": text}
+
+    try:
+        imap = mr.eqset_map(r.data, compare.load_regions(fdir))
+    except compare.IndexTruthError as error:
+        return hard(str(error))
+    problem = layout_difference(e["layout"], imap)
+    if problem:
+        return hard(problem)
+    y, yj = np.asarray(r.data["yldot"], np.float64), np.asarray(r.data["yldot_J"], np.float64)
+    bad = np.flatnonzero(~(np.isfinite(y) & np.isfinite(yj)))
+    if bad.size:
+        return hard("non-finite yldot or yldot_J at rows {}".format(compare.listed((bad + 1).tolist())))
+    _, _, added = compare.mapping(s.imap, imap)
+    ref = y.copy() if s.kind == "sketch" else s.eqset(config, v.id, imap)[0]
+    ref[added] = s.eqset_added(config, v.id)[0]
+    chk = s.check_eqset(config, v.id, y, yj, mr.eqset_tolerance(fdir, ref, config, s.imap, imap), imap)
+    row = {"ok": bool(chk.ok), "ratio": chk.ratio}
+    lines = [] if chk.ok else [chk.report]
+    tol = mr.tolerance(fdir, base["yldot"], config, s.imap)
+    live = mr.shared_ratios(s.imap, base, imap, r.data, tol)
+    off = {label: x for label, x in live.items() if label not in e["layout"]["moved"] and not x <= 1}
+    if off:
+        lines.append("blocks unmoved at generation differ from the live default: " + ", ".join(
+            "{} {:.3g}".format(label, x) for label, x in sorted(off.items(), key=lambda t: -t[1])))
+        row.update(ok=False, hard=True, message=lines[-1])
+    if lines:
+        row["report"] = "\n".join(lines)
+    return row
+
+
+def check_eqset(name, s, runner, v, e, timeout, base):
+    """The row of one EQSET variant v (its manifest entry e): evaluated once with this build in a fresh child, its
+    recorded applied value replayed, checked by eqset_result against base, this build's live default."""
+    import make_references as mr
+
+    r = runner.evaluate(name, variant=v, replay=e["applied"], timeout=timeout)
+    if not r.ok:
+        return {"ok": False, "ratio": float("inf"), "status": r.status, "message": mr.error_reason(r)}
+    return eqset_result(name, s, v, e, r, base)
+
+
 def replay_family(name, s, runner, plan, timeout):
-    """{id: row} for every SENSITIVE variant of the open store s, full or sketch (check_sensitive)."""
-    rows = {}
+    """{id: row} for every SENSITIVE and EQSET variant of the open store s, full or sketch (check_sensitive,
+    check_eqset)."""
+    rows, defaults = {}, {}
+
+    def default(config):
+        if config not in defaults:
+            r = runner.evaluate(name, config=config, timeout=timeout)
+            if not r.ok:
+                raise Stop(2, "{} {}: {} {}\n{}".format(name, config, r.status, r.message, r.log_tail))
+            defaults[config] = r.data
+        return defaults[config]
+
     for vid, e in s.manifest["variables"].items():
-        if e["class"] != "SENSITIVE":
+        if e["class"] not in ("SENSITIVE", "EQSET"):
             continue
         if vid not in plan:
             raise Stop(2, "{} {}: not in this inventory (prune it first, AIUE-95)".format(name, vid))
-        rows[vid] = check_sensitive(name, s, runner, plan[vid], e, timeout)
+        if e["class"] == "EQSET":
+            rows[vid] = check_eqset(name, s, runner, plan[vid], e, timeout, default(e["config"]))
+        else:
+            rows[vid] = check_sensitive(name, s, runner, plan[vid], e, timeout)
     return rows
 
 
 def replay(refs, families, build=None, out=None):
-    """Replay every SENSITIVE variant of REFS with this build (D8); prints per family the count, the failures and
+    """Replay every SENSITIVE and EQSET variant of REFS with this build (D8, T24); prints per family the count, the failures and
     the largest ratio; out: the rows as JSON. Returns the number of failures."""
     from yldot.harness import Runner, load_evaluation, variants
     from yldot.harness.process import family_dir
@@ -246,8 +321,9 @@ def replay(refs, families, build=None, out=None):
             bad = sorted((vid for vid, x in rows.items() if not x["ok"]), key=lambda vid: -rows[vid]["ratio"])
             failures += len(bad)
             top = max(rows, key=lambda vid: rows[vid]["ratio"]) if rows else None
-            print("{}: {} SENSITIVE replayed, {} fail, largest ratio {}{}".format(
-                name, len(rows), len(bad), "{:.3g} ({})".format(rows[top]["ratio"], top) if top else "-",
+            n_eq = sum(s.manifest["variables"][vid]["class"] == "EQSET" for vid in rows)
+            print("{}: {} SENSITIVE{} replayed, {} fail, largest ratio {}{}".format(
+                name, len(rows) - n_eq, " and {} EQSET".format(n_eq) if n_eq else "", len(bad), "{:.3g} ({})".format(rows[top]["ratio"], top) if top else "-",
                 "; failing: " + ", ".join("{} {:.3g}{}".format(vid, rows[vid]["ratio"], " " + rows[vid]["message"]
                                                                if "message" in rows[vid] else "") for vid in bad)
                 if bad else ""), flush=True)
@@ -314,7 +390,7 @@ def main(argv):
         if args.cmd == "replay":
             failures = replay(args.refs, args.family, args.build, args.json)
             if failures:
-                print("{} stored SENSITIVE variants not reproduced within tol_i(variant): the epic owner decides "
+                print("{} stored variants not reproduced within tol_i(variant): the epic owner decides "
                       "(decision 23)".format(failures), file=sys.stderr)
                 return 3
             return 0
