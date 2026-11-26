@@ -54,6 +54,108 @@
     "/steady/default/sketch_threshold/cell_m": "30a54b6d7fe29ceb6e36dce2dc06bf5d3c62e4f151c93f58d392e666dfebcfe9",
     "/steady/default/sketch_weight": "769a95c2bcc2205d73b933a51a306cf0a2f17b5bd9179e9cb49eeabd7c5383b9",
     "/steady/default/yldot": "a22a097cd7e7e6412fbc328a40af9343363b4cef1f6ab9d068eab06fa5b82f13",
+    "/steady/eqset/bbb.isngon/added/jflag_index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/eqset/bbb.isngon/added/jflag_value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/eqset/bbb.isngon/added/yldot": "ae5084cc6bb340487b169e72971171cf226ebbb961debd5173b2f1f9f74f792c",
+    "/steady/eqset/bbb.isngon/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
+    "/steady/eqset/bbb.isngon/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
+    "/steady/eqset/bbb.isngon/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
+    "/steady/eqset/bbb.isngon/jflag/proj": "be2c2f7302304c20a5aaac81e8e368d77b161a77e95fd1f5924c86ba6baaffa5",
+    "/steady/eqset/bbb.isngon/yldot/argmax": "f063ad9cdf7fa6eed5efff86a286e8eb892a1d09149bce4521aef0cb3bacd0e1",
+    "/steady/eqset/bbb.isngon/yldot/l2": "8a5834b5e19d75cedf2d0fc86bfc2a051b51f8809ac938c6e25e9b867860572c",
+    "/steady/eqset/bbb.isngon/yldot/maxabs": "42b15ef5fd06709884f4975ab86214edb2215f49b70b81329e0f8b3b6d60a993",
+    "/steady/eqset/bbb.isngon/yldot/proj": "310bc222330d7fbfed6a08308b779956126a364e556f4c27d7dcbc37b9c2ea23",
+    "/steady/eqset/bbb.isnioffxy/jflag/argmax": "25b91c9bca9b6c1291d1de333323fcec8b8eedcde0a84aea09b54ab5a5629a05",
+    "/steady/eqset/bbb.isnioffxy/jflag/l2": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isnioffxy/jflag/maxabs": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isnioffxy/jflag/proj": "823845f58e22098880fcd31298584e85d6aed23ca5cbd25ebe9bd62466928d97",
+    "/steady/eqset/bbb.isnioffxy/yldot/argmax": "85aa45bd8358ecb8b2786044baab2344c35bc96f5e7e534f1dac7fcec91dd964",
+    "/steady/eqset/bbb.isnioffxy/yldot/l2": "f5a434d20a7e034fe8ac4482c9b092d37bed71b3ac72f1a85714e2d0782ab43a",
+    "/steady/eqset/bbb.isnioffxy/yldot/maxabs": "5f46aa2611ca094e13a431581484f89e72baa5a8958674d074dc1f73653f5bb6",
+    "/steady/eqset/bbb.isnioffxy/yldot/proj": "40d72b309d52ad55a53b8c816b6e618e0c0761fd7086f10beaac0ca746362649",
+    "/steady/eqset/bbb.isnion/jflag/argmax": "25b91c9bca9b6c1291d1de333323fcec8b8eedcde0a84aea09b54ab5a5629a05",
+    "/steady/eqset/bbb.isnion/jflag/l2": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isnion/jflag/maxabs": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isnion/jflag/proj": "823845f58e22098880fcd31298584e85d6aed23ca5cbd25ebe9bd62466928d97",
+    "/steady/eqset/bbb.isnion/yldot/argmax": "85aa45bd8358ecb8b2786044baab2344c35bc96f5e7e534f1dac7fcec91dd964",
+    "/steady/eqset/bbb.isnion/yldot/l2": "f5a434d20a7e034fe8ac4482c9b092d37bed71b3ac72f1a85714e2d0782ab43a",
+    "/steady/eqset/bbb.isnion/yldot/maxabs": "5f46aa2611ca094e13a431581484f89e72baa5a8958674d074dc1f73653f5bb6",
+    "/steady/eqset/bbb.isnion/yldot/proj": "40d72b309d52ad55a53b8c816b6e618e0c0761fd7086f10beaac0ca746362649",
+    "/steady/eqset/bbb.isphioffxy/jflag/argmax": "6fdcdddc701b0579178cb3825c5c87785e11e8e988f051f39e7b904b089d40bc",
+    "/steady/eqset/bbb.isphioffxy/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isphioffxy/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isphioffxy/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.isphioffxy/yldot/argmax": "d1db2b524363bc46484a5871b2a4e983436148c4d5ed0b48c618cc10c1fdf365",
+    "/steady/eqset/bbb.isphioffxy/yldot/l2": "4971e51b5d04680b1714e06d104511a3fb9a041a869be427bfb3df15deeff8eb",
+    "/steady/eqset/bbb.isphioffxy/yldot/maxabs": "fead187d336f7afff92329f55645f218ae755789d82815fd2c5e556ded1eb27e",
+    "/steady/eqset/bbb.isphioffxy/yldot/proj": "c705619f390e9e74176e70c01b7689cbb6f1dc1fa14ae42c3271e7e38f8fa14c",
+    "/steady/eqset/bbb.isphion/jflag/argmax": "6fdcdddc701b0579178cb3825c5c87785e11e8e988f051f39e7b904b089d40bc",
+    "/steady/eqset/bbb.isphion/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isphion/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isphion/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.isphion/yldot/argmax": "0694aff63195e1616f2a93012bd7e50b64d0052f4a3d738c52b918ae89b6fdd8",
+    "/steady/eqset/bbb.isphion/yldot/l2": "76ec6b8642f4fba892d67a105425375fdbddf5865465bb6ba41545aebbc31d38",
+    "/steady/eqset/bbb.isphion/yldot/maxabs": "258fc3ddc1a10b3d9684a9be4ea4e277b993188c5045fc45ac59c4ea1bc55c6c",
+    "/steady/eqset/bbb.isphion/yldot/proj": "678966f1edea6c35e03f93787593a3782b86c906f3fef4d9f7cc89d2ccddad64",
+    "/steady/eqset/bbb.isteoffxy/jflag/argmax": "997b2d1e577d3a9c33a497df2d172d480ee802c01e994c681c80443508ac0318",
+    "/steady/eqset/bbb.isteoffxy/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isteoffxy/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isteoffxy/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.isteoffxy/yldot/argmax": "768435d9233cbf78c9f304b8557c806d55f23162f38338619bd83a402937e730",
+    "/steady/eqset/bbb.isteoffxy/yldot/l2": "5302c9b8560fae9923da7fc6453b560c518e30704727807c178700e4fd025e78",
+    "/steady/eqset/bbb.isteoffxy/yldot/maxabs": "ad2073726e4b6b825ac941b7680e44efd5962a9745cadb671f4c1a141d7b7ddf",
+    "/steady/eqset/bbb.isteoffxy/yldot/proj": "bc12fd5eaf2ab56f824d506ef7dc3a465ff97e0002c856e43dace9c0fc5368d7",
+    "/steady/eqset/bbb.isteon/jflag/argmax": "997b2d1e577d3a9c33a497df2d172d480ee802c01e994c681c80443508ac0318",
+    "/steady/eqset/bbb.isteon/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isteon/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.isteon/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.isteon/yldot/argmax": "768435d9233cbf78c9f304b8557c806d55f23162f38338619bd83a402937e730",
+    "/steady/eqset/bbb.isteon/yldot/l2": "5302c9b8560fae9923da7fc6453b560c518e30704727807c178700e4fd025e78",
+    "/steady/eqset/bbb.isteon/yldot/maxabs": "ad2073726e4b6b825ac941b7680e44efd5962a9745cadb671f4c1a141d7b7ddf",
+    "/steady/eqset/bbb.isteon/yldot/proj": "bc12fd5eaf2ab56f824d506ef7dc3a465ff97e0002c856e43dace9c0fc5368d7",
+    "/steady/eqset/bbb.istgon/added/jflag_index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/eqset/bbb.istgon/added/jflag_value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/eqset/bbb.istgon/added/yldot": "51a2bac32902b5a5cea19b6a0328494d1a717947b716e9c057ddd54b60606a6e",
+    "/steady/eqset/bbb.istgon/jflag/argmax": "ecac10e53384118555731baacba8a8084625ee4a681392550801925b2ee36783",
+    "/steady/eqset/bbb.istgon/jflag/l2": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
+    "/steady/eqset/bbb.istgon/jflag/maxabs": "c6379c5c58653b01e0d40c9893bf62b15998a427bd18a0890cb3289d8a2b2a9f",
+    "/steady/eqset/bbb.istgon/jflag/proj": "be2c2f7302304c20a5aaac81e8e368d77b161a77e95fd1f5924c86ba6baaffa5",
+    "/steady/eqset/bbb.istgon/yldot/argmax": "f063ad9cdf7fa6eed5efff86a286e8eb892a1d09149bce4521aef0cb3bacd0e1",
+    "/steady/eqset/bbb.istgon/yldot/l2": "8a5834b5e19d75cedf2d0fc86bfc2a051b51f8809ac938c6e25e9b867860572c",
+    "/steady/eqset/bbb.istgon/yldot/maxabs": "42b15ef5fd06709884f4975ab86214edb2215f49b70b81329e0f8b3b6d60a993",
+    "/steady/eqset/bbb.istgon/yldot/proj": "310bc222330d7fbfed6a08308b779956126a364e556f4c27d7dcbc37b9c2ea23",
+    "/steady/eqset/bbb.istioffxy/jflag/argmax": "4b32c9cff804ec823bee7dfacfd0993eba6105ed060080f809c558170fb76fce",
+    "/steady/eqset/bbb.istioffxy/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.istioffxy/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.istioffxy/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.istioffxy/yldot/argmax": "3c28ebbd0fd67fa6f5b5a2df2ccdc830985b00c7b9e4c01b0492d4c219e39fbe",
+    "/steady/eqset/bbb.istioffxy/yldot/l2": "5f4f73e003230a1b482ee5985e22a8fb2d698c9058749626c49746ef34961709",
+    "/steady/eqset/bbb.istioffxy/yldot/maxabs": "377f90da494a73e6781011ef21c90a7a68a445f7036ccd71a1508aad692d45a7",
+    "/steady/eqset/bbb.istioffxy/yldot/proj": "d7e11fb373c7a3e98cf0d1594964dffe01c513f2f03f1ffc7069eb9774f78394",
+    "/steady/eqset/bbb.istion/jflag/argmax": "4b32c9cff804ec823bee7dfacfd0993eba6105ed060080f809c558170fb76fce",
+    "/steady/eqset/bbb.istion/jflag/l2": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.istion/jflag/maxabs": "51f5aa5486b07c7738bf6cf3ca13969728f64147bec15085fd599e9317cd110a",
+    "/steady/eqset/bbb.istion/jflag/proj": "8b04ac90e9fb29677e491ffcb5dc89901d0f879138bb11d1dc5ba82c22484d8c",
+    "/steady/eqset/bbb.istion/yldot/argmax": "3c28ebbd0fd67fa6f5b5a2df2ccdc830985b00c7b9e4c01b0492d4c219e39fbe",
+    "/steady/eqset/bbb.istion/yldot/l2": "5f4f73e003230a1b482ee5985e22a8fb2d698c9058749626c49746ef34961709",
+    "/steady/eqset/bbb.istion/yldot/maxabs": "377f90da494a73e6781011ef21c90a7a68a445f7036ccd71a1508aad692d45a7",
+    "/steady/eqset/bbb.istion/yldot/proj": "d7e11fb373c7a3e98cf0d1594964dffe01c513f2f03f1ffc7069eb9774f78394",
+    "/steady/eqset/bbb.isupoffxy/jflag/argmax": "5ea5d3e070fab7e4f5d865839394a1388987b5568b066e1b841b58cb566ee86f",
+    "/steady/eqset/bbb.isupoffxy/jflag/l2": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isupoffxy/jflag/maxabs": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isupoffxy/jflag/proj": "823845f58e22098880fcd31298584e85d6aed23ca5cbd25ebe9bd62466928d97",
+    "/steady/eqset/bbb.isupoffxy/yldot/argmax": "c90269f7a8f418cb5b53ab8f2b7ffe278321ab9b10fb3f1c6259838188dd8ee9",
+    "/steady/eqset/bbb.isupoffxy/yldot/l2": "5ec56ae1e97ad9eb311f9f7331c1ceea5bde55b62ee6f65d2bba43f196645b2e",
+    "/steady/eqset/bbb.isupoffxy/yldot/maxabs": "be03b6b61ed66496cde6ba3e86a83ea61ccfd7b2bfdfd8aaa072ce5cad66f400",
+    "/steady/eqset/bbb.isupoffxy/yldot/proj": "7666570f6982ed580f47116f0a97ba2fcbd9762dacd395365865d8dd006fa0df",
+    "/steady/eqset/bbb.isupon/jflag/argmax": "5ea5d3e070fab7e4f5d865839394a1388987b5568b066e1b841b58cb566ee86f",
+    "/steady/eqset/bbb.isupon/jflag/l2": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isupon/jflag/maxabs": "24d410d6cc45daa0f7a744ded942491cb0a086f4e496838e86091d2a96db3931",
+    "/steady/eqset/bbb.isupon/jflag/proj": "823845f58e22098880fcd31298584e85d6aed23ca5cbd25ebe9bd62466928d97",
+    "/steady/eqset/bbb.isupon/yldot/argmax": "c90269f7a8f418cb5b53ab8f2b7ffe278321ab9b10fb3f1c6259838188dd8ee9",
+    "/steady/eqset/bbb.isupon/yldot/l2": "5ec56ae1e97ad9eb311f9f7331c1ceea5bde55b62ee6f65d2bba43f196645b2e",
+    "/steady/eqset/bbb.isupon/yldot/maxabs": "be03b6b61ed66496cde6ba3e86a83ea61ccfd7b2bfdfd8aaa072ce5cad66f400",
+    "/steady/eqset/bbb.isupon/yldot/proj": "7666570f6982ed580f47116f0a97ba2fcbd9762dacd395365865d8dd006fa0df",
     "/steady/locality/column": "299e1ead89e06125d4cdd53dda3c944e8294774b33deb0021afdf186a1c470c4",
     "/steady/locality/columns": "c9a14c9f3b56c8e8089ac1d3028e41b6ad0cdb9b265123470450cfb0d6550da9",
     "/steady/locality/delta": "13c24c01a9a0ea2e0981601ae705a77c226caa2d97ef79901c3241d8a3338f6e",
@@ -2789,8 +2891,8 @@
       "sha256": "0720df9ab2fb36c56cb9a553647921efc4052eb4317181e7a014645ebfdfebd5"
     },
     "references/dnull_imp2.h5": {
-      "bytes": 8536348,
-      "sha256": "da3a711ba4ad2cb9c57e6dab280c11427543ad5fe657ac1b5e1d037b67ef2796"
+      "bytes": 8750252,
+      "sha256": "641413d85a7d8a937a27c58ef0ff7b01e44fab281f6ede289dfb112f2af26920"
     }
   },
   "family": "dnull_imp2",
@@ -2923,15 +3025,15 @@
     }
   },
   "provenance": {
-    "commit": "457a81d7ed7ea57ee3c664ed6f71e39949483e3b",
+    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-24T17:53:47+00:00",
+    "date": "2026-11-26T02:29:00+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v26",
+  "release": "yldot-data-v29",
   "schema": 1,
   "sketch": {
     "k": 8,
@@ -17918,7 +18020,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -17928,9 +18030,24 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 30912,
+        "rows": {
+          "ng[1]": 3864,
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "ae1946b289319c44e82904c621956e572eb023be7eb1073b94c751a8ecd3cdb8"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 30912",
-      "sha256": null
+      "sha256": "5e548230abd996fc8017238da711467d596845e73e33b75d3e5b28ef17515086"
     },
     "bbb.isngrf": {
       "applied": {
@@ -17986,8 +18103,45 @@
           2
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "te[1] core": 1672744.8369311267,
+        "te[1] lower_inner_leg": 11109.784029942733,
+        "te[1] lower_outer_leg": 12346.69226524933,
+        "te[1] pf_lower": 90039.2881873964,
+        "te[1] pf_upper": 34540.017611723946,
+        "te[1] sol": 266731.23899100313,
+        "te[1] sol_between": 1100586.2597139513,
+        "te[1] upper_inner_leg": 1882.4746977938541,
+        "te[1] upper_outer_leg": 91926.65242713735,
+        "ti[1] core": 2664420.498824797,
+        "ti[1] lower_inner_leg": 2377907.130276021,
+        "ti[1] lower_outer_leg": 95020.70060452732,
+        "ti[1] pf_lower": 317693202.45695,
+        "ti[1] pf_upper": 12339251.630502403,
+        "ti[1] sol": 868707.4996655051,
+        "ti[1] sol_between": 2896408.929356994,
+        "ti[1] upper_inner_leg": 48450.03174510592,
+        "ti[1] upper_outer_leg": 987822.4265502641,
+        "up[1] core": 1657918.7934727774,
+        "up[1] lower_inner_leg": 74607.34730498857,
+        "up[1] lower_outer_leg": 74861.32729377958,
+        "up[1] pf_lower": 1102330.1348287454,
+        "up[1] pf_upper": 255976.6537245265,
+        "up[1] sol": 688024.3664303327,
+        "up[1] sol_between": 1821914.8663341901,
+        "up[1] upper_inner_leg": 1619373.0305539777,
+        "up[1] upper_outer_leg": 387137.66248278145,
+        "up[2] core": 39954793651.84206,
+        "up[2] lower_inner_leg": 45721137.038042024,
+        "up[2] lower_outer_leg": 12598692.74520424,
+        "up[2] pf_lower": 1817833246.9811177,
+        "up[2] pf_upper": 109261469.22940843,
+        "up[2] sol": 13749191298.07891,
+        "up[2] sol_between": 37429159151.74539,
+        "up[2] upper_inner_leg": 5398812.113929303,
+        "up[2] upper_outer_leg": 108988219.18352725
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -17999,9 +18153,58 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "te[1] core",
+          "te[1] lower_inner_leg",
+          "te[1] lower_outer_leg",
+          "te[1] pf_lower",
+          "te[1] pf_upper",
+          "te[1] sol",
+          "te[1] sol_between",
+          "te[1] upper_inner_leg",
+          "te[1] upper_outer_leg",
+          "ti[1] core",
+          "ti[1] lower_inner_leg",
+          "ti[1] lower_outer_leg",
+          "ti[1] pf_lower",
+          "ti[1] pf_upper",
+          "ti[1] sol",
+          "ti[1] sol_between",
+          "ti[1] upper_inner_leg",
+          "ti[1] upper_outer_leg",
+          "up[1] core",
+          "up[1] lower_inner_leg",
+          "up[1] lower_outer_leg",
+          "up[1] pf_lower",
+          "up[1] pf_upper",
+          "up[1] sol",
+          "up[1] sol_between",
+          "up[1] upper_inner_leg",
+          "up[1] upper_outer_leg",
+          "up[2] core",
+          "up[2] lower_inner_leg",
+          "up[2] lower_outer_leg",
+          "up[2] pf_lower",
+          "up[2] pf_upper",
+          "up[2] sol",
+          "up[2] sol_between",
+          "up[2] upper_inner_leg",
+          "up[2] upper_outer_leg"
+        ],
+        "neq": 19320,
+        "rows": {
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "0e0ea5f880c8401dc8cd7c1123ed973e4d00dc16bc8a6944e1110b5dd4221c98"
+      },
       "phase": "POST",
       "reason": "neq 27048 -> 19320",
-      "sha256": null
+      "sha256": "16e90d1cfe2ab8f7cdc8f22e16207b61dc8862a428868bb07101c5a7510a3538"
     },
     "bbb.isnion": {
       "applied": {
@@ -18011,8 +18214,45 @@
           31
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "te[1] core": 1672744.8369311267,
+        "te[1] lower_inner_leg": 11109.784029942733,
+        "te[1] lower_outer_leg": 12346.69226524933,
+        "te[1] pf_lower": 90039.2881873964,
+        "te[1] pf_upper": 34540.017611723946,
+        "te[1] sol": 266731.23899100313,
+        "te[1] sol_between": 1100586.2597139513,
+        "te[1] upper_inner_leg": 1882.4746977938541,
+        "te[1] upper_outer_leg": 91926.65242713735,
+        "ti[1] core": 2664420.498824797,
+        "ti[1] lower_inner_leg": 2377907.130276021,
+        "ti[1] lower_outer_leg": 95020.70060452732,
+        "ti[1] pf_lower": 317693202.45695,
+        "ti[1] pf_upper": 12339251.630502403,
+        "ti[1] sol": 868707.4996655051,
+        "ti[1] sol_between": 2896408.929356994,
+        "ti[1] upper_inner_leg": 48450.03174510592,
+        "ti[1] upper_outer_leg": 987822.4265502641,
+        "up[1] core": 1657918.7934727774,
+        "up[1] lower_inner_leg": 74607.34730498857,
+        "up[1] lower_outer_leg": 74861.32729377958,
+        "up[1] pf_lower": 1102330.1348287454,
+        "up[1] pf_upper": 255976.6537245265,
+        "up[1] sol": 688024.3664303327,
+        "up[1] sol_between": 1821914.8663341901,
+        "up[1] upper_inner_leg": 1619373.0305539777,
+        "up[1] upper_outer_leg": 387137.66248278145,
+        "up[2] core": 39954793651.84206,
+        "up[2] lower_inner_leg": 45721137.038042024,
+        "up[2] lower_outer_leg": 12598692.74520424,
+        "up[2] pf_lower": 1817833246.9811177,
+        "up[2] pf_upper": 109261469.22940843,
+        "up[2] sol": 13749191298.07891,
+        "up[2] sol_between": 37429159151.74539,
+        "up[2] upper_inner_leg": 5398812.113929303,
+        "up[2] upper_outer_leg": 108988219.18352725
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -18022,9 +18262,58 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "te[1] core",
+          "te[1] lower_inner_leg",
+          "te[1] lower_outer_leg",
+          "te[1] pf_lower",
+          "te[1] pf_upper",
+          "te[1] sol",
+          "te[1] sol_between",
+          "te[1] upper_inner_leg",
+          "te[1] upper_outer_leg",
+          "ti[1] core",
+          "ti[1] lower_inner_leg",
+          "ti[1] lower_outer_leg",
+          "ti[1] pf_lower",
+          "ti[1] pf_upper",
+          "ti[1] sol",
+          "ti[1] sol_between",
+          "ti[1] upper_inner_leg",
+          "ti[1] upper_outer_leg",
+          "up[1] core",
+          "up[1] lower_inner_leg",
+          "up[1] lower_outer_leg",
+          "up[1] pf_lower",
+          "up[1] pf_upper",
+          "up[1] sol",
+          "up[1] sol_between",
+          "up[1] upper_inner_leg",
+          "up[1] upper_outer_leg",
+          "up[2] core",
+          "up[2] lower_inner_leg",
+          "up[2] lower_outer_leg",
+          "up[2] pf_lower",
+          "up[2] pf_upper",
+          "up[2] sol",
+          "up[2] sol_between",
+          "up[2] upper_inner_leg",
+          "up[2] upper_outer_leg"
+        ],
+        "neq": 19320,
+        "rows": {
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "0e0ea5f880c8401dc8cd7c1123ed973e4d00dc16bc8a6944e1110b5dd4221c98"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 19320",
-      "sha256": null
+      "sha256": "d00366b8781ff892c860740c1b06d9d20cc13df8e12f01156577a00b1f7df8e2"
     },
     "bbb.isnupdot1sd": {
       "applied": {
@@ -18324,7 +18613,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -18335,9 +18624,22 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "8fedfe4fe369108674b602221303a1eed8feff606bfa13690a8e0ea47a354661"
+      },
       "phase": "POST",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "6b201d6d16fabf99e64bee0f5a5313e088f34c5ea306a65bcfb86ad8c31824b3"
     },
     "bbb.isphion": {
       "applied": {
@@ -18345,8 +18647,19 @@
         "dtype": "int64",
         "shape": []
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "te[1] core": 3551063132.377496,
+        "te[1] guard": 449414757.42008346,
+        "te[1] lower_inner_leg": 3098819.489026978,
+        "te[1] lower_outer_leg": 496599.2249332367,
+        "te[1] pf_lower": 194332.05252767907,
+        "te[1] pf_upper": 5319384.445064157,
+        "te[1] sol": 34082038.24139956,
+        "te[1] sol_between": 657901194.8835661,
+        "te[1] upper_inner_leg": 293.2745476108206,
+        "te[1] upper_outer_leg": 22668092.88183459
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -18354,9 +18667,33 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "te[1] core",
+          "te[1] guard",
+          "te[1] lower_inner_leg",
+          "te[1] lower_outer_leg",
+          "te[1] pf_lower",
+          "te[1] pf_upper",
+          "te[1] sol",
+          "te[1] sol_between",
+          "te[1] upper_inner_leg",
+          "te[1] upper_outer_leg"
+        ],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "8fedfe4fe369108674b602221303a1eed8feff606bfa13690a8e0ea47a354661"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "1f507b2f505555e8828eab6044831b67692617aa1ea2e368225cdbe52288e8d4"
     },
     "bbb.isphirbc": {
       "applied": {
@@ -19043,7 +19380,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19054,9 +19391,22 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "d47b28839a19a12ee8a50a2eeb88f4eb4b0d34fb4c560218b40a18a286a6c8aa"
+      },
       "phase": "POST",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "53f00c9b18224125324084e6955b0425598e25bd618d207e658321c7fc3b6eec"
     },
     "bbb.isteon": {
       "applied": {
@@ -19065,7 +19415,7 @@
         "shape": []
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -19073,9 +19423,22 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "d47b28839a19a12ee8a50a2eeb88f4eb4b0d34fb4c560218b40a18a286a6c8aa"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "dddb4c5695d57b431fe87fa971f7b254af671d8bd9d80af0c8232420de7b97fa"
     },
     "bbb.istepfc": {
       "applied": {
@@ -19224,7 +19587,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19234,9 +19597,24 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 30912,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "tg[1]": 3864,
+          "ti[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "192b3e3ce39441384cea6f86fbde07c0f734f9c5c0e062550003cdbbaa7a59d5"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 30912",
-      "sha256": null
+      "sha256": "d79699df0fc6f6f3facbe156ead9353e5ce3af49b9390f3d2d042bf73c93ed06"
     },
     "bbb.istgpfc": {
       "applied": {
@@ -19367,7 +19745,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19378,9 +19756,22 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "39a6c6310cd60eecfb80bd9c3bd75ee2baed31ea30dc4657285b8543182afe34"
+      },
       "phase": "POST",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "a8807fcd5044ed0870e61f23faabd864eb5222ffdcd32e7b7f78a8846910af66"
     },
     "bbb.istion": {
       "applied": {
@@ -19389,7 +19780,7 @@
         "shape": []
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -19397,9 +19788,22 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 23184,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "up[1]": 3864,
+          "up[2]": 3864
+        },
+        "sha256": "39a6c6310cd60eecfb80bd9c3bd75ee2baed31ea30dc4657285b8543182afe34"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 23184",
-      "sha256": null
+      "sha256": "d1fbf23c5e13306d121eaff88b2adcaf3a173fb70f4d9abbee3a941a0b68f9c6"
     },
     "bbb.istipfc": {
       "applied": {
@@ -19771,7 +20175,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19783,9 +20187,21 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 19320,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864
+        },
+        "sha256": "9ca6ad8c6f9b6da0d28d8ad167a129ce3599ea7d6049b623dc31733094098a1e"
+      },
       "phase": "POST",
       "reason": "neq 27048 -> 19320",
-      "sha256": null
+      "sha256": "0b2150e2aa24df0cb05304685bc74339324085f7c84d4573693d25c4b4cfa2a8"
     },
     "bbb.isupon": {
       "applied": {
@@ -19796,7 +20212,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19806,9 +20222,21 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 19320,
+        "rows": {
+          "ni[1]": 3864,
+          "ni[2]": 3864,
+          "phi[1]": 3864,
+          "te[1]": 3864,
+          "ti[1]": 3864
+        },
+        "sha256": "9ca6ad8c6f9b6da0d28d8ad167a129ce3599ea7d6049b623dc31733094098a1e"
+      },
       "phase": "PRE",
       "reason": "neq 27048 -> 19320",
-      "sha256": null
+      "sha256": "3853abcb5e8dd5ae83fc310a1468a6bf573e333eb443825132dc048c13be7d73"
     },
     "bbb.isupss": {
       "applied": {

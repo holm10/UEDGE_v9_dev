@@ -54,6 +54,143 @@
     "/steady/default/sketch_threshold/cell_m": "a6abf77d11e80453f9351006341c22841247e16437f229158cc90f53c256dd18",
     "/steady/default/sketch_weight": "8e9a5c39446b5b3638b4fec187c8d9f46ec8bef77cbff15ec52e338ee000e1aa",
     "/steady/default/yldot": "16a6737bacaa0bf58c2867341598eaff580a02f6d577ff7ee1c3bf04ed20c56a",
+    "/steady/eqset/bbb.isngoffxy/jflag/argmax": "52e24ccd354fe016ca37aea9cf216ff75bd2bc4a4efab5460e47be8522809ee9",
+    "/steady/eqset/bbb.isngoffxy/jflag/l2": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isngoffxy/jflag/maxabs": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isngoffxy/jflag/proj": "5e6c652345fbd380d2dc8a395069f110ea856916152c7a7c396532f2d14fcdf2",
+    "/steady/eqset/bbb.isngoffxy/yldot/argmax": "4c6fe917bcfda92994b7370909907c065c2b9c1fd2b77666a5540307afda2f95",
+    "/steady/eqset/bbb.isngoffxy/yldot/l2": "67715464e96a2122d64faffb6c527cdd3dcb5119674cb5de1ef4578dc40fdbb0",
+    "/steady/eqset/bbb.isngoffxy/yldot/maxabs": "c2ee5c3a6d3b4c36ded6aee7546cfd8df3b4da86228124eb3c265af3ead7275a",
+    "/steady/eqset/bbb.isngoffxy/yldot/proj": "ba7ff4b6500e461f089cd9cdf814fb7f5b3cc2a3e0e19efa42cd6fa2f7e143f3",
+    "/steady/eqset/bbb.isngon/added/jflag_index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/eqset/bbb.isngon/added/jflag_value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/eqset/bbb.isngon/added/yldot": "2b89b3e8da7d54e4770728e2c40505cbed5d14a8704caaa84213e872a2b56174",
+    "/steady/eqset/bbb.isngon/jflag/argmax": "52e24ccd354fe016ca37aea9cf216ff75bd2bc4a4efab5460e47be8522809ee9",
+    "/steady/eqset/bbb.isngon/jflag/l2": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isngon/jflag/maxabs": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isngon/jflag/proj": "5e6c652345fbd380d2dc8a395069f110ea856916152c7a7c396532f2d14fcdf2",
+    "/steady/eqset/bbb.isngon/yldot/argmax": "4c6fe917bcfda92994b7370909907c065c2b9c1fd2b77666a5540307afda2f95",
+    "/steady/eqset/bbb.isngon/yldot/l2": "67715464e96a2122d64faffb6c527cdd3dcb5119674cb5de1ef4578dc40fdbb0",
+    "/steady/eqset/bbb.isngon/yldot/maxabs": "c2ee5c3a6d3b4c36ded6aee7546cfd8df3b4da86228124eb3c265af3ead7275a",
+    "/steady/eqset/bbb.isngon/yldot/proj": "ba7ff4b6500e461f089cd9cdf814fb7f5b3cc2a3e0e19efa42cd6fa2f7e143f3",
+    "/steady/eqset/bbb.isnioffxy/jflag/argmax": "dbba2e4c11c6e96780ee0bf7b18247c1d6444ff8157d7aa68f094538e9fc7743",
+    "/steady/eqset/bbb.isnioffxy/jflag/l2": "0b379c224849521d0a76a76f97665da852102a688ca22e108908510a92305ec5",
+    "/steady/eqset/bbb.isnioffxy/jflag/maxabs": "0b379c224849521d0a76a76f97665da852102a688ca22e108908510a92305ec5",
+    "/steady/eqset/bbb.isnioffxy/jflag/proj": "b67a15c006756b0140ab77556e7a70207c026befdf71292fbf3d28b804313580",
+    "/steady/eqset/bbb.isnioffxy/yldot/argmax": "10437d72a994adebf7391b8a5b72e3ab7d22958a93c9658d79a7b4e53c302151",
+    "/steady/eqset/bbb.isnioffxy/yldot/l2": "a6151f54e8f7e4be9b953dcaddcc5786b61c815b7d17a9cbf6b6ec908b471b78",
+    "/steady/eqset/bbb.isnioffxy/yldot/maxabs": "96202ca7bac6edd975a3333d65910c7ba02f14bdc1239a6236c7e7780c3fefd3",
+    "/steady/eqset/bbb.isnioffxy/yldot/proj": "3c4146e53634bb0b9e1fcf118bfc6b6f10d0d6f51358d31f75c295a2dee1b234",
+    "/steady/eqset/bbb.isnion/jflag/argmax": "dbba2e4c11c6e96780ee0bf7b18247c1d6444ff8157d7aa68f094538e9fc7743",
+    "/steady/eqset/bbb.isnion/jflag/l2": "0b379c224849521d0a76a76f97665da852102a688ca22e108908510a92305ec5",
+    "/steady/eqset/bbb.isnion/jflag/maxabs": "0b379c224849521d0a76a76f97665da852102a688ca22e108908510a92305ec5",
+    "/steady/eqset/bbb.isnion/jflag/proj": "b67a15c006756b0140ab77556e7a70207c026befdf71292fbf3d28b804313580",
+    "/steady/eqset/bbb.isnion/yldot/argmax": "10437d72a994adebf7391b8a5b72e3ab7d22958a93c9658d79a7b4e53c302151",
+    "/steady/eqset/bbb.isnion/yldot/l2": "a6151f54e8f7e4be9b953dcaddcc5786b61c815b7d17a9cbf6b6ec908b471b78",
+    "/steady/eqset/bbb.isnion/yldot/maxabs": "96202ca7bac6edd975a3333d65910c7ba02f14bdc1239a6236c7e7780c3fefd3",
+    "/steady/eqset/bbb.isnion/yldot/proj": "3c4146e53634bb0b9e1fcf118bfc6b6f10d0d6f51358d31f75c295a2dee1b234",
+    "/steady/eqset/bbb.isphioffxy/jflag/argmax": "9c9482dbc7032d504d673720719ca3b625e7b41f084a67fc3e316655d5790f0c",
+    "/steady/eqset/bbb.isphioffxy/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isphioffxy/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isphioffxy/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.isphioffxy/yldot/argmax": "92c8dd593ec2c03461d3d872feec0fd458515f22e7650ceea4be1ba1526dc776",
+    "/steady/eqset/bbb.isphioffxy/yldot/l2": "3a966569853c7ad3b717fa8d8de52938b25a2d6a1482ec369141957a315263cd",
+    "/steady/eqset/bbb.isphioffxy/yldot/maxabs": "df27afcb97111b8696196161bbc1b21358172da45d693c95ac503763da821fc2",
+    "/steady/eqset/bbb.isphioffxy/yldot/proj": "956923f77d2b814aa9f89ac1d86f5d61e3c63e455745b08f4563308589130f21",
+    "/steady/eqset/bbb.isphion/jflag/argmax": "9c9482dbc7032d504d673720719ca3b625e7b41f084a67fc3e316655d5790f0c",
+    "/steady/eqset/bbb.isphion/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isphion/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isphion/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.isphion/yldot/argmax": "7cb72200406aa82e3856b629a33e00542d9a4b9dfce1ca2b92bb6691323e5709",
+    "/steady/eqset/bbb.isphion/yldot/l2": "b86d6479aaa20637c1d1128ce6e4cd9c7f7fb8b97ddaf3dbae945a642a8f5d5b",
+    "/steady/eqset/bbb.isphion/yldot/maxabs": "32d1329608f9dbc3a8366825dc475fecfdde28e4be9cec6a822d058631c7f1a8",
+    "/steady/eqset/bbb.isphion/yldot/proj": "e054521e89799c49f664c00ff7a469851091aeeda277d548a1dbe4e74a2938dc",
+    "/steady/eqset/bbb.isteoffxy/jflag/argmax": "f9ff46f4b30441b889d9a4393bdd6b44077c88c73388a0ded8c614ecc87c2062",
+    "/steady/eqset/bbb.isteoffxy/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isteoffxy/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isteoffxy/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.isteoffxy/yldot/argmax": "dede23d9fc53ea0518ab2d43ad0e15580c1a81886cbe2ab4dc6d6d671b8fb497",
+    "/steady/eqset/bbb.isteoffxy/yldot/l2": "10413431f66b174809b0934c8dbe059adfede508a6794cd64923dcaee914b213",
+    "/steady/eqset/bbb.isteoffxy/yldot/maxabs": "f7a01ff4b01981ea8880a7af71d6786e549523b2e5512ef4e551fa206211a67a",
+    "/steady/eqset/bbb.isteoffxy/yldot/proj": "e31c9717162c58e5875f0ee97c387b400b2b3ca5682f533371516cc15b8f3131",
+    "/steady/eqset/bbb.isteon/jflag/argmax": "f9ff46f4b30441b889d9a4393bdd6b44077c88c73388a0ded8c614ecc87c2062",
+    "/steady/eqset/bbb.isteon/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isteon/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isteon/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.isteon/yldot/argmax": "dede23d9fc53ea0518ab2d43ad0e15580c1a81886cbe2ab4dc6d6d671b8fb497",
+    "/steady/eqset/bbb.isteon/yldot/l2": "10413431f66b174809b0934c8dbe059adfede508a6794cd64923dcaee914b213",
+    "/steady/eqset/bbb.isteon/yldot/maxabs": "f7a01ff4b01981ea8880a7af71d6786e549523b2e5512ef4e551fa206211a67a",
+    "/steady/eqset/bbb.isteon/yldot/proj": "e31c9717162c58e5875f0ee97c387b400b2b3ca5682f533371516cc15b8f3131",
+    "/steady/eqset/bbb.istgoffxy/jflag/argmax": "a2589763130a23a05023984a97ccf4fc286f49890d0111455ddd39a75ab8627c",
+    "/steady/eqset/bbb.istgoffxy/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istgoffxy/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istgoffxy/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.istgoffxy/yldot/argmax": "755dbe0fff4656650e6a21ed4a654d3eef7624dfce9753c78174fed9061fcd1b",
+    "/steady/eqset/bbb.istgoffxy/yldot/l2": "68f77d943b61aeaab12bd65414901075ccc7cde297d783eef94836de75827ab1",
+    "/steady/eqset/bbb.istgoffxy/yldot/maxabs": "41e0d609955855ea5d17bd8aa87f349b8caf8c9a8e954c5ac2cbad98206c3795",
+    "/steady/eqset/bbb.istgoffxy/yldot/proj": "f77b6da53492522d3f9d10d98b4d0210742d6de21a49a9d8ee1c1bf50badc832",
+    "/steady/eqset/bbb.istgon/added/jflag_index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/eqset/bbb.istgon/added/jflag_value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/eqset/bbb.istgon/added/yldot": "11dc76a85045f58d1027d0cb2e09db78d106ebe090618d3a1f328d1eeacaf354",
+    "/steady/eqset/bbb.istgon/jflag/argmax": "a2589763130a23a05023984a97ccf4fc286f49890d0111455ddd39a75ab8627c",
+    "/steady/eqset/bbb.istgon/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istgon/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istgon/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.istgon/yldot/argmax": "755dbe0fff4656650e6a21ed4a654d3eef7624dfce9753c78174fed9061fcd1b",
+    "/steady/eqset/bbb.istgon/yldot/l2": "bf80c51409c1bf2a225172cc3bea8ca029f3ff592462d55dbc73bcac0c3eb885",
+    "/steady/eqset/bbb.istgon/yldot/maxabs": "a743ba2944a2b0ce90ade0720d383dca71714490b2746c02dc9e45e1380edc99",
+    "/steady/eqset/bbb.istgon/yldot/proj": "9869b2af01d88b25a7d2d9ce4f61bf747cca8527225526f3881c85193d5e9cf0",
+    "/steady/eqset/bbb.istioffxy/jflag/argmax": "758b515eaf1875357325200295d81b193d9c52441b8535877f050b5804b81a39",
+    "/steady/eqset/bbb.istioffxy/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istioffxy/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istioffxy/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.istioffxy/yldot/argmax": "a7945e2e9f08b161dc95712d2f757b2c330f125f63e055c451bdf2893af6cd19",
+    "/steady/eqset/bbb.istioffxy/yldot/l2": "9a4ffe5fd761906ab48f26508b7a461566fcdd433fd9cb8dec3c7ba3fd192c2f",
+    "/steady/eqset/bbb.istioffxy/yldot/maxabs": "aeb72ae3476ec215f5e89c8774e5c0d6f26008661802001515350094b5557978",
+    "/steady/eqset/bbb.istioffxy/yldot/proj": "b56e94a3e80eeb29ccb7b28136267d47ee0d447317048ca96a79648fe0c90478",
+    "/steady/eqset/bbb.istion/jflag/argmax": "758b515eaf1875357325200295d81b193d9c52441b8535877f050b5804b81a39",
+    "/steady/eqset/bbb.istion/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istion/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.istion/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.istion/yldot/argmax": "a7945e2e9f08b161dc95712d2f757b2c330f125f63e055c451bdf2893af6cd19",
+    "/steady/eqset/bbb.istion/yldot/l2": "9a4ffe5fd761906ab48f26508b7a461566fcdd433fd9cb8dec3c7ba3fd192c2f",
+    "/steady/eqset/bbb.istion/yldot/maxabs": "aeb72ae3476ec215f5e89c8774e5c0d6f26008661802001515350094b5557978",
+    "/steady/eqset/bbb.istion/yldot/proj": "b56e94a3e80eeb29ccb7b28136267d47ee0d447317048ca96a79648fe0c90478",
+    "/steady/eqset/bbb.isupgon/jflag/argmax": "ebaaa01e775d6f0eb740857f87f11be8e28b865863d4e4ddcb7e28991d4f1566",
+    "/steady/eqset/bbb.isupgon/jflag/l2": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isupgon/jflag/maxabs": "b9f366c8315c965c380e14d4d674603f129101c436070333acc9f8f95aaf8e50",
+    "/steady/eqset/bbb.isupgon/jflag/proj": "4044ea4ae5b3cfe30ccc1252c7ded84852cec62fbef1e5143a45bc0a4f64195f",
+    "/steady/eqset/bbb.isupgon/yldot/argmax": "b76b4b6d200e675b1fe87134bd601904e7a40944cf88f661fffed182ef8b7d37",
+    "/steady/eqset/bbb.isupgon/yldot/l2": "89db7b38e3a323d0be27d9655d4385058b58598b9a5870af1d4805ab21cda2a3",
+    "/steady/eqset/bbb.isupgon/yldot/maxabs": "65b620ceafc1a4785c5ec2154e151df372dbf880e3ee37ac173844ee97844579",
+    "/steady/eqset/bbb.isupgon/yldot/proj": "ba6cc6c8914e9d4de806e8888df07a784eecf318194d994d9883a2787703e470",
+    "/steady/eqset/bbb.isupoffxy/jflag/argmax": "ecd3ea28bf656ce9596025ea811306eec7d1bf247cc9e28c1cd6a6e880a1dbee",
+    "/steady/eqset/bbb.isupoffxy/jflag/l2": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isupoffxy/jflag/maxabs": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isupoffxy/jflag/proj": "5e6c652345fbd380d2dc8a395069f110ea856916152c7a7c396532f2d14fcdf2",
+    "/steady/eqset/bbb.isupoffxy/yldot/argmax": "3ea766e063971b4a30181e38db73ff15cd241a075ad71225ce9f5fc1f8eba46a",
+    "/steady/eqset/bbb.isupoffxy/yldot/l2": "2cfb15a6a9ac537a3ac8a2566f22500487d79b6781e802b54cf28b429fbb6b9c",
+    "/steady/eqset/bbb.isupoffxy/yldot/maxabs": "5cdc601120f6d034677254343d5c3ae4991fa5224d0f4e3c4b7145add1318ef2",
+    "/steady/eqset/bbb.isupoffxy/yldot/proj": "1011ff0d7392c062ed9f3c29f941e8477a529c81efa59540f5d4d2a3eef11732",
+    "/steady/eqset/bbb.isupon/jflag/argmax": "ecd3ea28bf656ce9596025ea811306eec7d1bf247cc9e28c1cd6a6e880a1dbee",
+    "/steady/eqset/bbb.isupon/jflag/l2": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isupon/jflag/maxabs": "cb063f111af09499c872cdcf4f6025b08d67fd0d65efa9fa35de0bfb33813181",
+    "/steady/eqset/bbb.isupon/jflag/proj": "5e6c652345fbd380d2dc8a395069f110ea856916152c7a7c396532f2d14fcdf2",
+    "/steady/eqset/bbb.isupon/yldot/argmax": "3ea766e063971b4a30181e38db73ff15cd241a075ad71225ce9f5fc1f8eba46a",
+    "/steady/eqset/bbb.isupon/yldot/l2": "2cfb15a6a9ac537a3ac8a2566f22500487d79b6781e802b54cf28b429fbb6b9c",
+    "/steady/eqset/bbb.isupon/yldot/maxabs": "5cdc601120f6d034677254343d5c3ae4991fa5224d0f4e3c4b7145add1318ef2",
+    "/steady/eqset/bbb.isupon/yldot/proj": "1011ff0d7392c062ed9f3c29f941e8477a529c81efa59540f5d4d2a3eef11732",
+    "/steady/eqset/bbb.nusp_imp/added/jflag_index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/eqset/bbb.nusp_imp/added/jflag_value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/eqset/bbb.nusp_imp/added/yldot": "df6791a5e8fd5ad781706bdf60e0b8596919ac8062078aad67b3627a0bd29e4f",
+    "/steady/eqset/bbb.nusp_imp/jflag/argmax": "02f10c1dce25abb41ca46baaa9f90e8ebe1db75f035eede9382fa3b9e160d2f1",
+    "/steady/eqset/bbb.nusp_imp/jflag/l2": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
+    "/steady/eqset/bbb.nusp_imp/jflag/maxabs": "5b03b722160ae12c91a5c37efb6627139a74b6e22fd6c8cdee2a7e7e426d6947",
+    "/steady/eqset/bbb.nusp_imp/jflag/proj": "ad6c8492d97ad88762eb73657a61c68e78bd5c36c5da3452b9d3094aaf7ea8bd",
+    "/steady/eqset/bbb.nusp_imp/yldot/argmax": "4e10dc0a74548bf566e56831daf084d5f2d43dd3d0ef57c0739a50acf557eae9",
+    "/steady/eqset/bbb.nusp_imp/yldot/l2": "30f4c6d03d158fdaee2b25ef8b250d6f1fbdc3f39413b750e6ee0bac8ef0edec",
+    "/steady/eqset/bbb.nusp_imp/yldot/maxabs": "f3584a8720f201a602c52988f3418fe06f93a5469aa2c9369e73122ee22b8472",
+    "/steady/eqset/bbb.nusp_imp/yldot/proj": "653f4a70d936b09a5770b66584b90f8212f6d64da69c29306df5d7b0424fa8fa",
     "/steady/locality/column": "625b2794e412ac3e6198f5382b90266d8dd39552ff624b862afb7df4c67f4990",
     "/steady/locality/columns": "fa7b7b0e5abf15e9f1838b43db09b4354c4332b0ada98ff1aa3300bc9e40b284",
     "/steady/locality/delta": "13c24c01a9a0ea2e0981601ae705a77c226caa2d97ef79901c3241d8a3338f6e",
@@ -3413,8 +3550,8 @@
       "sha256": "c771adeb6fdaf2bb06c4d0b1f5d5cf691a56a82e68ad4074d2c5bce808ba7e70"
     },
     "references/large_dd2c.h5": {
-      "bytes": 11492440,
-      "sha256": "57a883e5306f14b2c9ee2ad11871b7550ec4e0062e62240ca63a54c2c7430e5d"
+      "bytes": 11821896,
+      "sha256": "794115095ea7fdaa7816a3c3d609f5b77e850145b277ab3b9e4bfef8d549d81b"
     }
   },
   "family": "large_dd2c",
@@ -3547,15 +3684,15 @@
     }
   },
   "provenance": {
-    "commit": "1032dc11a865226cfd3d99654fef746289937f37",
+    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-25T18:00:14+00:00",
+    "date": "2026-11-26T02:28:28+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v27",
+  "release": "yldot-data-v29",
   "schema": 1,
   "sketch": {
     "k": 8,
@@ -19126,8 +19263,14 @@
           3
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "tg[2] core": 8025.070509896635,
+        "tg[2] inner_leg": 29.08927501733215,
+        "tg[2] outer_leg": 57.70090252673762,
+        "tg[2] pf": 444.78587647841033,
+        "tg[2] sol": 2521.7521617286106
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19139,9 +19282,36 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "tg[2] core",
+          "tg[2] inner_leg",
+          "tg[2] outer_leg",
+          "tg[2] pf",
+          "tg[2] sol"
+        ],
+        "neq": 25872,
+        "rows": {
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "779137a4a1574fe548988e0373c99e893998101e3a9d2cc283dac6c7409062f7"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 25872",
-      "sha256": null
+      "sha256": "81d617bf78e0578605d6e778e13801b2be21527c65dacb09dff61d5388a90dd2"
     },
     "bbb.isngon": {
       "applied": {
@@ -19151,8 +19321,14 @@
           6
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "tg[2] core": 8025.070509896635,
+        "tg[2] inner_leg": 29.08927501733215,
+        "tg[2] outer_leg": 57.70090252673762,
+        "tg[2] pf": 444.78587647841033,
+        "tg[2] sol": 2521.7521617286106
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19162,9 +19338,37 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "tg[2] core",
+          "tg[2] inner_leg",
+          "tg[2] outer_leg",
+          "tg[2] pf",
+          "tg[2] sol"
+        ],
+        "neq": 27720,
+        "rows": {
+          "ng[1]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "58a01a6a805bb7722e9afdc36f0201a6ecdda82e1b69d33dda2dd0886df86189"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "0d1443970688e9fa5bf69b9daff6aaa3659b7c60367a09fcba2dfdd2b2d1de9b"
     },
     "bbb.isngrf": {
       "applied": {
@@ -19208,8 +19412,29 @@
           8
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "te[1] core": 91656.0302115142,
+        "te[1] inner_leg": 526.830491325291,
+        "te[1] outer_leg": 1846.0718829769762,
+        "te[1] pf": 5800.470012494163,
+        "te[1] sol": 30675.444741132735,
+        "ti[1] core": 102885.56610850345,
+        "ti[1] inner_leg": 56511.3172947672,
+        "ti[1] outer_leg": 353937.377991719,
+        "ti[1] pf": 2880060.1146823266,
+        "ti[1] sol": 108927.23366084717,
+        "up[1] core": 504789.9880233385,
+        "up[1] inner_leg": 8846.606009314579,
+        "up[1] outer_leg": 24027.85889466474,
+        "up[1] pf": 114073.08593988535,
+        "up[1] sol": 463672.94016941986,
+        "up[2] core": 1201600822.7490025,
+        "up[2] inner_leg": 743378.2594288049,
+        "up[2] outer_leg": 3315824.4287717585,
+        "up[2] pf": 20713910.941186633,
+        "up[2] sol": 449570145.63111264
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19221,9 +19446,45 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "te[1] core",
+          "te[1] inner_leg",
+          "te[1] outer_leg",
+          "te[1] pf",
+          "te[1] sol",
+          "ti[1] core",
+          "ti[1] inner_leg",
+          "ti[1] outer_leg",
+          "ti[1] pf",
+          "ti[1] sol",
+          "up[1] core",
+          "up[1] inner_leg",
+          "up[1] outer_leg",
+          "up[1] pf",
+          "up[1] sol",
+          "up[2] core",
+          "up[2] inner_leg",
+          "up[2] outer_leg",
+          "up[2] pf",
+          "up[2] sol"
+        ],
+        "neq": 14784,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "2cd33fd52a6a7286232a346e7089f5b11d9f5635f1ecf03f12e62052e2d583ce"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 14784",
-      "sha256": null
+      "sha256": "28e2163571ef72eb67574d3b8688ad6a0df525ec26424d426dde0667bb3ebe2c"
     },
     "bbb.isnion": {
       "applied": {
@@ -19233,8 +19494,29 @@
           31
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "te[1] core": 91656.0302115142,
+        "te[1] inner_leg": 526.830491325291,
+        "te[1] outer_leg": 1846.0718829769762,
+        "te[1] pf": 5800.470012494163,
+        "te[1] sol": 30675.444741132735,
+        "ti[1] core": 102885.56610850345,
+        "ti[1] inner_leg": 56511.3172947672,
+        "ti[1] outer_leg": 353937.377991719,
+        "ti[1] pf": 2880060.1146823266,
+        "ti[1] sol": 108927.23366084717,
+        "up[1] core": 504789.9880233385,
+        "up[1] inner_leg": 8846.606009314579,
+        "up[1] outer_leg": 24027.85889466474,
+        "up[1] pf": 114073.08593988535,
+        "up[1] sol": 463672.94016941986,
+        "up[2] core": 1201600822.7490025,
+        "up[2] inner_leg": 743378.2594288049,
+        "up[2] outer_leg": 3315824.4287717585,
+        "up[2] pf": 20713910.941186633,
+        "up[2] sol": 449570145.63111264
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19244,9 +19526,45 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "te[1] core",
+          "te[1] inner_leg",
+          "te[1] outer_leg",
+          "te[1] pf",
+          "te[1] sol",
+          "ti[1] core",
+          "ti[1] inner_leg",
+          "ti[1] outer_leg",
+          "ti[1] pf",
+          "ti[1] sol",
+          "up[1] core",
+          "up[1] inner_leg",
+          "up[1] outer_leg",
+          "up[1] pf",
+          "up[1] sol",
+          "up[2] core",
+          "up[2] inner_leg",
+          "up[2] outer_leg",
+          "up[2] pf",
+          "up[2] sol"
+        ],
+        "neq": 14784,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "2cd33fd52a6a7286232a346e7089f5b11d9f5635f1ecf03f12e62052e2d583ce"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 14784",
-      "sha256": null
+      "sha256": "42fae0edd55629c861be215ab4ab328b50faa11894b3770231c820ba157cf1ff"
     },
     "bbb.isnupdot1sd": {
       "applied": {
@@ -19553,7 +19871,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -19564,9 +19882,31 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "7dfe1c7e5100532c7c9191604aaf0409096f99eff11199a8764ba90af4d252df"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "6e8a5c8839ffa3274924d0f454f38f47417d1da34ad028f1efcb0e930ff32d18"
     },
     "bbb.isphion": {
       "applied": {
@@ -19574,8 +19914,51 @@
         "dtype": "int64",
         "shape": []
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "ng[3] guard": 486435.63840377104,
+        "ni[3] core": 56.44109138223892,
+        "ni[3] inner_leg": 915.0114775256748,
+        "ni[3] outer_leg": 10055.719462758147,
+        "ni[3] pf": 8064.379083725322,
+        "ni[3] sol": 1382.3633009793623,
+        "ni[4] core": 239.24848838507646,
+        "ni[4] inner_leg": 167.0975885712315,
+        "ni[4] outer_leg": 2166.136055912295,
+        "ni[4] pf": 1378.5580320796184,
+        "ni[4] sol": 2578.2677036171813,
+        "ni[5] core": 1180.0049375243507,
+        "ni[5] inner_leg": 2.9190262664464424,
+        "ni[5] outer_leg": 69.94053884814114,
+        "ni[5] pf": 28.592514814531178,
+        "ni[5] sol": 2338.5989895214448,
+        "ni[6] core": 90140.32717461187,
+        "ni[6] inner_leg": 3.13236697874405,
+        "ni[6] outer_leg": 25.529761772951353,
+        "ni[6] pf": 9.401796322686744,
+        "ni[6] sol": 4216.305815459931,
+        "ni[7] core": 25426.12219038576,
+        "ni[7] inner_leg": 0.04675446168834435,
+        "ni[7] outer_leg": 0.12487567926952782,
+        "ni[7] pf": 0.012703809654630364,
+        "ni[7] sol": 468.6708504525506,
+        "ni[8] core": 1131.378364447409,
+        "ni[8] inner_leg": 0.06169818768239036,
+        "ni[8] outer_leg": 0.22069957508375904,
+        "ni[8] pf": 0.045942708208224825,
+        "ni[8] sol": 23.044671722877542,
+        "te[1] core": 222016388.3986595,
+        "te[1] guard": 9704.683013453063,
+        "te[1] inner_leg": 1014.0993665085477,
+        "te[1] outer_leg": 34450.25651179172,
+        "te[1] pf": 32642.23177702853,
+        "te[1] sol": 2332623.0443261606,
+        "ti[1] core": 226.2247978728563,
+        "ti[1] inner_leg": 0.059964523692602384,
+        "ti[1] outer_leg": 1.8400473368098513,
+        "ti[1] pf": 1.7123737273523003,
+        "ti[1] sol": 16.638593019366365
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -19583,9 +19966,74 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "ng[3] guard",
+          "ni[3] core",
+          "ni[3] inner_leg",
+          "ni[3] outer_leg",
+          "ni[3] pf",
+          "ni[3] sol",
+          "ni[4] core",
+          "ni[4] inner_leg",
+          "ni[4] outer_leg",
+          "ni[4] pf",
+          "ni[4] sol",
+          "ni[5] core",
+          "ni[5] inner_leg",
+          "ni[5] outer_leg",
+          "ni[5] pf",
+          "ni[5] sol",
+          "ni[6] core",
+          "ni[6] inner_leg",
+          "ni[6] outer_leg",
+          "ni[6] pf",
+          "ni[6] sol",
+          "ni[7] core",
+          "ni[7] inner_leg",
+          "ni[7] outer_leg",
+          "ni[7] pf",
+          "ni[7] sol",
+          "ni[8] core",
+          "ni[8] inner_leg",
+          "ni[8] outer_leg",
+          "ni[8] pf",
+          "ni[8] sol",
+          "te[1] core",
+          "te[1] guard",
+          "te[1] inner_leg",
+          "te[1] outer_leg",
+          "te[1] pf",
+          "te[1] sol",
+          "ti[1] core",
+          "ti[1] inner_leg",
+          "ti[1] outer_leg",
+          "ti[1] pf",
+          "ti[1] sol"
+        ],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "7dfe1c7e5100532c7c9191604aaf0409096f99eff11199a8764ba90af4d252df"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "3912e60bcec082fccd664483afcbf85d8f90169629c2d977a0999ac2e5e84eaa"
     },
     "bbb.isphirbc": {
       "applied": {
@@ -20193,7 +20641,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20204,9 +20652,31 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "5a83bb24765347ac975a6d0e4aae7d2b4745f27ae7704feb5cbc7cf450adf5b9"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "0042af73f7103ba0edf3945c44e6a48d160f93c32d2c4054d4a1c16ba58465f4"
     },
     "bbb.isteon": {
       "applied": {
@@ -20215,7 +20685,7 @@
         "shape": []
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -20223,9 +20693,31 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "5a83bb24765347ac975a6d0e4aae7d2b4745f27ae7704feb5cbc7cf450adf5b9"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "69a449c3fd0dbd399f46cebe3b5818a4adc2d262badeff9d1172abe8ed135e2a"
     },
     "bbb.istepfc": {
       "applied": {
@@ -20353,7 +20845,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20365,9 +20857,31 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "c52fa6603de515ef5fdc997846a3ea00f3d70b6489dbba394c13541af0ebe795"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "3fd2039a40b6f37cfab3c47a09fc1b58e647de80b7e2edbc6ff8dd7f434730cb"
     },
     "bbb.istgon": {
       "applied": {
@@ -20377,8 +20891,15 @@
           6
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "ng[3] core": 1.583735197700495e-13,
+        "ng[3] guard": 3.99126690188472e-06,
+        "ng[3] inner_leg": 5.5964093047735475e-09,
+        "ng[3] outer_leg": 5.940754935770783e-09,
+        "ng[3] pf": 8.001284400637636e-08,
+        "ng[3] sol": 4.699860559611703e-10
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20388,9 +20909,33 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 31416,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[1]": 1848,
+          "tg[3]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "0a03f7698aa3ded7a04c85726ccfb9ea69a6c48464f6e010fbb271e893e84ae7"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 31416",
-      "sha256": null
+      "sha256": "a1b2a3055432bba3c595d3e7cb246a0c54592ffae39c9491b302a9b3a8560fba"
     },
     "bbb.istgpfc": {
       "applied": {
@@ -20527,7 +21072,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20538,9 +21083,31 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "f35fa6b337d80525171db829888b4e8272cddd417dbd8bb0081ecdb38256f941"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "6b1da472b0941e8a969d42a88376a8b2cc0b5f204de220ba00ddc97b4351f05d"
     },
     "bbb.istion": {
       "applied": {
@@ -20549,7 +21116,7 @@
         "shape": []
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [1],
@@ -20557,9 +21124,31 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848
+        },
+        "sha256": "f35fa6b337d80525171db829888b4e8272cddd417dbd8bb0081ecdb38256f941"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "8ab111bea21d8a8c40794b5b2c809eb5ff869e1da2b81ba255f922be02fab978"
     },
     "bbb.istipfc": {
       "applied": {
@@ -20815,8 +21404,54 @@
           6
         ]
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "ng[2] core": 3509258.968783714,
+        "ng[2] guard": 160396860787.19382,
+        "ng[2] inner_leg": 855467434.4369122,
+        "ng[2] outer_leg": 1103592618.4200892,
+        "ng[2] pf": 10667985596.114244,
+        "ng[2] sol": 22638719.551043473,
+        "ng[3] core": 53.4760525302345,
+        "ng[3] guard": 381375679.5687377,
+        "ng[3] inner_leg": 1206671.3773073913,
+        "ng[3] outer_leg": 3024666.25815687,
+        "ng[3] pf": 27708898.094762422,
+        "ng[3] sol": 59038.07217604788,
+        "ni[1] core": 151647855.5091091,
+        "ni[1] inner_leg": 1793187.8819791707,
+        "ni[1] outer_leg": 8195747.920105535,
+        "ni[1] pf": 25480210.737212356,
+        "ni[1] sol": 1757814.7770065907,
+        "ni[2] core": 1351.288265447107,
+        "ni[2] guard": 407676338.4922847,
+        "ni[2] inner_leg": 38483.077779587955,
+        "ni[2] outer_leg": 48316.71288259686,
+        "ni[2] pf": 31425.718005760475,
+        "ni[2] sol": 4769.889760684489,
+        "te[1] core": 321321734.7594508,
+        "te[1] inner_leg": 96248.63310962211,
+        "te[1] outer_leg": 713561.6025413837,
+        "te[1] pf": 4717743.366891195,
+        "te[1] sol": 3208060.4491293156,
+        "tg[2] core": 8024.878892190441,
+        "tg[2] inner_leg": 29.952193803970065,
+        "tg[2] outer_leg": 57.91217291097998,
+        "tg[2] pf": 446.1918511218042,
+        "tg[2] sol": 2521.359033460345,
+        "ti[1] core": 235068625.51697356,
+        "ti[1] guard": 659624246.8874114,
+        "ti[1] inner_leg": 43873.83313068559,
+        "ti[1] outer_leg": 566052.8839863105,
+        "ti[1] pf": 2634876.043859478,
+        "ti[1] sol": 3313806.400677364,
+        "up[1] core": 10201935.443358865,
+        "up[1] guard": 194897.7981129873,
+        "up[1] inner_leg": 220655.33737324685,
+        "up[1] outer_leg": 2458587.636232573,
+        "up[1] pf": 10772338.450242437,
+        "up[1] sol": 1149730.9912630173
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20826,9 +21461,77 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "ng[2] core",
+          "ng[2] guard",
+          "ng[2] inner_leg",
+          "ng[2] outer_leg",
+          "ng[2] pf",
+          "ng[2] sol",
+          "ng[3] core",
+          "ng[3] guard",
+          "ng[3] inner_leg",
+          "ng[3] outer_leg",
+          "ng[3] pf",
+          "ng[3] sol",
+          "ni[1] core",
+          "ni[1] inner_leg",
+          "ni[1] outer_leg",
+          "ni[1] pf",
+          "ni[1] sol",
+          "ni[2] core",
+          "ni[2] guard",
+          "ni[2] inner_leg",
+          "ni[2] outer_leg",
+          "ni[2] pf",
+          "ni[2] sol",
+          "te[1] core",
+          "te[1] inner_leg",
+          "te[1] outer_leg",
+          "te[1] pf",
+          "te[1] sol",
+          "tg[2] core",
+          "tg[2] inner_leg",
+          "tg[2] outer_leg",
+          "tg[2] pf",
+          "tg[2] sol",
+          "ti[1] core",
+          "ti[1] guard",
+          "ti[1] inner_leg",
+          "ti[1] outer_leg",
+          "ti[1] pf",
+          "ti[1] sol",
+          "up[1] core",
+          "up[1] guard",
+          "up[1] inner_leg",
+          "up[1] outer_leg",
+          "up[1] pf",
+          "up[1] sol"
+        ],
+        "neq": 27720,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848
+        },
+        "sha256": "501935a5ddc4763b4031ca8b0d6abd45a121df7498bee406e225fc168232a89c"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 27720",
-      "sha256": null
+      "sha256": "4dbefe516bc411dab19e0e9ca46eb7969c15443c21a1d8e0fc7935b64688c827"
     },
     "bbb.isupimpap": {
       "applied": {
@@ -20860,7 +21563,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20872,9 +21575,30 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 25872,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848
+        },
+        "sha256": "fe35ac1a01183f122b378ea9e927dafaac8e061f85e89cb57428b0dad2c26e35"
+      },
       "phase": "POST",
       "reason": "neq 29568 -> 25872",
-      "sha256": null
+      "sha256": "b22776fb51592ee40e2ae8974e87077d5fe080e57bb9f91e90eb9d7b5cdd8765"
     },
     "bbb.isupon": {
       "applied": {
@@ -20885,7 +21609,7 @@
         ]
       },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "dtype": "int64",
@@ -20895,9 +21619,30 @@
         ]
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [],
+        "neq": 25872,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848
+        },
+        "sha256": "fe35ac1a01183f122b378ea9e927dafaac8e061f85e89cb57428b0dad2c26e35"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 25872",
-      "sha256": null
+      "sha256": "ca711ad36124fc2e5aecf6249b6fbf95b213735c0dd462f696e3473833515848"
     },
     "bbb.isupss": {
       "applied": {
@@ -25872,8 +26617,38 @@
         "dtype": "int64",
         "shape": []
       },
-      "block_l2": {},
-      "class": "INVALID",
+      "block_l2": {
+        "ng[3] guard": 0.002040835862782093,
+        "ni[3] core": 96.9609062528434,
+        "ni[3] inner_leg": 219566.85041442595,
+        "ni[3] outer_leg": 568550.3256294512,
+        "ni[3] pf": 448960.30775826727,
+        "ni[3] sol": 23274.919708306003,
+        "te[1] core": 0.5150627017149356,
+        "te[1] guard": 410.0654994317199,
+        "te[1] inner_leg": 31.916957407990097,
+        "te[1] outer_leg": 189.60993911705646,
+        "te[1] pf": 91.13867542586586,
+        "te[1] sol": 14.547283382586192,
+        "ti[1] core": 68.5682871124372,
+        "ti[1] guard": 19.274445254395864,
+        "ti[1] inner_leg": 10.63574369288664,
+        "ti[1] outer_leg": 35.592712644391554,
+        "ti[1] pf": 56.112926828164525,
+        "ti[1] sol": 59.98945550179725,
+        "up[1] core": 14196.114579002604,
+        "up[1] guard": 30664.172917276177,
+        "up[1] inner_leg": 2348.06249955632,
+        "up[1] outer_leg": 16137.00707058732,
+        "up[1] pf": 10262.408706167862,
+        "up[1] sol": 19919.208033036484,
+        "up[2] core": 2846.6607399385684,
+        "up[2] inner_leg": 39.3074937760936,
+        "up[2] outer_leg": 14.41538974076411,
+        "up[2] pf": 9.738442015225584,
+        "up[2] sol": 26.962135470589875
+      },
+      "class": "EQSET",
       "config": "steady",
       "d": {
         "data": [0],
@@ -25881,9 +26656,62 @@
         "shape": []
       },
       "jflag_block_l2": {},
+      "layout": {
+        "moved": [
+          "ni[3] core",
+          "ni[3] inner_leg",
+          "ni[3] outer_leg",
+          "ni[3] pf",
+          "ni[3] sol",
+          "te[1] core",
+          "te[1] guard",
+          "te[1] inner_leg",
+          "te[1] outer_leg",
+          "te[1] pf",
+          "te[1] sol",
+          "ti[1] core",
+          "ti[1] guard",
+          "ti[1] inner_leg",
+          "ti[1] outer_leg",
+          "ti[1] pf",
+          "ti[1] sol",
+          "up[1] core",
+          "up[1] guard",
+          "up[1] inner_leg",
+          "up[1] outer_leg",
+          "up[1] pf",
+          "up[1] sol",
+          "up[2] core",
+          "up[2] inner_leg",
+          "up[2] outer_leg",
+          "up[2] pf",
+          "up[2] sol"
+        ],
+        "neq": 31416,
+        "rows": {
+          "ng[2]": 1848,
+          "ng[3]": 1848,
+          "ni[1]": 1848,
+          "ni[2]": 1848,
+          "ni[3]": 1848,
+          "ni[4]": 1848,
+          "ni[5]": 1848,
+          "ni[6]": 1848,
+          "ni[7]": 1848,
+          "ni[8]": 1848,
+          "phi[1]": 1848,
+          "te[1]": 1848,
+          "tg[2]": 1848,
+          "ti[1]": 1848,
+          "up[1]": 1848,
+          "up[2]": 1848,
+          "up[3]": 1848
+        },
+        "sha256": "f884d92c357c7b92c38c796d64328ebb1f4c116f2a1667c495c2b4670e49872c"
+      },
       "phase": "PRE",
       "reason": "neq 29568 -> 31416",
-      "sha256": null
+      "sha256": "4ed64a86024c2a9c34c576b1c9c7db5b376a42251ef35157a66c6557ef9035ce"
     },
     "bbb.nwalli": {
       "applied": {
