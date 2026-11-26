@@ -724,8 +724,15 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   keyed by the manifests, run `tests/yldot/tools/fetch_data.py` (D2: it re-hashes every cached file) and
   `pytest tests/yldot -n auto -m "not nightly" --yldot-shard <shard>` (D3). The references are built in the pinned Linux
   image (`tests/yldot/linux/`), so the tier passes by tolerance, not bit for bit. It does not exercise
-  OpenMP. The wheel jobs need the tier and run only on pushes to `v9-develop`, `main` and tags (D5; their matrix
-  still names the retired `macos-13`); `gather_wheels` takes only the `cibw-*` artifacts.
+  OpenMP. The wheel jobs need the tier and run only on pushes to `v9-develop`, `main` and tags (D5);
+  `gather_wheels` takes only the `cibw-*` artifacts. `build_wheels` (T145; owner, 2026-11-26) runs
+  `pypa/cibuildwheel@v4.3.5` on `ubuntu-24.04` (manylinux_2_28 x86_64, no musllinux), `macos-15` (arm64) and
+  `macos-15-intel`, for cp39–cp315 (cibuildwheel v4 builds no cp38). It builds without isolation
+  (`CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"`, deps from `before_build`), because `pyproject.toml`'s
+  `[build-system] requires` lists `h5py`, whose source build needs libhdf5 (it broke cp39–cp311 in run 45641249059).
+  Each wheel gets an import smoke test, except cp315 (`CIBW_TEST_SKIP`: h5py 3.16.0 has no cp315 wheel). macOS uses
+  `gfortran-14`, `llvm@18` clang and Homebrew `libomp` with `MACOSX_DEPLOYMENT_TARGET=15.0`. A manylinux wheel builds
+  without readline (`setup.py:143-149`'s check finds none in the image; T145 probe).
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
   (`pip install -v .`, Python 3.11, `numpy==1.26.4`; no `LDFLAGS` since AIUE-64) and runs
   `tests/deterministic_omp/ci/run_omp_ci.sh`: harness and CI unit tests, a smoke test, the common-block check
@@ -787,10 +794,8 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   only a commit in `v9-develop` or the current head of an open PR, so a new push refuses the dispatched commit
   (`tests/yldot/tools/release_data.py:168`), and a refused publish needs a new dispatch from the new head (AIUE-257:
   run 43377154953's publish was refused; the re-dispatch 43451194928 and a second approval added about 1.5 h; T46).
-- `@notest`/`@nowheel` commit tags are inert (no job `outputs:` on `check-requests`; `wheel` vs `wheels` mismatch).
-  The tags are read only from message lines that start with `#` (`#@notest @nowheel`), so a squash title's `(#N)` and
-  its `Co-Authored-By` addresses are not tags (AIUE-175). Tags apply to push runs only: a `pull_request` run checks out
-  GitHub's merge commit (depth 1, so `--no-merges` keeps it) and reads its "Merge … into …" message.
+- There are no CI commit tags. The `check-requests` job that read `@notest`/`@nowheel` was never wired to any job
+  (no `outputs:`) and was removed with its tags (T145; owner, 2026-11-26).
 - There is no BASIS CI. `build-basis.yml` was removed (AIUE-178, owner 2026-10-23): its `fusionbillm/basisuedge` image
   built LLNL/UEDGE's branch of the same name, never the fork (LLNL `master` for a branch upstream lacks; on
   `v9-develop`, LLNL's `v9-develop`, which fails in BASIS make on `bbb.pack`). A `#@nobasis` tag has no effect.
