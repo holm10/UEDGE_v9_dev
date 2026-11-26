@@ -5,7 +5,7 @@
 name = "d_mols"
 grid = "gridue"
 store = "full"
-rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["rates.adpak", "rates.strahl", "eh.dat", "atmc.dat", "nwfits", "ehr1.dat", "ehr2.dat", "thin.dat", "thickLyA.dat", "thickAllLy.dat", "ehrtau.dat", "b2frates", "ehr5.dat", "mist_c.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 480
 
@@ -16,7 +16,7 @@ input = "pytests/unittests/D_mols/nonog_mols/default/input.py"
 grid = "templates/grids/nonog_mols/gridue"
 state = "templates/grids/nonog_mols/solution.h5"
 state_sha256 = "b521e53720d21714da6ebddd0df58068655ff25da19673dd8429d79e5f59e964"
-input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (152-154) removed"
+input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (152-154) removed; aph.aphdir, api.apidir and com.coronalimpfname = ../../data/mist_c.synthetic set (T17)"
 
 [reference_state]
 file = "reference_state.h5"
