@@ -16,6 +16,9 @@ except:
 bbb.mhdgeo = 1 		#use MHD equilibrium
 bbb.gengrid=0		#read mesh from gridue file
 com.geometry = "snull"
+aph.aphdir = "../../data"   # shared rate files, tests/yldot/data
+api.apidir = "../../data"   # shared rate files, tests/yldot/data
+com.coronalimpfname = "../../data/mist_c.synthetic"  # isimpon=2, Post93 layout, Z=6; not actual data (T169, T17)
 com.isnonog = 1		#nonorthogal differencing used
 
 bbb.methn = 33		#ion continuty eqn

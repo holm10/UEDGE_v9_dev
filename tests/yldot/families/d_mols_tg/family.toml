@@ -6,7 +6,7 @@
 name = "d_mols_tg"
 grid = "gridue"
 store = "full"
-rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["ehr1.dat", "mist_c.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 600
 
@@ -15,7 +15,7 @@ family = "d_mols"  # this suite's family; its [source] records the original case
 grid = "gridue"  # d_mols's, copied
 state = "reference_state.h5"  # d_mols's, the --source of make_base_state.py make
 state_sha256 = "9c33d5be9268ed5bcad13576e91a678e7a2d70015a41d6b3fbed91da0ecf24a1"
-input_changes = "d_mols's input.py, then the block 'Gas temperatures evolved' (istgon for atoms and molecules, cftiexclg = 0, tgwall = 0.04 eV, the atoms' Tg boundary options, drift heating on)"
+input_changes = "d_mols's input.py, then the block 'Gas temperatures evolved' (istgon for atoms and molecules, cftiexclg = 0, tgwall = 0.04 eV, the atoms' Tg boundary options, drift heating on); aph.aphdir, api.apidir and com.coronalimpfname = ../../data/mist_c.synthetic set (T17)"
 
 [reference_state]
 file = "reference_state.h5"

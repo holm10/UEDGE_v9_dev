@@ -52,6 +52,8 @@ bbb.cfnidh = 0		    #=0 for no ion heating from cx bbb.up bbb.friction
 # Atomic physics packages
 com.istabon=10		    #Stotler tables
 aph.aphdir = "../../data"   # shared rate files, tests/yldot/data
+api.apidir = "../../data"   # shared rate files, tests/yldot/data
+com.coronalimpfname = "../../data/mist_c.synthetic"  # isimpon=2, Post93 layout, Z=6; not actual data (T169, T17)
 
 
 # templates/slab_D_only/inputs/boundary/core/density/default.py

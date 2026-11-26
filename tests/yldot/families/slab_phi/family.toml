@@ -5,7 +5,7 @@
 name = "slab_phi"
 grid = "generated"  # slab mesh generated from the grd.* settings in input.py; no grid file
 store = "full"
-rate_files = ["ehr2.dat"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["rates.adpak", "rates.strahl", "eh.dat", "atmc.dat", "nwfits", "ehr1.dat", "ehr2.dat", "thin.dat", "thickLyA.dat", "thickAllLy.dat", "ehrtau.dat", "b2frates", "ehr5.dat", "mist_c.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 4522
 
@@ -16,7 +16,7 @@ input = "pytests/unittests/slab_D_only/slab/default/input.py"
 grid = "templates/grids/slab/gridue"  # 0 bytes in the source, not copied
 state = "templates/grids/slab/solution.h5"
 state_sha256 = "e8eee22ddc1dc81583576f00f309fbaea91c868074f9be75e261635d42724880"
-input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (164-166) removed; aph.aphdir set; ehr2.dat synthetic (T169)"
+input_changes = "normal form: trailing restart/allocate/hdf5_restore lines (164-166) removed; aph.aphdir set; ehr2.dat synthetic (T169); api.apidir and com.coronalimpfname = ../../data/mist_c.synthetic set (T17)"
 
 [reference_state]
 file = "reference_state.h5"

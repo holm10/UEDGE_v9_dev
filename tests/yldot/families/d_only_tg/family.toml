@@ -6,7 +6,7 @@
 name = "d_only_tg"
 grid = "gridue"
 store = "full"
-rate_files = []  # in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["ehr1.dat", "mist_c.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 480
 
@@ -15,7 +15,7 @@ family = "d_only"  # this suite's family; its [source] records the original case
 grid = "gridue"  # d_only's, copied
 state = "reference_state.h5"  # d_only's, the --source of make_base_state.py make
 state_sha256 = "f5c781f12f900c1c1939ec0ed58793a205dceef1a9577a1c3300b7be5138f1b5"
-input_changes = "d_only's input.py, then the block 'Gas temperatures evolved' (istgon for atoms, cftiexclg = 0, tgwall = 0.04 eV, the atoms' Tg boundary options, drift heating on)"
+input_changes = "d_only's input.py, then the block 'Gas temperatures evolved' (istgon for atoms, cftiexclg = 0, tgwall = 0.04 eV, the atoms' Tg boundary options, drift heating on); aph.aphdir, api.apidir and com.coronalimpfname = ../../data/mist_c.synthetic set (T17)"
 
 [reference_state]
 file = "reference_state.h5"
