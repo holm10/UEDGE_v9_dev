@@ -240,6 +240,11 @@ reason = "based"
 assign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { cycle = [0, 1, 3] }, "bbb.lyteix" = { cycle = [0.02, 0.05], at = [0] } }
 families = ["d_only"]
 reason = "per-cell PF arrays"
+
+["set:noise"]
+assign = { "bbb.isimpon" = 2, "bbb.afracs" = { noise = [0.02, 0.01, 17002] } }
+families = ["d_only"]
+reason = "cell-wise afracs"
 '''
 
 
@@ -251,8 +256,8 @@ def load_sets_text(tmp_path, text):
 
 def test_sets_load(tmp_path):
     sets = {v.id: v for v in load_sets_text(tmp_path, GOOD_SETS)}
-    assert list(sets) == ["set:pfte1", "set:pfte1-ly", "set:pfvsix"]
-    a, b, c = sets.values()
+    assert list(sets) == ["set:pfte1", "set:pfte1-ly", "set:pfvsix", "set:noise"]
+    a, b, c, n = sets.values()
     assert (a.rule, a.key, a.phase, a.config, a.base, a.families, a.issues) == (
         "set", "set:pfte1", "POST", "steady", None, variants.SMALL_FAMILIES, None)  # tewalli is dynamic
     assert a.assign == (("bbb.istepfc", "value", 1, ()), ("bbb.tewalli", "scale", 1.5, ()))
@@ -260,6 +265,7 @@ def test_sets_load(tmp_path):
     assert (b.phase, b.base, b.families, b.issues) == ("POST", "set:pfte1", ("d_only", "d_c"), ("AIUE-269",))
     assert c.assign[1] == ("bbb.istepfcix", "cycle", (0, 1, 3), ())
     assert c.assign[2] == ("bbb.lyteix", "cycle", (0.02, 0.05), (0,))
+    assert n.assign[1] == ("bbb.afracs", "noise", (0.02, 0.01, 17002), ())
     for v in sets.values():
         assert variants.Variant.from_dict(json.loads(json.dumps(v.to_dict()))) == v
     plan = variants.plan(sets=list(sets.values()), family="d_c")
@@ -338,6 +344,26 @@ def test_value_list_families_refused(tmp_path, text, match):
      "runs in steady"),
     ('["set:a"]\nassign = { "bbb.istepfc" = 1 }\nreason = "x"\n["set:b"]\nassign = { "bbb.istipfc" = 3 }\n'
      'base = "set:a"\nreason = "x"\n', "does not assign the base's keys"),
+    # noise (tracker T17)
+    ('["set:a"]\nassign = { "bbb.ispfbcvsix" = 1, "bbb.istepfcix" = { noise = [1.0, 0.5, 1] } }\nreason = "x"\n',
+     "noise on a integer"),
+    ('["set:a"]\nassign = { "bbb.rtauxfac" = { noise = [1.0, 0.5, 1] } }\nreason = "x"\n', "needs an array axis"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [1.0, 0.5, 1], at = [0, 1] } }\nreason = "x"\n',
+     "needs an array axis"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = 0.5 } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, 1, 2] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.0, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, -0.01, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, inf, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [nan, 0.01, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [1' + "0" * 400 + ', 0.01, 1] } }\nreason = "x"\n',
+     "noise must be"),  # an integer beyond float range (tomllib has no limit)
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [true, 0.01, 1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, -1] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, 1.0] } }\nreason = "x"\n', "noise must be"),
+    ('["set:a"]\nassign = { "bbb.afracs" = { noise = [0.02, 0.01, 1], value = 0.02 } }\nreason = "x"\n',
+     "exactly one of"),
 ])
 def test_sets_refused(tmp_path, text, match):
     with pytest.raises(ValueError, match=match):
@@ -397,3 +423,27 @@ def test_set_value():
         variants.set_value(i, "scale", 2.0)
     with pytest.raises(ValueError, match="needs an axis"):
         variants.set_value(d, "cycle", (1.0,), (0, 1))
+
+
+def test_set_value_noise():
+    """noise (tracker T17): pinned numbers from the PCG64 raw stream, the same on every platform and numpy version."""
+    u = variants.unit_noise(17002, 3)
+    assert u.tolist() == [0.8556587438260043, 0.16958873684512032, 0.4124042530312597]
+    assert u.tobytes().hex() == "b79c28728e61eb3fe886426f15b5c53f5409e0ced464da3f"
+    assert bitwise(variants.unit_noise(17002, 2), u[:2])  # a prefix of the same stream
+    d = np.zeros((2, 3))
+    v = variants.set_value(d, "noise", (0.02, 0.01, 7), (1,))
+    assert v.tolist() == [[0.0, 0.0, 0.0], [0.02250190933209334, 0.02794427601939151, 0.02551371380490387]]
+    assert bitwise(d, np.zeros((2, 3)))  # d itself is not changed
+    w = variants.set_value(np.zeros((40, 7)), "noise", (0.02, 0.01, 17002))
+    assert w.dtype == np.float64 and ((w >= 0.01) & (w < 0.03)).all() and len(np.unique(w)) == w.size
+    assert bitwise(w.ravel()[:3], 0.02 + 0.01 * (2.0 * u - 1.0))  # C order
+    with pytest.raises(TypeError):
+        variants.set_value(np.zeros(3, dtype=np.int64), "noise", (1.0, 0.5, 1))
+    with pytest.raises(ValueError, match="needs an axis"):
+        variants.set_value(d, "noise", (1.0, 0.5, 1), (0, 1))
+    with pytest.raises(ValueError, match="not finite"):
+        variants.set_value(d, "noise", (1e308, 1e308, 1))
+    for seed in (-1, 1.0, True):
+        with pytest.raises(ValueError, match="not an integer"):
+            variants.unit_noise(seed, 2)

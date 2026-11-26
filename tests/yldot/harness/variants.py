@@ -6,7 +6,8 @@ and its application inside the child.
     load_sets()      the combination sets of combinations.toml (AIUE-257, owner D1 2026-11-11), checked
     rule_value()     the value rules (owner, 2026-10-20: elementwise on arrays; bounded next index; owner, 2026-10-23,
                      AIUE-161: charge, d+1 on the positive slots below a live count)
-    set_value()      one key's value in a set: a number (elementwise), or {value | scale | cycle, at}
+    set_value()      one key's value in a set: a number (elementwise), or {value | scale | cycle | noise, at}
+    unit_noise()     the stable stream behind noise: doubles in [0, 1) from PCG64's raw output (tracker T17)
     apply()          in the child: read d live, compute (or replay) the value, assign it, read it back, record both
     encode/decode    exact JSON form of d and the applied value; a replay uses the recorded value, never the rules
 
@@ -18,6 +19,7 @@ A combination set (rule "set", id "set:<name>") assigns several keys at once. It
 result instead of the family default (make_references.py), which shows a parameter acting while its branch is on.
 """
 import importlib
+import math
 import re
 import tomllib
 from dataclasses import asdict, dataclass
@@ -72,8 +74,9 @@ class Variant:
     config: str = "steady"
     excluded: bool = False
     reason: str = ""
-    # rule set only: ((key, kind, x, at), ...) in combinations.toml order (kind value/scale/cycle, x a number or a
-    # tuple for cycle, at a tuple of numpy indices); the base set's id or None; the families; the AIUE-259 issues
+    # rule set only: ((key, kind, x, at), ...) in combinations.toml order (kind value/scale/cycle/noise, x a number,
+    # or a tuple for cycle and for noise (centre, amplitude, seed), at a tuple of numpy indices); the base set's id or
+    # None; the families; the AIUE-259 issues
     assign: tuple = None
     base: str = None
     families: tuple = None
@@ -198,6 +201,14 @@ def _is_number(x):
     return not isinstance(x, bool) and isinstance(x, (int, float))
 
 
+def _finite(x):
+    """A finite number that converts to a float (TOML integers have no size limit in tomllib)."""
+    try:
+        return math.isfinite(x)
+    except OverflowError:
+        return False
+
+
 def _set_entry(key, var, val, bad):
     """One assign entry of a set as (key, kind, x, at), checked against the variable's type and dimensions."""
     if var.type not in ("integer", "real"):
@@ -206,12 +217,12 @@ def _set_entry(key, var, val, bad):
     if _is_number(val):
         kind, x, at = "value", val, ()
     elif isinstance(val, dict):
-        unknown = set(val) - {"value", "scale", "cycle", "at"}
+        unknown = set(val) - {"value", "scale", "cycle", "noise", "at"}
         if unknown:
             raise bad("{}: unknown fields {}".format(key, sorted(unknown)))
-        kinds = [k for k in ("value", "scale", "cycle") if k in val]
+        kinds = [k for k in ("value", "scale", "cycle", "noise") if k in val]
         if len(kinds) != 1:
-            raise bad("{}: exactly one of value, scale, cycle".format(key))
+            raise bad("{}: exactly one of value, scale, cycle, noise".format(key))
         kind, x = kinds[0], val[kinds[0]]
         at = val.get("at", [])
         if not isinstance(at, list) or any(isinstance(i, bool) or not isinstance(i, int) or i < 0 for i in at):
@@ -226,12 +237,20 @@ def _set_entry(key, var, val, bad):
                 raise bad("{}: cycle runs along the {} axis, which must follow at {} (dimensions {})"
                           .format(key, IX_DIM, list(at), var.dims))
             x = tuple(x)
+        elif kind == "noise":
+            if (not isinstance(x, list) or len(x) != 3 or not all(_is_number(e) for e in x)
+                    or not _finite(x[0]) or not _finite(x[1]) or x[1] <= 0
+                    or not isinstance(x[2], int) or x[2] < 0):
+                raise bad("{}: noise must be [centre, amplitude > 0, integer seed >= 0]".format(key))
+            if len(at) >= len(dims):
+                raise bad("{}: noise needs an array axis after at {} (dimensions {})".format(key, list(at), var.dims))
+            x = tuple(x)
         elif not _is_number(x):
             raise bad("{}: {} must be a number".format(key, kind))
-        if kind == "scale" and var.type != "real":
-            raise bad("{}: scale on a {} variable".format(key, var.type))
+        if kind in ("scale", "noise") and var.type != "real":
+            raise bad("{}: {} on a {} variable".format(key, kind, var.type))
     else:
-        raise bad("{}: a number or a table {{value | scale | cycle, at}}".format(key))
+        raise bad("{}: a number or a table {{value | scale | cycle | noise, at}}".format(key))
     if var.type == "integer":
         for e in (x if isinstance(x, tuple) else (x,)):
             if kind != "scale" and e != int(e):
@@ -420,7 +439,9 @@ def rule_value(d, rule, value=None, bound=None):
 def set_value(d, kind, x, at=()):
     """One key's value in a combination set, from the family value d (d's dtype is kept; d is not changed).
     value: x at every element of d[at] (all of d without at); scale: d[at] * x (real only); cycle: along the first
-    axis of d[at] (the 0:nx+1 axis, checked by load_sets), element i takes x[i % len(x)], broadcast over the rest."""
+    axis of d[at] (the 0:nx+1 axis, checked by load_sets), element i takes x[i % len(x)], broadcast over the rest;
+    noise (real only): x = (centre, amplitude, seed), each element of d[at] (C order) takes centre + amplitude*(2u - 1),
+    u from unit_noise(seed, size): the same numbers on every platform, and the applied value is recorded anyway."""
     d = np.asarray(d)
     if d.dtype.kind not in "if":
         raise TypeError("no set value for dtype {}".format(d.dtype))
@@ -447,9 +468,29 @@ def set_value(d, kind, x, at=()):
         if (new != np.array([x[i % len(x)] for i in range(n)])).any():
             raise ValueError("cycle {!r} is not representable as {}".format(list(x), d.dtype))
         sub[...] = new.reshape((n,) + (1,) * (sub.ndim - 1))
+    elif kind == "noise":
+        if d.dtype.kind != "f":
+            raise TypeError("noise on dtype {}".format(d.dtype))
+        sub = v[at] if at else v
+        if not isinstance(sub, np.ndarray) or sub.ndim < 1:
+            raise ValueError("noise needs an axis after at {}".format(list(at)))
+        centre, amplitude, seed = x
+        with np.errstate(over="ignore", invalid="ignore"):  # refused below
+            new = (centre + amplitude * (2.0 * unit_noise(seed, sub.size) - 1.0)).astype(d.dtype)
+        if not np.isfinite(new).all():
+            raise ValueError("noise {!r} is not finite as {}".format(list(x), d.dtype))
+        sub[...] = new.reshape(sub.shape)
     else:
         raise ValueError("kind {!r}".format(kind))
     return v
+
+
+def unit_noise(seed, n):
+    """n doubles in [0, 1): the 53 high bits of PCG64(seed)'s raw stream. Not a numpy Generator method, whose algorithm
+    may change between numpy versions; the bit generator's stream is fixed (tracker T17)."""
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError("seed {!r} is not an integer >= 0".format(seed))
+    return (np.random.PCG64(seed).random_raw(n) >> np.uint64(11)).astype(np.float64) * 2.0 ** -53
 
 
 def encode(x):
