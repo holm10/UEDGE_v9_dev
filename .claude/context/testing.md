@@ -62,7 +62,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `v25` (imp7, run 45428198918) and `v26` (d_c, slab_phi, large_dd2c, dnull_imp2, run 45428193326), both from 457a81d7,
   are full sweeps with the synthetic rate files (T169, next entry). `v27` (run 45650284601 from 1032dc11, T22) is a full
   sweep of d_mols_tg, d_only_tg and large_dd2c after the tg rtol rise; in large_dd2c only the `tg[2]` sketch weights and
-  projections moved (thresholds, defaults and classes as in v26).
+  projections moved (thresholds, defaults and classes as in v26). `v28` (imp7, run 45729539152) and `v29` (the other
+  nine families, run 45729542774), both `--only` from 9177593d (T24), store the 133 equation-set variants as EQSET and
+  add the 21 set entries of the six `set:eqoff-*` sets; no other entry or dataset moved.
 - **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
   (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
   or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic` (`b2frates` and `carbmc.dat` keep
@@ -521,9 +523,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   stored layout and reference, and its unmoved blocks against the live default (`check_eqset`; only a finite mismatch with
   the stored reference counts as a macOS FMA limit; T24), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5); an owner
-  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (about 4,820 tests in
-  the PR tier, about 7 min; on macOS `-O3` two `BuildLimitWarning`s, d_c `bbb.mvolcur` and slab_phi `bbb.icnucx`, and
-  in the nightly tier one, dnull_imp2 `bbb.thetar`; none on `--noopt`, AIUE-99);
+  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (7,686 tests in
+  the PR tier, 111 of them `test_eqset`; the whole PR tier, 9,238 tests, took 6 min at `-n 6` on macOS arm64 with
+  yldot-data-v28/v29, T24; on macOS `-O3` four `BuildLimitWarning`s, d_c `bbb.mvolcur`, slab_phi `bbb.icnucx` and
+  d_mols_tg `bbb.rsigpl` and `bbb.sigvi_floor` (T22, T201), and in the nightly tier one, dnull_imp2 `bbb.thetar`
+  (presumed, AIUE-99); none on `--noopt`, AIUE-99);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
   (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family's too,
