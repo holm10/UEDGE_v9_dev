@@ -725,14 +725,18 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   `pytest tests/yldot -n auto -m "not nightly" --yldot-shard <shard>` (D3). The references are built in the pinned Linux
   image (`tests/yldot/linux/`), so the tier passes by tolerance, not bit for bit. It does not exercise
   OpenMP. The wheel jobs need the tier and run only on pushes to `v9-develop`, `main` and tags (D5);
-  `gather_wheels` takes only the `cibw-*` artifacts. `build_wheels` (T145; owner, 2026-11-26) runs
-  `pypa/cibuildwheel@v4.3.5` on `ubuntu-24.04` (manylinux_2_28 x86_64, no musllinux), `macos-15` (arm64) and
-  `macos-15-intel`, for cp39–cp315 (cibuildwheel v4 builds no cp38). It builds without isolation
+  `gather_wheels` takes only the `cibw-*` artifacts, and runs whenever `build_wheels` ran (`!cancelled()`), so a
+  failed leg, or one GitHub cancels for lack of runners, costs only its own wheels. `build_wheels` (T145; owner,
+  2026-11-26) runs `pypa/cibuildwheel@v4.3.5` on `ubuntu-24.04` (manylinux_2_28 x86_64, no musllinux), `macos-15`
+  (arm64) and `macos-15-intel`, for cp310–cp315: cibuildwheel v4 builds no cp38, and `import uedge` fails on Python
+  3.9 (`src/uedge/__init__.py:113`, a `str | None` default argument; run 45860025768). It builds without isolation
   (`CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"`, deps from `before_build`), because `pyproject.toml`'s
   `[build-system] requires` lists `h5py`, whose source build needs libhdf5 (it broke cp39–cp311 in run 45641249059).
   Each wheel gets an import smoke test, except cp315 (`CIBW_TEST_SKIP`: h5py 3.16.0 has no cp315 wheel). macOS uses
   `gfortran-14`, `llvm@18` clang and Homebrew `libomp` with `MACOSX_DEPLOYMENT_TARGET=15.0`. A manylinux wheel builds
-  without readline (`setup.py:143-149`'s check finds none in the image; T145 probe).
+  without readline (`setup.py:143-149`'s check finds none in the image; T145 probe). GitHub's macos-15 arm64 pool
+  was short of runners on 2026-11-26: six of seven arm64 legs were cancelled twice, "not acquired by Runner of type
+  hosted even after multiple attempts" (run 45860025768); `gh run rerun <id> --failed` retries them.
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
   (`pip install -v .`, Python 3.11, `numpy==1.26.4`; no `LDFLAGS` since AIUE-64) and runs
   `tests/deterministic_omp/ci/run_omp_ci.sh`: harness and CI unit tests, a smoke test, the common-block check

@@ -351,6 +351,7 @@
  "setup.py:98": "],",
  "setup.py:982": "json.dump(build_info(makeenv), f, indent=1, sort_keys=True)",
  "setup.py:993": "Extension(",
+ "src/uedge/__init__.py:113": "repo_url: str | None = \"https://github.com/LLNL/UEDGE\",",
  "src/uedge/__init__.py:22": "from . import uedgeC",
  "src/uedge/__init__.py:33": "from .nclpy import ncl",
  "src/uedge/__init__.py:54": "# Hard-write version to equal that set in VERSION",
