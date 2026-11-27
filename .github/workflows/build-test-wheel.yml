@@ -169,7 +169,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15, macos-15-intel]
-        pyver: [cp39, cp310, cp311, cp312, cp313, cp314, cp315]
+        # No cp39: uedge does not import on Python 3.9 (src/uedge/__init__.py: a `str | None` annotation; owner, T145)
+        pyver: [cp310, cp311, cp312, cp313, cp314, cp315]
 
     steps:
       - name: Checks out repo
@@ -211,6 +212,9 @@ jobs:
   gather_wheels:
     name: Gather built wheels
     needs: [build_wheels]
+    # Collects every wheel that was built, also when a leg failed or GitHub cancelled it for lack of runners (owner,
+    # T145); skipped with build_wheels (pull requests, other branches)
+    if: ${{ !cancelled() && needs.build_wheels.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download all Artifacts and merges them
