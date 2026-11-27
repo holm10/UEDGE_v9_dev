@@ -215,7 +215,8 @@ def test_inert(runner, plan, default, family, vid):
 # ni(..., nisp + 1) past the end of ni (bbb/pandf_boundary.m:3473-3475, T109) gives SENSITIVE when the chunk after ni
 # varies with yl (logni) and INVALID 'error: ... jac_lu_decomp ... ierr = -5' (a zero Jacobian row) when it does not;
 # which follows the child's heap layout, which follows the environment's size (T192's CI probe, run 45867784394: 8 of
-# 1101 runs). test_not_reproducible fails once an entry no longer pins one of its outcomes: remove it with T109's fix.
+# 1087 runs with a padded environment, 0 of 102 without; CI itself failed twice). test_not_reproducible fails once an
+# entry no longer pins one of its outcomes: remove it with T109's fix.
 NOT_REPRODUCIBLE = {
     ("d_mols", "set:plate-mol-zerograd"): (("SENSITIVE", None), ("INVALID", "error")),
 }
