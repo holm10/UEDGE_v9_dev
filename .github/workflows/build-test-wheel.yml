@@ -160,8 +160,7 @@ jobs:
     # skip: owner decisions of T145 (2026-11-26). cibuildwheel v4 builds manylinux_2_28; it no longer builds cp38.
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/v9-develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') ||
-       github.ref == 'refs/heads/feature/v9-T145-wheel-matrix')
+      (github.ref == 'refs/heads/v9-develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     timeout-minutes: 60
