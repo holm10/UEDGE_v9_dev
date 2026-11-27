@@ -734,7 +734,8 @@ agent names it since AIUE-108. Its last full run (serial build of `v9-develop` c
   `[build-system] requires` lists `h5py`, whose source build needs libhdf5 (it broke cp39–cp311 in run 45641249059).
   Each wheel gets an import smoke test, except cp315 (`CIBW_TEST_SKIP`: h5py 3.16.0 has no cp315 wheel). macOS uses
   `gfortran-14`, `llvm@18` clang and Homebrew `libomp` with `MACOSX_DEPLOYMENT_TARGET=15.0`. A manylinux wheel builds
-  without readline (`setup.py:143-149`'s check finds none in the image; T145 probe). GitHub's macos-15 arm64 pool
+  without readline (`setup.py:143-149`'s check finds none in the image: T145's local manylinux_2_28 aarch64 probe;
+  the CI x86_64 log does not show it). GitHub's macos-15 arm64 pool
   was short of runners on 2026-11-26: six of seven arm64 legs were cancelled twice, "not acquired by Runner of type
   hosted even after multiple attempts" (run 45860025768); `gh run rerun <id> --failed` retries them.
 - `.github/workflows/build-test-omp.yml` (AIUE-57) tests the OpenMP paths: it builds the default OpenMP build
