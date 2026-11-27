@@ -19,7 +19,9 @@ INVALID    evaluated with the rules (no applied value is recorded): make_referen
            the same kind of reason (error, crash, timeout, neq (0 only, T196), non-finite); a different text is
            printed, not failed. A bounds-check entry (the --checkbounds audit's runtime error, reproducible only in
            that build) pins the serial build's outcome instead: the serial run must give the class and, for INVALID,
-           the kind of reason its reason ends with 'serial build: ...' (owner, 2026-10-28, AIUE-95 D5).
+           the kind of reason its reason ends with 'serial build: ...' (owner, 2026-10-28, AIUE-95 D5). An entry in
+           NOT_REPRODUCIBLE, whose serial outcome follows the heap layout, accepts each outcome listed there instead
+           (owner, 2026-11-27, T192).
 A combination set (AIUE-257) is run like a variant, its recorded {key: value} replayed; a set with a base compares
 with its base set's live result (the base's stored applied value replayed) instead of the default, for INERT and
 INVALID alike, as make_references classified it.
@@ -208,10 +210,28 @@ def test_inert(runner, plan, default, family, vid):
         family, vid, ratio)
 
 
-def invalid_problem(stored, cls, reason):
+# Bounds-check entries whose serial outcome is not reproducible, with the outcomes test_invalid accepts for them,
+# (class, kind of an INVALID reason, else None), instead of their pin (owner, 2026-11-27, T192). d_mols' read of
+# ni(..., nisp + 1) past the end of ni (bbb/pandf_boundary.m:3473-3475, T109) gives SENSITIVE when the chunk after ni
+# varies with yl (logni) and INVALID 'error: ... jac_lu_decomp ... ierr = -5' (a zero Jacobian row) when it does not;
+# which follows the child's heap layout, which follows the environment's size (T192's CI probe, run 45867784394: 8 of
+# 1101 runs). test_not_reproducible fails once an entry no longer pins one of its outcomes: remove it with T109's fix.
+NOT_REPRODUCIBLE = {
+    ("d_mols", "set:plate-mol-zerograd"): (("SENSITIVE", None), ("INVALID", "error")),
+}
+
+
+def invalid_problem(stored, cls, reason, accept=None):
     """Why the serial run (class cls, INVALID reason) does not match the stored INVALID reason; None if it does. A
     reason with a 'serial build: ...' suffix (a bounds-check entry) pins that class and kind (owner, 2026-10-28,
-    AIUE-95 D5); any other needs INVALID with the stored kind."""
+    AIUE-95 D5); any other needs INVALID with the stored kind. accept: the outcomes of a NOT_REPRODUCIBLE entry,
+    which replace its pin (T192)."""
+    if accept is not None:
+        got = (cls, kind(reason) if cls == "INVALID" else None)
+        if got in accept:
+            return None
+        return "stored {!r}, not reproducible: accepts {}, the serial build now gives {}{}".format(
+            stored, " or ".join(c + (" " + k if k else "") for c, k in accept), cls, " " + reason if reason else "")
     pinned = mr.serial_outcome(stored)
     want_class, want_kind = pinned if pinned is not None else ("INVALID", kind(stored))
     if cls != want_class:
@@ -238,6 +258,88 @@ def test_invalid_problem(stored, cls, reason, ok):
     assert (invalid_problem(stored, cls, reason) is None) == ok
 
 
+PINNED = "bounds-check: bbb/x.F:1: Index (serial build: SENSITIVE)"
+BOTH = (("SENSITIVE", None), ("INVALID", "error"))
+
+
+@pytest.mark.parametrize("cls, reason, accept, ok", [
+    ("SENSITIVE", "max |diff|/tol = 3.9e+07", BOTH, True),
+    ("INVALID", "error: RuntimeError: Error in subroutine jac_lu_decomp: ierr = -5", BOTH, True),
+    ("INVALID", "error: RuntimeError: Error in subroutine jac_lu_decomp: ierr = -5", None, False),  # the pin alone
+    ("INVALID", "non-finite yldot or yldot_J at rows [1]", BOTH, False),  # another kind
+    ("INVALID", "crash: exit code -11", BOTH, False),
+    ("INERT", "", BOTH, False),  # another class
+    ("MARGINAL", "max |diff|/tol = 0.5", BOTH, False),
+    ("SENSITIVE", "max |diff|/tol = 3.9e+07", (("INVALID", "error"),), False),
+])
+def test_invalid_problem_accept(cls, reason, accept, ok):
+    """A NOT_REPRODUCIBLE entry's accepted outcomes replace its pin: each passes, any other class or kind fails."""
+    assert (invalid_problem(PINNED, cls, reason, accept) is None) == ok
+
+
+@pytest.mark.parametrize("family, vid, outcome, ok", [
+    ("d_mols", "set:plate-mol-zerograd", ("INVALID", "error: RuntimeError: jac_lu_decomp ierr = -5"), True),
+    ("d_mols", "set:plate-mol-zerograd", ("SENSITIVE", "max |diff|/tol = 3.9e+07"), True),
+    ("fam", "pinned", ("INVALID", "error: RuntimeError: jac_lu_decomp ierr = -5"), False),  # no exception: the pin
+    ("fam", "pinned", ("SENSITIVE", "max |diff|/tol = 3.9e+07"), True),
+])
+def test_invalid_accepts(monkeypatch, family, vid, outcome, ok):
+    """test_invalid hands a NOT_REPRODUCIBLE entry's outcomes to invalid_problem, and only that entry's."""
+    from types import SimpleNamespace
+
+    monkeypatch.setitem(MANIFESTS, "fam", {"variables": {"pinned": {"class": "INVALID", "reason": PINNED,
+                                                                    "config": "steady"}}})
+    monkeypatch.setattr(mr, "classify", lambda r, base, tol: (outcome[0], outcome[1], None))
+    monkeypatch.setattr(mr, "tolerance", lambda *a: None)
+    monkeypatch.setattr(compare, "index_map", lambda *a: None)
+    monkeypatch.setattr(compare, "load_regions", lambda *a: None)
+    monkeypatch.setattr(sys.modules[__name__], "family_dir", Path)
+    runner = SimpleNamespace(evaluate=lambda *a, **k: None)
+    base = {"yldot": None}
+
+    def check():
+        test_invalid(runner, {vid: "plan"}, lambda f, config: base, family, vid)
+
+    if ok:
+        check()
+    else:
+        with pytest.raises(AssertionError, match="serial build now gives INVALID"):
+            check()
+
+
+def stale_exceptions(table, manifests):
+    """The entries of a NOT_REPRODUCIBLE table that are not a stored INVALID bounds-check entry of their family whose
+    pinned outcome is one of their accepted outcomes."""
+    stale = []
+    for (family, vid), accept in table.items():
+        e = (manifests.get(family) or {}).get("variables", {}).get(vid)
+        pinned = mr.serial_outcome(e["reason"]) if e and e["class"] == "INVALID" else None
+        if pinned is None or not str(e["reason"]).startswith("bounds-check:") or pinned not in accept:
+            stale.append("{}-{}: {}".format(family, vid, "absent" if e is None else (e["class"], e["reason"])))
+    return stale
+
+
+@pytest.mark.parametrize("entry, ok", [
+    ({"class": "INVALID", "reason": PINNED}, True),
+    (None, False),  # removed by a regeneration
+    ({"class": "SENSITIVE", "reason": "max |diff|/tol = 3.9e+07"}, False),  # fixed: no longer INVALID
+    ({"class": "SENSITIVE", "reason": PINNED}, False),  # not INVALID, whatever its reason says
+    ({"class": "INVALID", "reason": "error: RuntimeError: boom"}, False),  # INVALID without a pin
+    ({"class": "INVALID", "reason": "bounds-check: bbb/x.F:1: Index (serial build: INERT)"}, False),  # another pin
+    ({"class": "INVALID", "reason": "neq 420 -> 0 (serial build: SENSITIVE)"}, False),  # not a bounds-check entry
+])
+def test_stale_exceptions(entry, ok):
+    manifests = {"fam": {"variables": {} if entry is None else {"v": entry}}}
+    assert (stale_exceptions({("fam", "v"): BOTH}, manifests) == []) == ok
+
+
+def test_not_reproducible():
+    """Every NOT_REPRODUCIBLE entry still pins one of its accepted outcomes; once a fix and a regeneration change it
+    (T109 for d_mols), the exception has to go."""
+    stale = stale_exceptions(NOT_REPRODUCIBLE, MANIFESTS)
+    assert not stale, "NOT_REPRODUCIBLE entries that no longer pin an accepted outcome: {}".format(stale)
+
+
 @pytest.mark.parametrize("family, vid", params("INVALID"))
 def test_invalid(runner, plan, default, family, vid):
     e = MANIFESTS[family]["variables"][vid]
@@ -246,7 +348,7 @@ def test_invalid(runner, plan, default, family, vid):
     fdir = family_dir(family)
     tol = mr.tolerance(fdir, base["yldot"], e["config"], compare.index_map(base, compare.load_regions(fdir)))
     cls, reason, finding = mr.classify(r, base, tol)
-    problem = invalid_problem(e["reason"], cls, reason or finding)
+    problem = invalid_problem(e["reason"], cls, reason or finding, NOT_REPRODUCIBLE.get((family, vid)))
     assert problem is None, "{}-{}: {}".format(family, vid, problem)
     if reason != e["reason"]:
         print("{}-{}: stored reason {!r}, now {!r}".format(family, vid, e["reason"], reason))
