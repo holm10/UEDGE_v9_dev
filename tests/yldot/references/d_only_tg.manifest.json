@@ -230,15 +230,15 @@
     "/steady/locality/dfull": "ede2412fbbcd2114391bc664e874d43eda12f098dc2cb4e2b60095f9b563e0ed",
     "/steady/locality/mismatch": "ede2412fbbcd2114391bc664e874d43eda12f098dc2cb4e2b60095f9b563e0ed",
     "/steady/locality/row": "c3e89389f923ce168840268d8f4ada7000a815438c80913f10cf577bcaa63c01",
-    "/steady/locality_variants/column": "abdcb8d73dca964d3b0857b15194dcdb46ab023a03d7a5b043534139e58bac1d",
-    "/steady/locality_variants/dfull": "0108d819a393266ca38cc3d9df38664f701dbcdccf8ff489bc564f4721832f2d",
+    "/steady/locality_variants/column": "9aa97bdacbb667533ab816a281e07cbfc84d8b32fdcd7e7312a70f7e9af42743",
+    "/steady/locality_variants/dfull": "28f1a1fa89c032ab71d6272b656b9022e2b53899550ad8e814e767ec7686635f",
     "/steady/locality_variants/dropped_column": "8d05cd45bd0e68cfda6a41b7ce391b3fc8bdfc94908d99e250a9f5f466f6f590",
-    "/steady/locality_variants/dropped_offsets": "4c4037162c716855addc8b73cc7018f009b8c1387a323d6e7ace9a94586a749c",
+    "/steady/locality_variants/dropped_offsets": "eaa22f161ece145c31ef9657d7fbd203e23d6e03e34f6ac00eff9254dae1ebc4",
     "/steady/locality_variants/dropped_row": "ba6c0cc8314b0e2c1901d9f394b04e496f6366be0f439d75daa71a2a01a9c2b5",
-    "/steady/locality_variants/ids": "efca20499df113c74e696377de5dc4f827e234d243d48af8818f3eeee33d5adc",
-    "/steady/locality_variants/mismatch": "0fea1c25285a38912f2a086492bb9c5974c666f69051c7f256162c01d84ab858",
-    "/steady/locality_variants/offsets": "de0bef2173d83fe535dc12601f25fc757cafff6f6b2bfc6e8b445fce52343ddb",
-    "/steady/locality_variants/row": "972e107dcc7ff39dd12249b7b99c593c7d5c83bb919f81238f4fad808d373be3",
+    "/steady/locality_variants/ids": "a1648b057e5a3969bc1016bb128bac67e112633212e24a81cc6d2a5c386d7b0b",
+    "/steady/locality_variants/mismatch": "c209f65ddb54d43356d30266b7b649609f74896580f092ecbe7fca4036850735",
+    "/steady/locality_variants/offsets": "316ad46c7811f6a0c8cc8c7b84e288def95fd304fd8d0842ed4625784b074a51",
+    "/steady/locality_variants/row": "86e6e1375ced1b5514c69dbd775cdda861c5c538f68180f9a071e05308eef360",
     "/steady/variants/bbb.albdsi/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.albdsi/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.albdsi/yldot/index": "c7089be9424684a5bc001dc0914d6f496846b8fde7569282a8452da1bf54510d",
@@ -1603,6 +1603,10 @@
     "/steady/variants/bbb.znuclin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.znuclin/yldot/index": "de4cfaeedec28e8b7f2fabfcfcb84f7a9465506c3d34350dc03f2ec46afcf197",
     "/steady/variants/bbb.znuclin/yldot/value": "8abdf8a5a030fd8cd8885f58d8e571d018c8883a63f96594d49d2b8e45c0f65f",
+    "/steady/variants/com.istabon/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/com.istabon/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/com.istabon/yldot/index": "62aafb06f8338b6eb971326a8ba96c87bc51404dcd184ab6fbab5e9f1f1dcb62",
+    "/steady/variants/com.istabon/yldot/value": "1122bbaecc84623cd03667f4b5aa0712a677608863cdb5cc081f0f4b599116f1",
     "/steady/variants/set:tg-cftiexclg05/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:tg-cftiexclg05/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:tg-cftiexclg05/yldot/index": "d40ad39bcff64f34985d209438bc776a04731abcd2a7cf8f61fafcf87842fed9",
@@ -1944,14 +1948,14 @@
   },
   "external": {
     "references/d_only_tg.h5": {
-      "bytes": 1297809,
-      "sha256": "d39ac19a42778b070868cdd94d6c97633d8af32dd8d7ace6d16ba472d233cfe5"
+      "bytes": 1302246,
+      "sha256": "ed20e97741420dcb4115a5de0f6888bdf19c785d4e3b88d784aadc30fd1f8b3e"
     }
   },
   "family": "d_only_tg",
   "guarded": {
     "locality/steady": "37a502860fb451c194579ea951f3195d2364a824d16c023884865e6730a8ba0a",
-    "locality_variants/steady": "fc67b27ec9f214a1d532ecde385aefc980795725d61abbea39cb6cdccef5ad83",
+    "locality_variants/steady": "8a84da2ac40464ac2a162d8145da5d8ea91b5c801fae05e6b97bf2fde1849b91",
     "locality_variants/timestep": "0e38adbc3f1c16192149409001ec9201912332c0e6498b01bccaf68b71a69abb",
     "steady/default": "b7b7e5f22b7a3b769de601e819007e55010328773d7928a615fe35ccae2bda6a",
     "steady/sigma": "3c6a5e922587077b63c123a1b873c0a24eaf18805b828c6e6345b6a1d88baa06",
@@ -4863,6 +4867,12 @@
       "dropped": 0,
       "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
     },
+    "bbb.isimpon=2": {
+      "added": 0,
+      "config": "steady",
+      "dropped": 0,
+      "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
+    },
     "bbb.isimpon=6": {
       "added": 11,
       "config": "steady",
@@ -7749,6 +7759,12 @@
       "dropped": 0,
       "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
     },
+    "com.istabon": {
+      "added": 4,
+      "config": "steady",
+      "dropped": 0,
+      "sha256": "7c1c1a627f9fada7f736ec04a705fcd8660c46c1d5293ec4f3f430b9aabafc2a"
+    },
     "com.spheromak": {
       "added": 0,
       "config": "steady",
@@ -7757,15 +7773,15 @@
     }
   },
   "provenance": {
-    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
+    "commit": "fd950b6240fbfea2d73465e523b2ab5ff693fc2d",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-26T01:09:07+00:00",
+    "date": "2026-11-27T20:29:56+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v29",
+  "release": "yldot-data-v31",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -20666,14 +20682,24 @@
       "sha256": null
     },
     "bbb.isimpon=2": {
-      "applied": null,
-      "block_l2": {},
-      "class": "INVALID",
+      "applied": {
+        "data": [2],
+        "dtype": "int64",
+        "shape": []
+      },
+      "block_l2": {
+        "te[1] inner_leg": 7.105427357601002e-15
+      },
+      "class": "MARGINAL",
       "config": "steady",
-      "d": null,
+      "d": {
+        "data": [0],
+        "dtype": "int64",
+        "shape": []
+      },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: Error in subroutine readpost: data file mist.dat not found",
+      "reason": "max |diff|/tol = 6.49e-09 <= M_cls = 100: treated as EXCLUDED until an override gives a larger value (PRD 7.2)",
       "sha256": null
     },
     "bbb.isimpon=6": {
@@ -33671,15 +33697,59 @@
       "sha256": null
     },
     "com.istabon": {
-      "applied": null,
-      "block_l2": {},
-      "class": "INVALID",
+      "applied": {
+        "data": [8],
+        "dtype": "int64",
+        "shape": []
+      },
+      "block_l2": {
+        "ni[1] core": 57.10401131593625,
+        "ni[1] inner_leg": 6037.564292341456,
+        "ni[1] outer_leg": 7148.4409269888265,
+        "ni[1] pf": 3.4368027407171335,
+        "ni[1] sol": 69.90606681539694,
+        "ni[2] core": 57.104011315936354,
+        "ni[2] inner_leg": 6037.564292341456,
+        "ni[2] outer_leg": 7148.440926988823,
+        "ni[2] pf": 3.4368027407172295,
+        "ni[2] sol": 69.90606681539691,
+        "te[1] core": 354.82982945229,
+        "te[1] inner_leg": 2912.444048178252,
+        "te[1] outer_leg": 4963.5299722586005,
+        "te[1] pf": 376.7249785681158,
+        "te[1] sol": 500.9135005963607,
+        "tg[1] core": 61454.28713766531,
+        "tg[1] inner_leg": 19885.954391754243,
+        "tg[1] outer_leg": 16781.01031596442,
+        "tg[1] pf": 15.245386480910948,
+        "tg[1] sol": 30952.62334722474,
+        "ti[1] core": 13.448975766298043,
+        "ti[1] inner_leg": 31.49948190557322,
+        "ti[1] outer_leg": 31.7981999193046,
+        "ti[1] pf": 2.0406175448542974,
+        "ti[1] sol": 18.375380826356963,
+        "up[1] core": 14.765502852731808,
+        "up[1] inner_leg": 1541.9451110388627,
+        "up[1] outer_leg": 1484.9431957075033,
+        "up[1] pf": 8.286715241928894,
+        "up[1] sol": 285.1294773671343,
+        "up[2] core": 1214.019830121299,
+        "up[2] inner_leg": 39243.36549136616,
+        "up[2] outer_leg": 26173.479631853585,
+        "up[2] pf": 17.208214904841608,
+        "up[2] sol": 3675.44947940852
+      },
+      "class": "SENSITIVE",
       "config": "steady",
-      "d": null,
+      "d": {
+        "data": [7],
+        "dtype": "int64",
+        "shape": []
+      },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: **** hydrogenic rate file not found; set aphdir                                                                path or isaphdir = 0",
-      "sha256": null
+      "reason": "max |diff|/tol = 2.12e+09",
+      "sha256": "bb590dbc04a8dc0bf8bda35681c13b652ecb615f441d69caea3cb05c22cc52b3"
     },
     "com.isudsym": {
       "applied": null,
