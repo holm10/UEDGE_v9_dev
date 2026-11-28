@@ -538,8 +538,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   stored layout and reference, and its unmoved blocks against the live default (`check_eqset`; only a finite mismatch with
   the stored reference counts as a macOS FMA limit; T24), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5; an entry in `NOT_REPRODUCIBLE`, whose serial outcome follows the heap layout, accepts each outcome listed there: d_mols `set:plate-mol-zerograd` SENSITIVE or INVALID `error`, until T109's fix, `test_not_reproducible` enforcing the removal; owner, 2026-11-27, T192, CI probe run 45867784394); an owner
-  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (7,829 tests in
-  the PR tier, 119 of them `test_eqset`; the whole PR tier, 9,401 tests, took 6 min at `-n 8` on macOS arm64 with
+  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (7,849 tests in
+  the PR tier, 119 of them `test_eqset`; the whole PR tier, 9,421 tests, took 7 min at `-n 7` on macOS arm64 with
   yldot-data-v31, T17; on macOS `-O3` three `BuildLimitWarning`s, d_c `bbb.mvolcur`, slab_phi `bbb.icnucx` and
   d_mols_tg `bbb.rsigpl` (T22; d_mols_tg's `bbb.sigvi_floor` no longer since it applies 1e-18, T201), and in the
   nightly tier one, dnull_imp2 `bbb.thetar`
