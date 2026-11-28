@@ -1047,3 +1047,47 @@ reason = "te off at ix = 2, ti and phi each in one cell"
 assign = { "bbb.isteoffxy" = { value = 1, at = [2] }, "bbb.istioffxy" = { value = 1, at = [4, 2] }, "bbb.isngoffxy" = { value = 1, at = [3, 3, 1] } }
 families = ["d_mols", "d_c"]
 reason = "te off at ix = 2, ti and ng[2] each in one cell"
+
+# ================================================================ rate tables (tracker T17; the files in tests/yldot/data are synthetic, not actual data, T169)
+# com.istabon's values themselves are a value list in overrides.toml (T17). Not here, with their disposition:
+#   - isimpon = 5 (tracker T177) and ismctab = 1 (tracker T176): both open bugs;
+#   - d_c's bbb.znuclin and bbb.isimpon = 2 stay INVALID (owner, 2026-11-20), and so does large_dd2c's
+#     bbb.isimpon = 7 (owner, 2026-11-25; with the mist file 136 of 29568 rows change, none beyond 1e-6 relative);
+#   - the rtauxfac sets only in d_c and slab_phi (not every case in every family, owner 2026-11-20).
+
+["set:istabon14"]
+assign = { "com.istabon" = 14 }
+families = ["d_c", "slab_phi"]
+reason = "H. Scott tables with the Lyman-alpha opacity, linear interpolation (istabon = 14, ehrtau.dat; com/com.v:341); the base of set:istabon14-rtaux"
+
+["set:istabon14-rtaux"]
+assign = { "com.istabon" = 14, "bbb.rtauxfac" = 1.0 }
+base = "set:istabon14"
+families = ["d_c", "slab_phi"]
+reason = "the Lyman-alpha optical depth to the plate (rtauxfac > 0, bbb/pandf_plasma_continuity.m:208-265; off by default) with the istabon = 14 tables"
+
+["set:istabon15"]
+assign = { "com.istabon" = 15 }
+families = ["d_c", "slab_phi"]
+reason = "H. Scott tables with the Lyman-alpha opacity, log interpolation (istabon = 15, ehrtau.dat; com/com.v:342); the base of set:istabon15-rtaux"
+
+["set:istabon15-rtaux"]
+assign = { "com.istabon" = 15, "bbb.rtauxfac" = 1.0 }
+base = "set:istabon15"
+families = ["d_c", "slab_phi"]
+reason = "as set:istabon14-rtaux with the istabon = 15 tables"
+
+["set:newapi0-istabon16"]
+assign = { "bbb.newapi" = 0, "com.istabon" = 16 }
+families = ["d_c"]
+reason = "newapi = 0: the impurity tables are not read by ueinit (bbb/odesetup.m:1156, :1177) but come with the istabon = 16 tables (readmc of nhdf = 2 files: b2frates and C_rates.synthetic); the only accepted newapi = 0 combination in a family with impurities (AIUE-226)"
+
+["set:isimpon2-afracs"]
+assign = { "bbb.isimpon" = 2, "bbb.afracs" = { noise = [0.02, 0.01, 17002] } }
+families = ["d_only", "d_mols", "ortho", "slab_phi"]
+reason = "fixed-fraction impurity radiation (isimpon = 2, readpost of mist_c.synthetic, bbb/odesetup.m:1139-1142) with a cell-wise afracs (0.02 +- 0.01; afrac = afracs, bbb/odesetup.m:1687), so each cell's term is varied on its own (owner, 2026-11-20)"
+
+["set:isimpon7-afracs"]
+assign = { "bbb.isimpon" = 7, "bbb.afracs" = { noise = [0.02, 0.01, 17007] } }
+families = ["d_c"]
+reason = "fixed-fraction neon (readpost of mist_ne.synthetic) beside the force-balance carbon (isimpon = 7, bbb/odesetup.m:1158-1178) with a cell-wise afracs (0.02 +- 0.01, owner 2026-11-20)"

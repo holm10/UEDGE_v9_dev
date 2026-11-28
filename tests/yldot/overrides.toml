@@ -64,6 +64,18 @@ values = [2, 6, 7]
 others = "candidate for elimination, AIUE-10 (decision 30)"
 reason = "selects impurity models (bbb/bbb.v:3875-3885), so d+1 does not apply; 2, 6 and 7 are the most used (decision 30)"
 
+["com.istabon"]
+values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+families = ["d_only", "d_mols", "d_c", "ortho", "slab_phi"]
+others = "not a coded option (com/com.v:325-344): > 17 stops with xerrab (aph/aphrates.m:142, :289)"
+reason = "selects the hydrogenic rate tables and models (com/com.v:323-344); every coded value is run with the synthetic files of tests/yldot/data, which are not actual data (T169, T17)"
+
+["bbb.sigvi_floor"]
+values = [1e-18]
+families = ["d_mols_tg"]
+others = "other floors: one value is tested in d_mols_tg; the default rule's 1.0 left round-off of up to 1.2e-2 relative in tg[1] (T201)"
+reason = "ionization-rate floor (bbb/bbb.v:1440, which suggests 1e-18); the default rule's 1.0 cancels large terms in d_mols_tg's tg[1]. At 1e-18 a macOS -O3 and an -O0 build check each other's values at 0.01 of the tolerance, and the variant stays SENSITIVE (4.27e4; owner, 2026-11-27, T201)"
+
 # ---------------------------------------------------------------- pinned by the harness and solver path
 
 ["bbb.restart"]

@@ -33,9 +33,9 @@ AIUE-216).
   - With the default `isgindx = 1` (`bbb/bbb.v:3081`), the normalised mesh `xnrm`/`ynrm` is built from the indices only (`bbb/geometry.m:2795-2823`; `isgindx = 0` uses true distances). Two gridue files with the same nx, ny and X-point indices give identical `xnrm`/`ynrm`, however different their geometry. Interpolation onto a stretched mesh is not a supported path.
   - To compare two decks' inputs, run `bbb.allocate()` on both first (owner, 2026-10-28, AIUE-191). `allocate` runs `setwallbcarrays` (`bbb/odesetup.m:319`), which fills the
     per-cell wall-BC arrays (`*ix`) from their scalars. A deck that allocates mid-way, such as d_only
-    (`tests/yldot/families/d_only/input.py:58`), leaves those arrays holding the scalars from that point, so a raw
+    (`tests/yldot/families/d_only/input.py:61`), leaves those arrays holding the scalars from that point, so a raw
     comparison reports differences the run never sees (AIUE-106).
-  - A deck that calls `bbb.allocate()` before it has set every species count can stop when it runs a second time in the same process, because the values its first run set later in the file are still there. d_mols (`tests/yldot/families/d_mols/input.py:30-134`) sets `com.ngsp = 1`, allocates, then sets `bbb.igspsori[1] = 2` and `com.ngsp = 2`. Run again, that `allocate` stops with `*** igspsori,o refers to igsp > ngsp ***` (`bbb/odesetup.m:207`). Run each evaluation in its own process (the yldot suite does: `child_reuse = false` in every measured `family.toml`, AIUE-86); don't reorder the deck.
+  - A deck that calls `bbb.allocate()` before it has set every species count can stop when it runs a second time in the same process, because the values its first run set later in the file are still there. d_mols (`tests/yldot/families/d_mols/input.py:33-137`) sets `com.ngsp = 1`, allocates, then sets `bbb.igspsori[1] = 2` and `com.ngsp = 2`. Run again, that `allocate` stops with `*** igspsori,o refers to igsp > ngsp ***` (`bbb/odesetup.m:207`). Run each evaluation in its own process (the yldot suite does: `child_reuse = false` in every measured `family.toml`, AIUE-86); don't reorder the deck.
 
 ## Model layout
 

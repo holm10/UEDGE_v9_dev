@@ -5,7 +5,7 @@
 name = "d_c"
 grid = "gridue_16x8"
 store = "full"
-rate_files = ["ehr2.dat", "C_rates.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
+rate_files = ["rates.adpak", "rates.strahl", "eh.dat", "atmc.dat", "nwfits", "ehr1.dat", "ehr2.dat", "thin.dat", "thickLyA.dat", "thickAllLy.dat", "ehrtau.dat", "b2frates", "ehr5.dat", "C_rates.synthetic", "mist_ne.synthetic"]  # synthetic, not actual data (T169), in ../../data (tests/yldot/data), through aph.aphdir / api.apidir in input.py;
                 # relative paths: every evaluation must run with the family directory as cwd
 neq = 2340
 
@@ -16,7 +16,7 @@ input = "templates/fulltests/nonog_d_c-fb_16x8/input.py"
 grid = "templates/fulltests/nonog_d_c-fb_16x8/gridue_16x8"
 state = "templates/fulltests/nonog_d_c-fb_16x8/solution.h5"
 state_sha256 = "8c98c8d825169e80dbced67e0fc814a4a67a1d96cb5a44dad3fd394d2b53307f"
-input_changes = "normal form: bbb.restart = 1 (132) and allocate + hdf5_restore (143-144) removed; aph.aphdir, api.apidir set; com.mcfilename = C_rates.synthetic (T169; was C_rates.strahl), ehr2.dat synthetic"
+input_changes = "normal form: bbb.restart = 1 (132) and allocate + hdf5_restore (143-144) removed; aph.aphdir, api.apidir set; com.mcfilename = C_rates.synthetic (T169; was C_rates.strahl), ehr2.dat synthetic; com.coronalimpfname = ../../data/mist_ne.synthetic, com.nhdf = 2 and com.hdfilename = b2frates, C_rates.synthetic set (T17)"
 
 [reference_state]
 file = "reference_state.h5"

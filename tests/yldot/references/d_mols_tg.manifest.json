@@ -234,15 +234,15 @@
     "/steady/locality/dfull": "a38fe39d406aafd4634116c0e4e6e1f4c311209b497c3b384adf71745715ee3a",
     "/steady/locality/mismatch": "a38fe39d406aafd4634116c0e4e6e1f4c311209b497c3b384adf71745715ee3a",
     "/steady/locality/row": "3e5bffb9019a7199b871f633269bb53e5dd900dfdd8e8d74961be37513b117c6",
-    "/steady/locality_variants/column": "2d8a82440c08efe906d72b42ceb8b864a3bf134fae25fa21480ceb272527dca5",
-    "/steady/locality_variants/dfull": "13b75f7a428602d8c2c69f588c84c32f85bd3e9f34efbe775fcdc018963eb15a",
-    "/steady/locality_variants/dropped_column": "88aa0056d343af4976742e00038699aae0b57b8ae38ad864574424baf6393702",
-    "/steady/locality_variants/dropped_offsets": "fa02347df9c8da6ed3b11c250e22e5c01c2b1615dae6d9acf88ca2bf390ca344",
-    "/steady/locality_variants/dropped_row": "c018adb6075d29b307a2e0a2f511e7ac0a7517a712a7f003b80022f687c8c19b",
-    "/steady/locality_variants/ids": "d255c55a80c19d56075f354c8b3e334a1ae1892b147f46cf03843fa1c410012c",
-    "/steady/locality_variants/mismatch": "d7cf6f5d3e7b6bdd8505fe9328eeebaa19da89fc83e6b7bc40d16acd104c67eb",
-    "/steady/locality_variants/offsets": "87b78ef3b1f70bb3bc40926b3beb64de026c24a3a6f3ef79e5debddfb0cf947d",
-    "/steady/locality_variants/row": "1a9fe69b026cbab7c8f98320ff9463cf12aa53d8c4cba0ad9a9dd74d4a0e7fa1",
+    "/steady/locality_variants/column": "d078949e3327287d0f9a694e7de298c2fb8074dd554b6d150600bb9c2fcca563",
+    "/steady/locality_variants/dfull": "c432d2c9f1d9d13aa0b3e494325f19529316b7710f29ac8306adf9e5c3fad823",
+    "/steady/locality_variants/dropped_column": "067c3b11228ed47a8225ea8f5972a9d430a3ec68b2d1cc115e606d1a2cecfd6a",
+    "/steady/locality_variants/dropped_offsets": "bfd95a825acf60f25a1b0f7bc7be6b4e448127ae984708c470461758941c6a98",
+    "/steady/locality_variants/dropped_row": "4bb414922d858f8df74592f57d9e4fc587b09cafa119aa09bf662b356546bc89",
+    "/steady/locality_variants/ids": "61a0291983b18779559b65db0b81323378320b9814cfb11fc621efbd9abe1be2",
+    "/steady/locality_variants/mismatch": "3ad0dcbf1e66e944b86c078de402b50e4190830f728fc5c674c70a04a246409e",
+    "/steady/locality_variants/offsets": "da78669fd8bd19d416555987d1e48e752626827d94da974e1fc175fe41ca245b",
+    "/steady/locality_variants/row": "1729778f020a20920fd1b10b97458d68f6eccc6b4f67a8dd0eb018b6d5f4abc7",
     "/steady/variants/bbb.albdsi/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.albdsi/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.albdsi/yldot/index": "b0ca09da31b5d92bef739ddcb2bf6533a1c125fdde68fcb1a9285e08bf118396",
@@ -1635,10 +1635,10 @@
     "/steady/variants/bbb.sigma1/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.sigma1/yldot/index": "7bb374021815f66563076d88111b4b8bc655127d4c7ce1509220bc1aa6de10c9",
     "/steady/variants/bbb.sigma1/yldot/value": "0f06d0524a7c83742572ebdf4d9c043a56263fba0690b3d3549d1a52e40d1149",
-    "/steady/variants/bbb.sigvi_floor/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
-    "/steady/variants/bbb.sigvi_floor/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
-    "/steady/variants/bbb.sigvi_floor/yldot/index": "4d298cd202dc702c4351621679e048fcad1cc7dc4b5ab110967edef66bf5230b",
-    "/steady/variants/bbb.sigvi_floor/yldot/value": "0163d3d6805a2d7df6c0120a2c7f7e2af87a4bf7af779131f78f831714de2740",
+    "/steady/variants/bbb.sigvi_floor=1e-18/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/bbb.sigvi_floor=1e-18/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/bbb.sigvi_floor=1e-18/yldot/index": "b7b9907526f44190cbc4580c4c8ee697fb3baac362f41136fccf7b9e39a59808",
+    "/steady/variants/bbb.sigvi_floor=1e-18/yldot/value": "145dd35b069ace7baaca601f1751bfcceb7603ff376784545f94b4c61de3ac13",
     "/steady/variants/bbb.tcoree/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/bbb.tcoree/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.tcoree/yldot/index": "0b0ea9a953cb6cb5e32992d3a208b5e35af89c6cba2ee4e21065b523add686e5",
@@ -1715,6 +1715,10 @@
     "/steady/variants/bbb.znuclin/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/bbb.znuclin/yldot/index": "63dbf7d47c849d9849f6ccb3a139178c5b64003af3300abef83e3a9d3855bdea",
     "/steady/variants/bbb.znuclin/yldot/value": "93bd54db12be1bf4205fec0d1adec71a25e6cafc114c91b00d31c07c6c5ab553",
+    "/steady/variants/com.istabon/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
+    "/steady/variants/com.istabon/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
+    "/steady/variants/com.istabon/yldot/index": "9ef935709b4a849b7fea03ce81fa4630db0cdebc5ec33640cfd91ada61a8a0ac",
+    "/steady/variants/com.istabon/yldot/value": "67de65894a780b0eac95da4330b01f4f08aa4b10fbf6757a7601f221983a059a",
     "/steady/variants/set:tg-cftiexclg05/jflag/index": "cb33f66143f5483f2eb759a435b3414f5a9b417482442b129a7ac445f70d9d03",
     "/steady/variants/set:tg-cftiexclg05/jflag/value": "6c3ee8d1d6272b82bccc563099079b55234698defc0d73b7b7ba18e4350e099d",
     "/steady/variants/set:tg-cftiexclg05/yldot/index": "0df3e29f23b898e4c2ef2b209a7732964a59e928dec816eaf253393de76481cd",
@@ -2088,14 +2092,14 @@
   },
   "external": {
     "references/d_mols_tg.h5": {
-      "bytes": 2364999,
-      "sha256": "c3ea69109a55f645dc5bfe0430f5d16d0ee0d457b3454138604a463d26ee61db"
+      "bytes": 2371266,
+      "sha256": "6e434c1cce56e417c752c6c14d136678d9da0ced893b43046175c531bc820037"
     }
   },
   "family": "d_mols_tg",
   "guarded": {
     "locality/steady": "e05a94d3954afc006702aa4df6ca2956146abdba228a5402ec4295484a3c626a",
-    "locality_variants/steady": "351f273c1981b19fb1c15da8f874ce707cdc85dee9e3f14535cbcc45cbd0658e",
+    "locality_variants/steady": "b8a4bdf176e9433f82f538ea6ea5c4d01c1e4cc86423d79957b29b8b6be8ac5a",
     "locality_variants/timestep": "586aaa0068d5d5a1af8843a2abaebd74b938292fca550fa4ca4bdcea3f993f87",
     "steady/default": "1c36f2d5ba722bdeb30759a7a11cc9ca437110c6bec800ed4638adf6ae2c24e3",
     "steady/sigma": "cd4c9bd525c790a98298bf5becfdcdc2c6d9afa060517d6effdc19445c186532",
@@ -5019,6 +5023,12 @@
       "dropped": 0,
       "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
     },
+    "bbb.isimpon=2": {
+      "added": 0,
+      "config": "steady",
+      "dropped": 0,
+      "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
+    },
     "bbb.isimpon=6": {
       "added": 7,
       "config": "steady",
@@ -7095,11 +7105,11 @@
       "dropped": 0,
       "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
     },
-    "bbb.sigvi_floor": {
+    "bbb.sigvi_floor=1e-18": {
       "added": 12,
       "config": "steady",
-      "dropped": 8,
-      "sha256": "131fb03c07baa2288c9a9970cd32f920d19dd6db0535bbf0683663a21e995349"
+      "dropped": 0,
+      "sha256": "bc3f405d3b0bbb08c7415167f4b3f71d90324383bd939f1437c7aa5aafe95d08"
     },
     "bbb.sinphi": {
       "added": 0,
@@ -7899,6 +7909,12 @@
       "dropped": 0,
       "sha256": "69f6cb3ca9e6a8af3737a9ee52683f61bca4a033936c9a7f039141c8bb76697d"
     },
+    "com.istabon": {
+      "added": 12,
+      "config": "steady",
+      "dropped": 0,
+      "sha256": "51ef8b57a8982e6f69cb0c167d499174f41a35e42a4c948a64542efa8304f0e1"
+    },
     "com.spheromak": {
       "added": 0,
       "config": "steady",
@@ -7907,15 +7923,15 @@
     }
   },
   "provenance": {
-    "commit": "9177593d757d920498a69b2f7c40f4d36b8d7791",
+    "commit": "fd950b6240fbfea2d73465e523b2ab5ff693fc2d",
     "compiler": "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
-    "date": "2026-11-26T01:01:00+00:00",
+    "date": "2026-11-27T20:20:19+00:00",
     "flags": "--serial",
     "h5py": "3.16.0",
     "numpy": "2.5.4",
     "runner_image": "yldot-linux:24.04 sha256:2f833938356ea6ff6419467e99087103d2a32123d2e4a9bf0beab1145d20cf51 (ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55)"
   },
-  "release": "yldot-data-v29",
+  "release": "yldot-data-v31",
   "schema": 1,
   "store": "full",
   "unguarded": {
@@ -21225,14 +21241,22 @@
       "sha256": null
     },
     "bbb.isimpon=2": {
-      "applied": null,
+      "applied": {
+        "data": [2],
+        "dtype": "int64",
+        "shape": []
+      },
       "block_l2": {},
-      "class": "INVALID",
+      "class": "INERT",
       "config": "steady",
-      "d": null,
+      "d": {
+        "data": [0],
+        "dtype": "int64",
+        "shape": []
+      },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: Error in subroutine readpost: data file mist.dat not found",
+      "reason": "",
       "sha256": null
     },
     "bbb.isimpon=6": {
@@ -31412,48 +31436,48 @@
       "reason": "max |diff|/tol = 1.06e+08",
       "sha256": "dfb19d8d4e172b2e052145d9f7fe9b72afc1320dc631da0b92ff7d0eb95ecbe7"
     },
-    "bbb.sigvi_floor": {
+    "bbb.sigvi_floor=1e-18": {
       "applied": {
-        "data": [1.0],
+        "data": [1e-18],
         "dtype": "float64",
         "shape": []
       },
       "block_l2": {
-        "ni[1] core": 824853920357781.1,
-        "ni[1] inner_leg": 1.33887102025424e+17,
-        "ni[1] outer_leg": 7.690737306073602e+16,
-        "ni[1] pf": 2438721501989803.0,
-        "ni[1] sol": 1166425917428746.2,
-        "ni[2] core": 824853920357781.1,
-        "ni[2] inner_leg": 1.33887102025424e+17,
-        "ni[2] outer_leg": 7.690737306073603e+16,
-        "ni[2] pf": 2438721501989802.5,
-        "ni[2] sol": 1166425917428746.2,
-        "te[1] core": 5343930611562451.0,
-        "te[1] inner_leg": 2.1955643831188432e+17,
-        "te[1] outer_leg": 3.752763000812835e+17,
-        "te[1] pf": 6.5458049313654616e+16,
-        "te[1] sol": 1.135472654842652e+16,
-        "tg[1] core": 2434.296025562081,
-        "tg[1] inner_leg": 803.5007828335903,
-        "tg[1] outer_leg": 311.40396897521686,
-        "tg[1] pf": 40.82549461017981,
-        "tg[1] sol": 3690.895963272329,
-        "ti[1] core": 736157869202575.5,
-        "ti[1] inner_leg": 1.4489856216691533e+17,
-        "ti[1] outer_leg": 1.618947286442364e+17,
-        "ti[1] pf": 3.3244331543922985e+18,
-        "ti[1] sol": 2.448903265535586e+16,
-        "up[1] core": 149971004375372.47,
-        "up[1] inner_leg": 1.4895687210765597e+17,
-        "up[1] outer_leg": 1.1002698922104408e+17,
-        "up[1] pf": 3.160599367613935e+16,
-        "up[1] sol": 4.131538461128964e+16,
-        "up[2] core": 1.512249159124733e+17,
-        "up[2] inner_leg": 8.40889386535224e+17,
-        "up[2] outer_leg": 1.808332873928917e+17,
-        "up[2] pf": 8513283249235208.0,
-        "up[2] sol": 1.2945660940005994e+16
+        "ni[1] core": 0.000824853920268499,
+        "ni[1] inner_leg": 0.13388710202574614,
+        "ni[1] outer_leg": 0.07690737306019554,
+        "ni[1] pf": 0.0024387215019898564,
+        "ni[1] sol": 0.0011664259174269426,
+        "ni[2] core": 0.000824853920271149,
+        "ni[2] inner_leg": 0.13388710202616338,
+        "ni[2] outer_leg": 0.07690737306073754,
+        "ni[2] pf": 0.002438721499082546,
+        "ni[2] sol": 0.0011664259174733928,
+        "te[1] core": 0.005343930062108518,
+        "te[1] inner_leg": 0.21955643831088809,
+        "te[1] outer_leg": 0.3752762997154556,
+        "te[1] pf": 0.06545804932577413,
+        "te[1] sol": 0.011354726548317972,
+        "tg[1] core": 1.4924789323040607e-08,
+        "tg[1] inner_leg": 2.9999541770795335e-11,
+        "tg[1] outer_leg": 2.3509338529261746e-10,
+        "tg[1] pf": 4.179719432823206e-11,
+        "tg[1] sol": 3.867553047315641e-09,
+        "ti[1] core": 0.0007361578708716743,
+        "ti[1] inner_leg": 0.14489856216892932,
+        "ti[1] outer_leg": 0.16189472864740725,
+        "ti[1] pf": 3.3244331543753436,
+        "ti[1] sol": 0.024489032654093714,
+        "up[1] core": 0.00014997100417266017,
+        "up[1] inner_leg": 0.1489568721080588,
+        "up[1] outer_leg": 0.11002698921991652,
+        "up[1] pf": 0.03160599367593599,
+        "up[1] sol": 0.04131538461144609,
+        "up[2] core": 0.15122491650685427,
+        "up[2] inner_leg": 0.8408893865690239,
+        "up[2] outer_leg": 0.18083328755207848,
+        "up[2] pf": 0.00851328687377688,
+        "up[2] sol": 0.012945660149023068
       },
       "class": "SENSITIVE",
       "config": "steady",
@@ -31464,8 +31488,19 @@
       },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "max |diff|/tol = 4.27e+22",
-      "sha256": "073684a76d09a2d2870eb66f59050d8f646dcb404aeaeb9415f04676366f5fcf"
+      "reason": "max |diff|/tol = 4.27e+04",
+      "sha256": "ac6a4e2209192233ca61d69373ca43fd29ae04be0bb362f8d48ba49fee2867a7"
+    },
+    "bbb.sigvi_floor=other": {
+      "applied": null,
+      "block_l2": {},
+      "class": "EXCLUDED",
+      "config": "steady",
+      "d": null,
+      "jflag_block_l2": {},
+      "phase": "PRE",
+      "reason": "values other than [1e-18]: other floors: one value is tested in d_mols_tg; the default rule's 1.0 left round-off of up to 1.2e-2 relative in tg[1] (T201)",
+      "sha256": null
     },
     "bbb.sinphi": {
       "applied": {
@@ -34688,15 +34723,59 @@
       "sha256": null
     },
     "com.istabon": {
-      "applied": null,
-      "block_l2": {},
-      "class": "INVALID",
+      "applied": {
+        "data": [8],
+        "dtype": "int64",
+        "shape": []
+      },
+      "block_l2": {
+        "ni[1] core": 31.875905395858627,
+        "ni[1] inner_leg": 1690.8613956695847,
+        "ni[1] outer_leg": 1840.354017334236,
+        "ni[1] pf": 6.015901857318674,
+        "ni[1] sol": 24.877417930981064,
+        "ni[2] core": 31.875905395858627,
+        "ni[2] inner_leg": 1690.8613956695847,
+        "ni[2] outer_leg": 1840.3540173342358,
+        "ni[2] pf": 6.015901857317806,
+        "ni[2] sol": 24.877417930981014,
+        "te[1] core": 215.92984932592364,
+        "te[1] inner_leg": 3677.2224905764197,
+        "te[1] outer_leg": 10038.080607878615,
+        "te[1] pf": 786.7105436099121,
+        "te[1] sol": 253.58644165989614,
+        "tg[1] core": 1.4908435375971833e-08,
+        "tg[1] inner_leg": 2.6233838256040975e-11,
+        "tg[1] outer_leg": 2.6871836326055036e-10,
+        "tg[1] pf": 6.548361852765083e-11,
+        "tg[1] sol": 7.623051036469458e-09,
+        "ti[1] core": 28.856184766579858,
+        "ti[1] inner_leg": 684.5089705830824,
+        "ti[1] outer_leg": 2555.4481765144,
+        "ti[1] pf": 8259.404380139093,
+        "ti[1] sol": 278.94230780667925,
+        "up[1] core": 5.772518369825435,
+        "up[1] inner_leg": 1271.8270503078327,
+        "up[1] outer_leg": 2177.9144599233746,
+        "up[1] pf": 98.5420547369578,
+        "up[1] sol": 599.9531244458893,
+        "up[2] core": 5482.002114266554,
+        "up[2] inner_leg": 4781.846466271126,
+        "up[2] outer_leg": 1930.146315928342,
+        "up[2] pf": 58.43353187880371,
+        "up[2] sol": 649.3740928429851
+      },
+      "class": "SENSITIVE",
       "config": "steady",
-      "d": null,
+      "d": {
+        "data": [7],
+        "dtype": "int64",
+        "shape": []
+      },
       "jflag_block_l2": {},
       "phase": "PRE",
-      "reason": "error: RuntimeError: **** hydrogenic rate file not found; set aphdir                                                                path or isaphdir = 0",
-      "sha256": null
+      "reason": "max |diff|/tol = 5.45e+08",
+      "sha256": "cab054d59c2108e974228f42f158bdce4f9bc4aaa7ccdb154b019dbfea94ed54"
     },
     "com.isudsym": {
       "applied": null,
