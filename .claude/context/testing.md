@@ -67,6 +67,9 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   add the 21 set entries of the six `set:eqoff-*` sets; no other entry or dataset moved. `v30` (run 45762306234 from
   2bd360f3, T23, `--only` of d_only, d_mols, d_c, ortho, slab_phi and large_dd2c) adds the 55 entries of T23's 19 sets
   and regenerates the six `set:pfvsix*` sets with their new cycles (30 entries); no other entry or dataset moved.
+  `v31` (run 46058824648 from fd950b62, T17) is a full sweep of d_only, d_mols, d_c, ortho, slab_phi, d_only_tg and
+  d_mols_tg with the decks reading the synthetic rate files: the `com.istabon` 0-17 lists, T17's seven sets and
+  d_mols_tg's `bbb.sigvi_floor = 1e-18` (T201); defaults and σ bit for bit as before, 13 entries moved (T17's record).
 - **Rate files** `tests/yldot/data/` (T169): **synthetic, not actual data**. `tests/yldot/tools/make_rate_files.py`
   (`write`, `check`) writes all 17 from closed formulas in the layouts of UEDGE's readers, with the notice on line 1
   or 2 and on the last line; a file whose name the deck chooses ends in `.synthetic` (`b2frates` and `carbmc.dat` keep
@@ -76,7 +79,10 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   real table tracked in the repository (by SHA-256, compressed files and archives unpacked), and each file read back through UEDGE.
   The same bytes on macOS arm64 and in the Linux image (probed, T169). The states are the old ones, so the five
   families that read a table are far from equilibrium; `converged` gates nothing, and the base-state ratio rule
-  (>= 10) fails in slab_phi, large_dd2c and imp7 (accepted, owner, T169 D1).
+  (>= 10) fails in slab_phi, large_dd2c and imp7 (accepted, owner, T169 D1). Since T17 the decks of the five small
+  families and the two Tg families point `api.apidir` (and `aph.aphdir`) at `../../data` and read a coronal file,
+  `mist_c.synthetic` (d_c: `mist_ne.synthetic`, with `com.nhdf = 2`, `b2frates` and `C_rates.synthetic`), and each
+  `family.toml`'s `rate_files` lists the files the family reads, the `com.istabon` value list's included.
 - **Runner** `tests/yldot/harness/process.py` (package `yldot.harness`): every evaluation in an isolated child
   (forkserver preloading `uedge`, or spawn; HOME/cwd in an empty directory; results
   `ok`/`error`/`crash`/`timeout`, `FamilyError` for a family defect). Timeouts: `family.toml` `timeout_s` per child,
@@ -124,6 +130,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   default-rule id) and `rest_exclude` (with `families`: EXCLUDED, with this reason, in the other families); the
   boundary-condition selectors list every coded value in the five small families (owner, 2026-11-12, AIUE-257 D2),
   `others` EXCLUDED with a reason that follows the code (no equation written, same as a coded value, or `xerrab`).
+  `com.istabon` lists 0-17 there too, each value reading its synthetic files (T17; the Tg families keep the default
+  rule).
   **Sets** (AIUE-257 D1): `tests/yldot/combinations.toml`, tables `["set:<name>"]`, each assigning several keys at once
   (`variants.load_sets`, fields `assign`, `phase`, `config`, `families`, `base`, `reason`, `issues`). An `assign`
   value is a scalar (elementwise) or a table with one of `value`, `scale` (d·x, reals), `cycle` (a list cycled along
@@ -136,8 +144,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   `issues` names AIUE-259 keys. A set with `base = "set:<other>"` must assign every key of its base, and is
   classified against the base set's result instead of the default (`make_references`: evaluated after its base; a base
   that is not SENSITIVE, INERT or MARGINAL makes it EXCLUDED, "base set X is C"). A set's manifest entry carries
-  `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 132
-  sets of AIUE-257 and T23, 61 of them based (97-117 per small family; seven in large_dd2c for the `isnewpot = 1`
+  `keys`, `base` and dict `d`/`applied` (one encoded value per key); sets take no locality pattern. The catalogue: 139
+  sets of AIUE-257, T23 and T17, 63 of them based (98-123 per small family; seven in large_dd2c for the `isnewpot = 1`
   potential branches, nightly; `load_sets`, T23), plus 56 gas-temperature sets that run in `d_mols_tg` (49 of them in `d_only_tg`) only (T22:
   the Tg selectors 0-6, `lytg`, `cgengmw`, `cfdiss`, `recyce`, `recycwe`, `cfalbedo`, the per-cell Tg arrays, the drift
   heating). The Tg value lists in `overrides.toml` also run in these two, elementwise; `bbb.istglb=4` leaves the
@@ -530,10 +538,11 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   stored layout and reference, and its unmoved blocks against the live default (`check_eqset`; only a finite mismatch with
   the stored reference counts as a macOS FMA limit; T24), INERT replayed against the live default within the
   default's tol_i, INVALID re-run with the rules and still INVALID for the same kind of reason (`classify`; a `bounds-check:` entry instead pins its `serial build:` outcome, the class and for INVALID the reason kind, `invalid_problem`, owner D5; an entry in `NOT_REPRODUCIBLE`, whose serial outcome follows the heap layout, accepts each outcome listed there: d_mols `set:plate-mol-zerograd` SENSITIVE or INVALID `error`, until T109's fix, `test_not_reproducible` enforcing the removal; owner, 2026-11-27, T192, CI probe run 45867784394); an owner
-  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (7,686 tests in
-  the PR tier, 111 of them `test_eqset`; the whole PR tier, 9,238 tests, took 6 min at `-n 6` on macOS arm64 with
-  yldot-data-v28/v29, T24; on macOS `-O3` four `BuildLimitWarning`s, d_c `bbb.mvolcur`, slab_phi `bbb.icnucx` and
-  d_mols_tg `bbb.rsigpl` and `bbb.sigvi_floor` (T22, T201), and in the nightly tier one, dnull_imp2 `bbb.thetar`
+  family's are `nightly` (the variant locality tests are `nightly` for every family, `test_locality.py`); plus `tests/yldot/harness/build.py`'s FMA rule and the installed record (7,829 tests in
+  the PR tier, 119 of them `test_eqset`; the whole PR tier, 9,401 tests, took 6 min at `-n 8` on macOS arm64 with
+  yldot-data-v31, T17; on macOS `-O3` three `BuildLimitWarning`s, d_c `bbb.mvolcur`, slab_phi `bbb.icnucx` and
+  d_mols_tg `bbb.rsigpl` (T22; d_mols_tg's `bbb.sigvi_floor` no longer since it applies 1e-18, T201), and in the
+  nightly tier one, dnull_imp2 `bbb.thetar`
   (presumed, AIUE-99); none on `--noopt`, AIUE-99);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
