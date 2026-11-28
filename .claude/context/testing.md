@@ -542,8 +542,8 @@ per component; a ticket that adds a component adds a bullet, one that changes a 
   the PR tier, 119 of them `test_eqset`; the whole PR tier, 9,421 tests, took 7 min at `-n 7` on macOS arm64 with
   yldot-data-v31, T17; on macOS `-O3` three `BuildLimitWarning`s, d_c `bbb.mvolcur`, slab_phi `bbb.icnucx` and
   d_mols_tg `bbb.rsigpl` (T22; d_mols_tg's `bbb.sigvi_floor` no longer since it applies 1e-18, T201), and in the
-  nightly tier one, dnull_imp2 `bbb.thetar`
-  (presumed, AIUE-99); none on `--noopt`, AIUE-99);
+  nightly tier two, dnull_imp2 `bbb.thetar` (1.69) and d_mols_tg `bbb.rsigpl`'s locality test (T17's local nightly
+  with v31, stopped in imp7's tail: 7,899 passed); none on `--noopt`, AIUE-99);
   `tests/yldot/test_smoke.py` the smoke test, `tests/yldot/test_compare_unit.py` the
   comparator's unit tests, `tests/yldot/test_inventory.py` index truth per family and, from the git-tracked files
   (AIUE-96): every manifest holds exactly `variants.plan()`'s ids with its EXCLUDED ones (an owner family's too,
